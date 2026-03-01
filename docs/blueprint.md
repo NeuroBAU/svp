@@ -2470,7 +2470,7 @@ assert "tests" in PROJECT_DIRS
 Each check actually runs the tool via `subprocess.run` with `capture_output=True` and a timeout (10-15 seconds), not just `shutil.which`. This verifies the tool is functional, not merely present on PATH.
 1. `check_claude_code`: Runs `claude --dangerously-skip-permissions --version`. Extracts version string on success.
 2. `check_svp_plugin`: Calls `_find_plugin_root()`. Verifies the manifest file exists.
-3. `check_api_credentials`: Checks `ANTHROPIC_API_KEY` env var first. Falls back to `claude auth status`. Provides guidance on failure.
+3. `check_api_credentials`: Checks `ANTHROPIC_API_KEY` env var first. Falls back to `claude --dangerously-skip-permissions auth status` (the flag is required because `claude` launched from a subprocess without it may hang waiting for interactive permission approval). Provides guidance on failure.
 4. `check_conda`: Runs `conda --version`. Extracts version on success.
 5. `check_python`: Runs `sys.executable --version`. Parses version and verifies >= 3.10.
 6. `check_pytest`: Runs `sys.executable -m pytest --version`. Extracts version on success.
@@ -2496,7 +2496,7 @@ Each check actually runs the tool via `subprocess.run` with `capture_output=True
 - The delivered repository (`projectname-repo/`) is never made read-only.
 
 **Session lifecycle:**
-- `launch_claude_code(project_root, plugin_dir)` creates a copy of the environment (`os.environ.copy()`), sets `SVP_ENV_VAR` to `"1"` in the copy (NOT in the launcher's own environment). Reads `skip_permissions` from config. Builds command: `["claude"]` plus `"--dangerously-skip-permissions"` if enabled, plus the initial prompt `"run the routing script"`. Runs via `subprocess.run(cmd, cwd=project_root, env=env)`. Returns the exit code.
+- `launch_claude_code(project_root, plugin_dir)` creates a copy of the environment (`os.environ.copy()`), sets `SVP_ENV_VAR` to `"1"` in the copy (NOT in the launcher's own environment). Reads `skip_permissions` from config, defaulting to `True` if the config is missing or unreadable (because launching `claude` without `--dangerously-skip-permissions` from a subprocess hangs waiting for interactive permission approval). Builds command: `["claude"]` plus `"--dangerously-skip-permissions"` if enabled, plus the initial prompt `"run the routing script"`. Runs via `subprocess.run(cmd, cwd=project_root, env=env)`. Returns the exit code.
 - `detect_restart_signal(project_root)` reads `.svp/restart_signal` if it exists, returns its content (stripped). Returns None if no signal file.
 - `clear_restart_signal(project_root)` deletes the signal file using `unlink(missing_ok=True)`.
 - `run_session_loop(project_root, plugin_dir)` implements: `while True: restore permissions -> launch claude code -> check restart signal -> if signal: clear signal, set read-only, print transition, loop -> if no signal: set read-only, print exit message, break`. Returns the final exit code.
