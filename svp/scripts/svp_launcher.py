@@ -216,7 +216,7 @@ def check_api_credentials() -> Tuple[bool, str]:
     # Fall back to claude auth status
     try:
         result = subprocess.run(
-            ["claude", "auth", "status"],
+            ["claude", "--dangerously-skip-permissions", "auth", "status"],
             capture_output=True, text=True, timeout=15,
         )
         if result.returncode == 0:
@@ -643,7 +643,7 @@ def _load_launch_config(project_root: Path) -> dict:
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    except (FileNotFoundError, json.JSONDecodeError, OSError, PermissionError):
         return {}
 
 
@@ -661,9 +661,11 @@ def launch_claude_code(project_root: Path, plugin_dir: Path) -> int:
     env = os.environ.copy()
     env[SVP_ENV_VAR] = "1"
 
-    # Read skip_permissions from config on every launch (not cached)
+    # Read skip_permissions from config (default True if missing or unreadable,
+    # because launching claude without --dangerously-skip-permissions from a
+    # subprocess hangs waiting for interactive permission approval)
     config = _load_launch_config(project_root)
-    skip_permissions = config.get("skip_permissions", False)
+    skip_permissions = config.get("skip_permissions", True)
 
     # Build command
     cmd = ["claude"]
