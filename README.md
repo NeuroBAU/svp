@@ -17,6 +17,8 @@ The pipeline stages:
 5. **Integration Testing** — Cross-unit tests verify the seams. Bounded fix cycles handle assembly issues.
 6. **Repository Delivery** — A clean git repo with meaningful commit history, Conda environment, and all artifacts.
 
+After delivery, an optional **post-delivery debug loop** (Gate 6) allows investigation and fixing of bugs discovered in the delivered software without requiring engineering judgment from the human.
+
 ## Who It's For
 
 Domain experts who know exactly what their software should do but cannot write it themselves. The motivating example is an academic scientist — a neuroscientist who understands spike sorting, a climate scientist who understands atmospheric models — but SVP is domain-agnostic. If you can judge whether a test assertion makes domain sense when explained in plain language, SVP can build your project.
@@ -40,21 +42,42 @@ You do not need:
 
 - [Claude Code](https://docs.claude.com) installed and functional
 - A valid Anthropic API key configured
-- [Conda](https://docs.conda.io/en/latest/miniconda.html) installed and on your PATH
+- [Conda](https://docs.conda.io/en/latest/miniconda.html) (Miniconda or Anaconda) installed and on your PATH
 - [Git](https://git-scm.com/) installed and configured
-- Python 3.12+
+- Python 3.11+
 
 ### Install the Plugin
 
-Clone the repository (request access from the authors if needed), then register it as a Claude Code marketplace and install the plugin:
+Clone the repository, then register it as a Claude Code marketplace and install the plugin.
+
+#### macOS
 
 ```bash
 git clone https://github.com/wilya7/svp.git
-claude plugin marketplace add "/path/to/svp"
+cd svp
+claude plugin marketplace add "$(pwd)"
 claude plugin install svp@svp
 ```
 
-Replace `/path/to/svp` with the actual path where you cloned the repository.
+#### Linux
+
+```bash
+git clone https://github.com/wilya7/svp.git
+cd svp
+claude plugin marketplace add "$(pwd)"
+claude plugin install svp@svp
+```
+
+#### Windows (WSL2)
+
+All commands must be run inside a WSL2 terminal (Ubuntu recommended). Native Windows (PowerShell, CMD) is not supported.
+
+```bash
+git clone https://github.com/wilya7/svp.git
+cd svp
+claude plugin marketplace add "$(pwd)"
+claude plugin install svp@svp
+```
 
 ### Uninstall the Plugin
 
@@ -74,6 +97,34 @@ rm -rf /path/to/svp
 ### Install the Launcher
 
 The SVP launcher is a standalone CLI tool that manages session lifecycle. Copy it to your PATH:
+
+#### macOS
+
+```bash
+cp /path/to/svp/svp/scripts/svp_launcher.py /usr/local/bin/svp
+chmod +x /usr/local/bin/svp
+```
+
+Or add to your `~/.zshrc` or `~/.bash_profile`:
+
+```bash
+export PATH="$PATH:/path/to/svp/bin"
+```
+
+#### Linux
+
+```bash
+cp /path/to/svp/svp/scripts/svp_launcher.py /usr/local/bin/svp
+chmod +x /usr/local/bin/svp
+```
+
+Or add to your `~/.bashrc`:
+
+```bash
+export PATH="$PATH:/path/to/svp/bin"
+```
+
+#### Windows (WSL2)
 
 ```bash
 cp /path/to/svp/svp/scripts/svp_launcher.py /usr/local/bin/svp
@@ -161,13 +212,13 @@ SVP is configured through `svp_config.json` in your project root. Changes take e
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `iteration_limit` | integer (≥1) | `3` | Maximum attempts for alignment loops and red-run retries before escalation. After this many failed attempts, the system stops and requires human intervention. |
+| `iteration_limit` | integer (>=1) | `3` | Maximum attempts for alignment loops and red-run retries before escalation. After this many failed attempts, the system stops and requires human intervention. |
 | `models.test_agent` | string | `"claude-opus-4-6"` | Model used for test generation agents. Use Claude API model strings. |
 | `models.implementation_agent` | string | `"claude-opus-4-6"` | Model used for implementation agents. |
 | `models.help_agent` | string | `"claude-sonnet-4-6"` | Model used for the help agent. Sonnet is sufficient and faster for advisory tasks. |
 | `models.default` | string | `"claude-opus-4-6"` | Fallback model for any agent role not explicitly configured. |
 | `context_budget_override` | integer or null | `null` | When set, overrides the automatic context budget calculation. Value is in tokens. When null, the budget is computed from the smallest model's context window minus 20,000 tokens overhead. |
-| `context_budget_threshold` | integer (1–100) | `65` | Percentage of the context budget that a single unit's definition plus upstream contracts may consume. Units exceeding this threshold trigger a warning during blueprint validation. |
+| `context_budget_threshold` | integer (1-100) | `65` | Percentage of the context budget that a single unit's definition plus upstream contracts may consume. Units exceeding this threshold trigger a warning during blueprint validation. |
 | `compaction_character_threshold` | integer | `200` | During ledger compaction, tagged lines longer than this threshold are presumed self-contained and their body text is removed. Lines at or below this threshold keep their bodies as a safety net. |
 | `auto_save` | boolean | `true` | When enabled, the system automatically saves state after every significant transition (stage completion, unit verification, document approval, ledger turn). |
 | `skip_permissions` | boolean | `true` | When enabled, passes `--dangerously-skip-permissions` to Claude Code on launch, suppressing interactive permission prompts during autonomous pipeline execution. The hook-based write authorization system remains active regardless of this setting and provides the actual safety boundary. Set to `false` if you prefer to approve each tool use manually. |
@@ -214,7 +265,7 @@ All SVP commands use the `/svp:` namespace. Claude Code's built-in commands (`/h
 | `/svp:hint` | Request a diagnostic analysis. In reactive mode (during failures), automatically reads logs and identifies patterns. In proactive mode (during normal flow), asks what prompted your concern before analyzing. Always concludes with explicit options: continue or restart. |
 | `/svp:ref` | Add a reference document or GitHub repository. Available during Stages 0–2 only. Documents are indexed and summarized; GitHub repos require MCP configuration. |
 | `/svp:redo` | Roll back a previous decision. Describe your mistake in plain language — the redo agent traces it through the document hierarchy and classifies whether it's a spec issue, blueprint issue, or gate approval error. |
-| `/svp:bug` | Investigate a post-delivery bug. Available after Stage 5 completion. Launches the bug triage agent for structured diagnosis. |
+| `/svp:bug` | Enter the post-delivery debug loop. Available after Stage 5 delivery. Initiates a triage dialog to classify the bug and runs a bounded fix cycle. Use `/svp:bug --abandon` to abandon an active debug session. |
 | `/svp:clean` | Available after delivery. Archive the workspace (compress to `.tar.gz`), delete it, or keep it as-is. |
 
 ## Quick Tutorial
@@ -254,12 +305,35 @@ At every decision gate, you can invoke `/svp:help` to ask questions or `/svp:hin
 
 After all units pass, integration tests verify the cross-unit seams. SVP delivers a clean git repository with meaningful commit history, a Conda environment file, and all artifacts.
 
+### 6. Post-Delivery Bug Fixing (Gate 6)
+
+After delivery, if you discover a bug in the delivered software:
+
+```bash
+/svp:bug
+```
+
+SVP enters a triage dialog. A triage agent asks you to describe the problem and classifies it:
+
+- **build/env** — environment or configuration issue
+- **single_unit** — bug isolated to one unit
+- **cross_unit** — bug spanning multiple units
+
+A regression test is written first to capture the bug, then a bounded fix cycle runs. The fix cycle follows the same escalation ladder as Stage 3 — fresh attempt, hint-guided attempt, diagnostic, diagnostic-guided implementation — ensuring the fix is verified before delivery.
+
+To abandon a debug session without completing the fix:
+
+```bash
+/svp:bug --abandon
+```
+
 ### Tips
 
 - **Use `/svp:help` liberally.** It's free, it's read-only, and it's your primary tool for understanding what's happening. The help agent can explain code, error messages, and pipeline behavior in plain language.
 - **Trust your domain instincts.** If a test assertion doesn't match your understanding of the domain, say so at the gate. SVP is designed around the principle that you are the authority on what "correct" means.
 - **Don't worry about restarts.** SVP's pass history tracks every restart. Reaching unit 7 and restarting from unit 1 because you caught a spec issue is not a failure — it's the system working as designed.
 - **Save before closing the terminal.** Run `/svp:save` or `/svp:quit` to ensure nothing is lost. You can resume any time with `svp`.
+- **Use Gate 6 for post-delivery issues.** Don't manually edit the delivered code. Run `/svp:bug` and let SVP handle the investigation, regression test, and fix through its verified workflow.
 
 ## Example Project
 
@@ -269,19 +343,100 @@ SVP includes a complete Game of Life example in `examples/game-of-life/` with a 
 
 ```
 my-project/
-├── svp_config.json              ← Configuration (editable)
-├── pipeline_state.json          ← Pipeline state (managed by SVP)
-├── project_context.md           ← Your project description
-├── stakeholder.md               ← Generated stakeholder spec
-├── blueprint.md                 ← Generated technical blueprint
-├── src/                         ← Generated source code (per unit)
-├── tests/                       ← Generated tests (per unit)
-├── ledgers/                     ← Conversation ledgers
-├── logs/                        ← Diagnostic logs and version history
-├── references/                  ← Reference documents and index
-├── .svp/                        ← Internal state (markers, temp files)
-└── scripts/                     ← Deterministic pipeline scripts
+├── svp_config.json              <- Configuration (editable)
+├── pipeline_state.json          <- Pipeline state (managed by SVP)
+├── project_context.md           <- Your project description
+├── stakeholder.md               <- Generated stakeholder spec
+├── blueprint.md                 <- Generated technical blueprint
+├── src/                         <- Generated source code (per unit)
+├── tests/                       <- Generated tests (per unit)
+├── ledgers/                     <- Conversation ledgers
+├── logs/                        <- Diagnostic logs and version history
+├── references/                  <- Reference documents and index
+├── .svp/                        <- Internal state (markers, temp files)
+└── scripts/                     <- Deterministic pipeline scripts
 ```
+
+## Troubleshooting
+
+### "conda activate svp" fails
+
+If `conda activate svp` reports "No such environment":
+
+```bash
+# Verify the environment was created
+conda env list
+
+# If not listed, create it
+conda env create -f environment.yml
+
+# If the environment exists but activate fails, initialize conda for your shell
+conda init bash  # or zsh, fish, etc.
+# Then restart your terminal
+```
+
+### "command not found: svp" after installation
+
+The `svp` command requires PATH setup. Verify:
+
+```bash
+# Check if the conda environment is active
+conda activate svp
+
+# Run directly with Python if PATH is not set
+python -m src.unit_24.stub --help
+```
+
+### Import errors when running tests
+
+If pytest reports `ModuleNotFoundError`:
+
+```bash
+# Ensure the package is installed in development mode
+conda activate svp
+pip install -e .
+
+# Verify installation
+pip show svp
+```
+
+### Wrong Python version
+
+SVP requires Python 3.11 or later:
+
+```bash
+# Check Python version in the conda environment
+conda activate svp
+python --version
+
+# If wrong version, recreate the environment
+conda env remove -n svp
+conda env create -f environment.yml
+```
+
+### Hook errors in Claude Code ("Write not authorized")
+
+If Claude Code reports write authorization failures:
+
+1. Verify you are running inside an SVP session (via `svp`, not `claude`).
+2. Check the pipeline state: `/svp:status`.
+3. If the session was interrupted mid-unit, resume with `svp`.
+4. If hooks are blocking legitimate writes, use `/svp:clean` to reset artifact state for the current unit.
+
+### macOS "permission denied" on project directory
+
+SVP sets project directories to read-only between sessions. This is intentional — run `svp` (not `claude`) to restore write permissions for the session.
+
+### "State file not found" on session resume
+
+If SVP cannot find `pipeline_state.json`, the state recovery mechanism scans for completion markers (`.svp/markers/unit_N_verified`) to reconstruct the most conservative valid state. If recovery fails, use `/svp:status` to inspect the current situation.
+
+## History
+
+- **SVP 1.0** — Initial release. Manual bootstrapping: the pipeline scripts and plugin infrastructure were hand-written, then used to build subsequent versions of SVP itself.
+- **SVP 1.1** — Introduced Gate 6 (post-delivery debug loop), the `/svp:bug` command, triage and repair agent workflows, and the SVP_PLUGIN_ACTIVE environment variable check.
+- **SVP 1.2** — Bug fixes and hardening. Fixed gate status string vocabulary (Bug 1) and hook permission reset after debug session entry (Bug 2). Hardened three invariants identified in SVP 1.1.
+- **SVP 1.2.1** — Further bug fixes and robustness improvements.
 
 ## License
 
