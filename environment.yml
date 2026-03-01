@@ -1,4 +1,4 @@
-name: svp1_2_1
+name: svp
 channels:
   - defaults
 dependencies:
