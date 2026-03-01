@@ -1844,7 +1844,7 @@ README_MD_CONTENT: str  # -> README.md
 # README_MD_CONTENT mode is determined by spec Section 12.7.1:
 #   Mode A (SVP self-build): carry-forward from previous version, preserve sections, update only what changed
 #   Mode B (general project): generated from stakeholder spec and blueprint, using the section template
-# For THIS project (SVP 1.2): Mode A applies — carry forward from v1.1 README
+# For THIS project (SVP 1.2.1): Mode A applies — carry forward from v1.2 README
 
 # Every *_MD_CONTENT string must be a valid Claude Code agent definition:
 # - Starts with "---\n" (YAML frontmatter delimiter)

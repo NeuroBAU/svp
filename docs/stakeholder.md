@@ -979,18 +979,20 @@ The delivered repository includes a `README.md`. The git repo agent is responsib
 
 The README is a **carry-forward artifact**. The previous version's README.md is the baseline, and the git repo agent must only update it to reflect actual changes in the new version — not rewrite it from scratch.
 
-*Baseline structure (10 sections, preserve in order):*
+*Baseline structure (12 sections, preserve in order):*
 
-1. **Header and tagline** — Project name, one-paragraph description.
-2. **What SVP Does** — Six-stage pipeline overview with numbered stage list.
+1. **Header and tagline** — Project name, one-paragraph description, post-delivery debug loop mention.
+2. **What SVP Does** — Six-stage pipeline overview with numbered stage list, Gate 6 paragraph.
 3. **Who It's For** — Target audience, "you need" / "you do not need" lists.
-4. **Installation** — Prerequisites, plugin install/uninstall, launcher install, `svp new`, `svp` resume, `svp restore`, example project verification.
+4. **Installation** — Prerequisites, per-platform plugin install/uninstall (macOS, Linux, Windows WSL2), per-platform launcher install, `svp new`, `svp` resume, `svp restore`, example project verification.
 5. **Configuration** — `svp_config.json` default values, configuration reference table, model assignment, context budget.
-6. **Commands** — `/svp:` namespace command table with descriptions.
-7. **Quick Tutorial** — Step-by-step walkthrough.
+6. **Commands** — `/svp:` namespace command table with descriptions. `/svp:bug` must document `--abandon` flag.
+7. **Quick Tutorial** — Step-by-step walkthrough including Section 6 "Post-Delivery Bug Fixing (Gate 6)".
 8. **Example Project** — Bundled example reference.
 9. **Project Structure** — ASCII directory tree of a workspace.
-10. **License** — Copyright and license reference.
+10. **Troubleshooting** — Common issues and solutions (conda, PATH, imports, Python version, hooks, permissions, state recovery).
+11. **History** — Version changelog (SVP 1.0, 1.1, 1.2, etc.).
+12. **License** — Copyright and license reference.
 
 *Update rules:*
 
@@ -998,6 +1000,7 @@ The README is a **carry-forward artifact**. The previous version's README.md is 
 - Update version-specific content only where the new version introduces a change (e.g., new commands, changed configuration parameters, new prerequisites).
 - Do not rewrite prose that has not changed in substance.
 - If the new version adds a feature not covered by any existing section, add it as a subsection within the most relevant existing section — do not create new top-level sections without explicit human approval.
+- The Troubleshooting and History sections must be kept up to date with each new version.
 
 The blueprint author must include the full previous-version README.md text as a baseline reference in the git repo agent's unit (or its content constants), so the implementation agent has the exact text to carry forward and update.
 
