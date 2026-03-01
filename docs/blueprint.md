@@ -2293,6 +2293,7 @@ Implements spec Sections 1.4, 6.1, 16, 19.1, 19.2, and the `SVP_PLUGIN_ACTIVE` a
 ### Tier 2 — Signatures
 
 ```python
+#!/usr/bin/env python3
 from typing import Optional, List, Tuple
 from pathlib import Path
 from datetime import datetime, timezone
@@ -2433,6 +2434,7 @@ assert "tests" in PROJECT_DIRS
 
 # Delivery path: svp/scripts/svp_launcher.py
 # Entry point: svp = "svp.scripts.svp_launcher:main"
+# Shebang: file must start with #!/usr/bin/env python3 so it is directly executable
 
 # Environment variable propagation
 # SVP_PLUGIN_ACTIVE must be set in the subprocess environment via:
