@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "svp"
+version = "1.2.1"
+description = "Stratified Verification Pipeline - a Claude Code plugin for deterministically orchestrated software development"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Carlo Fusco"},
+    {name = "Leonardo Restivo"},
+]
+dependencies = []
+
+[project.scripts]
+svp = "svp.scripts.svp_launcher:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["svp*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

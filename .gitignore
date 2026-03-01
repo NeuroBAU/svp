@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg-info
+.installed.cfg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Distribution
+*.whl
+
+# Virtual environments
+.env
+.venv
+venv/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSFiles
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

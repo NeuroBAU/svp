@@ -1,0 +1,10 @@
+name: svp1_2_1
+channels:
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pytest
+  - pip:
+    - pytest>=9.0
+    - setuptools>=68
