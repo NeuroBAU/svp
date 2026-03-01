@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|Create",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/write_authorization.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/non_svp_protection.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
