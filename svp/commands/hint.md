@@ -10,7 +10,7 @@ Invokes the hint agent to capture and relay the human's domain knowledge. This i
 
 1. Run the following command to produce the task prompt:
    ```
-   python scripts/prepare_task.py --agent hint
+   python scripts/prepare_task.py --agent hint --project-root . --output .svp/task_prompt.md
    ```
 2. Read the task prompt file produced by the prepare command.
 3. Spawn the hint subagent, passing the task prompt content verbatim.

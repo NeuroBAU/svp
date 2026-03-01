@@ -142,7 +142,7 @@ subagent. No dedicated command script exists for this command.
 
 1. Run the following command to produce the task prompt:
    ```
-   python scripts/prepare_task.py --agent help
+   python scripts/prepare_task.py --agent help --project-root . --output .svp/task_prompt.md
    ```
 2. Read the task prompt file produced by the prepare command.
 3. Spawn the help subagent, passing the task prompt content verbatim.
@@ -167,7 +167,7 @@ then spawns the hint subagent. No dedicated command script exists for this comma
 
 1. Run the following command to produce the task prompt:
    ```
-   python scripts/prepare_task.py --agent hint
+   python scripts/prepare_task.py --agent hint --project-root . --output .svp/task_prompt.md
    ```
 2. Read the task prompt file produced by the prepare command.
 3. Spawn the hint subagent, passing the task prompt content verbatim.
@@ -194,7 +194,7 @@ subagent. No dedicated command script exists for this command.
 the human that `/svp:ref` is locked and do not proceed.
 2. Run the following command to produce the task prompt:
    ```
-   python scripts/prepare_task.py --agent ref
+   python scripts/prepare_task.py --agent ref --project-root . --output .svp/task_prompt.md
    ```
 3. Read the task prompt file produced by the prepare command.
 4. Spawn the ref subagent, passing the task prompt content verbatim.
@@ -220,7 +220,7 @@ spawns the redo subagent. No dedicated command script exists for this command.
 the human that `/svp:redo` is not available and do not proceed.
 2. Run the following command to produce the task prompt:
    ```
-   python scripts/prepare_task.py --agent redo
+   python scripts/prepare_task.py --agent redo --project-root . --output .svp/task_prompt.md
    ```
 3. Read the task prompt file produced by the prepare command.
 4. Spawn the redo subagent, passing the task prompt content verbatim.
@@ -246,11 +246,11 @@ spawns the bug subagent. No dedicated command script exists for this command.
 inform the human that `/svp:bug` is not available and do not proceed.
 2. Run the following command to produce the task prompt:
    ```
-   python scripts/prepare_task.py --agent bug
+   python scripts/prepare_task.py --agent bug --project-root . --output .svp/task_prompt.md
    ```
    If the human specified `--abandon`, append the flag:
    ```
-   python scripts/prepare_task.py --agent bug --abandon
+   python scripts/prepare_task.py --agent bug --abandon --project-root . --output .svp/task_prompt.md
    ```
 3. Read the task prompt file produced by the prepare command.
 4. Spawn the bug subagent, passing the task prompt content verbatim.
