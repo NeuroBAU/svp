@@ -340,6 +340,9 @@ For new projects, the launcher also:
 
 - Creates the project directory structure (see Section 6.2).
 - Copies deterministic scripts from the SVP plugin into the project workspace's `scripts/` directory, making them available at workspace-relative paths (e.g., `python scripts/prepare_task.py`).
+
+**Dual-file synchronization contract.** Six units maintain both a canonical implementation under `src/unit_N/stub.py` and a runtime copy under `scripts/`: Unit 1 (`svp_config.py`), Unit 2 (`pipeline_state.py`), Unit 4 (`ledger_manager.py`), Unit 5 (`blueprint_extractor.py`), Unit 8 (`hint_prompt_assembler.py`), and Unit 9 (`prepare_task.py`). The dual copies exist because subprocess invocations use `PYTHONPATH=scripts` with bare imports (e.g., `import prepare_task`), while the `src/` tree uses package imports (e.g., `from src.unit_9.stub import ...`). The `src/unit_N/stub.py` copy is always canonical — it is the version under test and the source of truth. The `scripts/` copy is the runtime deployment and must be updated to match whenever the canonical copy changes. To guard against drift, the routing script performs a startup check comparing `KNOWN_AGENT_TYPES` between `src/unit_9/stub.py` and `scripts/prepare_task.py` and emits a warning to stderr if they differ.
+
 - Writes the initial `pipeline_state.json` with `stage: 0, sub_stage: hook_activation`.
 - Writes the SVP configuration file with defaults.
 - Generates the project's CLAUDE.md.

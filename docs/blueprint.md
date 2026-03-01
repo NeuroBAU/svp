@@ -101,6 +101,8 @@ The SVP launcher (`svp` CLI tool, Unit 24) is distributed at `svp/scripts/svp_la
 
 **Critical assembly rule (learned from SVP 1.2 implementation):** During Stage 5 assembly, unit implementations must be relocated from their workspace paths (`src/unit_N/`) to their final paths as shown in this file tree. The file tree annotations (`<- Unit N`) are the authoritative mapping. The workspace `src/unit_N/stub.py` structure is never reproduced in the delivered repository. All imports referencing `src.unit_N` or `stub` must be rewritten to use final module paths. See spec Section 12.1.1.
 
+**Scripts synchronization rule:** Six units exist as both a canonical `src/unit_N/stub.py` and a runtime `scripts/` copy: Unit 1 (`svp_config.py`), Unit 2 (`pipeline_state.py`), Unit 4 (`ledger_manager.py`), Unit 5 (`blueprint_extractor.py`), Unit 8 (`hint_prompt_assembler.py`), and Unit 9 (`prepare_task.py`). The `src/unit_N/stub.py` is always canonical; the `scripts/` copy must match. When a canonical stub changes — especially exported constants like `KNOWN_AGENT_TYPES` or public assembler functions — the corresponding `scripts/` file must be updated in the same commit. The routing script checks `KNOWN_AGENT_TYPES` between `src/unit_9/stub.py` and `scripts/prepare_task.py` at startup and emits a stderr warning if they diverge.
+
 **Mixed-artifact unit convention:** Units whose artifact category includes Markdown, JSON, shell scripts, or other non-Python deliverables must produce the complete content of each deliverable file as a Python string constant in their `src/unit_N/stub.py` implementation. The naming convention is `{FILENAME_UPPER}_CONTENT: str` — for example, `SETUP_AGENT_MD_CONTENT: str` for `agents/setup_agent.md`. The git repo agent extracts these string constants during assembly and writes them as files to the paths specified in the blueprint file tree. Tests verify these string constants contain the required structure and content. This convention ensures non-Python deliverables go through the same test-stub-implement-verify cycle as Python code.
 
 **Claude Code agent definition format:** Agent `.md` files use this structure:
@@ -1022,6 +1024,7 @@ assert result.stat().st_size > 0, "Gate prompt file must not be empty"
 - **Unit 4 (Ledger Manager):** Reads ledger content for ledger-based agents.
 - **Unit 5 (Blueprint Extractor):** Extracts unit definitions and upstream contracts.
 - **Unit 8 (Hint Prompt Assembler):** Wraps hint content when hints are forwarded.
+- **Runtime copy:** `scripts/prepare_task.py` is the runtime deployment of this unit's canonical `src/unit_9/stub.py`. It must mirror the canonical stub in all exported constants (especially `KNOWN_AGENT_TYPES`) and assembler functions. See the "Scripts synchronization rule" in the preamble.
 
 ---
 
@@ -1948,7 +1951,7 @@ REPAIR_AGENT_MD_CONTENT: str  # -> agents/repair_agent.md
 
 ### Tier 3 -- Dependencies
 
-- **Unit 9 (Preparation Script):** The task prompt content these agents receive is assembled by Unit 9.
+- **Unit 9 (Preparation Script):** The task prompt content these agents receive is assembled by Unit 9. Adding new agent types (as this unit does with `bug_triage` and `repair_agent`) requires updating both `src/unit_9/stub.py` (canonical) and `scripts/prepare_task.py` (runtime copy). See the "Scripts synchronization rule" in the preamble.
 
 ---
 

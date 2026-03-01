@@ -20,6 +20,7 @@ Dependencies:
 
 from typing import Optional, Dict, Any, List
 from pathlib import Path
+import ast
 import subprocess
 import sys
 import re
@@ -299,6 +300,72 @@ def _describe_next_action(state: PipelineState) -> str:
         return "Continue repository delivery."
 
     return "Continue pipeline."
+
+
+# ---------------------------------------------------------------------------
+# Dual-file synchronization check
+# ---------------------------------------------------------------------------
+
+def _extract_known_agent_types(filepath: Path) -> set:
+    """Extract KNOWN_AGENT_TYPES from a Python file using AST parsing.
+
+    Returns the set of agent type strings, or None if the file is missing
+    or the constant cannot be parsed.
+    """
+    if not filepath.is_file():
+        return None
+    try:
+        tree = ast.parse(filepath.read_text(encoding="utf-8"))
+    except SyntaxError:
+        return None
+    for node in ast.walk(tree):
+        # Handle both plain assignment and annotated assignment (e.g. X: List[str] = [...])
+        name = None
+        value = None
+        if isinstance(node, ast.Assign):
+            if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                name = node.targets[0].id
+                value = node.value
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name):
+                name = node.target.id
+                value = node.value
+
+        if name == "KNOWN_AGENT_TYPES" and isinstance(value, ast.List):
+            elements = set()
+            for elt in value.elts:
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                    elements.add(elt.value)
+            return elements
+    return None
+
+
+def _check_scripts_sync(project_root: Path) -> None:
+    """Compare KNOWN_AGENT_TYPES between canonical and runtime copies.
+
+    Prints a warning to stderr if they differ. Non-blocking — never raises
+    or changes exit code. Silently skips if either file is missing.
+    """
+    canonical = project_root / "src" / "unit_9" / "stub.py"
+    runtime = project_root / "scripts" / "prepare_task.py"
+
+    canonical_types = _extract_known_agent_types(canonical)
+    runtime_types = _extract_known_agent_types(runtime)
+
+    if canonical_types is None or runtime_types is None:
+        return  # Files not yet present — early pipeline stages
+
+    if canonical_types != runtime_types:
+        only_canonical = canonical_types - runtime_types
+        only_runtime = runtime_types - canonical_types
+        parts = ["WARNING: KNOWN_AGENT_TYPES drift detected between "
+                 "src/unit_9/stub.py (canonical) and scripts/prepare_task.py (runtime)."]
+        if only_canonical:
+            parts.append(f"  In canonical only: {sorted(only_canonical)}")
+        if only_runtime:
+            parts.append(f"  In runtime only: {sorted(only_runtime)}")
+        parts.append("  Update scripts/prepare_task.py to match src/unit_9/stub.py.")
+        print("\n".join(parts), file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -1818,6 +1885,7 @@ def routing_main() -> None:
     args = parser.parse_args()
 
     project_root = Path(args.project_root)
+    _check_scripts_sync(project_root)
     state = load_state(project_root)
     action = route(state, project_root)
     output = format_action_block(action)
