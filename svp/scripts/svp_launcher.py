@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Unit 24: SVP Launcher
 # Self-contained CLI tool -- NO imports from other SVP units.
 
