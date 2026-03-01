@@ -2033,7 +2033,7 @@ assert not any((scripts_dir / s).exists() for s in PROHIBITED_SCRIPTS), \
 ### Tier 3 -- Behavioral Contracts
 
 - **Group A commands** (`save`, `quit`, `status`, `clean`): Each command file directs the main session to run `PYTHONPATH=scripts python scripts/cmd_{name}.py --project-root .` and present the output. No subagent is spawned.
-- **Group B commands** (`help`, `hint`, `ref`, `redo`, `bug`): Each command file directs the main session to run `python scripts/prepare_task.py --agent {role}` to produce the task prompt, then spawn the corresponding subagent with the task prompt verbatim. No `cmd_*.py` script is invoked.
+- **Group B commands** (`help`, `hint`, `ref`, `redo`, `bug`): Each command file directs the main session to run `python scripts/prepare_task.py --agent {role} --project-root . --output .svp/task_prompt.md` to produce the task prompt, then spawn the corresponding subagent with the task prompt verbatim. No `cmd_*.py` script is invoked.
 - `/svp:clean` must be invoked as `PYTHONPATH=scripts python scripts/cmd_clean.py` so library imports resolve correctly (spec Section 12.5).
 - `/svp:ref` is available during Stages 0, 1, and 2 only. Locked from Stage 3 onward.
 - `/svp:redo` is available during Stages 2, 3, and 4.

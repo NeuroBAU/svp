@@ -1478,7 +1478,7 @@ Five action types are defined:
 ```
 ACTION: invoke_agent
 AGENT: test_agent
-PREPARE: python scripts/prepare_task.py --unit 4 --agent test
+PREPARE: python scripts/prepare_task.py --unit 4 --agent test --project-root . --output .svp/task_prompt.md
 TASK_PROMPT_FILE: .svp/task_prompt.md
 POST: python scripts/update_state.py --unit 4 --phase test_generation --status-file .svp/last_status.txt
 MESSAGE: Starting test generation for Unit 4: Spike Detection
@@ -1508,7 +1508,7 @@ REMINDER:
 ACTION: human_gate
 GATE: gate_3_1_test_validation
 UNIT: 4
-PREPARE: python scripts/prepare_task.py --unit 4 --gate gate_3_1_test_validation
+PREPARE: python scripts/prepare_task.py --unit 4 --gate gate_3_1_test_validation --project-root . --output .svp/gate_prompt.md
 PROMPT_FILE: .svp/gate_prompt.md
 OPTIONS: TEST CORRECT, TEST WRONG
 MESSAGE: A test failed. Please review the diagnostic analysis.
