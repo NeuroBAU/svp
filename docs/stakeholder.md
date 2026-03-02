@@ -211,6 +211,8 @@ No single layer is sufficient. CLAUDE.md fades with context accumulation. The RE
 
 The main session never decides which state update to call, never constructs arguments for state scripts, and never reasons about what should happen next. Every decision about pipeline flow is made by deterministic scripts. The main session's freedom is limited to how it communicates with the human within a stage — how it phrases a progress update, how it presents a subagent's output, how it formats an error message.
 
+**Status file state invariant.** The `.svp/last_status.txt` file contains the result of the most recently completed action. Commands that read this file during their own execution are reading the result of the *previous* action cycle, not their own output. If an action type needs to dispatch through `update_state.py` but must not read stale status data, the routing script must ensure a valid status line is written to the file before the command executes (e.g., by prepending a write to the COMMAND string).
+
 **Session cycling.** The SVP launcher manages automatic session cycling to prevent context degradation. Session boundaries fire at every major pipeline transition: unit verified -> starting next unit, construction -> document revision, document revision complete -> stage restart, and all stage transitions. The mechanism: the main session writes a restart signal file and exits. The launcher detects the signal and relaunches Claude Code. The new session reads CLAUDE.md, runs the routing script, and picks up from the state file. Every post-restart session begins with a mandatory context summary drawn from the state file: what project, what stage, what just happened, what happens next. The human sees a brief transition message and the pipeline continues. Session lifecycle management is described in detail in Section 16.
 
 **State management.** The routing script predetermines the POST command (including the state update script and its arguments) at the time it specifies the action. The main session writes the agent's terminal status line to `.svp/last_status.txt`. The POST script reads the status file, parses the structured status line, validates preconditions, and updates `pipeline_state.json`. The state-update scripts validate preconditions before writing new state. If preconditions are not met (e.g., tests have not passed, coverage review is incomplete), the script refuses to advance the state and returns an error message. This makes the scripts — not the hooks and not the LLM — the primary stage-gating mechanism.
@@ -647,6 +649,7 @@ Before any unit verification begins, a deterministic infrastructure step prepare
 1. A deterministic script scans all machine-readable signature blocks across all units in the blessed blueprint, extracting every external import statement.
 2. The script produces a complete dependency list from the extracted imports.
 3. The script creates the Conda environment and installs all packages.
+4. The test framework (pytest, pytest-cov) must be included unconditionally in the Conda environment. Since all tests use pytest (Section 1.2) but test code is not part of blueprint signature blocks (which define domain unit contracts), pytest will not appear in extracted imports. The dependency extractor must add pytest to the environment regardless of whether it was extracted, ensuring tests can execute during Stage 3.
 
 ### 9.2 Import Validation
 
@@ -811,7 +814,7 @@ A unit is verified when:
 - The coverage review agent has confirmed complete coverage.
 - Any cascade re-validation from earlier stages has been resolved.
 
-The unit's code and tests are saved to the workspace. A completion marker file is written to `.svp/markers/unit_N_verified`. The pipeline state is updated by the state-management script, which validates that all completion criteria are met before writing the new state. A session boundary fires. The next unit begins in a fresh session.
+The unit's code and tests are saved to the workspace. A completion marker file is written to `.svp/markers/unit_N_verified`. The pipeline state is updated by the state-management script, which validates that all completion criteria are met before writing the new state. When advancing to the next unit, the state-management script resets `sub_stage` to `None` (or equivalently `"test_generation"`), `fix_ladder_position` to `None`, and `red_run_retries` to `0`, ensuring the new unit starts its phase sequence from scratch. A session boundary fires. The next unit begins in a fresh session.
 
 ### 10.11 Context Isolation
 
@@ -1647,7 +1650,7 @@ When the main session executes a `run_command` action, it writes a status line t
 **Test execution (red runs, green runs, integration tests):**
 - `TESTS_PASSED: N passed` -- all tests passed (exit code 0). N is the count of passing tests.
 - `TESTS_FAILED: N passed, M failed` -- some tests failed (nonzero exit code). N and M are parsed from pytest output.
-- `TESTS_ERROR: [error summary]` -- execution error preventing test collection or execution, not a test failure (import errors, environment issues, fixture problems). The error summary is the first line of the error output.
+- `TESTS_ERROR: [error summary]` -- execution error preventing test collection or execution, not a test failure (import errors, environment issues). The error summary is the first line of the error output. Collection errors are narrowly defined: they occur when pytest cannot discover or import test modules (e.g., `ERROR collecting`, `ImportError`, `ModuleNotFoundError`, `SyntaxError` during collection). Fixture setup errors that raise `NotImplementedError` from stubs are expected during red runs and must be classified as `TESTS_FAILED`, not `TESTS_ERROR`.
 
 **Non-test commands (Conda setup, import validation, stub generation):**
 - `COMMAND_SUCCEEDED` -- exit code 0.
