@@ -109,7 +109,7 @@ def main(argv=None) -> int:
         sys.path.insert(0, str(scripts_dir))
 
     try:
-        from stub_generator import generate_unit_stubs, StubGenerationError
+        from stub_generator import write_stub_file, write_upstream_stubs
     except ImportError as e:
         print(f"ERROR: Failed to import stub_generator: {e}", file=sys.stderr)
         return 1
@@ -139,10 +139,6 @@ def main(argv=None) -> int:
 
     # Handle non-Python units (empty signature block)
     if not sig_block.strip():
-        # Generate a minimal placeholder stub for non-Python artifact units.
-        # The stub module must be importable (no top-level raise) so tests
-        # can collect. Instead, provide a __getattr__ that raises
-        # NotImplementedError for any attribute access.
         stub_path = unit_dir / "stub.py"
         stub_path.write_text(
             "# Auto-generated stub — non-Python artifact unit\n"
@@ -161,23 +157,22 @@ def main(argv=None) -> int:
         return 0
 
     try:
-        result = generate_unit_stubs(
-            unit_signature_block=sig_block,
-            upstream_contracts=upstream_contracts,
-            unit_dir=unit_dir,
-            test_dir=test_dir,
-        )
-    except StubGenerationError as e:
-        print(f"ERROR: Stub generation failed: {e}", file=sys.stderr)
+        stub_path = write_stub_file(unit, sig_block, unit_dir)
+        print(f"  Stub written: {stub_path.relative_to(project_root)}")
+
+        if upstream_contracts:
+            # Create mocks directory
+            mocks_dir = test_dir / "mocks"
+            mocks_dir.mkdir(parents=True, exist_ok=True)
+            mock_paths = write_upstream_stubs(upstream_contracts, mocks_dir)
+            for p in mock_paths:
+                print(f"  Mock written: {p.relative_to(project_root)}")
+    except SyntaxError as e:
+        print(f"ERROR: Stub generation failed (invalid signatures): {e}", file=sys.stderr)
         return 1
     except Exception as e:
         print(f"ERROR: Unexpected error: {e}", file=sys.stderr)
         return 1
-
-    for path in result.get("stubs", []):
-        print(f"  Stub written: {Path(path).relative_to(project_root)}")
-    for path in result.get("mocks", []):
-        print(f"  Mock written: {Path(path).relative_to(project_root)}")
 
     print("STUB_GENERATION_COMPLETE")
     return 0

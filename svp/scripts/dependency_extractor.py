@@ -449,74 +449,29 @@ def run_infrastructure_setup(
     errors: list[str] = []
 
     # ── Step 1: Extract dependencies ──────────────────────────────────────
-    all_deps = extract_all_imports(blueprint_path)
-    deduped = deduplicate_dependencies(all_deps)
-    packages = sorted({dep.package_name for dep in deduped}, key=str.lower)
-
-    # Collect unique import statements for validation
-    unique_imports = list(dict.fromkeys(dep.import_statement for dep in all_deps))
+    imports = extract_all_imports(blueprint_path)
+    packages = map_imports_to_packages(imports)
 
     # ── Step 2: Create Conda environment ──────────────────────────────────
-    env_name = project_name.lower().replace(" ", "_").replace("-", "_")
-    success, msg = create_conda_environment(
-        env_name=env_name,
-        python_version="3.11",
-        packages=packages,
-        project_root=project_root,
-    )
-
-    if not success:
-        raise RuntimeError(msg)
+    env_name = derive_env_name(project_name)
+    create_conda_environment(env_name, packages)
 
     # ── Step 3: Validate imports ──────────────────────────────────────────
-    validation_results = validate_imports(env_name, unique_imports)
+    failures = validate_imports(env_name, imports)
 
-    failed_imports: list[str] = []
-    for stmt, ok, err in validation_results:
-        if not ok:
-            failed_imports.append(f"{stmt} ({err})")
-
-    if failed_imports:
+    if failures:
+        failed_imports = [f"{stmt} ({err})" for stmt, err in failures]
         error_msg = f"Import validation failed for: {', '.join(failed_imports)}"
         errors.append(error_msg)
         raise RuntimeError(error_msg)
 
     # ── Step 4: Create directory structure ────────────────────────────────
     blueprint_text = blueprint_path.read_text(encoding="utf-8")
-    unit_numbers = _extract_unit_numbers(blueprint_text)
+    unit_numbers = re.findall(r"^## Unit (\d+)\b", blueprint_text, re.MULTILINE)
+    total_units = max(int(n) for n in unit_numbers) if unit_numbers else 0
 
-    src_dir = project_root / "src"
-    tests_dir = project_root / "tests"
-
-    for unit_num in unit_numbers:
-        unit_src = src_dir / f"unit_{unit_num}"
-        unit_test = tests_dir / f"unit_{unit_num}"
-
-        try:
-            unit_src.mkdir(parents=True, exist_ok=True)
-            # Create __init__.py for importability
-            init_file = unit_src / "__init__.py"
-            if not init_file.exists():
-                init_file.write_text("", encoding="utf-8")
-
-            unit_test.mkdir(parents=True, exist_ok=True)
-            # Create __init__.py for test discovery
-            test_init = unit_test / "__init__.py"
-            if not test_init.exists():
-                test_init.write_text("", encoding="utf-8")
-
-        except OSError as e:
-            errors.append(f"Failed to create directories for unit {unit_num}: {e}")
-
-    # Ensure top-level __init__.py files exist
-    for d in [src_dir, tests_dir]:
-        if d.exists():
-            init_file = d / "__init__.py"
-            if not init_file.exists():
-                try:
-                    init_file.write_text("", encoding="utf-8")
-                except OSError:
-                    pass
+    if total_units > 0:
+        create_project_directories(project_root, total_units)
 
     if errors:
         return (False, errors)
