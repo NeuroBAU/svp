@@ -763,7 +763,11 @@ def resume_project(project_root: Path, plugin_dir: Path) -> int:
 # ---------------------------------------------------------------------------
 
 def _copy_hooks(plugin_root: Path, project_root: Path) -> None:
-    """Copy hook files from plugin's hooks/ directory to project's .claude/ directory."""
+    """Copy hook files from plugin's hooks/ directory to project's .claude/ directory.
+
+    Per spec Section 19.2, rewrites hook script paths so they reference
+    the correct location within the project's .claude/scripts/ directory.
+    """
     hooks_src = plugin_root / "hooks"
     claude_dir = project_root / ".claude"
     claude_dir.mkdir(parents=True, exist_ok=True)
@@ -771,10 +775,28 @@ def _copy_hooks(plugin_root: Path, project_root: Path) -> None:
     if not hooks_src.is_dir():
         return
 
-    # Copy hooks.json
+    # Copy hooks.json with path rewriting (spec Section 19.2)
     hooks_json_src = hooks_src / "hooks.json"
     if hooks_json_src.is_file():
-        shutil.copy2(str(hooks_json_src), str(claude_dir / "hooks.json"))
+        with open(str(hooks_json_src), "r", encoding="utf-8") as f:
+            hooks_data = json.load(f)
+        # Rewrite script paths to .claude/scripts/
+        hooks_obj = hooks_data.get("hooks", {}) if isinstance(hooks_data, dict) else {}
+        pre_tool_use = hooks_obj.get("PreToolUse", []) if isinstance(hooks_obj, dict) else []
+        for hook_group in pre_tool_use:
+            if not isinstance(hook_group, dict):
+                continue
+            for hook_entry in hook_group.get("hooks", []):
+                if not isinstance(hook_entry, dict):
+                    continue
+                cmd = hook_entry.get("command", "")
+                if cmd.startswith("bash ") and "scripts/" in cmd:
+                    script_name = cmd.rsplit("/", 1)[-1]
+                    hook_entry["command"] = f"bash .claude/scripts/{script_name}"
+        dst_hooks_json = claude_dir / "hooks.json"
+        with open(str(dst_hooks_json), "w", encoding="utf-8") as f:
+            json.dump(hooks_data, f, indent=2)
+            f.write("\n")
 
     # Copy scripts/ subdirectory
     hooks_scripts_src = hooks_src / "scripts"

@@ -1317,13 +1317,13 @@ HOOKS_JSON_SCHEMA: Dict[str, Any] = {
             {
                 "type": "bash",
                 "matcher": "write|edit|create",
-                "script": "scripts/write_authorization.sh",
+                "script": ".claude/scripts/write_authorization.sh",
                 "description": "Universal write authorization"
             },
             {
                 "type": "bash",
                 "matcher": "bash",
-                "script": "scripts/non_svp_protection.sh",
+                "script": ".claude/scripts/non_svp_protection.sh",
                 "description": "Non-SVP session protection"
             },
         ]
@@ -1389,7 +1389,7 @@ assert SVP_ENV_VAR in NON_SVP_PROTECTION_SH_CONTENT, "Must check SVP_PLUGIN_ACTI
 - When `debug_session` is present but `debug_session.authorized` is `false` (pre-Gate 6.0): only infrastructure paths are writable. No artifact writes permitted.
 - `non_svp_protection.sh` checks for the `SVP_PLUGIN_ACTIVE` environment variable. If not set, blocks all bash tool use and informs the human. The variable name MUST be `SVP_PLUGIN_ACTIVE` (SVP 1.1 hardening invariant shared with Unit 24).
 - Hook scripts use paths relative to the project root, not plugin-specific variables (spec Section 19.2).
-- `HOOKS_JSON_CONTENT` must be valid JSON matching the Claude Code plugin hook format: a top-level `"hooks"` key containing a `"PreToolUse"` array. Each hook entry has `"matcher"` (tool name regex), `"hooks"` array with `{"type": "command", "command": "bash scripts/write_authorization.sh"}` entries. Two hooks: one for Write/Edit tools (write authorization), one for Bash (non-SVP protection).
+- `HOOKS_JSON_CONTENT` must be valid JSON matching the Claude Code plugin hook format: a top-level `"hooks"` key containing a `"PreToolUse"` array. Each hook entry has `"matcher"` (tool name regex), `"hooks"` array with `{"type": "command", "command": "bash .claude/scripts/write_authorization.sh"}` entries. Two hooks: one for Write/Edit tools (write authorization), one for Bash (non-SVP protection). Paths must use `.claude/scripts/` prefix so they resolve correctly from the project root (spec Section 19.2).
 - `WRITE_AUTHORIZATION_SH_CONTENT` must be a bash script that: reads `pipeline_state.json`, normalizes the file path being written, checks infrastructure paths (always writable: `.svp/`, `pipeline_state.json`, `ledgers/`, `logs/`), checks state-gated paths based on current stage/unit, and exits 0 (allow) or 2 (block with message). Must handle all stages (0-5), pre_stage_3, and debug sessions.
 - `NON_SVP_PROTECTION_SH_CONTENT` must be a bash script that checks for the `SVP_PLUGIN_ACTIVE` environment variable. If not set, blocks all bash commands with a message directing the human to use the `svp` command. Exits 0 if set, 2 if not.
 
@@ -2500,7 +2500,7 @@ Each check actually runs the tool via `subprocess.run` with `capture_output=True
 - `write_default_config(project_root)` tries to copy `scripts/templates/svp_config_default.json`. Falls back to writing a default config inline with at minimum: `iteration_limit`, `models` dict (with `test_agent`, `implementation_agent`, `help_agent`, `default` keys), `context_budget_override`, `context_budget_threshold`, `compaction_character_threshold`, `auto_save`, `skip_permissions`.
 - `write_readme_svp(project_root)` tries to copy `scripts/templates/readme_svp.txt`. Falls back to writing a static notice inline explaining the two-layer protection system and how to use the `svp` command.
 
-**Hook copying:** During `_handle_new_project` and `_handle_restore`, the launcher copies hooks from the plugin's `hooks/` directory to the project's `.claude/` directory. This includes `hooks.json` and the `scripts/` subdirectory containing hook shell scripts. Per spec Section 19.2, hook script paths must reference the correct location within the project's directory.
+**Hook copying:** During `_handle_new_project` and `_handle_restore`, the launcher copies hooks from the plugin's `hooks/` directory to the project's `.claude/` directory. This includes `hooks.json` and the `scripts/` subdirectory containing hook shell scripts. Per spec Section 19.2, the launcher rewrites hook script paths during the copy operation so they reference the correct location within the project's `.claude/scripts/` directory (e.g., `bash .claude/scripts/write_authorization.sh`).
 
 **Filesystem permissions (`set_filesystem_permissions`):**
 - A single function with a `read_only: bool` parameter.

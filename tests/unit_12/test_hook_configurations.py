@@ -192,14 +192,14 @@ class TestHooksJsonSchema:
         entry = HOOKS_JSON_SCHEMA["hooks"]["PreToolUse"][0]
         assert entry["type"] == "bash"
         assert entry["matcher"] == "write|edit|create"
-        assert entry["script"] == "scripts/write_authorization.sh"
+        assert entry["script"] == ".claude/scripts/write_authorization.sh"
 
     def test_non_svp_protection_hook_entry(self):
         """Second hook entry is for bash tool."""
         entry = HOOKS_JSON_SCHEMA["hooks"]["PreToolUse"][1]
         assert entry["type"] == "bash"
         assert entry["matcher"] == "bash"
-        assert entry["script"] == "scripts/non_svp_protection.sh"
+        assert entry["script"] == ".claude/scripts/non_svp_protection.sh"
 
     def test_hook_entries_have_descriptions(self):
         """Each hook entry has a description field."""

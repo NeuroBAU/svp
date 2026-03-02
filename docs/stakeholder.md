@@ -1722,7 +1722,7 @@ When a Claude Code session is active, `PreToolUse` hooks validate every write op
 - During a single-unit fix cycle (classification `single_unit`): `src/unit_N/` and `tests/unit_N/` are writable only for the affected unit(s) identified by the triage agent. The pipeline state remains at Stage 5 throughout -- the `debug_session` object tracks the Stage 3 re-entry context.
 - `.svp/triage_scratch/`: writable during triage, for diagnostic scripts written by the bug triage agent.
 
-**Hook path resolution.** The project-level `hooks.json` that SVP copies to managed projects must use paths relative to the project root, not plugin-specific variables (such as `${CLAUDE_PLUGIN_ROOT}`) that do not resolve outside the plugin context. The SVP launcher is responsible for rewriting hook script paths during the copy operation so they reference the correct location within the project's `.claude/scripts/` directory.
+**Hook path resolution.** The project-level `hooks.json` that SVP copies to managed projects must use paths relative to the project root, not plugin-specific variables (such as `${CLAUDE_PLUGIN_ROOT}`) that do not resolve outside the plugin context. Since hook shell scripts are placed in `.claude/scripts/` within the project directory, the resulting hook commands must use `.claude/scripts/` paths (e.g., `bash .claude/scripts/write_authorization.sh`). The SVP launcher is responsible for rewriting hook script paths during the copy operation so they reference the correct location within the project's `.claude/scripts/` directory.
 
 ### 19.3 Non-SVP Session Protection
 

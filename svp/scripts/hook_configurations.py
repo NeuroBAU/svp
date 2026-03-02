@@ -16,13 +16,13 @@ HOOKS_JSON_SCHEMA: Dict[str, Any] = {
             {
                 "type": "bash",
                 "matcher": "write|edit|create",
-                "script": "scripts/write_authorization.sh",
+                "script": ".claude/scripts/write_authorization.sh",
                 "description": "Universal write authorization",
             },
             {
                 "type": "bash",
                 "matcher": "bash",
-                "script": "scripts/non_svp_protection.sh",
+                "script": ".claude/scripts/non_svp_protection.sh",
                 "description": "Non-SVP session protection",
             },
         ]
@@ -43,7 +43,7 @@ _hooks_json_data: Dict[str, Any] = {
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "bash scripts/write_authorization.sh",
+                        "command": "bash .claude/scripts/write_authorization.sh",
                     }
                 ],
             },
@@ -52,7 +52,7 @@ _hooks_json_data: Dict[str, Any] = {
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "bash scripts/non_svp_protection.sh",
+                        "command": "bash .claude/scripts/non_svp_protection.sh",
                     }
                 ],
             },
