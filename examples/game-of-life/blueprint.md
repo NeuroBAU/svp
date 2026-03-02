@@ -11,7 +11,7 @@ management, simulation rules, and display/control respectively.
 (wrapping) boundary conditions. Provides cell access, neighbor counting, and
 pattern loading.
 
-### Signatures
+### Tier 2 — Signatures
 
 ```python
 from typing import List, Set, Tuple
@@ -41,7 +41,7 @@ class Grid:
 **Description:** Implements Conway's Game of Life rules and simulation stepping.
 Applies the four rules simultaneously to produce the next generation.
 
-### Signatures
+### Tier 2 — Signatures
 
 ```python
 from typing import Optional
@@ -72,7 +72,7 @@ class Simulation:
 **Description:** Provides text-based grid rendering and built-in pattern
 definitions for well-known Game of Life configurations.
 
-### Signatures
+### Tier 2 — Signatures
 
 ```python
 from typing import Dict
