@@ -86,7 +86,7 @@ svp-repo/                      <- repository root
 |   +-- game-of-life/            <- Unit 22
 |       |-- stakeholder_spec.md
 |       |-- blueprint.md
-|       +-- gol_project_context.md
+|       +-- project_context.md
 |-- src/                          <- SVP Python source code
 +-- tests/                        <- SVP test suite
 ```
@@ -2144,7 +2144,7 @@ README_SVP_TXT_CONTENT: str  # -> scripts/templates/readme_svp.txt
 # Bundled example project (carry-forward from v1.1, SVP self-build only)
 GOL_STAKEHOLDER_SPEC_CONTENT: str  # -> examples/game-of-life/stakeholder_spec.md
 GOL_BLUEPRINT_CONTENT: str  # -> examples/game-of-life/blueprint.md
-GOL_PROJECT_CONTEXT_CONTENT: str  # -> examples/game-of-life/gol_project_context.md
+GOL_PROJECT_CONTEXT_CONTENT: str  # -> examples/game-of-life/project_context.md
 ```
 
 ### Tier 2 — Invariants

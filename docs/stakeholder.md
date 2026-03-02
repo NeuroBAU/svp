@@ -1044,13 +1044,13 @@ When SVP builds a new version of itself (Mode A), the delivered repository must 
 
 1. `stakeholder_spec.md` — A complete stakeholder spec for a Conway's Game of Life CLI simulator.
 2. `blueprint.md` — A complete blueprint decomposing the Game of Life spec into testable units.
-3. `gol_project_context.md` — A project context file for the Game of Life project.
+3. `project_context.md` — A project context file for the Game of Life project.
 
 These files are **carry-forward artifacts** from the previous version. They are not regenerated — they are carried forward verbatim unless a change in SVP's document format requires updating them.
 
 **Purpose:** The example serves two roles:
 
-1. **Installation verification** — Users run `svp restore game-of-life --spec .../stakeholder_spec.md --blueprint .../blueprint.md --context .../gol_project_context.md --scripts-source .../svp/scripts` to verify their SVP installation works end-to-end.
+1. **Installation verification** — Users run `svp restore game-of-life --spec .../stakeholder_spec.md --blueprint .../blueprint.md --context .../project_context.md --scripts-source .../svp/scripts` to verify their SVP installation works end-to-end.
 2. **Manual verification** — The `svp restore` code path exercises the seam between the launcher (Unit 24), templates (Unit 22), pipeline state (Unit 2), and configuration (Unit 1). Because this end-to-end restore flow requires extensive cross-unit setup (mock plugin directories, hook files, argparse namespaces, and filesystem scaffolding), it is too complex to include as an automated integration test. Instead, the restore code path should be verified manually by running `svp restore` with the bundled example files and confirming that a valid workspace structure is created: directory tree exists, pipeline state is initialized at `pre_stage_3`, the injected spec and blueprint are present and match the originals, CLAUDE.md is generated, and default config is written.
 
 For general projects (Mode B), no bundled example is included.
