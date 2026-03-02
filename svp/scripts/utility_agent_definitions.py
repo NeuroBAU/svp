@@ -243,11 +243,14 @@ The workspace uses `src/unit_N/` paths for test isolation. The delivered reposit
 
 1. **Read the blueprint preamble file tree.** The blueprint's Architecture Overview section contains an ASCII file tree where every delivered file is annotated with `<- Unit N`. This is the authoritative mapping.
 2. **For each unit annotation:** Read the unit's implementation from `src/unit_N/` in the workspace. Write it to the destination path shown in the file tree.
-3. **Rewrite all cross-unit imports.** Every `from src.unit_N.stub import ...` or `from src.unit_N import ...` must be rewritten to use the final module path. For example:
-   - `from svp.scripts.svp_config import get_config` becomes `from svp.scripts.svp_config import get_config`
-   - `from svp.scripts.pipeline_state import load_state` becomes `from svp.scripts.pipeline_state import load_state`
+3. **Rewrite all cross-unit imports.** Every `from src.unit_N.stub import ...` or `from src.unit_N import ...` must be rewritten to use the final module path. **Scripts in `svp/scripts/` must use bare imports** (not `svp.scripts.X` package imports) because the launcher copies them to project workspaces where they run with `PYTHONPATH=scripts`. For example:
+   - `from src.unit_1.stub import get_config` becomes `from svp_config import get_config`
+   - `from src.unit_2.stub import load_state` becomes `from pipeline_state import load_state`
+   The `svp.scripts.X` form is used ONLY in `pyproject.toml` entry points (e.g., `svp.scripts.svp_launcher:main`).
 4. **Never reproduce workspace structure.** The delivered repository must NOT contain `src/unit_N/` directories. The `src/` directory in the delivered repo (if present) contains Python source organized by the blueprint's file tree, not by unit number.
 5. **Never reference `stub.py`.** No file in the delivered repository may import from or reference `stub.py`. This is a workspace-internal convention.
+6. **CLI entry point guards.** Every script that is invoked directly via `python scripts/X.py` must include an `if __name__ == "__main__"` guard that calls its entry-point function.
+7. **Runtime completeness.** Each delivered script must contain all functions that other delivered scripts import from it. If a workspace `scripts/` copy has additional orchestration functions beyond the `src/unit_N/stub.py` canonical version, include those functions in the delivered file.
 
 ### 3. Commit Order
 
