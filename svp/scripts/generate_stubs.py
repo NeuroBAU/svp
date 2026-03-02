@@ -153,7 +153,7 @@ def main(argv=None) -> int:
             encoding="utf-8",
         )
         print(f"  Stub written: {stub_path.relative_to(project_root)} (non-Python placeholder)")
-        print("STUB_GENERATION_COMPLETE")
+        print("COMMAND_SUCCEEDED")
         return 0
 
     try:
@@ -174,7 +174,7 @@ def main(argv=None) -> int:
         print(f"ERROR: Unexpected error: {e}", file=sys.stderr)
         return 1
 
-    print("STUB_GENERATION_COMPLETE")
+    print("COMMAND_SUCCEEDED")
     return 0
 
 
