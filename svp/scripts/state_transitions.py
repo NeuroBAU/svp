@@ -127,9 +127,10 @@ def complete_unit(state: PipelineState, unit_number: int, project_root: Path) ->
         {"unit": unit_number, "timestamp": now}
     ]
 
-    # Reset fix ladder and red run retries
+    # Reset fix ladder, red run retries, and sub_stage for next unit
     new_state.fix_ladder_position = None
     new_state.red_run_retries = 0
+    new_state.sub_stage = None
 
     # Advance current_unit
     next_unit = unit_number + 1

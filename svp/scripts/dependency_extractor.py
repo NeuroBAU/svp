@@ -210,7 +210,26 @@ def create_conda_environment(
                 f"Conda environment creation failed: {result.stderr.strip()}"
             )
 
-        # Install packages if any, using conda run
+        # Install framework dependencies unconditionally (pytest is required
+        # by the pipeline for all test execution, but is never extracted from
+        # blueprint imports since it's a test runner, not a library).
+        framework_deps = ["pytest", "pytest-cov"]
+        framework_cmd = [
+            "conda", "run", "-n", env_name,
+            "pip", "install"
+        ] + framework_deps
+        result = subprocess.run(
+            framework_cmd,
+            capture_output=True,
+            text=True,
+            timeout=600
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Conda environment creation failed: {result.stderr.strip()}"
+            )
+
+        # Install project-specific packages if any, using conda run
         if packages:
             package_list = list(packages.values())
             install_cmd = [

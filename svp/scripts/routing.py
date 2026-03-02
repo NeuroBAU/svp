@@ -820,9 +820,15 @@ def _route_stage_3(state: PipelineState, project_root: Path) -> Dict[str, Any]:
         )
 
     elif sub == "unit_completion":
+        # Write COMMAND_SUCCEEDED to the status file first so that
+        # update_state.py can read a valid status when dispatching.
+        # This avoids the stale-status-file race condition where the
+        # previous phase's status (e.g. COVERAGE_COMPLETE) would be
+        # misinterpreted by the unit_completion dispatch path.
         return _run_command_action(
             command=(
-                f"PYTHONPATH=scripts python scripts/update_state.py"
+                f"echo COMMAND_SUCCEEDED > .svp/last_status.txt &&"
+                f" PYTHONPATH=scripts python scripts/update_state.py"
                 f" --unit {unit} --phase unit_completion"
                 f" --status-file .svp/last_status.txt --project-root ."
             ),
@@ -1846,7 +1852,6 @@ def _is_collection_error(output: str) -> bool:
         "ModuleNotFoundError",
         "SyntaxError",
         "no tests ran",
-        "ERROR",
     ]
     # Only count as collection error if there are no actual test failures
     has_failed = "failed" in output.lower() and re.search(r"\d+ failed", output)
