@@ -236,9 +236,9 @@ class TestMainCLIWrapper:
             "--unit", "1",
             "--output-dir", str(tmp_path),
         ]), patch(
-            "svp.scripts.blueprint_extractor.extract_unit", return_value=mock_unit_def
+            "blueprint_extractor.extract_unit", return_value=mock_unit_def
         ) as mock_extract, patch(
-            "svp.scripts.blueprint_extractor.extract_upstream_contracts"
+            "blueprint_extractor.extract_upstream_contracts"
         ):
             main()
 
@@ -267,9 +267,9 @@ class TestMainCLIWrapper:
             "--output-dir", str(tmp_path),
             "--upstream",
         ]), patch(
-            "svp.scripts.blueprint_extractor.extract_unit", return_value=mock_unit_def
+            "blueprint_extractor.extract_unit", return_value=mock_unit_def
         ), patch(
-            "svp.scripts.blueprint_extractor.extract_upstream_contracts",
+            "blueprint_extractor.extract_upstream_contracts",
             return_value=SINGLE_UPSTREAM_CONTRACT,
         ) as mock_upstream:
             main()
