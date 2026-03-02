@@ -40,7 +40,7 @@ def run_save(project_root: Path) -> Tuple[bool, str]:
         )
 
     # Import Unit 2 contract interfaces
-    from svp.scripts.pipeline_state import load_state, save_state
+    from pipeline_state import load_state, save_state
 
     # Load current state and write it back (triggers atomic write + timestamp update)
     state = load_state(project_root)

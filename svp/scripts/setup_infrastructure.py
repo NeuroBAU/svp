@@ -38,7 +38,7 @@ def main(argv=None) -> int:
 
     try:
         from dependency_extractor import run_infrastructure_setup
-        from svp.scripts.pipeline_state import load_state
+        from pipeline_state import load_state
     except ImportError as e:
         print(f"ERROR: Failed to import SVP modules: {e}", file=sys.stderr)
         return 1

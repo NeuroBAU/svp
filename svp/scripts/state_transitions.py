@@ -11,8 +11,8 @@ from typing import Optional, Dict, Any, List, Tuple
 from pathlib import Path
 from datetime import datetime, timezone
 
-from svp.scripts.pipeline_state import PipelineState, DebugSession
-from svp.scripts.svp_config import load_config
+from pipeline_state import PipelineState, DebugSession
+from svp_config import load_config
 
 
 # Stage sequence for advance_stage

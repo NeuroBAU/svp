@@ -49,7 +49,7 @@ def _now_iso() -> str:
 
 
 def _clone(state):
-    from svp.scripts.pipeline_state import PipelineState
+    from pipeline_state import PipelineState
     return PipelineState.from_dict(copy.deepcopy(state.to_dict()))
 
 
@@ -72,7 +72,7 @@ def main(argv=None) -> int:
         sys.path.insert(0, str(scripts_dir))
 
     try:
-        from svp.scripts.pipeline_state import load_state, save_state
+        from pipeline_state import load_state, save_state
         from state_transitions import (
             advance_stage, advance_sub_stage, advance_fix_ladder,
             restart_from_stage, update_state_from_status,

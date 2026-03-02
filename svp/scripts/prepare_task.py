@@ -19,13 +19,13 @@ import sys
 # Upstream contract imports
 # ---------------------------------------------------------------------------
 # Unit 2: Pipeline State Schema
-from svp.scripts.pipeline_state import load_state, PipelineState
+from pipeline_state import load_state, PipelineState
 
 # Unit 4: Ledger Manager
-from svp.scripts.ledger_manager import read_ledger, LedgerEntry
+from ledger_manager import read_ledger, LedgerEntry
 
 # Unit 5: Blueprint Extractor
-from svp.scripts.blueprint_extractor import (
+from blueprint_extractor import (
     extract_unit,
     extract_upstream_contracts,
     build_unit_context,
@@ -34,7 +34,7 @@ from svp.scripts.blueprint_extractor import (
 )
 
 # Unit 8: Hint Prompt Assembler
-from svp.scripts.hint_assembler import assemble_hint_prompt
+from hint_assembler import assemble_hint_prompt
 
 
 # ---------------------------------------------------------------------------

@@ -103,7 +103,7 @@ def run_clean(project_root: Path, mode: str) -> Tuple[bool, str]:
         )
 
     # Import Unit 2 contract interfaces
-    from svp.scripts.pipeline_state import load_state
+    from pipeline_state import load_state
 
     state = load_state(project_root)
 

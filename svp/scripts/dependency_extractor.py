@@ -420,5 +420,119 @@ def main() -> None:
     print("Infrastructure setup complete")
 
 
+def run_infrastructure_setup(
+    blueprint_path: Path, project_name: str, project_root: Path
+) -> "tuple[bool, list[str]]":
+    """Orchestration function for pre-Stage-3 infrastructure setup.
+
+    1. Extracts all external imports from the blueprint.
+    2. Creates the Conda environment with all dependencies.
+    3. Validates all imports in the created environment.
+    4. Creates the directory structure (src/unit_N/, tests/unit_N/) for each unit.
+
+    Args:
+        blueprint_path: Path to the blueprint markdown file.
+        project_name: Name of the project (used as Conda env name).
+        project_root: Root directory for the project.
+
+    Returns:
+        Tuple of (all_passed: bool, list_of_error_messages: List[str]).
+
+    Raises:
+        ValueError: If no signature blocks found in blueprint.
+        RuntimeError: If Conda environment creation fails.
+        RuntimeError: If one or more imports fail validation.
+    """
+    if not blueprint_path.exists():
+        raise FileNotFoundError(f"Blueprint file must exist: {blueprint_path}")
+
+    errors: list[str] = []
+
+    # ── Step 1: Extract dependencies ──────────────────────────────────────
+    all_deps = extract_all_imports(blueprint_path)
+    deduped = deduplicate_dependencies(all_deps)
+    packages = sorted({dep.package_name for dep in deduped}, key=str.lower)
+
+    # Collect unique import statements for validation
+    unique_imports = list(dict.fromkeys(dep.import_statement for dep in all_deps))
+
+    # ── Step 2: Create Conda environment ──────────────────────────────────
+    env_name = project_name.lower().replace(" ", "_").replace("-", "_")
+    success, msg = create_conda_environment(
+        env_name=env_name,
+        python_version="3.11",
+        packages=packages,
+        project_root=project_root,
+    )
+
+    if not success:
+        raise RuntimeError(msg)
+
+    # ── Step 3: Validate imports ──────────────────────────────────────────
+    validation_results = validate_imports(env_name, unique_imports)
+
+    failed_imports: list[str] = []
+    for stmt, ok, err in validation_results:
+        if not ok:
+            failed_imports.append(f"{stmt} ({err})")
+
+    if failed_imports:
+        error_msg = f"Import validation failed for: {', '.join(failed_imports)}"
+        errors.append(error_msg)
+        raise RuntimeError(error_msg)
+
+    # ── Step 4: Create directory structure ────────────────────────────────
+    blueprint_text = blueprint_path.read_text(encoding="utf-8")
+    unit_numbers = _extract_unit_numbers(blueprint_text)
+
+    src_dir = project_root / "src"
+    tests_dir = project_root / "tests"
+
+    for unit_num in unit_numbers:
+        unit_src = src_dir / f"unit_{unit_num}"
+        unit_test = tests_dir / f"unit_{unit_num}"
+
+        try:
+            unit_src.mkdir(parents=True, exist_ok=True)
+            # Create __init__.py for importability
+            init_file = unit_src / "__init__.py"
+            if not init_file.exists():
+                init_file.write_text("", encoding="utf-8")
+
+            unit_test.mkdir(parents=True, exist_ok=True)
+            # Create __init__.py for test discovery
+            test_init = unit_test / "__init__.py"
+            if not test_init.exists():
+                test_init.write_text("", encoding="utf-8")
+
+        except OSError as e:
+            errors.append(f"Failed to create directories for unit {unit_num}: {e}")
+
+    # Ensure top-level __init__.py files exist
+    for d in [src_dir, tests_dir]:
+        if d.exists():
+            init_file = d / "__init__.py"
+            if not init_file.exists():
+                try:
+                    init_file.write_text("", encoding="utf-8")
+                except OSError:
+                    pass
+
+    if errors:
+        return (False, errors)
+
+    return (True, [])
+
+
+def _extract_unit_numbers(blueprint_text: str) -> list[int]:
+    """Extract all unit numbers from the blueprint text.
+
+    Returns a sorted list of unique unit numbers found in ## Unit N: headers.
+    """
+    pattern = re.compile(r"^##\s+Unit\s+(\d+)\s*:", re.MULTILINE)
+    numbers = sorted(set(int(m.group(1)) for m in pattern.finditer(blueprint_text)))
+    return numbers
+
+
 if __name__ == "__main__":
     main()

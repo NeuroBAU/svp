@@ -40,7 +40,7 @@ def run_status(project_root: Path) -> str:
         )
 
     # Import Unit 2 contract interfaces
-    from svp.scripts.pipeline_state import load_state, get_stage_display
+    from pipeline_state import load_state, get_stage_display
 
     state = load_state(project_root)
 

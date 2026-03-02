@@ -27,9 +27,9 @@ import re
 import argparse
 
 # Upstream imports -- coded against blueprint contract interfaces
-from svp.scripts.pipeline_state import PipelineState, load_state, save_state, get_stage_display
-from svp.scripts.svp_config import load_config, get_model_for_agent
-from svp.scripts.state_transitions import (
+from pipeline_state import PipelineState, load_state, save_state, get_stage_display
+from svp_config import load_config, get_model_for_agent
+from state_transitions import (
     TransitionError,
     advance_stage,
     advance_sub_stage,
@@ -1961,3 +1961,7 @@ def run_tests_main() -> None:
         status_path.write_text(status_line + "\n", encoding="utf-8")
 
     print(status_line)
+
+
+if __name__ == "__main__":
+    routing_main()

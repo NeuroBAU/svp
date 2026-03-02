@@ -264,7 +264,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    from svp.scripts.blueprint_extractor import extract_unit, extract_upstream_contracts
+    from blueprint_extractor import extract_unit, extract_upstream_contracts
 
     unit_def = extract_unit(args.blueprint, args.unit)
     result_path = write_stub_file(args.unit, unit_def.signatures, args.output_dir)
