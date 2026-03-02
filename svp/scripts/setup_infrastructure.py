@@ -101,7 +101,7 @@ def main(argv=None) -> int:
     except Exception as e:
         print(f"  Warning: Could not set total_units: {e}", file=sys.stderr)
 
-    print("INFRASTRUCTURE_SETUP_COMPLETE")
+    print("COMMAND_SUCCEEDED")
     return 0
 
 
