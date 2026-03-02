@@ -107,6 +107,8 @@ The SVP launcher (`svp` CLI tool, Unit 24) is distributed at `svp/scripts/svp_la
 
 **Cross-unit CLI contract (learned from SVP 1.2.1 bug triage):** Unit 10 (routing script) generates PREPARE and POST command strings that are executed as shell commands. The argument syntax in these commands constitutes a cross-unit contract: the receiving script (Unit 9 for PREPARE, Unit 10's own `update_state_main` for POST) must accept every argument that Unit 10 generates. Specifically, `prepare_task.py` must accept `--output` (override output path), and `update_state.py` must accept `--gate` (gate ID for gate response dispatch). When adding arguments to generated command strings in Unit 10, the receiving script's argparse must be updated in the same commit.
 
+**CLI wrapper status line contract (learned from SVP 1.2.1 bug triage):** CLI wrapper scripts invoked as `run_command` actions must emit status lines from the vocabulary defined in Unit 10's `COMMAND_STATUS_PATTERNS`: `COMMAND_SUCCEEDED` on success, `COMMAND_FAILED: [details]` on failure. Custom status strings (e.g. `INFRASTRUCTURE_SETUP_COMPLETE`) are not recognized by `dispatch_command_status()` and cause a `ValueError`. This applies to `setup_infrastructure.py` (Unit 7) and `generate_stubs.py` (Unit 6). Test-runner wrappers (`run_tests.py`) use the `TESTS_PASSED`/`TESTS_FAILED`/`TESTS_ERROR` patterns instead.
+
 **Mixed-artifact unit convention:** Units whose artifact category includes Markdown, JSON, shell scripts, or other non-Python deliverables must produce the complete content of each deliverable file as a Python string constant in their `src/unit_N/stub.py` implementation. The naming convention is `{FILENAME_UPPER}_CONTENT: str` — for example, `SETUP_AGENT_MD_CONTENT: str` for `agents/setup_agent.md`. The git repo agent extracts these string constants during assembly and writes them as files to the paths specified in the blueprint file tree. Tests verify these string constants contain the required structure and content. This convention ensures non-Python deliverables go through the same test-stub-implement-verify cycle as Python code.
 
 **Claude Code agent definition format:** Agent `.md` files use this structure:
@@ -781,6 +783,7 @@ assert result.suffix == ".py", "Stub file must be a Python file"
 - `write_stub_file` combines `parse_signatures`, `strip_module_level_asserts`, and `generate_stub_source` to produce a stub file at `{output_dir}/stub.py`.
 - `write_upstream_stubs` generates and writes mock files for all upstream dependencies.
 - The generated stub must be importable without error (the importability invariant).
+- The CLI wrapper `main()` is invoked as a `run_command` action and must emit `COMMAND_SUCCEEDED` on success or `COMMAND_FAILED: [details]` on failure as its terminal status line. These status lines must match Unit 10's `COMMAND_STATUS_PATTERNS` vocabulary (spec Section 18.3).
 
 ### Tier 3 -- Dependencies
 
@@ -857,6 +860,7 @@ assert "-" not in result, "Env name must not contain hyphens"
 - `validate_imports` executes each import in the environment via `conda run -n {env_name} python -c "import ..."` and returns a list of (import, error) tuples for failures.
 - `create_project_directories` creates `src/unit_N/` and `tests/unit_N/` for each unit.
 - `derive_env_name` applies the canonical derivation: `project_name.lower().replace(" ", "_").replace("-", "_")` (spec Section 4.3). This derivation must be used consistently -- never hardcoded.
+- The CLI wrapper `main()` is invoked as a `run_command` action and must emit `COMMAND_SUCCEEDED` on success or `COMMAND_FAILED: [details]` on failure as its terminal status line. These status lines must match Unit 10's `COMMAND_STATUS_PATTERNS` vocabulary (spec Section 18.3).
 
 ### Tier 3 -- Dependencies
 
