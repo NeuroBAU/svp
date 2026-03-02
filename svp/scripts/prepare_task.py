@@ -1830,6 +1830,8 @@ def main() -> None:
                         help="Path to a file containing hint content.")
     parser.add_argument("--gate-id", type=str, default=None,
                         help="Gate ID for context (help agent gate mode).")
+    parser.add_argument("--output", type=str, default=None,
+                        help="Override output path for the assembled prompt file.")
 
     args = parser.parse_args()
     project_root = Path(args.project_root)
@@ -1855,14 +1857,25 @@ def main() -> None:
                 hint_content=hint_content,
                 gate_id=args.gate_id,
             )
-            print(f"Task prompt written to: {result}")
         else:
             result = prepare_gate_prompt(
                 project_root=project_root,
                 gate_id=args.gate,
                 unit_number=args.unit,
             )
-            print(f"Gate prompt written to: {result}")
+
+        # If --output specified and differs from default, move the file
+        if args.output:
+            output_path = Path(args.output)
+            if not output_path.is_absolute():
+                output_path = project_root / output_path
+            if output_path.resolve() != result.resolve():
+                import shutil
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(result), str(output_path))
+                result = output_path
+
+        print(f"Task prompt written to: {result}")
     except (ValueError, FileNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
