@@ -2221,7 +2221,7 @@ from pathlib import Path
 # Plugin manifest schema
 PLUGIN_JSON: Dict[str, Any] = {
     "name": "svp",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "description": "Stratified Verification Pipeline - deterministically orchestrated software development",
 }
 
@@ -2236,7 +2236,7 @@ MARKETPLACE_JSON: Dict[str, Any] = {
             "name": "svp",
             "source": "./svp",
             "description": "Stratified Verification Pipeline — deterministically orchestrated, sequentially gated development for domain experts",
-            "version": "1.2.0",
+            "version": "1.2.1",
             "author": {"name": "SVP"},
         }
     ]

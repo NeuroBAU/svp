@@ -8,7 +8,7 @@
       "name": "svp",
       "source": "./svp",
       "description": "Stratified Verification Pipeline \u2014 deterministically orchestrated, sequentially gated development for domain experts",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "author": {
         "name": "SVP"
       }

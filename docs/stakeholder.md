@@ -76,7 +76,7 @@ The `marketplace.json` at the repository root registers the plugin for installat
       "name": "svp",
       "source": "./svp",
       "description": "Stratified Verification Pipeline — deterministically orchestrated, sequentially gated development for domain experts",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "author": { "name": "SVP" }
     }
   ]

@@ -19,9 +19,9 @@ Gaps identified:
    specifies checks for marketplace.json, plugin.json, and all 5 component
    dirs = at least 7 violations for a completely empty directory.
 7. PLUGIN_JSON_CONTENT version value -- existing test checks version is a
-   string but not that it equals "1.2.0".
+   string but not that it equals "1.2.1".
 8. MARKETPLACE_JSON_CONTENT plugin entry version value -- existing test
-   checks required fields exist but not that version equals "1.2.0".
+   checks required fields exist but not that version equals "1.2.1".
 9. MARKETPLACE_JSON name field is a string -- blueprint specifies name (str)
    at top level of MARKETPLACE_JSON; existing tests check value but not type.
 10. MARKETPLACE_JSON owner.name is a string -- blueprint specifies owner is
@@ -38,8 +38,8 @@ validate_plugin_structure should report at least 7 violations: 1 for
 missing marketplace.json, 1 for missing plugin.json, and 5 for missing
 component directories.
 
-DATA ASSUMPTION: PLUGIN_JSON_CONTENT version "1.2.0" and
-MARKETPLACE_JSON_CONTENT version "1.2.0" match the blueprint's specified
+DATA ASSUMPTION: PLUGIN_JSON_CONTENT version "1.2.1" and
+MARKETPLACE_JSON_CONTENT version "1.2.1" match the blueprint's specified
 schema values.
 ==========================================================================
 """
@@ -273,14 +273,14 @@ class TestPluginJsonContentVersionValue:
     """Verify PLUGIN_JSON_CONTENT version field has the correct value.
 
     Existing tests check version is a string but not its exact value.
-    Blueprint specifies version '1.2.0'.
+    Blueprint specifies version '1.2.1'.
     """
 
     def test_plugin_json_content_version_is_1_2_0(self):
-        """PLUGIN_JSON_CONTENT version must be '1.2.0'."""
+        """PLUGIN_JSON_CONTENT version must be '1.2.1'."""
         content = _get_content("PLUGIN_JSON_CONTENT")
         parsed = json.loads(content)
-        assert parsed["version"] == "1.2.0"
+        assert parsed["version"] == "1.2.1"
 
 
 # ===========================================================================
@@ -292,17 +292,17 @@ class TestMarketplaceJsonContentVersionValue:
     """Verify MARKETPLACE_JSON_CONTENT plugin entry version has the correct
     value.
 
-    Blueprint specifies version '1.2.0' in the plugin entry.
+    Blueprint specifies version '1.2.1' in the plugin entry.
     Existing tests check the field exists but not its exact value in the
     content string deliverable.
     """
 
     def test_marketplace_content_plugin_version_is_1_2_0(self):
-        """MARKETPLACE_JSON_CONTENT plugin version must be '1.2.0'."""
+        """MARKETPLACE_JSON_CONTENT plugin version must be '1.2.1'."""
         content = _get_content("MARKETPLACE_JSON_CONTENT")
         parsed = json.loads(content)
         plugin = parsed["plugins"][0]
-        assert plugin["version"] == "1.2.0"
+        assert plugin["version"] == "1.2.1"
 
 
 # ===========================================================================

@@ -162,8 +162,8 @@ class TestPluginJson:
         assert isinstance(PLUGIN_JSON["version"], str)
 
     def test_version_value(self):
-        """PLUGIN_JSON version must be '1.2.0'."""
-        assert PLUGIN_JSON["version"] == "1.2.0"
+        """PLUGIN_JSON version must be '1.2.1'."""
+        assert PLUGIN_JSON["version"] == "1.2.1"
 
     def test_has_description_field(self):
         """PLUGIN_JSON must have a 'description' field."""
@@ -243,7 +243,7 @@ class TestMarketplaceJson:
         """Each plugin entry must have a 'version' field."""
         plugin = MARKETPLACE_JSON["plugins"][0]
         assert "version" in plugin
-        assert plugin["version"] == "1.2.0"
+        assert plugin["version"] == "1.2.1"
 
     def test_plugin_entry_has_author(self):
         """Each plugin entry must have an 'author' field."""

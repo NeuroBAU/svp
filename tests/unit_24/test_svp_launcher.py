@@ -377,7 +377,7 @@ class TestIsPluginDir:
         manifest_dir = plugin_dir / ".claude-plugin"
         manifest_dir.mkdir()
         manifest = manifest_dir / "plugin.json"
-        manifest.write_text(json.dumps({"name": "svp", "version": "1.2.0"}))
+        manifest.write_text(json.dumps({"name": "svp", "version": "1.2.1"}))
 
         result = _is_svp_plugin_dir(plugin_dir)
         assert result is True
