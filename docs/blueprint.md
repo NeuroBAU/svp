@@ -808,7 +808,7 @@ from pathlib import Path
 
 def extract_all_imports(blueprint_path: Path) -> List[str]: ...
 
-def classify_import(import_stmt: str) -> str: ...
+def classify_import(import_stmt: str, scripts_dir: Path = None) -> str: ...
 
 def map_imports_to_packages(imports: List[str]) -> Dict[str, str]: ...
 
@@ -854,7 +854,7 @@ assert "-" not in result, "Env name must not contain hyphens"
 ### Tier 3 -- Behavioral Contracts
 
 - `extract_all_imports` parses every `### Tier 2 — Signatures` code block across all units and collects all `import` and `from ... import` statements. Heading format must use an em-dash (spec Section 24.13).
-- `classify_import` determines whether an import is standard library, third-party, or project-internal.
+- `classify_import` determines whether an import is standard library, third-party, or project-internal. Classification checks: `src` and `svp` prefixes, dynamic lookup of `.py` files in the `scripts/` directory (via optional `scripts_dir` parameter, defaulting to `Path(__file__).parent`), and the stdlib module set.
 - `map_imports_to_packages` maps third-party import module names to pip/conda package names.
 - `create_conda_environment` creates the environment using `conda create` and installs packages. Uses `conda run -n {env_name}` for all operations (spec Section 4.3). Always installs pytest and pytest-cov unconditionally as framework dependencies required by the pipeline (spec Section 1.2, 9.1), in addition to any project-specific packages extracted from the blueprint.
 - `validate_imports` executes each import in the environment via `conda run -n {env_name} python -c "import ..."` and returns a list of (import, error) tuples for failures.
@@ -1018,7 +1018,7 @@ assert result.stat().st_size > 0, "Gate prompt file must not be empty"
   - **git_repo_agent**: all verified artifacts, reference documents. In fix cycle: adds error output.
   - **help_agent**: project summary, stakeholder spec, blueprint. In gate-invocation mode: adds gate flag.
   - **hint_agent**: logs, documents, stakeholder spec, blueprint.
-  - **redo_agent**: pipeline state summary, human error description, current unit definition.
+  - **redo_agent**: pipeline state summary, human error description, optional current unit definition.
   - **reference_indexing**: full reference document.
   - **bug_triage**: stakeholder spec, blueprint, source code paths, test suite paths, ledger.
   - **repair_agent**: build/environment error diagnosis, environment state.
@@ -1083,7 +1083,7 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
     "setup_agent": ["PROJECT_CONTEXT_COMPLETE", "PROJECT_CONTEXT_REJECTED"],
     "stakeholder_dialog": ["SPEC_DRAFT_COMPLETE", "SPEC_REVISION_COMPLETE"],
     "stakeholder_reviewer": ["REVIEW_COMPLETE"],
-    "blueprint_author": ["BLUEPRINT_DRAFT_COMPLETE"],
+    "blueprint_author": ["BLUEPRINT_DRAFT_COMPLETE", "BLUEPRINT_REVISION_COMPLETE"],
     "blueprint_checker": ["ALIGNMENT_CONFIRMED", "ALIGNMENT_FAILED: spec", "ALIGNMENT_FAILED: blueprint"],
     "blueprint_reviewer": ["REVIEW_COMPLETE"],
     "test_agent": ["TEST_GENERATION_COMPLETE"],
@@ -1438,7 +1438,7 @@ BLUEPRINT_AUTHOR_AGENT_FRONTMATTER: Dict[str, Any] = {
 # --- Terminal status lines ---
 SETUP_AGENT_STATUS: List[str] = ["PROJECT_CONTEXT_COMPLETE", "PROJECT_CONTEXT_REJECTED"]
 STAKEHOLDER_DIALOG_STATUS: List[str] = ["SPEC_DRAFT_COMPLETE", "SPEC_REVISION_COMPLETE"]
-BLUEPRINT_AUTHOR_STATUS: List[str] = ["BLUEPRINT_DRAFT_COMPLETE"]
+BLUEPRINT_AUTHOR_STATUS: List[str] = ["BLUEPRINT_DRAFT_COMPLETE", "BLUEPRINT_REVISION_COMPLETE"]
 
 # Deliverable content constants (written by Stage 5 assembly)
 SETUP_AGENT_MD_CONTENT: str  # -> agents/setup_agent.md
@@ -1473,7 +1473,7 @@ BLUEPRINT_AUTHOR_AGENT_MD_CONTENT: str  # -> agents/blueprint_author_agent.md
 - Each `*_MD_CONTENT` string must be a complete Claude Code agent definition file. The YAML frontmatter must match the corresponding `*_FRONTMATTER` dict. The behavioral instructions after the frontmatter must describe: the agent's purpose, its methodology, its input/output format, its constraints, and its terminal status line(s). The instructions should be detailed enough that the agent can perform its role autonomously — not a placeholder or skeleton. Reference the stakeholder spec sections listed in this unit's description for the detailed behavioral requirements.
 - **Setup Agent:** Conducts `project_context.md` creation dialog. Actively rewrites human input into well-structured, LLM-optimized context. Enforces quality gate -- refuses to advance if content is insufficient. Terminal status: `PROJECT_CONTEXT_COMPLETE` or `PROJECT_CONTEXT_REJECTED`. Uses `claude-sonnet-4-6`.
 - **Stakeholder Dialog Agent:** Conducts the Socratic dialog for stakeholder spec authoring. Asks one question at a time, seeks consensus per topic, surfaces contradictions and edge cases. Draws on reference summaries. Also operates in revision mode for targeted corrections. Terminal status: `SPEC_DRAFT_COMPLETE` or `SPEC_REVISION_COMPLETE`. Uses `claude-opus-4-6`.
-- **Blueprint Author Agent:** Conducts decomposition dialog with domain expert. Proposes initial decomposition, asks domain-level questions about phases, data flow, and boundaries. When a spec ambiguity is found, distinguishes clarification (working note) from contradiction (targeted spec revision). Produces units in the three-tier format. Uses the structured response format with `[QUESTION]`, `[DECISION]`, `[CONFIRMED]` closing lines. Evaluates human domain hints -- decomposition-level hints carry additional weight. If a hint contradicts a blueprint contract, returns `HINT_BLUEPRINT_CONFLICT: [details]`. Terminal status: `BLUEPRINT_DRAFT_COMPLETE`. Uses `claude-opus-4-6`.
+- **Blueprint Author Agent:** Conducts decomposition dialog with domain expert. Proposes initial decomposition, asks domain-level questions about phases, data flow, and boundaries. When a spec ambiguity is found, distinguishes clarification (working note) from contradiction (targeted spec revision). Produces units in the three-tier format. Uses the structured response format with `[QUESTION]`, `[DECISION]`, `[CONFIRMED]` closing lines. Evaluates human domain hints -- decomposition-level hints carry additional weight. If a hint contradicts a blueprint contract, returns `HINT_BLUEPRINT_CONFLICT: [details]`. Terminal status: `BLUEPRINT_DRAFT_COMPLETE` or `BLUEPRINT_REVISION_COMPLETE`. Uses `claude-opus-4-6`.
 - All three agents include in their system prompts: the structured response format requirement, the terminal status line vocabulary, and the constraint against modifying files outside their scope.
 
 ### Tier 3 -- Dependencies
