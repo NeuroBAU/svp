@@ -11,7 +11,7 @@ Invokes the ref agent to manage reference material. This is a Group B command --
 1. Verify the pipeline is in Stage 0, 1, or 2. If Stage 3 or later, inform the human that `/svp:ref` is locked and do not proceed.
 2. Run the following command to produce the task prompt:
    ```
-   python scripts/prepare_task.py --agent ref --project-root . --output .svp/task_prompt.md
+   python scripts/prepare_task.py --agent reference_indexing --project-root . --output .svp/task_prompt.md
    ```
 3. Read the task prompt file produced by the prepare command.
 4. Spawn the ref subagent, passing the task prompt content verbatim.

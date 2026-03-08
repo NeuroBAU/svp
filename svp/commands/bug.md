@@ -11,11 +11,11 @@ Invokes the bug triage agent to classify and route the bug report. This is a Gro
 1. Verify the pipeline has completed Stage 5. If Stage 5 is not complete, inform the human that `/svp:bug` is not available and do not proceed.
 2. Run the following command to produce the task prompt:
    ```
-   python scripts/prepare_task.py --agent bug --project-root . --output .svp/task_prompt.md
+   python scripts/prepare_task.py --agent bug_triage --project-root . --output .svp/task_prompt.md
    ```
    If the human specified `--abandon`, append the flag:
    ```
-   python scripts/prepare_task.py --agent bug --abandon --project-root . --output .svp/task_prompt.md
+   python scripts/prepare_task.py --agent bug_triage --abandon --project-root . --output .svp/task_prompt.md
    ```
 3. Read the task prompt file produced by the prepare command.
 4. Spawn the bug subagent, passing the task prompt content verbatim.

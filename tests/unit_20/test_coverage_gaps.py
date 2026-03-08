@@ -14,7 +14,7 @@ Covers blueprint behavioral contracts not exercised by the existing test suite:
 
 DATA ASSUMPTIONS:
 - Group B commands use 'prepare_task.py --agent {role}' where {role} matches
-  the command name (help, hint, ref, redo, bug).
+  the KNOWN_AGENT_TYPES name (help_agent, hint_agent, reference_indexing, redo_agent, bug_triage).
 - Stage-restricted commands document the specific stage numbers in their content.
 - The bug command documents the '--abandon' flag as a CLI flag.
 - Each command file contains sections for when to use, what it does, and
@@ -54,6 +54,15 @@ _CONTENT_NAMES = {
     "clean": "CLEAN_MD_CONTENT",
 }
 
+# Maps command short names to the agent type used in prepare_task.py --agent
+_AGENT_TYPE_NAMES = {
+    "help": "help_agent",
+    "hint": "hint_agent",
+    "ref": "reference_indexing",
+    "redo": "redo_agent",
+    "bug": "bug_triage",
+}
+
 
 # ===========================================================================
 # Gap 1: Group B --agent {role} argument
@@ -70,12 +79,13 @@ class TestGroupBAgentRoleArgument:
 
     @pytest.mark.parametrize("cmd_name", GROUP_B_COMMANDS)
     def test_group_b_references_agent_flag_with_role(self, cmd_name):
-        """Group B content must include '--agent {cmd_name}' in its invocation."""
-        # DATA ASSUMPTION: The --agent flag value matches the command name
-        # (e.g., --agent help, --agent hint, --agent ref, --agent redo, --agent bug).
+        """Group B content must include '--agent {agent_type}' in its invocation."""
+        # The --agent flag value uses the KNOWN_AGENT_TYPES name, not the
+        # command short name (e.g., --agent help_agent, --agent hint_agent).
         content_name = _CONTENT_NAMES[cmd_name]
         content = _get_md_content(content_name)
-        expected_fragment = f"--agent {cmd_name}"
+        agent_type = _AGENT_TYPE_NAMES[cmd_name]
+        expected_fragment = f"--agent {agent_type}"
         assert expected_fragment in content, (
             f"{content_name} must contain '{expected_fragment}' in its "
             "prepare_task.py invocation"
