@@ -142,7 +142,7 @@ subagent. No dedicated command script exists for this command.
 
 1. Run the following command to produce the task prompt:
    ```
-   python scripts/prepare_task.py --agent help --project-root . --output .svp/task_prompt.md
+   python scripts/prepare_task.py --agent help_agent --project-root . --output .svp/task_prompt.md
    ```
 2. Read the task prompt file produced by the prepare command.
 3. Spawn the help subagent, passing the task prompt content verbatim.

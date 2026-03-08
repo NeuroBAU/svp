@@ -160,11 +160,14 @@ _VALID_ACTION_TYPES = (
 # Helper: POST command builder
 # ---------------------------------------------------------------------------
 
-def _post_cmd(phase: str, unit: Optional[int] = None) -> str:
+def _post_cmd(phase: str, unit: Optional[int] = None,
+              gate_id: Optional[str] = None) -> str:
     """Build the standard POST command string."""
     parts = ["python scripts/update_state.py"]
     if unit is not None:
         parts.append(f"--unit {unit}")
+    if gate_id is not None:
+        parts.append(f"--gate {gate_id}")
     parts.append(f"--phase {phase}")
     parts.append("--status-file .svp/last_status.txt")
     return " ".join(parts)
@@ -488,6 +491,9 @@ def _human_gate_action(
     This is the Bug 1 invariant: OPTIONS lists exactly the valid status strings.
     """
     options_list = list(GATE_VOCABULARY.get(gate_id, []))
+    # Inject --gate into the POST command for gate response dispatch
+    if post is not None:
+        post = f"{post} --gate {gate_id}"
     return {
         "ACTION": "human_gate",
         "AGENT": None,

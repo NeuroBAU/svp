@@ -147,3 +147,38 @@ def test_all_referenced_scripts_exist():
             f"routing.py references 'scripts/{script_name}' but "
             f"{SCRIPTS_DIR / script_name} does not exist"
         )
+
+def test_post_cmd_with_gate_id_generates_gate_flag():
+    """_post_cmd(gate_id=...) must include --gate in its output."""
+    routing = _import_routing()
+    cmd = routing._post_cmd("test_validation", unit=1, gate_id="gate_3_1_test_validation")
+    flags = _flags_from_cmd(cmd)
+    assert "--gate" in flags, (
+        f"_post_cmd() with gate_id did not generate --gate flag. Command: {cmd}"
+    )
+    assert "gate_3_1_test_validation" in cmd, (
+        f"_post_cmd() gate_id value not found in command. Command: {cmd}"
+    )
+
+
+def test_post_cmd_without_gate_id_omits_gate_flag():
+    """_post_cmd() without gate_id must NOT include --gate."""
+    routing = _import_routing()
+    cmd = routing._post_cmd("build", unit=1)
+    flags = _flags_from_cmd(cmd)
+    assert "--gate" not in flags, (
+        f"_post_cmd() without gate_id should not generate --gate flag. Command: {cmd}"
+    )
+
+
+def test_post_cmd_gate_flag_accepted_by_update_state():
+    """--gate flag from _post_cmd(gate_id=...) must be accepted by update_state_main."""
+    routing = _import_routing()
+    cmd = routing._post_cmd("test_validation", unit=1, gate_id="gate_3_1_test_validation")
+    generated = _flags_from_cmd(cmd)
+    accepted = _get_update_state_flags()
+    unaccepted = generated - accepted
+    assert not unaccepted, (
+        f"_post_cmd(gate_id=...) generates flags not accepted by update_state_main: "
+        f"{unaccepted}. Generated: {generated}, Accepted: {accepted}"
+    )
