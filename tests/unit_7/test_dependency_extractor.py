@@ -126,8 +126,9 @@ class TestSignatures:
     def test_classify_import_signature(self):
         sig = inspect.signature(classify_import)
         params = list(sig.parameters.keys())
-        assert params == ["import_stmt"]
+        assert params == ["import_stmt", "scripts_dir"]
         assert sig.parameters["import_stmt"].annotation is str
+        assert sig.parameters["scripts_dir"].default is None
         assert sig.return_annotation is str
 
     def test_map_imports_to_packages_signature(self):

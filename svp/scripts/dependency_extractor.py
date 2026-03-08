@@ -137,18 +137,26 @@ def extract_all_imports(blueprint_path: Path) -> List[str]:
     return all_imports
 
 
-def classify_import(import_stmt: str) -> str:
+def classify_import(import_stmt: str, scripts_dir: Path = None) -> str:
     """Determine whether an import is 'stdlib', 'third_party', or 'project'.
 
     Classification logic:
     - If the top-level module is in sys.stdlib_module_names -> 'stdlib'
-    - If the import references a project-internal module (e.g. src.*) -> 'project'
+    - If the import references a project-internal module (e.g. src.*, svp.*,
+      or any module matching a .py file in scripts/) -> 'project'
     - Otherwise -> 'third_party'
     """
     top_level = _extract_top_level_module(import_stmt)
 
-    # Check for project-internal imports
+    # Check for project-internal imports by name prefix
     if top_level in ("src", "svp"):
+        return "project"
+
+    # Check if the module corresponds to a .py file in the scripts directory
+    # (project modules live in scripts/ which is on sys.path)
+    if scripts_dir is None:
+        scripts_dir = Path(__file__).parent
+    if (scripts_dir / f"{top_level}.py").exists():
         return "project"
 
     # Check against stdlib

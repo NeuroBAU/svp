@@ -1577,6 +1577,7 @@ Every subagent produces a structured terminal status line as its final output. T
 
 **Blueprint Author Agent:**
 - `BLUEPRINT_DRAFT_COMPLETE` -- blueprint produced, ready for checking.
+- `BLUEPRINT_REVISION_COMPLETE` -- targeted revision complete, ready for re-checking.
 
 **Blueprint Checker Agent:**
 - `ALIGNMENT_CONFIRMED` -- blueprint aligns with spec.

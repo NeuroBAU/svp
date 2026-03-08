@@ -68,7 +68,6 @@ UNIT_REQUIRED_AGENTS: List[str] = [
     "implementation_agent",
     "coverage_review",
     "diagnostic_agent",
-    "redo_agent",
 ]
 
 # Known gate IDs -- using the long-form gate_N_N_description convention
@@ -524,9 +523,18 @@ def _assemble_blueprint_author(
     """Assemble task prompt for blueprint_author."""
     extra = extra_context or {}
     checker_feedback = extra.get("checker_feedback", "")
+    revision_mode = extra.get("revision_mode", False)
 
     sections: List[str] = []
-    sections.append("# Blueprint Author Task Prompt\n")
+    if revision_mode:
+        sections.append("# Blueprint Author Task Prompt (Revision Mode)\n")
+        sections.append(
+            "You are revising an existing blueprint based on human feedback. "
+            "Address the identified issues without reopening settled topics. "
+            "Your terminal status line must be: BLUEPRINT_REVISION_COMPLETE\n"
+        )
+    else:
+        sections.append("# Blueprint Author Task Prompt\n")
 
     # Stakeholder spec -- required for blueprint_author
     spec_content = load_stakeholder_spec(project_root)
@@ -537,6 +545,13 @@ def _assemble_blueprint_author(
     ref_summaries = load_reference_summaries(project_root)
     if ref_summaries:
         sections.append(ref_summaries)
+
+    # In revision mode, include the current blueprint being revised
+    if revision_mode:
+        blueprint_path = project_root / "blueprint" / "blueprint.md"
+        if blueprint_path.exists():
+            sections.append("## Current Blueprint (to revise)\n")
+            sections.append(blueprint_path.read_text(encoding="utf-8"))
 
     # Checker feedback
     if checker_feedback:
@@ -1832,6 +1847,8 @@ def main() -> None:
                         help="Gate ID for context (help agent gate mode).")
     parser.add_argument("--output", type=str, default=None,
                         help="Override output path for the assembled prompt file.")
+    parser.add_argument("--revision-mode", action="store_true", default=False,
+                        help="Enable revision mode (for stakeholder dialog and blueprint author).")
 
     args = parser.parse_args()
     project_root = Path(args.project_root)
@@ -1847,6 +1864,11 @@ def main() -> None:
         if hint_path.exists():
             hint_content = hint_path.read_text(encoding="utf-8").strip()
 
+    # Build extra_context from CLI flags
+    extra_context: Dict[str, str] = {}
+    if args.revision_mode:
+        extra_context["revision_mode"] = True
+
     try:
         if args.agent:
             result = prepare_agent_task(
@@ -1856,6 +1878,7 @@ def main() -> None:
                 ladder_position=args.ladder_position,
                 hint_content=hint_content,
                 gate_id=args.gate_id,
+                extra_context=extra_context if extra_context else None,
             )
         else:
             result = prepare_gate_prompt(

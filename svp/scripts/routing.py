@@ -102,7 +102,7 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
     "setup_agent": ["PROJECT_CONTEXT_COMPLETE", "PROJECT_CONTEXT_REJECTED"],
     "stakeholder_dialog": ["SPEC_DRAFT_COMPLETE", "SPEC_REVISION_COMPLETE"],
     "stakeholder_reviewer": ["REVIEW_COMPLETE"],
-    "blueprint_author": ["BLUEPRINT_DRAFT_COMPLETE"],
+    "blueprint_author": ["BLUEPRINT_DRAFT_COMPLETE", "BLUEPRINT_REVISION_COMPLETE"],
     "blueprint_checker": ["ALIGNMENT_CONFIRMED", "ALIGNMENT_FAILED: spec", "ALIGNMENT_FAILED: blueprint"],
     "blueprint_reviewer": ["REVIEW_COMPLETE"],
     "test_agent": ["TEST_GENERATION_COMPLETE"],
@@ -714,6 +714,18 @@ def _route_stage_2(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 f"diagnostic summary and decide how to proceed."
             ),
             post=_post_cmd("alignment_exhausted"),
+        )
+
+    elif sub in ("revision", "blueprint_revision"):
+        # Blueprint revision triggered by REVISE at approval/post-review gate
+        return _invoke_agent_action(
+            agent="blueprint_author",
+            message=(
+                "The blueprint author agent will conduct a focused revision of the "
+                "blueprint to address the identified issues."
+            ),
+            post=_post_cmd("blueprint_revision"),
+            prepare=_prepare_cmd("blueprint_author", extra="--revision-mode"),
         )
 
     elif sub in ("spec_revision", "spec_revision_stage2"):
@@ -1356,7 +1368,7 @@ def dispatch_gate_response(
         if response == "APPROVE":
             return advance_stage(state, project_root)
         elif response == "REVISE":
-            return advance_sub_stage(state, "blueprint_dialog", project_root)
+            return advance_sub_stage(state, "blueprint_revision", project_root)
         else:  # FRESH REVIEW
             return advance_sub_stage(state, "fresh_review", project_root)
 
@@ -1365,7 +1377,7 @@ def dispatch_gate_response(
         if response == "APPROVE":
             return advance_stage(state, project_root)
         elif response == "REVISE":
-            return advance_sub_stage(state, "blueprint_dialog", project_root)
+            return advance_sub_stage(state, "blueprint_revision", project_root)
         else:  # FRESH REVIEW
             return advance_sub_stage(state, "fresh_review", project_root)
 
@@ -1526,6 +1538,8 @@ def dispatch_agent_status(
     elif phase == "spec_revision_stage2":
         return advance_sub_stage(state, "blueprint_dialog", project_root)
     elif phase == "blueprint_dialog":
+        return advance_sub_stage(state, "alignment_check", project_root)
+    elif phase == "blueprint_revision":
         return advance_sub_stage(state, "alignment_check", project_root)
     elif phase == "blueprint_review":
         return advance_sub_stage(state, "post_review", project_root)

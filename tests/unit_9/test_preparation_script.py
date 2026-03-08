@@ -80,7 +80,6 @@ UNIT_SPECIFIC_AGENT_TYPES = [
     "implementation_agent",
     "coverage_review",
     "diagnostic_agent",
-    "redo_agent",
 ]
 
 # DATA ASSUMPTION: Fix ladder positions from Unit 2 schema.
