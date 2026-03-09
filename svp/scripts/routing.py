@@ -1680,9 +1680,9 @@ def _handle_stakeholder_dialog(
     state: PipelineState, status: str, project_root: Path
 ) -> PipelineState:
     """Handle stakeholder dialog status."""
-    if status == "SPEC_DRAFT_COMPLETE":
+    if status.startswith("SPEC_DRAFT_COMPLETE"):
         return advance_sub_stage(state, "approval", project_root)
-    elif status == "SPEC_REVISION_COMPLETE":
+    elif status.startswith("SPEC_REVISION_COMPLETE"):
         return advance_sub_stage(state, "approval", project_root)
     return state
 
@@ -1691,9 +1691,9 @@ def _handle_project_context(
     state: PipelineState, status: str, project_root: Path
 ) -> PipelineState:
     """Handle setup agent status."""
-    if status == "PROJECT_CONTEXT_COMPLETE":
+    if status.startswith("PROJECT_CONTEXT_COMPLETE"):
         return advance_stage(state, project_root)
-    elif status == "PROJECT_CONTEXT_REJECTED":
+    elif status.startswith("PROJECT_CONTEXT_REJECTED"):
         # Human not providing sufficient content; pipeline pauses
         return state
     return state
@@ -1776,10 +1776,10 @@ def _handle_bug_triage(
         return update_debug_phase(state, "regression_test")
     elif status.startswith("TRIAGE_COMPLETE: cross_unit"):
         return update_debug_phase(state, "regression_test")
-    elif status == "TRIAGE_NEEDS_REFINEMENT":
+    elif status.startswith("TRIAGE_NEEDS_REFINEMENT"):
         # Return to triage dialog
         return state
-    elif status == "TRIAGE_NON_REPRODUCIBLE":
+    elif status.startswith("TRIAGE_NON_REPRODUCIBLE"):
         return advance_sub_stage(state, "non_reproducible", project_root)
     return state
 
@@ -1788,11 +1788,11 @@ def _handle_repair(
     state: PipelineState, status: str, project_root: Path
 ) -> PipelineState:
     """Handle repair agent status."""
-    if status == "REPAIR_COMPLETE":
+    if status.startswith("REPAIR_COMPLETE"):
         return update_debug_phase(state, "complete")
-    elif status == "REPAIR_FAILED":
+    elif status.startswith("REPAIR_FAILED"):
         return advance_sub_stage(state, "repair_exhausted", project_root)
-    elif status == "REPAIR_RECLASSIFY":
+    elif status.startswith("REPAIR_RECLASSIFY"):
         return update_debug_phase(state, "triage")
     return state
 

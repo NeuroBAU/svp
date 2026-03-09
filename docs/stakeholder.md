@@ -1562,7 +1562,7 @@ The tight key-value structure minimizes the hallucination surface. The main sess
 
 ### 18.1 Terminal Status Lines
 
-Every subagent produces a structured terminal status line as its final output. The main session captures this line and writes it to `.svp/last_status.txt`. The POST script reads this file and dispatches accordingly. The complete vocabulary:
+Every subagent produces a structured terminal status line as its final output. The main session captures this line and writes it to `.svp/last_status.txt`. The POST script reads this file and dispatches accordingly using **prefix matching** -- agents may append trailing context after the canonical status prefix (e.g., `TEST_GENERATION_COMPLETE: 45 tests`), and the dispatch logic matches using `startswith()`. This is distinct from gate status strings (Section 18.4), which use exact string matching. The complete vocabulary of canonical prefixes:
 
 **Setup Agent:**
 - `PROJECT_CONTEXT_COMPLETE` -- `project_context.md` approved by the human.

@@ -228,6 +228,48 @@ class TestDispatchAgentStatus:
         except (TransitionError, ValueError, NotImplementedError):
             pass
 
+    def test_prefix_matching_with_trailing_context(self, tmp_project_root):
+        """Agent status lines with trailing context must be accepted.
+
+        Regression test: agents may append details after the canonical prefix
+        (e.g., 'TEST_GENERATION_COMPLETE: 45 tests'). Both validation and
+        handler dispatch must use prefix matching, not exact == matching.
+        """
+        # Each tuple: (status_line_with_context, phase, stage_kwargs)
+        cases = [
+            ("TEST_GENERATION_COMPLETE: 45 tests", "test_generation",
+             {"stage": "3", "current_unit": 1, "total_units": 5}),
+            ("IMPLEMENTATION_COMPLETE: 3 files", "implementation",
+             {"stage": "3", "current_unit": 1, "total_units": 5}),
+            ("SPEC_DRAFT_COMPLETE: 2000 words", "stakeholder_dialog",
+             {"stage": "1", "sub_stage": "stakeholder_dialog"}),
+            ("SPEC_REVISION_COMPLETE: section 3 revised", "stakeholder_dialog",
+             {"stage": "1", "sub_stage": "stakeholder_dialog"}),
+            ("PROJECT_CONTEXT_COMPLETE: 5 sections", "project_context",
+             {"stage": "0", "sub_stage": "project_context"}),
+            ("REPAIR_COMPLETE: fixed 3 files", "repair",
+             {"stage": "3"}),
+            ("REPAIR_FAILED: timeout after 5 attempts", "repair",
+             {"stage": "3"}),
+            ("REPAIR_RECLASSIFY: needs implementation changes", "repair",
+             {"stage": "3"}),
+        ]
+        for status_line, phase, stage_kwargs in cases:
+            state = _make_state(**stage_kwargs)
+            # Must not raise ValueError -- the status line must be recognized
+            try:
+                result = dispatch_agent_status(
+                    state, "", status_line,
+                    stage_kwargs.get("current_unit"), phase, tmp_project_root
+                )
+                assert isinstance(result, PipelineState), (
+                    f"Handler for '{status_line}' returned non-PipelineState"
+                )
+            except (TransitionError, NotImplementedError):
+                # TransitionError from precondition mismatches is acceptable;
+                # ValueError would indicate the bug is present
+                pass
+
 
 class TestDispatchCommandStatus:
     """Tests for dispatch_command_status."""
