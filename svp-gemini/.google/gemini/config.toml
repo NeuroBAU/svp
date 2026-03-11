@@ -1,0 +1,4 @@
+[commands]
+status = "cat ledgers/pipeline_state.json"
+save = "python scripts/save_state.py"
+bug = "python scripts/start_triage.py"
