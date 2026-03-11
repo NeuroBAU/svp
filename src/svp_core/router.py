@@ -504,6 +504,16 @@ def _route_stage_3(
     elif sub == "unit_completion":
         return _session_boundary_action(message=f"Unit {unit} is complete.")
 
+    elif sub == "unit_verified":
+        return _session_boundary_action(
+            message=f"Unit {unit} verified. Preparing for the next unit."
+        )
+
+    elif sub in ("doc_revision", "restart_stage2"):
+        return _session_boundary_action(
+            message="Document revision complete. Restarting from Stage 2."
+        )
+
     return _invoke_agent_action(
         agent="test_agent",
         message=f"Continuing Stage 3 for Unit {unit}.",
@@ -519,86 +529,106 @@ def _route_fix_ladder(
     project_root: Path,
     cmd_builders: Optional[RouterCommandBuilders] = None,
 ) -> Dict[str, Any]:
-    """Route fix ladder within Stage 3."""
-    sub = state.sub_stage
+    """Route fix ladder positions within Stage 3."""
+    fix = state.fix_ladder_position
     unit = state.current_unit
+    sub = state.sub_stage
     post_fn = cmd_builders.post_cmd if cmd_builders else None
     prep_fn = cmd_builders.prepare_cmd if cmd_builders else None
 
-    if sub == "fresh_test":
+    if fix == "fresh_test":
         return _invoke_agent_action(
             agent="test_agent",
-            message=f"Generating new tests for Unit {unit} (fix ladder).",
             unit=unit,
+            message=(
+                f"Test fix ladder for Unit {unit}: fresh test agent generating "
+                f"replacement tests with rejection context."
+            ),
             post=post_fn("fresh_test", unit=unit) if post_fn else None,
-            prepare=lambda: (
-                prep_fn("test_agent", extra="--fix-ladder fresh-test")
-                if prep_fn
-                else None
-            ),
+            prepare=prep_fn(
+                "test_agent", unit=unit, extra="--ladder-position fresh_test"
+            )
+            if prep_fn
+            else None,
             prepare_cmd_builder=prep_fn,
             post_cmd_builder=post_fn,
         )
 
-    elif sub == "hint_test":
+    elif fix == "hint_test":
         return _invoke_agent_action(
-            agent="hint_agent",
-            message=f"Analyzing hints and generating tests for Unit {unit}.",
+            agent="test_agent",
             unit=unit,
-            post=post_fn("hint_test", unit=unit) if post_fn else None,
-            prepare=lambda: (
-                prep_fn("test_agent", extra="--fix-ladder hint-test")
-                if prep_fn
-                else None
+            message=(
+                f"Test fix ladder for Unit {unit}: hint-assisted test agent generating "
+                f"replacement tests with accumulated context and human hint."
             ),
+            post=post_fn("hint_test", unit=unit) if post_fn else None,
+            prepare=prep_fn(
+                "test_agent", unit=unit, extra="--ladder-position hint_test"
+            )
+            if prep_fn
+            else None,
             prepare_cmd_builder=prep_fn,
             post_cmd_builder=post_fn,
         )
 
-    elif sub == "fresh_impl":
+    elif fix == "fresh_impl":
         return _invoke_agent_action(
             agent="implementation_agent",
-            message=f"Implementing fix for Unit {unit} (fix ladder).",
             unit=unit,
-            post=post_fn("fresh_impl", unit=unit) if post_fn else None,
-            prepare=lambda: (
-                prep_fn("implementation_agent", extra="--fix-ladder fresh-impl")
-                if prep_fn
-                else None
+            message=(
+                f"Implementation fix ladder for Unit {unit}: fresh agent with "
+                f"rejection context from test failure."
             ),
+            post=post_fn("fresh_impl", unit=unit) if post_fn else None,
+            prepare=prep_fn(
+                "implementation_agent", unit=unit, extra="--ladder-position fresh_impl"
+            )
+            if prep_fn
+            else None,
             prepare_cmd_builder=prep_fn,
             post_cmd_builder=post_fn,
         )
 
-    elif sub == "diagnostic_escalation":
+    elif fix == "diagnostic":
         return _invoke_agent_action(
             agent="diagnostic_agent",
-            message=f"Running diagnostic escalation for Unit {unit}.",
             unit=unit,
+            message=(
+                f"Diagnostic escalation for Unit {unit}: three-hypothesis analysis "
+                f"of accumulated failures."
+            ),
             post=post_fn("diagnostic_escalation", unit=unit) if post_fn else None,
+            prepare=prep_fn(
+                "diagnostic_agent", unit=unit, extra="--ladder-position diagnostic"
+            )
+            if prep_fn
+            else None,
             prepare_cmd_builder=prep_fn,
             post_cmd_builder=post_fn,
         )
 
-    elif sub == "diagnostic_impl":
+    elif fix == "diagnostic_impl":
         return _invoke_agent_action(
             agent="implementation_agent",
-            message=f"Implementing diagnostic fix for Unit {unit}.",
             unit=unit,
-            post=post_fn("diagnostic_impl", unit=unit) if post_fn else None,
-            prepare=lambda: (
-                prep_fn("implementation_agent", extra="--fix-ladder diagnostic")
-                if prep_fn
-                else None
+            message=(
+                f"Diagnostic-guided implementation for Unit {unit}: fresh agent with "
+                f"diagnostic guidance and optional human hint."
             ),
+            post=post_fn("diagnostic_impl", unit=unit) if post_fn else None,
+            prepare=prep_fn(
+                "implementation_agent",
+                unit=unit,
+                extra="--ladder-position diagnostic_impl",
+            )
+            if prep_fn
+            else None,
             prepare_cmd_builder=prep_fn,
             post_cmd_builder=post_fn,
         )
 
-    elif sub == "stage3_reentry":
-        return _route_stage_3(state, project_root, cmd_builders)
-
-    return _route_stage_3(state, project_root, cmd_builders)
+    raise ValueError(f"Unrecognized fix_ladder_position: {fix}")
 
 
 def _route_stage_4(
@@ -771,68 +801,130 @@ def _route_debug(
     cmd_builders: Optional[RouterCommandBuilders] = None,
 ) -> Dict[str, Any]:
     """Route debug session within Stage 5."""
-    sub = state.sub_stage
-    phase = state.debug_session.phase if state.debug_session else None
-    post_fn = cmd_builders.post_cmd if cmd_builders else None
+    debug = state.debug_session
+    if debug is None:
+        return _route_stage(state, project_root, cmd_builders)
 
-    if phase == "permission":
-        return _human_gate_action(
-            gate_id="gate_6_0_debug_permission",
-            message="Debug session needs permission. Choose: AUTHORIZE DEBUG or ABANDON DEBUG.",
-            post=post_fn("debug_permission") if post_fn else None,
-            gate_vocabulary=GATE_VOCABULARY,
-            gate_prepare_cmd_builder=cmd_builders.gate_prepare_cmd
-            if cmd_builders
-            else None,
+    phase = debug.phase
+    sub = state.sub_stage
+    post_fn = cmd_builders.post_cmd if cmd_builders else None
+    prep_fn = cmd_builders.prepare_cmd if cmd_builders else None
+
+    if phase == "triage_readonly":
+        if not debug.authorized:
+            return _human_gate_action(
+                gate_id="gate_6_0_debug_permission",
+                message=(
+                    "A bug has been reported. The triage agent has gathered initial "
+                    "information. Do you want to authorize debug write permissions?"
+                ),
+                post=post_fn("debug_permission") if post_fn else None,
+                gate_vocabulary=GATE_VOCABULARY,
+                gate_prepare_cmd_builder=cmd_builders.gate_prepare_cmd
+                if cmd_builders
+                else None,
+                post_cmd_builder=post_fn,
+            )
+        return _invoke_agent_action(
+            agent="bug_triage",
+            message="Starting bug triage with the triage agent.",
+            post=post_fn("bug_triage") if post_fn else None,
+            prepare_cmd_builder=prep_fn,
             post_cmd_builder=post_fn,
         )
 
-    elif phase in (None, "triage"):
+    elif phase == "triage":
         return _invoke_agent_action(
             agent="bug_triage",
-            message="Running bug triage.",
+            message="Continuing bug triage dialog.",
             post=post_fn("bug_triage") if post_fn else None,
-            prepare_cmd_builder=cmd_builders.prepare_cmd if cmd_builders else None,
+            prepare_cmd_builder=prep_fn,
             post_cmd_builder=post_fn,
         )
 
     elif phase == "regression_test":
-        return _human_gate_action(
-            gate_id="gate_6_1_regression_test",
-            message="Regression test complete. Choose: TEST CORRECT or TEST WRONG.",
-            post=post_fn("regression_test_validation") if post_fn else None,
-            gate_vocabulary=GATE_VOCABULARY,
-            gate_prepare_cmd_builder=cmd_builders.gate_prepare_cmd
-            if cmd_builders
-            else None,
-            post_cmd_builder=post_fn,
-        )
-
-    elif phase == "debug_classification":
-        return _human_gate_action(
-            gate_id="gate_6_2_debug_classification",
-            message="Debug classification needed. Choose: FIX UNIT, FIX BLUEPRINT, or FIX SPEC.",
-            post=post_fn("debug_classification") if post_fn else None,
-            gate_vocabulary=GATE_VOCABULARY,
-            gate_prepare_cmd_builder=cmd_builders.gate_prepare_cmd
-            if cmd_builders
-            else None,
-            post_cmd_builder=post_fn,
-        )
-
-    elif phase == "repair":
+        if sub == "regression_test_validation":
+            return _human_gate_action(
+                gate_id="gate_6_1_regression_test",
+                message=(
+                    "A regression test has been written and confirmed to fail. "
+                    "Please review the test assertion."
+                ),
+                post=post_fn("regression_test_validation") if post_fn else None,
+                gate_vocabulary=GATE_VOCABULARY,
+                gate_prepare_cmd_builder=cmd_builders.gate_prepare_cmd
+                if cmd_builders
+                else None,
+                post_cmd_builder=post_fn,
+            )
+        elif sub == "debug_classification":
+            return _human_gate_action(
+                gate_id="gate_6_2_debug_classification",
+                message=(
+                    "The regression test is confirmed. Please classify the fix type."
+                ),
+                post=post_fn("debug_classification") if post_fn else None,
+                gate_vocabulary=GATE_VOCABULARY,
+                gate_prepare_cmd_builder=cmd_builders.gate_prepare_cmd
+                if cmd_builders
+                else None,
+                post_cmd_builder=post_fn,
+            )
         return _invoke_agent_action(
-            agent="repair_agent",
-            message="Running repair agent.",
-            post=post_fn("repair") if post_fn else None,
-            prepare_cmd_builder=cmd_builders.prepare_cmd if cmd_builders else None,
+            agent="test_agent",
+            message="Generating regression test for the reported bug.",
+            post=post_fn("regression_test_generation") if post_fn else None,
+            prepare_cmd_builder=prep_fn,
             post_cmd_builder=post_fn,
         )
 
     elif phase == "stage3_reentry":
         return _route_stage_3(state, project_root, cmd_builders)
 
-    elif phase == "complete":
-        return _session_boundary_action(message="Debug session complete.")
+    elif phase == "repair":
+        if sub == "repair_exhausted":
+            return _human_gate_action(
+                gate_id="gate_6_3_repair_exhausted",
+                message=(
+                    "The repair agent has exhausted its fix cycle. "
+                    "Please decide how to proceed."
+                ),
+                post=post_fn("repair_exhausted") if post_fn else None,
+                gate_vocabulary=GATE_VOCABULARY,
+                gate_prepare_cmd_builder=cmd_builders.gate_prepare_cmd
+                if cmd_builders
+                else None,
+                post_cmd_builder=post_fn,
+            )
+        return _invoke_agent_action(
+            agent="repair_agent",
+            message="Repair agent is applying the fix.",
+            post=post_fn("repair") if post_fn else None,
+            prepare_cmd_builder=prep_fn,
+            post_cmd_builder=post_fn,
+        )
 
-    return _route_stage_5(state, project_root, cmd_builders)
+    elif phase == "complete":
+        return _pipeline_complete_action(
+            message="Debug session complete. The fix has been applied and verified."
+        )
+
+    if sub == "non_reproducible":
+        return _human_gate_action(
+            gate_id="gate_6_4_non_reproducible",
+            message="The bug could not be reproduced. Please decide how to proceed.",
+            post=post_fn("non_reproducible") if post_fn else None,
+            gate_vocabulary=GATE_VOCABULARY,
+            gate_prepare_cmd_builder=cmd_builders.gate_prepare_cmd
+            if cmd_builders
+            else None,
+            post_cmd_builder=post_fn,
+        )
+
+    return _invoke_agent_action(
+        agent="bug_triage",
+        message="Continuing bug triage.",
+        post=post_fn("bug_triage") if post_fn else None,
+        prepare_cmd_builder=prep_fn,
+        post_cmd_builder=post_fn,
+    )
