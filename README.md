@@ -1,6 +1,6 @@
 # SVP — Stratified Verification Pipeline
 
-A Claude Code plugin that turns natural language requirements into verified Python projects. You describe what you want; SVP orchestrates LLM agents to build, test, and deliver it — with deterministic state management, multi-agent cross-checking, and human decision gates at every critical point.
+A Claude Code plugin that turns natural language requirements into verified Python projects. Also available as **SVP-G** for the Gemini CLI.
 
 **Paper:** \[ArXiv link — forthcoming\]
 
@@ -430,6 +430,12 @@ SVP sets project directories to read-only between sessions. This is intentional 
 ### "State file not found" on session resume
 
 If SVP cannot find `pipeline_state.json`, the state recovery mechanism scans for completion markers (`.svp/markers/unit_N_verified`) to reconstruct the most conservative valid state. If recovery fails, use `/svp:status` to inspect the current situation.
+
+## SVP-G: Gemini CLI Version
+
+SVP-G is a fork of the Stratified Verification Pipeline specifically designed for the **Gemini CLI**. It uses a "Project Playbook" and custom commands to orchestrate the pipeline within the Gemini ecosystem.
+
+For documentation and setup instructions specific to the Gemini version, see the [SVP-G README](svp-gemini/README.md).
 
 ## History
 
