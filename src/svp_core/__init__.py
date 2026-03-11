@@ -27,6 +27,17 @@ from svp_core.ledger_manager import (
     write_hint_entry,
 )
 
+from svp_core.action import (
+    ACTION_TYPES,
+    REMINDER_TEXT,
+    _invoke_agent_action,
+    _run_command_action,
+    _human_gate_action,
+    _session_boundary_action,
+    _pipeline_complete_action,
+    format_action_block,
+)
+
 __all__ = [
     # pipeline_state
     "STAGES",
@@ -51,4 +62,13 @@ __all__ = [
     "extract_tagged_lines",
     "compact_ledger",
     "write_hint_entry",
+    # action
+    "ACTION_TYPES",
+    "REMINDER_TEXT",
+    "_invoke_agent_action",
+    "_run_command_action",
+    "_human_gate_action",
+    "_session_boundary_action",
+    "_pipeline_complete_action",
+    "format_action_block",
 ]

@@ -53,6 +53,17 @@ from state_transitions import (
 )
 
 # Re-export TransitionError for consumers
+from svp_core.action import (
+    _invoke_agent_action as _base_invoke_agent_action,
+    _run_command_action as _base_run_command_action,
+    _human_gate_action as _base_human_gate_action,
+    _session_boundary_action as _base_session_boundary_action,
+    _pipeline_complete_action as _base_pipeline_complete_action,
+    format_action_block as _base_format_action_block,
+    REMINDER_TEXT,
+)
+from svp_core.action import ACTION_TYPES  # noqa: F401
+
 __all__ = [
     "GATE_VOCABULARY",
     "AGENT_STATUS_LINES",
@@ -77,7 +88,11 @@ __all__ = [
 
 GATE_VOCABULARY: Dict[str, List[str]] = {
     "gate_0_1_hook_activation": ["HOOKS ACTIVATED", "HOOKS FAILED"],
-    "gate_0_2_context_approval": ["CONTEXT APPROVED", "CONTEXT REJECTED", "CONTEXT NOT READY"],
+    "gate_0_2_context_approval": [
+        "CONTEXT APPROVED",
+        "CONTEXT REJECTED",
+        "CONTEXT NOT READY",
+    ],
     "gate_1_1_spec_draft": ["APPROVE", "REVISE", "FRESH REVIEW"],
     "gate_1_2_spec_post_review": ["APPROVE", "REVISE", "FRESH REVIEW"],
     "gate_2_1_blueprint_approval": ["APPROVE", "REVISE", "FRESH REVIEW"],
@@ -103,18 +118,39 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
     "stakeholder_dialog": ["SPEC_DRAFT_COMPLETE", "SPEC_REVISION_COMPLETE"],
     "stakeholder_reviewer": ["REVIEW_COMPLETE"],
     "blueprint_author": ["BLUEPRINT_DRAFT_COMPLETE", "BLUEPRINT_REVISION_COMPLETE"],
-    "blueprint_checker": ["ALIGNMENT_CONFIRMED", "ALIGNMENT_FAILED: spec", "ALIGNMENT_FAILED: blueprint"],
+    "blueprint_checker": [
+        "ALIGNMENT_CONFIRMED",
+        "ALIGNMENT_FAILED: spec",
+        "ALIGNMENT_FAILED: blueprint",
+    ],
     "blueprint_reviewer": ["REVIEW_COMPLETE"],
     "test_agent": ["TEST_GENERATION_COMPLETE"],
     "implementation_agent": ["IMPLEMENTATION_COMPLETE"],
     "coverage_review": ["COVERAGE_COMPLETE: no gaps", "COVERAGE_COMPLETE: tests added"],
-    "diagnostic_agent": ["DIAGNOSIS_COMPLETE: implementation", "DIAGNOSIS_COMPLETE: blueprint", "DIAGNOSIS_COMPLETE: spec"],
+    "diagnostic_agent": [
+        "DIAGNOSIS_COMPLETE: implementation",
+        "DIAGNOSIS_COMPLETE: blueprint",
+        "DIAGNOSIS_COMPLETE: spec",
+    ],
     "integration_test_author": ["INTEGRATION_TESTS_COMPLETE"],
     "git_repo_agent": ["REPO_ASSEMBLY_COMPLETE"],
-    "help_agent": ["HELP_SESSION_COMPLETE: no hint", "HELP_SESSION_COMPLETE: hint forwarded"],
+    "help_agent": [
+        "HELP_SESSION_COMPLETE: no hint",
+        "HELP_SESSION_COMPLETE: hint forwarded",
+    ],
     "hint_agent": ["HINT_ANALYSIS_COMPLETE"],
-    "redo_agent": ["REDO_CLASSIFIED: spec", "REDO_CLASSIFIED: blueprint", "REDO_CLASSIFIED: gate"],
-    "bug_triage": ["TRIAGE_COMPLETE: build_env", "TRIAGE_COMPLETE: single_unit", "TRIAGE_COMPLETE: cross_unit", "TRIAGE_NEEDS_REFINEMENT", "TRIAGE_NON_REPRODUCIBLE"],
+    "redo_agent": [
+        "REDO_CLASSIFIED: spec",
+        "REDO_CLASSIFIED: blueprint",
+        "REDO_CLASSIFIED: gate",
+    ],
+    "bug_triage": [
+        "TRIAGE_COMPLETE: build_env",
+        "TRIAGE_COMPLETE: single_unit",
+        "TRIAGE_COMPLETE: cross_unit",
+        "TRIAGE_NEEDS_REFINEMENT",
+        "TRIAGE_NON_REPRODUCIBLE",
+    ],
     "repair_agent": ["REPAIR_COMPLETE", "REPAIR_FAILED", "REPAIR_RECLASSIFY"],
     "reference_indexing": ["INDEXING_COMPLETE"],
 }
@@ -124,9 +160,9 @@ CROSS_AGENT_STATUS: str = "HINT_BLUEPRINT_CONFLICT"
 
 # Command result status line patterns
 COMMAND_STATUS_PATTERNS: List[str] = [
-    "TESTS_PASSED",    # "TESTS_PASSED: N passed"
-    "TESTS_FAILED",    # "TESTS_FAILED: N passed, M failed"
-    "TESTS_ERROR",     # "TESTS_ERROR: [error summary]"
+    "TESTS_PASSED",  # "TESTS_PASSED: N passed"
+    "TESTS_FAILED",  # "TESTS_FAILED: N passed, M failed"
+    "TESTS_ERROR",  # "TESTS_ERROR: [error summary]"
     "COMMAND_SUCCEEDED",
     "COMMAND_FAILED",  # "COMMAND_FAILED: [exit code]"
 ]
@@ -150,18 +186,14 @@ _REMINDER_TEXT: str = (
     "complete the current action first."
 )
 
-_VALID_ACTION_TYPES = (
-    "invoke_agent", "run_command", "human_gate",
-    "session_boundary", "pipeline_complete",
-)
-
-
 # ---------------------------------------------------------------------------
 # Helper: POST command builder
 # ---------------------------------------------------------------------------
 
-def _post_cmd(phase: str, unit: Optional[int] = None,
-              gate_id: Optional[str] = None) -> str:
+
+def _post_cmd(
+    phase: str, unit: Optional[int] = None, gate_id: Optional[str] = None
+) -> str:
     """Build the standard POST command string."""
     parts = ["python scripts/update_state.py"]
     if unit is not None:
@@ -173,8 +205,9 @@ def _post_cmd(phase: str, unit: Optional[int] = None,
     return " ".join(parts)
 
 
-def _prepare_cmd(agent_or_gate: str, unit: Optional[int] = None,
-                 extra: Optional[str] = None) -> str:
+def _prepare_cmd(
+    agent_or_gate: str, unit: Optional[int] = None, extra: Optional[str] = None
+) -> str:
     """Build a PREPARE command string."""
     parts = ["python scripts/prepare_task.py"]
     if unit is not None:
@@ -202,6 +235,7 @@ def _gate_prepare_cmd(gate_id: str, unit: Optional[int] = None) -> str:
 # derive_env_name_from_state
 # ---------------------------------------------------------------------------
 
+
 def derive_env_name_from_state(state: PipelineState) -> str:
     """Derive the conda environment name from the project name in state.
 
@@ -215,6 +249,7 @@ def derive_env_name_from_state(state: PipelineState) -> str:
 # ---------------------------------------------------------------------------
 # Context summary (spec Section 16.3)
 # ---------------------------------------------------------------------------
+
 
 def _generate_context_summary(state: PipelineState, project_root: Path) -> str:
     """Produce a human-readable context summary per spec Section 16.3."""
@@ -309,6 +344,7 @@ def _describe_next_action(state: PipelineState) -> str:
 # Dual-file synchronization check
 # ---------------------------------------------------------------------------
 
+
 def _extract_known_agent_types(filepath: Path) -> set:
     """Extract KNOWN_AGENT_TYPES from a Python file using AST parsing.
 
@@ -361,8 +397,10 @@ def _check_scripts_sync(project_root: Path) -> None:
     if canonical_types != runtime_types:
         only_canonical = canonical_types - runtime_types
         only_runtime = runtime_types - canonical_types
-        parts = ["WARNING: KNOWN_AGENT_TYPES drift detected between "
-                 "src/unit_9/stub.py (canonical) and scripts/prepare_task.py (runtime)."]
+        parts = [
+            "WARNING: KNOWN_AGENT_TYPES drift detected between "
+            "src/unit_9/stub.py (canonical) and scripts/prepare_task.py (runtime)."
+        ]
         if only_canonical:
             parts.append(f"  In canonical only: {sorted(only_canonical)}")
         if only_runtime:
@@ -374,6 +412,7 @@ def _check_scripts_sync(project_root: Path) -> None:
 # ---------------------------------------------------------------------------
 # Core routing logic
 # ---------------------------------------------------------------------------
+
 
 def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
     """Read pipeline state and determine the next action.
@@ -396,8 +435,9 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
 
     # Post-conditions
     assert "ACTION" in result, "Route output must contain ACTION"
-    assert result["ACTION"] in _VALID_ACTION_TYPES, \
+    assert result["ACTION"] in ACTION_TYPES, (
         f"ACTION must be a valid action type, got: {result['ACTION']}"
+    )
 
     return result
 
@@ -422,14 +462,13 @@ def _route_stage(state: PipelineState, project_root: Path) -> Dict[str, Any]:
     elif stage == "5":
         return _route_stage_5(state, project_root)
     else:
-        raise ValueError(
-            f"Unrecognized pipeline state: stage={stage}, sub_stage={sub}"
-        )
+        raise ValueError(f"Unrecognized pipeline state: stage={stage}, sub_stage={sub}")
 
 
 # ---------------------------------------------------------------------------
-# Action dict builders
+# Action dict builders (wrappers around svp_core.action)
 # ---------------------------------------------------------------------------
+
 
 def _invoke_agent_action(
     agent: str,
@@ -440,19 +479,15 @@ def _invoke_agent_action(
     task_prompt_file: str = ".svp/task_prompt.md",
 ) -> Dict[str, Any]:
     """Build an invoke_agent action dict."""
-    return {
-        "ACTION": "invoke_agent",
-        "AGENT": agent,
-        "PREPARE": prepare or _prepare_cmd(agent, unit=unit),
-        "TASK_PROMPT_FILE": task_prompt_file,
-        "POST": post,
-        "COMMAND": None,
-        "GATE": None,
-        "UNIT": unit,
-        "OPTIONS": None,
-        "PROMPT_FILE": None,
-        "MESSAGE": message,
-    }
+    return _base_invoke_agent_action(
+        agent=agent,
+        message=message,
+        unit=unit,
+        prepare=prepare,
+        post=post,
+        task_prompt_file=task_prompt_file,
+        prepare_cmd_builder=lambda a, unit=unit: _prepare_cmd(a, unit=unit),
+    )
 
 
 def _run_command_action(
@@ -462,19 +497,12 @@ def _run_command_action(
     unit: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Build a run_command action dict."""
-    return {
-        "ACTION": "run_command",
-        "AGENT": None,
-        "PREPARE": None,
-        "TASK_PROMPT_FILE": None,
-        "POST": post,
-        "COMMAND": command,
-        "GATE": None,
-        "UNIT": unit,
-        "OPTIONS": None,
-        "PROMPT_FILE": None,
-        "MESSAGE": message,
-    }
+    return _base_run_command_action(
+        command=command,
+        message=message,
+        post=post,
+        unit=unit,
+    )
 
 
 def _human_gate_action(
@@ -490,62 +518,32 @@ def _human_gate_action(
     The OPTIONS field is populated from GATE_VOCABULARY using the gate_id.
     This is the Bug 1 invariant: OPTIONS lists exactly the valid status strings.
     """
-    options_list = list(GATE_VOCABULARY.get(gate_id, []))
-    # Inject --gate into the POST command for gate response dispatch
-    if post is not None:
-        post = f"{post} --gate {gate_id}"
-    return {
-        "ACTION": "human_gate",
-        "AGENT": None,
-        "PREPARE": prepare or _gate_prepare_cmd(gate_id, unit=unit),
-        "TASK_PROMPT_FILE": None,
-        "POST": post,
-        "COMMAND": None,
-        "GATE": gate_id,
-        "UNIT": unit,
-        "OPTIONS": options_list,
-        "PROMPT_FILE": prompt_file,
-        "MESSAGE": message,
-    }
+    return _base_human_gate_action(
+        gate_id=gate_id,
+        message=message,
+        unit=unit,
+        prepare=prepare,
+        post=post,
+        prompt_file=prompt_file,
+        gate_vocabulary=GATE_VOCABULARY,
+        gate_prepare_cmd_builder=lambda g, unit=unit: _gate_prepare_cmd(g, unit=unit),
+    )
 
 
 def _session_boundary_action(message: str) -> Dict[str, Any]:
     """Build a session_boundary action dict."""
-    return {
-        "ACTION": "session_boundary",
-        "AGENT": None,
-        "PREPARE": None,
-        "TASK_PROMPT_FILE": None,
-        "POST": None,
-        "COMMAND": None,
-        "GATE": None,
-        "UNIT": None,
-        "OPTIONS": None,
-        "PROMPT_FILE": None,
-        "MESSAGE": message,
-    }
+    return _base_session_boundary_action(message=message)
 
 
 def _pipeline_complete_action(message: str) -> Dict[str, Any]:
     """Build a pipeline_complete action dict."""
-    return {
-        "ACTION": "pipeline_complete",
-        "AGENT": None,
-        "PREPARE": None,
-        "TASK_PROMPT_FILE": None,
-        "POST": None,
-        "COMMAND": None,
-        "GATE": None,
-        "UNIT": None,
-        "OPTIONS": None,
-        "PROMPT_FILE": None,
-        "MESSAGE": message,
-    }
+    return _base_pipeline_complete_action(message=message)
 
 
 # ---------------------------------------------------------------------------
 # Stage routing functions
 # ---------------------------------------------------------------------------
+
 
 def _route_stage_0(state: PipelineState, project_root: Path) -> Dict[str, Any]:
     """Route Stage 0: Setup."""
@@ -576,8 +574,7 @@ def _route_stage_0(state: PipelineState, project_root: Path) -> Dict[str, Any]:
     return _human_gate_action(
         gate_id="gate_0_1_hook_activation",
         message=(
-            "Welcome to SVP! Before we begin, Claude Code's hooks need to be "
-            "activated."
+            "Welcome to SVP! Before we begin, Claude Code's hooks need to be activated."
         ),
         post=_post_cmd("hook_activation"),
     )
@@ -921,7 +918,9 @@ def _route_fix_ladder(
                 f"replacement tests with rejection context."
             ),
             post=_post_cmd("fresh_test", unit=unit),
-            prepare=_prepare_cmd("test_agent", unit=unit, extra="--ladder-position fresh_test"),
+            prepare=_prepare_cmd(
+                "test_agent", unit=unit, extra="--ladder-position fresh_test"
+            ),
         )
 
     elif fix == "hint_test":
@@ -933,7 +932,9 @@ def _route_fix_ladder(
                 f"replacement tests with accumulated context and human hint."
             ),
             post=_post_cmd("hint_test", unit=unit),
-            prepare=_prepare_cmd("test_agent", unit=unit, extra="--ladder-position hint_test"),
+            prepare=_prepare_cmd(
+                "test_agent", unit=unit, extra="--ladder-position hint_test"
+            ),
         )
 
     elif fix == "fresh_impl":
@@ -945,7 +946,9 @@ def _route_fix_ladder(
                 f"with diagnostic guidance."
             ),
             post=_post_cmd("fresh_impl", unit=unit),
-            prepare=_prepare_cmd("implementation_agent", unit=unit, extra="--ladder-position fresh_impl"),
+            prepare=_prepare_cmd(
+                "implementation_agent", unit=unit, extra="--ladder-position fresh_impl"
+            ),
         )
 
     elif fix == "diagnostic":
@@ -957,7 +960,9 @@ def _route_fix_ladder(
                 f"of accumulated failures."
             ),
             post=_post_cmd("diagnostic_escalation", unit=unit),
-            prepare=_prepare_cmd("diagnostic_agent", unit=unit, extra="--ladder-position diagnostic"),
+            prepare=_prepare_cmd(
+                "diagnostic_agent", unit=unit, extra="--ladder-position diagnostic"
+            ),
         )
 
     elif fix == "diagnostic_impl":
@@ -969,12 +974,14 @@ def _route_fix_ladder(
                 f"diagnostic guidance and optional human hint."
             ),
             post=_post_cmd("diagnostic_impl", unit=unit),
-            prepare=_prepare_cmd("implementation_agent", unit=unit, extra="--ladder-position diagnostic_impl"),
+            prepare=_prepare_cmd(
+                "implementation_agent",
+                unit=unit,
+                extra="--ladder-position diagnostic_impl",
+            ),
         )
 
-    raise ValueError(
-        f"Unrecognized fix_ladder_position: {fix}"
-    )
+    raise ValueError(f"Unrecognized fix_ladder_position: {fix}")
 
 
 def _route_stage_4(state: PipelineState, project_root: Path) -> Dict[str, Any]:
@@ -1100,6 +1107,7 @@ def _route_stage_5(state: PipelineState, project_root: Path) -> Dict[str, Any]:
 # Debug loop routing
 # ---------------------------------------------------------------------------
 
+
 def _route_debug(state: PipelineState, project_root: Path) -> Dict[str, Any]:
     """Route debug session states.
 
@@ -1196,9 +1204,7 @@ def _route_debug(state: PipelineState, project_root: Path) -> Dict[str, Any]:
     if state.sub_stage == "non_reproducible":
         return _human_gate_action(
             gate_id="gate_6_4_non_reproducible",
-            message=(
-                "The bug could not be reproduced. Please decide how to proceed."
-            ),
+            message=("The bug could not be reproduced. Please decide how to proceed."),
             post=_post_cmd("non_reproducible"),
         )
 
@@ -1214,58 +1220,20 @@ def _route_debug(state: PipelineState, project_root: Path) -> Dict[str, Any]:
 # format_action_block
 # ---------------------------------------------------------------------------
 
+
 def format_action_block(action: Dict[str, Any]) -> str:
     """Convert the action dict to the structured text format (spec Section 17).
 
     Includes the REMINDER block for invoke_agent, run_command, and human_gate.
     Omits REMINDER for session_boundary and pipeline_complete.
     """
-    lines: List[str] = []
-    action_type = action.get("ACTION", "")
-
-    lines.append(f"ACTION: {action_type}")
-
-    if action.get("AGENT") is not None:
-        lines.append(f"AGENT: {action['AGENT']}")
-    if action.get("PREPARE") is not None:
-        lines.append(f"PREPARE: {action['PREPARE']}")
-    if action.get("TASK_PROMPT_FILE") is not None:
-        lines.append(f"TASK_PROMPT_FILE: {action['TASK_PROMPT_FILE']}")
-    if action.get("COMMAND") is not None:
-        lines.append(f"COMMAND: {action['COMMAND']}")
-    if action.get("POST") is not None:
-        lines.append(f"POST: {action['POST']}")
-    if action.get("GATE") is not None:
-        lines.append(f"GATE: {action['GATE']}")
-    if action.get("UNIT") is not None:
-        lines.append(f"UNIT: {action['UNIT']}")
-    if action.get("PROMPT_FILE") is not None:
-        lines.append(f"PROMPT_FILE: {action['PROMPT_FILE']}")
-    if action.get("OPTIONS") is not None:
-        opts = action["OPTIONS"]
-        if isinstance(opts, list):
-            lines.append(f"OPTIONS: {', '.join(opts)}")
-        else:
-            lines.append(f"OPTIONS: {opts}")
-
-    lines.append(f"MESSAGE: {action.get('MESSAGE', '')}")
-
-    # Add REMINDER for non-terminal action types
-    if action_type in ("invoke_agent", "run_command", "human_gate"):
-        lines.append(_REMINDER_TEXT)
-
-    result = "\n".join(lines)
-
-    # Post-condition
-    assert "REMINDER:" in result or "session_boundary" in action_type or "pipeline_complete" in action_type, \
-        "Non-terminal actions must include REMINDER block"
-
-    return result
+    return _base_format_action_block(action=action, reminder_text=_REMINDER_TEXT)
 
 
 # ---------------------------------------------------------------------------
 # Dispatch functions (update_state.py)
 # ---------------------------------------------------------------------------
+
 
 def dispatch_status(
     state: PipelineState,
@@ -1285,7 +1253,9 @@ def dispatch_status(
     # Check if it matches a command status pattern
     for pattern in COMMAND_STATUS_PATTERNS:
         if status_line.startswith(pattern):
-            return dispatch_command_status(state, status_line, unit, phase, project_root)
+            return dispatch_command_status(
+                state, status_line, unit, phase, project_root
+            )
 
     # Check if it matches the cross-agent status
     if status_line.startswith(CROSS_AGENT_STATUS):
@@ -1386,7 +1356,9 @@ def dispatch_gate_response(
         if response == "REVISE SPEC":
             return advance_sub_stage(state, "spec_revision", project_root)
         elif response == "RESTART SPEC":
-            return restart_from_stage(state, "1", "Full spec restart from alignment exhaustion", project_root)
+            return restart_from_stage(
+                state, "1", "Full spec restart from alignment exhaustion", project_root
+            )
         else:  # RETRY BLUEPRINT
             new_state = reset_alignment_iteration(state)
             return advance_sub_stage(new_state, "blueprint_dialog", project_root)
@@ -1405,25 +1377,37 @@ def dispatch_gate_response(
         if response == "FIX IMPLEMENTATION":
             return advance_fix_ladder(state, "diagnostic_impl")
         elif response == "FIX BLUEPRINT":
-            return restart_from_stage(state, "2", "Blueprint fix from diagnostic", project_root)
+            return restart_from_stage(
+                state, "2", "Blueprint fix from diagnostic", project_root
+            )
         else:  # FIX SPEC
-            return restart_from_stage(state, "1", "Spec fix from diagnostic", project_root)
+            return restart_from_stage(
+                state, "1", "Spec fix from diagnostic", project_root
+            )
 
     # Gate 4.1: Integration failure
     elif gate_id == "gate_4_1_integration_failure":
         if response == "ASSEMBLY FIX":
             return advance_sub_stage(state, "assembly_fix", project_root)
         elif response == "FIX BLUEPRINT":
-            return restart_from_stage(state, "2", "Blueprint fix from integration failure", project_root)
+            return restart_from_stage(
+                state, "2", "Blueprint fix from integration failure", project_root
+            )
         else:  # FIX SPEC
-            return restart_from_stage(state, "1", "Spec fix from integration failure", project_root)
+            return restart_from_stage(
+                state, "1", "Spec fix from integration failure", project_root
+            )
 
     # Gate 4.2: Assembly exhausted
     elif gate_id == "gate_4_2_assembly_exhausted":
         if response == "FIX BLUEPRINT":
-            return restart_from_stage(state, "2", "Blueprint fix from assembly exhaustion", project_root)
+            return restart_from_stage(
+                state, "2", "Blueprint fix from assembly exhaustion", project_root
+            )
         else:  # FIX SPEC
-            return restart_from_stage(state, "1", "Spec fix from assembly exhaustion", project_root)
+            return restart_from_stage(
+                state, "1", "Spec fix from assembly exhaustion", project_root
+            )
 
     # Gate 5.1: Repo test
     elif gate_id == "gate_5_1_repo_test":
@@ -1437,9 +1421,13 @@ def dispatch_gate_response(
         if response == "RETRY ASSEMBLY":
             return advance_sub_stage(state, "repo_assembly", project_root)
         elif response == "FIX BLUEPRINT":
-            return restart_from_stage(state, "2", "Blueprint fix from repo assembly exhaustion", project_root)
+            return restart_from_stage(
+                state, "2", "Blueprint fix from repo assembly exhaustion", project_root
+            )
         else:  # FIX SPEC
-            return restart_from_stage(state, "1", "Spec fix from repo assembly exhaustion", project_root)
+            return restart_from_stage(
+                state, "1", "Spec fix from repo assembly exhaustion", project_root
+            )
 
     # Gate 6.0: Debug permission
     elif gate_id == "gate_6_0_debug_permission":
@@ -1461,9 +1449,13 @@ def dispatch_gate_response(
         if response == "FIX UNIT":
             return update_debug_phase(state, "stage3_reentry")
         elif response == "FIX BLUEPRINT":
-            return restart_from_stage(state, "2", "Blueprint fix from debug classification", project_root)
+            return restart_from_stage(
+                state, "2", "Blueprint fix from debug classification", project_root
+            )
         else:  # FIX SPEC
-            return restart_from_stage(state, "1", "Spec fix from debug classification", project_root)
+            return restart_from_stage(
+                state, "1", "Spec fix from debug classification", project_root
+            )
 
     # Gate 6.3: Repair exhausted
     elif gate_id == "gate_6_3_repair_exhausted":
@@ -1619,6 +1611,7 @@ def dispatch_command_status(
 # ---------------------------------------------------------------------------
 # Phase handlers
 # ---------------------------------------------------------------------------
+
 
 def _handle_test_generation(
     state: PipelineState, status: str, unit: Optional[int], project_root: Path
@@ -1801,6 +1794,7 @@ def _handle_repair(
 # run_pytest
 # ---------------------------------------------------------------------------
 
+
 def run_pytest(
     test_path: Path,
     env_name: str,
@@ -1888,7 +1882,15 @@ def _extract_error_summary(output: str) -> str:
     lines = output.strip().split("\n")
     for line in lines:
         line = line.strip()
-        if any(keyword in line for keyword in ["ERROR", "ImportError", "ModuleNotFoundError", "SyntaxError"]):
+        if any(
+            keyword in line
+            for keyword in [
+                "ERROR",
+                "ImportError",
+                "ModuleNotFoundError",
+                "SyntaxError",
+            ]
+        ):
             return line[:200]  # Truncate to reasonable length
     # Fall back to last non-empty line
     for line in reversed(lines):
@@ -1902,11 +1904,13 @@ def _extract_error_summary(output: str) -> str:
 # CLI entry points
 # ---------------------------------------------------------------------------
 
+
 def routing_main() -> None:
     """CLI entry point for routing.py."""
     parser = argparse.ArgumentParser(description="SVP Routing Script")
-    parser.add_argument("--project-root", type=str, default=".",
-                        help="Path to project root")
+    parser.add_argument(
+        "--project-root", type=str, default=".", help="Path to project root"
+    )
     args = parser.parse_args()
 
     project_root = Path(args.project_root)
@@ -1920,16 +1924,21 @@ def routing_main() -> None:
 def update_state_main() -> None:
     """CLI entry point for update_state.py."""
     parser = argparse.ArgumentParser(description="SVP State Update Script")
-    parser.add_argument("--phase", type=str, required=True,
-                        help="The phase that produced the status")
-    parser.add_argument("--status-file", type=str, required=True,
-                        help="Path to the status file")
-    parser.add_argument("--unit", type=int, default=None,
-                        help="Unit number (if applicable)")
-    parser.add_argument("--gate", type=str, default=None,
-                        help="Gate ID (if applicable)")
-    parser.add_argument("--project-root", type=str, default=".",
-                        help="Path to project root")
+    parser.add_argument(
+        "--phase", type=str, required=True, help="The phase that produced the status"
+    )
+    parser.add_argument(
+        "--status-file", type=str, required=True, help="Path to the status file"
+    )
+    parser.add_argument(
+        "--unit", type=int, default=None, help="Unit number (if applicable)"
+    )
+    parser.add_argument(
+        "--gate", type=str, default=None, help="Gate ID (if applicable)"
+    )
+    parser.add_argument(
+        "--project-root", type=str, default=".", help="Path to project root"
+    )
     args = parser.parse_args()
 
     project_root = Path(args.project_root)
@@ -1965,14 +1974,18 @@ def update_state_main() -> None:
 def run_tests_main() -> None:
     """CLI entry point for run_tests.py."""
     parser = argparse.ArgumentParser(description="SVP Test Runner")
-    parser.add_argument("--test-path", type=str, required=True,
-                        help="Path to test directory or file")
-    parser.add_argument("--env-name", type=str, required=True,
-                        help="Conda environment name")
-    parser.add_argument("--status-file", type=str, default=None,
-                        help="Path to write the status line")
-    parser.add_argument("--project-root", type=str, default=".",
-                        help="Path to project root")
+    parser.add_argument(
+        "--test-path", type=str, required=True, help="Path to test directory or file"
+    )
+    parser.add_argument(
+        "--env-name", type=str, required=True, help="Conda environment name"
+    )
+    parser.add_argument(
+        "--status-file", type=str, default=None, help="Path to write the status line"
+    )
+    parser.add_argument(
+        "--project-root", type=str, default=".", help="Path to project root"
+    )
     args = parser.parse_args()
 
     test_path = Path(args.test_path)
