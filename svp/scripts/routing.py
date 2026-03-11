@@ -82,6 +82,12 @@ from svp_core.dispatch import (  # noqa: F401
     dispatch_command_status,
 )
 
+# Re-export router from svp_core
+from svp_core.router import (  # noqa: F401
+    route as _core_route,
+    RouterCommandBuilders,
+)
+
 __all__ = [
     "GATE_VOCABULARY",
     "AGENT_STATUS_LINES",
@@ -357,71 +363,15 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
 
     Handles all pipeline states including debug loop states.
     """
-    assert project_root.is_dir(), "Project root must exist"
-
-    # Check for active debug session first -- the debug session is handled
-    # through the same mechanism as regular stage routing, just additional
-    # state cases.
-    if state.debug_session is not None:
-        result = _route_debug(state, project_root)
-    else:
-        result = _route_stage(state, project_root)
-
-    # Post-conditions
-    assert "ACTION" in result, "Route output must contain ACTION"
-    assert result["ACTION"] in ACTION_TYPES, (
-        f"ACTION must be a valid action type, got: {result['ACTION']}"
+    cmd_builders = RouterCommandBuilders(
+        post_cmd=_post_cmd,
+        prepare_cmd=_prepare_cmd,
+        gate_prepare_cmd=_gate_prepare_cmd,
     )
-
-    return result
-
-
-def _route_stage(state: PipelineState, project_root: Path) -> Dict[str, Any]:
-    """Dispatch to the appropriate routing handler based on stage."""
-    stage = state.stage
-    sub = state.sub_stage
-
-    if stage == "0":
-        return _route_stage_0(state, project_root)
-    elif stage == "1":
-        return _route_stage_1(state, project_root)
-    elif stage == "2":
-        return _route_stage_2(state, project_root)
-    elif stage == "pre_stage_3":
-        return _route_pre_stage_3(state, project_root)
-    elif stage == "3":
-        return _route_stage_3(state, project_root)
-    elif stage == "4":
-        return _route_stage_4(state, project_root)
-    elif stage == "5":
-        return _route_stage_5(state, project_root)
-    else:
-        raise ValueError(f"Unrecognized pipeline state: stage={stage}, sub_stage={sub}")
+    return _core_route(state, project_root, cmd_builders)
 
 
 # ---------------------------------------------------------------------------
-# Action dict builders (wrappers around svp_core.action)
-# ---------------------------------------------------------------------------
-
-
-def _invoke_agent_action(
-    agent: str,
-    message: str,
-    unit: Optional[int] = None,
-    prepare: Optional[str] = None,
-    post: Optional[str] = None,
-    task_prompt_file: str = ".svp/task_prompt.md",
-) -> Dict[str, Any]:
-    """Build an invoke_agent action dict."""
-    return _base_invoke_agent_action(
-        agent=agent,
-        message=message,
-        unit=unit,
-        prepare=prepare,
-        post=post,
-        task_prompt_file=task_prompt_file,
-        prepare_cmd_builder=lambda a, unit=unit: _prepare_cmd(a, unit=unit),
-    )
 
 
 def _run_command_action(
@@ -474,6 +424,8 @@ def _pipeline_complete_action(message: str) -> Dict[str, Any]:
     return _base_pipeline_complete_action(message=message)
 
 
+# ---------------------------------------------------------------------------
+# CLI entry points
 # ---------------------------------------------------------------------------
 # Stage routing functions
 # ---------------------------------------------------------------------------

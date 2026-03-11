@@ -35,10 +35,13 @@ def _invoke_agent_action(
     post: Optional[str] = None,
     task_prompt_file: str = ".svp/task_prompt.md",
     prepare_cmd_builder: Optional[Callable[..., str]] = None,
+    post_cmd_builder: Optional[Callable[..., str]] = None,
 ) -> Dict[str, Any]:
     """Build an invoke_agent action dict."""
     if prepare is None and prepare_cmd_builder is not None:
         prepare = prepare_cmd_builder(agent, unit=unit)
+    if post is None and post_cmd_builder is not None:
+        post = post_cmd_builder(agent, unit=unit)
     return {
         "ACTION": "invoke_agent",
         "AGENT": agent,
@@ -59,8 +62,11 @@ def _run_command_action(
     message: str,
     post: Optional[str] = None,
     unit: Optional[int] = None,
+    post_cmd_builder: Optional[Callable[..., str]] = None,
 ) -> Dict[str, Any]:
     """Build a run_command action dict."""
+    if post is None and post_cmd_builder is not None:
+        post = post_cmd_builder(command, unit=unit)
     return {
         "ACTION": "run_command",
         "AGENT": None,
@@ -85,6 +91,7 @@ def _human_gate_action(
     prompt_file: str = ".svp/gate_prompt.md",
     gate_vocabulary: Optional[Dict[str, List[str]]] = None,
     gate_prepare_cmd_builder: Optional[Callable[..., str]] = None,
+    post_cmd_builder: Optional[Callable[..., str]] = None,
 ) -> Dict[str, Any]:
     """Build a human_gate action dict.
 
@@ -94,6 +101,8 @@ def _human_gate_action(
     if gate_vocabulary is None:
         gate_vocabulary = {}
     options_list = list(gate_vocabulary.get(gate_id, []))
+    if post is None and post_cmd_builder is not None:
+        post = post_cmd_builder(gate_id, unit=unit)
     if post is not None:
         post = f"{post} --gate {gate_id}"
     if prepare is None and gate_prepare_cmd_builder is not None:
