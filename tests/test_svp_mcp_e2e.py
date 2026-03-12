@@ -184,3 +184,27 @@ class TestMcpEndToEnd:
 
         reloaded = load_state_tool(str(project_root))
         assert reloaded["sub_stage"] == "project_context"
+
+    def test_run_pipeline_step_tool_flow(self, svp_project):
+        """Test one-step convenience flow: explain -> apply -> save."""
+        from svp_mcp.server import (
+            load_state_tool,
+            run_pipeline_step_tool,
+        )
+
+        before = load_state_tool(str(svp_project))
+        assert before["sub_stage"] == "hook_activation"
+
+        step = run_pipeline_step_tool(
+            str(svp_project),
+            response="HOOKS ACTIVATED",
+            expected_action_type="human_gate",
+        )
+        assert step["ok"] is True
+        assert step["saved"] is True
+        assert step["action_type"] == "human_gate"
+        assert step["phase"] == "hook_activation"
+        assert step["state"]["sub_stage"] == "project_context"
+
+        after = load_state_tool(str(svp_project))
+        assert after["sub_stage"] == "project_context"

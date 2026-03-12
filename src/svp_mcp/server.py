@@ -595,6 +595,73 @@ def apply_next_action_tool(
         }
 
 
+@mcp.tool()
+def run_pipeline_step_tool(
+    project_root: str,
+    response: str,
+    expected_action_type: Optional[str] = None,
+) -> dict:
+    """Run one full pipeline step: explain, apply, and save.
+
+    This is a convenience composition over existing MCP tools and does not add
+    new routing or dispatch semantics.
+    """
+    try:
+        explain = explain_next_action_tool(project_root)
+        apply_result = apply_next_action_tool(
+            project_root,
+            response=response,
+            expected_action_type=expected_action_type,
+        )
+
+        if not apply_result.get("ok", False):
+            return {
+                "ok": False,
+                "error": apply_result.get("error", "Failed to apply next action"),
+                "error_type": apply_result.get("error_type", "ValueError"),
+                "expected_action_type": apply_result.get(
+                    "expected_action_type", explain.get("action_type")
+                ),
+                "phase": apply_result.get("phase", explain.get("phase")),
+                "valid_responses": apply_result.get(
+                    "valid_responses", explain.get("valid_responses", [])
+                ),
+                "saved": False,
+            }
+
+        save_result = save_state_tool(project_root, apply_result["state"])
+        if not save_result.get("ok", False):
+            return {
+                "ok": False,
+                "error": save_result.get("error", "Failed to save updated state"),
+                "error_type": save_result.get("error_type", "ValueError"),
+                "expected_action_type": apply_result.get("applied_action_type"),
+                "phase": apply_result.get("phase", explain.get("phase")),
+                "valid_responses": explain.get("valid_responses", []),
+                "saved": False,
+            }
+
+        return {
+            "ok": True,
+            "action_type": apply_result.get("applied_action_type"),
+            "phase": apply_result.get("phase", explain.get("phase")),
+            "response": response,
+            "state": apply_result["state"],
+            "saved": True,
+            "guidance": apply_result.get("guidance", explain.get("guidance")),
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "expected_action_type": expected_action_type,
+            "phase": None,
+            "valid_responses": [],
+            "saved": False,
+        }
+
+
 if __name__ == "__main__":
     main()
 

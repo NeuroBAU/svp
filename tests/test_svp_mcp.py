@@ -594,3 +594,119 @@ class TestApplyNextActionTool:
         assert result["ok"] is False
         assert result["error_type"] == "ActionTypeMismatch"
         assert result["expected_action_type"] == "human_gate"
+
+
+class TestRunPipelineStepTool:
+    """Tests for run_pipeline_step_tool."""
+
+    @patch("svp_mcp.server.explain_next_action_tool")
+    @patch("svp_mcp.server.apply_next_action_tool")
+    @patch("svp_mcp.server.save_state_tool")
+    def test_success(self, mock_save_state, mock_apply_next, mock_explain):
+        """run_pipeline_step_tool should apply and save on success."""
+        from svp_mcp.server import run_pipeline_step_tool
+
+        mock_explain.return_value = {
+            "action_type": "human_gate",
+            "phase": "hook_activation",
+            "valid_responses": ["HOOKS ACTIVATED", "HOOKS FAILED"],
+            "guidance": "Gate guidance",
+        }
+        mock_apply_next.return_value = {
+            "ok": True,
+            "applied_action_type": "human_gate",
+            "phase": "hook_activation",
+            "response": "HOOKS ACTIVATED",
+            "state": {"stage": "0", "sub_stage": "project_context"},
+            "guidance": "Applied guidance",
+        }
+        mock_save_state.return_value = {
+            "ok": True,
+            "state": {"stage": "0", "sub_stage": "project_context"},
+        }
+
+        result = run_pipeline_step_tool(
+            "/tmp/project",
+            response="HOOKS ACTIVATED",
+            expected_action_type="human_gate",
+        )
+
+        assert result["ok"] is True
+        assert result["action_type"] == "human_gate"
+        assert result["saved"] is True
+        assert result["phase"] == "hook_activation"
+        assert result["response"] == "HOOKS ACTIVATED"
+        assert result["state"]["sub_stage"] == "project_context"
+        mock_apply_next.assert_called_once()
+        mock_save_state.assert_called_once_with(
+            "/tmp/project", {"stage": "0", "sub_stage": "project_context"}
+        )
+
+    @patch("svp_mcp.server.explain_next_action_tool")
+    @patch("svp_mcp.server.apply_next_action_tool")
+    @patch("svp_mcp.server.save_state_tool")
+    def test_apply_failure_does_not_save(
+        self, mock_save_state, mock_apply_next, mock_explain
+    ):
+        """run_pipeline_step_tool should not save when apply fails."""
+        from svp_mcp.server import run_pipeline_step_tool
+
+        mock_explain.return_value = {
+            "action_type": "human_gate",
+            "phase": "hook_activation",
+            "valid_responses": ["HOOKS ACTIVATED", "HOOKS FAILED"],
+        }
+        mock_apply_next.return_value = {
+            "ok": False,
+            "error": "Invalid gate response: BAD",
+            "error_type": "ValueError",
+            "expected_action_type": "human_gate",
+            "phase": "hook_activation",
+            "valid_responses": ["HOOKS ACTIVATED", "HOOKS FAILED"],
+        }
+
+        result = run_pipeline_step_tool(
+            "/tmp/project",
+            response="BAD",
+            expected_action_type="human_gate",
+        )
+
+        assert result["ok"] is False
+        assert result["saved"] is False
+        assert result["error_type"] == "ValueError"
+        assert "HOOKS ACTIVATED" in result["valid_responses"]
+        mock_save_state.assert_not_called()
+
+    @patch("svp_mcp.server.explain_next_action_tool")
+    @patch("svp_mcp.server.apply_next_action_tool")
+    @patch("svp_mcp.server.save_state_tool")
+    def test_save_failure(self, mock_save_state, mock_apply_next, mock_explain):
+        """run_pipeline_step_tool should return failure when save fails."""
+        from svp_mcp.server import run_pipeline_step_tool
+
+        mock_explain.return_value = {
+            "action_type": "human_gate",
+            "phase": "hook_activation",
+            "valid_responses": ["HOOKS ACTIVATED", "HOOKS FAILED"],
+        }
+        mock_apply_next.return_value = {
+            "ok": True,
+            "applied_action_type": "human_gate",
+            "phase": "hook_activation",
+            "state": {"stage": "0", "sub_stage": "project_context"},
+        }
+        mock_save_state.return_value = {
+            "ok": False,
+            "error": "Permission denied",
+            "error_type": "OSError",
+        }
+
+        result = run_pipeline_step_tool(
+            "/tmp/project",
+            response="HOOKS ACTIVATED",
+            expected_action_type="human_gate",
+        )
+
+        assert result["ok"] is False
+        assert result["saved"] is False
+        assert result["error_type"] == "OSError"

@@ -43,6 +43,7 @@ class TestMcpServerSmoke:
             "dispatch_command_status_tool",
             "explain_next_action_tool",
             "apply_next_action_tool",
+            "run_pipeline_step_tool",
         ]
         for tool in expected_tools:
             assert tool in tool_names, f"Tool {tool} not found in {tool_names}"
