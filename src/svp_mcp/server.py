@@ -15,6 +15,8 @@ from svp_app import (
     dispatch_agent_status,
     dispatch_command_status,
     format_action_block,
+    GATE_VOCABULARY,
+    AGENT_STATUS_LINES,
 )
 
 mcp = FastMCP("SVP")
@@ -228,6 +230,91 @@ def dispatch_command_status_tool(
         return {"ok": True, "state": new_state.to_dict()}
     except Exception as e:
         return {"ok": False, "error": str(e), "error_type": type(e).__name__}
+
+
+@mcp.tool()
+def explain_next_action_tool(project_root: str) -> dict:
+    """Explain the next action in plain language.
+
+    Provides user-friendly guidance including:
+    - action type (invoke_agent, human_gate, run_command)
+    - target (agent or gate)
+    - phase for dispatch tool
+    - post command if available
+    - recommended dispatch tool
+    - valid status lines or gate responses
+    - plain-language guidance
+
+    Args:
+        project_root: Path to the project root directory.
+
+    Returns:
+        Dictionary with action explanation.
+    """
+    try:
+        state = load_state(Path(project_root))
+        action = route(state, Path(project_root))
+
+        action_type = action.get("ACTION", "unknown")
+        target = action.get("AGENT") or action.get("GATE") or action.get("COMMAND")
+        post_cmd = action.get("POST")
+        phase = action.get("PHASE")
+
+        valid_responses = []
+        recommended_tool = None
+        guidance = None
+
+        if action_type == "human_gate":
+            gate_id = action.get("GATE")
+            valid_responses = GATE_VOCABULARY.get(gate_id, [])
+            recommended_tool = "dispatch_gate_response_tool"
+            guidance = (
+                f"Waiting for human decision on gate '{gate_id}'. "
+                f"Valid responses: {', '.join(valid_responses)}. "
+                f"Use dispatch_gate_response_tool with gate_id='{gate_id}' and one of these responses."
+            )
+
+        elif action_type == "invoke_agent":
+            agent = action.get("AGENT")
+            valid_responses = AGENT_STATUS_LINES.get(agent, [])
+            recommended_tool = "dispatch_agent_status_tool"
+            phase_hint = f" phase='{phase}'" if phase else ""
+            guidance = (
+                f"Run the {agent} agent. After it completes, "
+                f"use dispatch_agent_status_tool with agent_type='{agent}'{phase_hint}. "
+                f"Valid status lines: {', '.join(valid_responses)}."
+            )
+
+        elif action_type == "run_command":
+            cmd = action.get("COMMAND", "")
+            recommended_tool = "dispatch_command_status_tool"
+            guidance = (
+                f"Run command: {cmd}. "
+                f"After it completes, use dispatch_command_status_tool."
+            )
+
+        elif action_type == "session_boundary":
+            guidance = (
+                "Session boundary reached. Use route_tool again to get the next action."
+            )
+
+        elif action_type == "pipeline_complete":
+            guidance = "Pipeline is complete. No further actions."
+
+        else:
+            guidance = f"Unknown action type: {action_type}"
+
+        return {
+            "action_type": action_type,
+            "target": target,
+            "phase": phase,
+            "post_command": post_cmd,
+            "recommended_tool": recommended_tool,
+            "valid_responses": valid_responses,
+            "guidance": guidance,
+        }
+    except Exception as e:
+        return {"error": str(e), "error_type": type(e).__name__}
 
 
 if __name__ == "__main__":

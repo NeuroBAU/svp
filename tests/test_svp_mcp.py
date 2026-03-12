@@ -271,3 +271,74 @@ class TestDispatchCommandStatusTool:
         assert result["ok"] is False
         assert "Unknown command status" in result["error"]
         assert result["error_type"] == "ValueError"
+
+
+class TestExplainNextActionTool:
+    """Tests for explain_next_action_tool."""
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.route")
+    def test_explain_human_gate(self, mock_route, mock_load_state):
+        """explain_next_action_tool should explain human gate with valid responses."""
+        from svp_mcp.server import explain_next_action_tool
+
+        mock_state = MagicMock()
+        mock_load_state.return_value = mock_state
+        mock_route.return_value = {
+            "ACTION": "human_gate",
+            "GATE": "gate_0_1_hook_activation",
+            "MESSAGE": "Welcome to SVP!",
+        }
+
+        result = explain_next_action_tool("/tmp/project")
+
+        assert result["action_type"] == "human_gate"
+        assert result["target"] == "gate_0_1_hook_activation"
+        assert result["recommended_tool"] == "dispatch_gate_response_tool"
+        assert len(result["valid_responses"]) > 0
+        assert "guidance" in result
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.route")
+    def test_explain_invoke_agent(self, mock_route, mock_load_state):
+        """explain_next_action_tool should explain invoke_agent with status lines."""
+        from svp_mcp.server import explain_next_action_tool
+
+        mock_state = MagicMock()
+        mock_load_state.return_value = mock_state
+        mock_route.return_value = {
+            "ACTION": "invoke_agent",
+            "AGENT": "stakeholder_dialog",
+            "PHASE": "stakeholder_dialog",
+            "MESSAGE": "Starting stakeholder dialog",
+        }
+
+        result = explain_next_action_tool("/tmp/project")
+
+        assert result["action_type"] == "invoke_agent"
+        assert result["target"] == "stakeholder_dialog"
+        assert result["phase"] == "stakeholder_dialog"
+        assert result["recommended_tool"] == "dispatch_agent_status_tool"
+        assert len(result["valid_responses"]) > 0
+        assert "guidance" in result
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.route")
+    def test_explain_run_command(self, mock_route, mock_load_state):
+        """explain_next_action_tool should explain run_command."""
+        from svp_mcp.server import explain_next_action_tool
+
+        mock_state = MagicMock()
+        mock_load_state.return_value = mock_state
+        mock_route.return_value = {
+            "ACTION": "run_command",
+            "COMMAND": "pytest tests/",
+            "MESSAGE": "Running tests",
+        }
+
+        result = explain_next_action_tool("/tmp/project")
+
+        assert result["action_type"] == "run_command"
+        assert result["target"] == "pytest tests/"
+        assert result["recommended_tool"] == "dispatch_command_status_tool"
+        assert "guidance" in result

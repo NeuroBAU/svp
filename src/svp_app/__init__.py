@@ -16,6 +16,8 @@ from svp_core import (
     dispatch_command_status,
     format_action_block,
     PipelineState,
+    GATE_VOCABULARY,
+    AGENT_STATUS_LINES,
 )
 from svp_core.router import route
 
@@ -40,6 +42,9 @@ __all__ = [
     "dispatch_agent_status",
     "dispatch_command_status",
     "format_action_block",
+    # Vocabulary
+    "GATE_VOCABULARY",
+    "AGENT_STATUS_LINES",
     # Project setup
     "create_project_directory",
     "write_initial_state",
