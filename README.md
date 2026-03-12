@@ -1,8 +1,19 @@
 # SVP — Stratified Verification Pipeline
 
-A Claude Code plugin that turns natural language requirements into verified Python projects. Also available as **SVP-G** for the Gemini CLI.
+A host-agnostic workflow engine that turns natural language requirements into verified Python projects. Works with **OpenCode**, **Claude Code**, **Gemini CLI**, or any MCP-compatible host.
 
 **Paper:** \[ArXiv link — forthcoming\]
+
+## Architecture
+
+SVP is built as a layered architecture:
+
+- **svp_core** — Deterministic workflow engine (state machine, routing, dispatch)
+- **svp_app** — Host-agnostic operation surface
+- **svp_mcp** — MCP server exposing all operations
+- **svp_host_claude** — Claude Code-specific adapters (optional)
+
+This means SVP is no longer tied to Claude Code — it can run on any LLM host that supports MCP.
 
 ## What SVP Does
 
@@ -38,10 +49,13 @@ You do not need:
 
 ## Installation
 
+SVP can run on any LLM host that supports MCP (OpenCode, Claude Code, Gemini CLI, etc.).
+
 ### Prerequisites
 
-- [Claude Code](https://docs.claude.com) installed and functional
-- A valid Anthropic API key configured
+- [OpenCode](https://opencode.ai) or any MCP-compatible host
+- A valid Anthropic API key configured (for OpenCode or Claude Code)
+- Python 3.11+
 - [Conda](https://docs.conda.io/en/latest/miniconda.html) (Miniconda or Anaconda) installed and on your PATH
 - [Git](https://git-scm.com/) installed and configured
 - Python 3.11+
@@ -436,6 +450,80 @@ If SVP cannot find `pipeline_state.json`, the state recovery mechanism scans for
 SVP-G is a fork of the Stratified Verification Pipeline specifically designed for the **Gemini CLI**. It uses a "Project Playbook" and custom commands to orchestrate the pipeline within the Gemini ecosystem.
 
 For documentation and setup instructions specific to the Gemini version, see the [SVP-G README](svp-gemini/README.md).
+
+## MCP Server (Experimental)
+
+SVP includes an MCP server that exposes pipeline operations for use with OpenCode or other MCP clients.
+
+### Installation
+
+```bash
+pip install -e .
+```
+
+### Running the MCP Server
+
+```bash
+# Using the entry point
+svp-mcp
+
+# Or directly
+python -m svp_mcp.server
+```
+
+### OpenCode Integration
+
+Copy the example config:
+
+```bash
+cp opencode.json.example ~/.config/opencode/opencode.json
+```
+
+### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `load_state_tool` | Load current pipeline state |
+| `validate_state_tool` | Validate pipeline state |
+| `route_tool` | Get next action |
+| `explain_next_action_tool` | Get next action with plain-language guidance |
+| `dispatch_status_tool` | Dispatch status line |
+| `dispatch_gate_response_tool` | Handle gate decisions |
+| `dispatch_agent_status_tool` | Handle agent status |
+| `dispatch_command_status_tool` | Handle command results |
+| `save_state_tool` | Persist state |
+| `format_action_block_tool` | Format action as text |
+
+### Using the MCP Tools
+
+```python
+# Load state
+state = load_state_tool("/path/to/project")
+
+# Get next action with guidance
+explanation = explain_next_action_tool("/path/to/project")
+# Returns:
+# {
+#     "action_type": "invoke_agent",
+#     "target": "stakeholder_dialog",
+#     "phase": "stakeholder_dialog",
+#     "valid_responses": ["SPEC_DRAFT_COMPLETE", "SPEC_REVISION_COMPLETE"],
+#     "guidance": "Run the stakeholder_dialog agent..."
+# }
+
+# After agent runs, dispatch status
+result = dispatch_agent_status_tool(
+    "/path/to/project",
+    agent_type="stakeholder_dialog",
+    status_line="SPEC_DRAFT_COMPLETE",
+    phase="stakeholder_dialog"
+)
+
+# Save state
+save_state_tool("/path/to/project", result["state"])
+```
+
+For more details, see [docs/opencode_mcp_integration.md](docs/opencode_mcp_integration.md).
 
 ## History
 

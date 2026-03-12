@@ -12,6 +12,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPTS_DIR = REPO_ROOT / "svp" / "scripts"
+SRC_DIR = REPO_ROOT / "src"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
@@ -24,8 +25,9 @@ def _extract_argparse_flags(source: str) -> set[str]:
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        if not (isinstance(node.func, ast.Attribute)
-                and node.func.attr == "add_argument"):
+        if not (
+            isinstance(node.func, ast.Attribute) and node.func.attr == "add_argument"
+        ):
             continue
         for arg in node.args:
             if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
@@ -44,8 +46,10 @@ def _extract_argparse_flags_from_function(source: str, func_name: str) -> set[st
         for child in ast.walk(node):
             if not isinstance(child, ast.Call):
                 continue
-            if not (isinstance(child.func, ast.Attribute)
-                    and child.func.attr == "add_argument"):
+            if not (
+                isinstance(child.func, ast.Attribute)
+                and child.func.attr == "add_argument"
+            ):
                 continue
             for arg in child.args:
                 if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
@@ -74,6 +78,7 @@ def _get_update_state_flags() -> set[str]:
 def _import_routing():
     """Import routing module."""
     import importlib
+
     return importlib.import_module("routing")
 
 
@@ -138,20 +143,25 @@ def test_prepare_cmd_always_includes_output():
 
 
 def test_all_referenced_scripts_exist():
-    """All script filenames referenced in routing.py must exist on disk."""
-    source = (SCRIPTS_DIR / "routing.py").read_text(encoding="utf-8")
+    """All script filenames referenced in command_builders.py must exist on disk."""
+    source = (SRC_DIR / "svp_host_claude" / "command_builders.py").read_text(
+        encoding="utf-8"
+    )
     script_refs = set(re.findall(r"python scripts/([\w_]+\.py)", source))
-    assert script_refs, "Expected to find script references in routing.py"
+    assert script_refs, "Expected to find script references in command_builders.py"
     for script_name in script_refs:
         assert (SCRIPTS_DIR / script_name).exists(), (
-            f"routing.py references 'scripts/{script_name}' but "
+            f"command_builders.py references 'scripts/{script_name}' but "
             f"{SCRIPTS_DIR / script_name} does not exist"
         )
+
 
 def test_post_cmd_with_gate_id_generates_gate_flag():
     """_post_cmd(gate_id=...) must include --gate in its output."""
     routing = _import_routing()
-    cmd = routing._post_cmd("test_validation", unit=1, gate_id="gate_3_1_test_validation")
+    cmd = routing._post_cmd(
+        "test_validation", unit=1, gate_id="gate_3_1_test_validation"
+    )
     flags = _flags_from_cmd(cmd)
     assert "--gate" in flags, (
         f"_post_cmd() with gate_id did not generate --gate flag. Command: {cmd}"
@@ -174,7 +184,9 @@ def test_post_cmd_without_gate_id_omits_gate_flag():
 def test_post_cmd_gate_flag_accepted_by_update_state():
     """--gate flag from _post_cmd(gate_id=...) must be accepted by update_state_main."""
     routing = _import_routing()
-    cmd = routing._post_cmd("test_validation", unit=1, gate_id="gate_3_1_test_validation")
+    cmd = routing._post_cmd(
+        "test_validation", unit=1, gate_id="gate_3_1_test_validation"
+    )
     generated = _flags_from_cmd(cmd)
     accepted = _get_update_state_flags()
     unaccepted = generated - accepted
