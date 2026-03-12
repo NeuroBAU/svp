@@ -437,6 +437,80 @@ SVP-G is a fork of the Stratified Verification Pipeline specifically designed fo
 
 For documentation and setup instructions specific to the Gemini version, see the [SVP-G README](svp-gemini/README.md).
 
+## MCP Server (Experimental)
+
+SVP includes an MCP server that exposes pipeline operations for use with OpenCode or other MCP clients.
+
+### Installation
+
+```bash
+pip install -e .
+```
+
+### Running the MCP Server
+
+```bash
+# Using the entry point
+svp-mcp
+
+# Or directly
+python -m svp_mcp.server
+```
+
+### OpenCode Integration
+
+Copy the example config:
+
+```bash
+cp opencode.json.example ~/.config/opencode/opencode.json
+```
+
+### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `load_state_tool` | Load current pipeline state |
+| `validate_state_tool` | Validate pipeline state |
+| `route_tool` | Get next action |
+| `explain_next_action_tool` | Get next action with plain-language guidance |
+| `dispatch_status_tool` | Dispatch status line |
+| `dispatch_gate_response_tool` | Handle gate decisions |
+| `dispatch_agent_status_tool` | Handle agent status |
+| `dispatch_command_status_tool` | Handle command results |
+| `save_state_tool` | Persist state |
+| `format_action_block_tool` | Format action as text |
+
+### Using the MCP Tools
+
+```python
+# Load state
+state = load_state_tool("/path/to/project")
+
+# Get next action with guidance
+explanation = explain_next_action_tool("/path/to/project")
+# Returns:
+# {
+#     "action_type": "invoke_agent",
+#     "target": "stakeholder_dialog",
+#     "phase": "stakeholder_dialog",
+#     "valid_responses": ["SPEC_DRAFT_COMPLETE", "SPEC_REVISION_COMPLETE"],
+#     "guidance": "Run the stakeholder_dialog agent..."
+# }
+
+# After agent runs, dispatch status
+result = dispatch_agent_status_tool(
+    "/path/to/project",
+    agent_type="stakeholder_dialog",
+    status_line="SPEC_DRAFT_COMPLETE",
+    phase="stakeholder_dialog"
+)
+
+# Save state
+save_state_tool("/path/to/project", result["state"])
+```
+
+For more details, see [docs/opencode_mcp_integration.md](docs/opencode_mcp_integration.md).
+
 ## History
 
 - **SVP 1.0** — Initial release. Manual bootstrapping: the pipeline scripts and plugin infrastructure were hand-written, then used to build subsequent versions of SVP itself.
