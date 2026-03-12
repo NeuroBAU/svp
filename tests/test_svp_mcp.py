@@ -305,6 +305,7 @@ class TestExplainNextActionTool:
         from svp_mcp.server import explain_next_action_tool
 
         mock_state = MagicMock()
+        mock_state.sub_stage = "stakeholder_dialog"
         mock_load_state.return_value = mock_state
         mock_route.return_value = {
             "ACTION": "invoke_agent",
@@ -320,7 +321,8 @@ class TestExplainNextActionTool:
         assert result["phase"] == "stakeholder_dialog"
         assert result["recommended_tool"] == "dispatch_agent_status_tool"
         assert len(result["valid_responses"]) > 0
-        assert "guidance" in result
+        assert "stakeholder_dialog" in result["guidance"]
+        assert "phase='stakeholder_dialog'" in result["guidance"]
 
     @patch("svp_mcp.server.load_state")
     @patch("svp_mcp.server.route")

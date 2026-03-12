@@ -258,7 +258,7 @@ def explain_next_action_tool(project_root: str) -> dict:
         action_type = action.get("ACTION", "unknown")
         target = action.get("AGENT") or action.get("GATE") or action.get("COMMAND")
         post_cmd = action.get("POST")
-        phase = action.get("PHASE")
+        phase = state.sub_stage  # Get phase from state, not action
 
         valid_responses = []
         recommended_tool = None
