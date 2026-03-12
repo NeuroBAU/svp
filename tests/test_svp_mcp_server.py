@@ -30,6 +30,8 @@ class TestMcpServerSmoke:
 
         tool_names = [tool.name for tool in mcp._tool_manager._tools.values()]
         expected_tools = [
+            "initialize_state_tool",
+            "create_project_tool",
             "load_state_tool",
             "validate_state_tool",
             "route_tool",

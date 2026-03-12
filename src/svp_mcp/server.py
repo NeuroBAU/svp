@@ -6,6 +6,7 @@ from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
 from svp_app import (
+    create_initial_state,
     load_state,
     save_state,
     validate_state,
@@ -89,6 +90,56 @@ def _matches_command_status(response: str, patterns: list[str]) -> bool:
         if response.startswith(pattern):
             return True
     return False
+
+
+@mcp.tool()
+def initialize_state_tool(project_name: str) -> dict:
+    """Create an initial SVP pipeline state for a project name.
+
+    This tool does not persist state to disk; caller should use save_state_tool.
+    """
+    try:
+        state = create_initial_state(project_name)
+        return {"ok": True, "state": state.to_dict()}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "error_type": type(e).__name__}
+
+
+@mcp.tool()
+def create_project_tool(project_root: str) -> dict:
+    """Create a minimal SVP project directory with .svp scaffolding.
+
+    Creates:
+    - <project_root>/
+    - <project_root>/.svp/
+    - <project_root>/.svp/markers/
+
+    This tool does not create or save pipeline state.
+    """
+    try:
+        root = Path(project_root)
+        if root.exists():
+            raise FileExistsError(f"Project directory already exists: {root}")
+
+        created_paths = []
+        root.mkdir(parents=True)
+        created_paths.append(str(root))
+
+        svp_dir = root / ".svp"
+        svp_dir.mkdir()
+        created_paths.append(str(svp_dir))
+
+        markers_dir = svp_dir / "markers"
+        markers_dir.mkdir()
+        created_paths.append(str(markers_dir))
+
+        return {
+            "ok": True,
+            "project_root": str(root),
+            "created_paths": created_paths,
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e), "error_type": type(e).__name__}
 
 
 @mcp.tool()

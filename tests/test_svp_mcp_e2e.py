@@ -136,3 +136,51 @@ class TestMcpEndToEnd:
         assert cmd_apply["applied_action_type"] == "run_command"
         assert cmd_apply["used_tool"] == "dispatch_command_status_tool"
         assert cmd_apply["phase"] == "infrastructure_setup"
+
+    def test_bootstrap_flow_create_initialize_save_load_explain_apply(self, tmp_path):
+        """Test bootstrap flow using MCP-only project creation and state initialization."""
+        from svp_mcp.server import (
+            create_project_tool,
+            initialize_state_tool,
+            save_state_tool,
+            load_state_tool,
+            explain_next_action_tool,
+            apply_next_action_tool,
+        )
+
+        project_root = tmp_path / "bootstrap_proj"
+
+        created = create_project_tool(str(project_root))
+        assert created["ok"] is True
+        assert (project_root / ".svp" / "markers").is_dir()
+
+        init = initialize_state_tool("bootstrap_proj")
+        assert init["ok"] is True
+        assert init["state"]["stage"] == "0"
+        assert init["state"]["sub_stage"] == "hook_activation"
+
+        save_result = save_state_tool(str(project_root), init["state"])
+        assert save_result["ok"] is True
+
+        loaded = load_state_tool(str(project_root))
+        assert loaded["stage"] == "0"
+        assert loaded["sub_stage"] == "hook_activation"
+
+        explain = explain_next_action_tool(str(project_root))
+        assert explain["action_type"] == "human_gate"
+        assert explain["target"] == "gate_0_1_hook_activation"
+
+        applied = apply_next_action_tool(
+            str(project_root),
+            response="HOOKS ACTIVATED",
+            expected_action_type=explain["action_type"],
+        )
+        assert applied["ok"] is True
+        assert applied["applied_action_type"] == "human_gate"
+        assert applied["state"]["sub_stage"] == "project_context"
+
+        save_after_apply = save_state_tool(str(project_root), applied["state"])
+        assert save_after_apply["ok"] is True
+
+        reloaded = load_state_tool(str(project_root))
+        assert reloaded["sub_stage"] == "project_context"

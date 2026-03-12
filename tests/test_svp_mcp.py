@@ -7,6 +7,73 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 
+class TestInitializeStateTool:
+    """Tests for initialize_state_tool."""
+
+    @patch("svp_mcp.server.create_initial_state")
+    def test_success(self, mock_create_initial_state):
+        """initialize_state_tool should return initial state dict."""
+        from svp_mcp.server import initialize_state_tool
+
+        mock_state = MagicMock()
+        mock_state.to_dict.return_value = {
+            "stage": "0",
+            "sub_stage": "hook_activation",
+            "project_name": "demo",
+        }
+        mock_create_initial_state.return_value = mock_state
+
+        result = initialize_state_tool("demo")
+
+        assert result["ok"] is True
+        assert result["state"]["stage"] == "0"
+        mock_create_initial_state.assert_called_once_with("demo")
+
+    @patch("svp_mcp.server.create_initial_state")
+    def test_failure(self, mock_create_initial_state):
+        """initialize_state_tool should return ok=False on error."""
+        from svp_mcp.server import initialize_state_tool
+
+        mock_create_initial_state.side_effect = ValueError("bad project name")
+
+        result = initialize_state_tool("")
+
+        assert result["ok"] is False
+        assert "bad project name" in result["error"]
+        assert result["error_type"] == "ValueError"
+
+
+class TestCreateProjectTool:
+    """Tests for create_project_tool."""
+
+    def test_success(self, tmp_path):
+        """create_project_tool should create root and .svp scaffolding."""
+        from svp_mcp.server import create_project_tool
+
+        project_root = tmp_path / "demo_project"
+        result = create_project_tool(str(project_root))
+
+        assert result["ok"] is True
+        assert result["project_root"] == str(project_root)
+        assert project_root.is_dir()
+        assert (project_root / ".svp").is_dir()
+        assert (project_root / ".svp" / "markers").is_dir()
+        assert str(project_root / ".svp") in result["created_paths"]
+
+    def test_failure_when_project_exists(self, tmp_path):
+        """create_project_tool should fail if project directory already exists."""
+        from svp_mcp.server import create_project_tool
+
+        project_root = tmp_path / "demo_project"
+        project_root.mkdir()
+
+        result = create_project_tool(str(project_root))
+
+        assert result["ok"] is False
+        assert result["error_type"] == "FileExistsError"
+        assert "already exists" in result["error"]
+
+
 class TestLoadStateTool:
     """Tests for load_state_tool."""
 
