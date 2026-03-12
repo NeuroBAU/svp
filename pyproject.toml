@@ -17,6 +17,7 @@ dependencies = ["mcp"]
 
 [project.scripts]
 svp = "svp.scripts.svp_launcher:main"
+svp-mcp = "svp_mcp.server:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

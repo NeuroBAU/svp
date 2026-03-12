@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "svp": {
+      "type": "local",
+      "command": ["svp-mcp"],
+      "enabled": true
+    }
+  }
+}

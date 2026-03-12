@@ -231,4 +231,9 @@ def dispatch_command_status_tool(
 
 
 if __name__ == "__main__":
+    main()
+
+
+def main():
+    """Entry point for the SVP MCP server."""
     mcp.run()
