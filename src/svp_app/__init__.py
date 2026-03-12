@@ -10,7 +10,6 @@ from svp_core import (
     save_state,
     create_initial_state,
     validate_state,
-    route,
     dispatch_status,
     dispatch_gate_response,
     dispatch_agent_status,
@@ -18,6 +17,7 @@ from svp_core import (
     format_action_block,
     PipelineState,
 )
+from svp_core.router import route
 
 from svp.scripts.svp_launcher import (
     create_project_directory,

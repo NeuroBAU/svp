@@ -13,14 +13,14 @@ authors = [
     {name = "Carlo Fusco"},
     {name = "Leonardo Restivo"},
 ]
-dependencies = []
+dependencies = ["mcp"]
 
 [project.scripts]
 svp = "svp.scripts.svp_launcher:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["svp*", "svp_core*", "svp_host_claude*", "svp_app*"]
+include = ["svp*", "svp_core*", "svp_host_claude*", "svp_app*", "svp_mcp*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
