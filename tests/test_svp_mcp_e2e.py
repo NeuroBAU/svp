@@ -78,3 +78,61 @@ class TestMcpEndToEnd:
             result,
         )
         assert save_result["ok"] is True
+
+    def test_apply_next_action_tool_flow(self, svp_project):
+        """Test apply_next_action_tool for gate, agent, and command actions."""
+        from svp_mcp.server import (
+            load_state_tool,
+            apply_next_action_tool,
+            save_state_tool,
+        )
+
+        initial = load_state_tool(str(svp_project))
+        assert initial["sub_stage"] == "hook_activation"
+
+        # 1) human_gate apply (no autosave)
+        gate_apply = apply_next_action_tool(
+            str(svp_project),
+            response="HOOKS ACTIVATED",
+            expected_action_type="human_gate",
+        )
+        assert gate_apply["ok"] is True
+        assert gate_apply["applied_action_type"] == "human_gate"
+        assert gate_apply["used_tool"] == "dispatch_gate_response_tool"
+        assert gate_apply["state"]["sub_stage"] == "project_context"
+
+        unchanged = load_state_tool(str(svp_project))
+        assert unchanged["sub_stage"] == "hook_activation"
+
+        save_gate = save_state_tool(str(svp_project), gate_apply["state"])
+        assert save_gate["ok"] is True
+
+        # 2) invoke_agent apply (setup_agent)
+        agent_apply = apply_next_action_tool(
+            str(svp_project),
+            response="PROJECT_CONTEXT_COMPLETE",
+            expected_action_type="invoke_agent",
+        )
+        assert agent_apply["ok"] is True
+        assert agent_apply["applied_action_type"] == "invoke_agent"
+        assert agent_apply["used_tool"] == "dispatch_agent_status_tool"
+        assert agent_apply["phase"] == "project_context"
+
+        save_agent = save_state_tool(str(svp_project), agent_apply["state"])
+        assert save_agent["ok"] is True
+
+        # 3) run_command apply from pre_stage_3 state
+        state_for_cmd = load_state(svp_project)
+        state_for_cmd.stage = "pre_stage_3"
+        state_for_cmd.sub_stage = "infrastructure_setup"
+        save_state(state_for_cmd, svp_project)
+
+        cmd_apply = apply_next_action_tool(
+            str(svp_project),
+            response="COMMAND_SUCCEEDED",
+            expected_action_type="run_command",
+        )
+        assert cmd_apply["ok"] is True
+        assert cmd_apply["applied_action_type"] == "run_command"
+        assert cmd_apply["used_tool"] == "dispatch_command_status_tool"
+        assert cmd_apply["phase"] == "infrastructure_setup"

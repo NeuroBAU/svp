@@ -17,9 +17,78 @@ from svp_app import (
     format_action_block,
     GATE_VOCABULARY,
     AGENT_STATUS_LINES,
+    COMMAND_STATUS_PATTERNS,
 )
 
 mcp = FastMCP("SVP")
+
+
+def _infer_phase_for_action(state, action: dict) -> Optional[str]:
+    """Infer dispatch phase for current action from state and routing context."""
+    phase = state.sub_stage
+    if phase:
+        return phase
+
+    action_type = action.get("ACTION")
+    stage = state.stage
+
+    if action_type == "invoke_agent":
+        agent = action.get("AGENT")
+
+        if getattr(state, "debug_session", None) is not None:
+            debug_phase = state.debug_session.phase
+            if debug_phase in ("triage", "triage_readonly"):
+                return "bug_triage"
+            if debug_phase == "regression_test":
+                return "regression_test_generation"
+            if debug_phase == "repair":
+                return "repair"
+            return debug_phase
+
+        fix = getattr(state, "fix_ladder_position", None)
+        if fix is not None:
+            if fix == "diagnostic":
+                return "diagnostic_escalation"
+            return fix
+
+        if stage == "0" and agent == "setup_agent":
+            return "project_context"
+        if stage == "1" and agent == "stakeholder_dialog":
+            return "stakeholder_dialog"
+        if stage == "2" and agent == "blueprint_author":
+            return "blueprint_dialog"
+        if stage == "3" and agent == "test_agent":
+            return "test_generation"
+        if stage == "4" and agent == "integration_test_author":
+            return "integration_test_generation"
+        if stage == "5" and agent == "git_repo_agent":
+            return "repo_assembly"
+
+    if action_type == "run_command":
+        if stage == "pre_stage_3":
+            return "infrastructure_setup"
+        if stage == "4":
+            return "integration_run"
+        if stage == "5":
+            return "repo_test"
+
+    return None
+
+
+def _matches_agent_status(response: str, known_lines: list[str]) -> bool:
+    """Match agent status using exact or prefix semantics."""
+    for known_line in known_lines:
+        if response == known_line or response.startswith(known_line):
+            return True
+    return False
+
+
+def _matches_command_status(response: str, patterns: list[str]) -> bool:
+    """Match command status using prefix semantics."""
+    for pattern in patterns:
+        if response.startswith(pattern):
+            return True
+    return False
 
 
 @mcp.tool()
@@ -287,10 +356,13 @@ def explain_next_action_tool(project_root: str) -> dict:
 
         elif action_type == "run_command":
             cmd = action.get("COMMAND", "")
+            valid_responses = COMMAND_STATUS_PATTERNS
             recommended_tool = "dispatch_command_status_tool"
+            phase_hint = f" phase='{phase}'" if phase else ""
             guidance = (
                 f"Run command: {cmd}. "
-                f"After it completes, use dispatch_command_status_tool."
+                f"After it completes, use dispatch_command_status_tool with{phase_hint}. "
+                f"Valid status lines: {', '.join(valid_responses)}."
             )
 
         elif action_type == "session_boundary":
@@ -315,6 +387,161 @@ def explain_next_action_tool(project_root: str) -> dict:
         }
     except Exception as e:
         return {"error": str(e), "error_type": type(e).__name__}
+
+
+@mcp.tool()
+def apply_next_action_tool(
+    project_root: str,
+    response: str,
+    expected_action_type: Optional[str] = None,
+) -> dict:
+    """Apply next action atomically by routing, validating, and dispatching.
+
+    This tool does not persist state; caller must invoke save_state_tool.
+    """
+    try:
+        state = load_state(Path(project_root))
+        action = route(state, Path(project_root))
+
+        action_type = action.get("ACTION", "unknown")
+        phase = _infer_phase_for_action(state, action)
+        explain = explain_next_action_tool(project_root)
+        guidance = explain.get("guidance")
+
+        if expected_action_type is not None and expected_action_type != action_type:
+            return {
+                "ok": False,
+                "error": (
+                    f"Action type mismatch: expected {expected_action_type}, "
+                    f"current action is {action_type}"
+                ),
+                "error_type": "ActionTypeMismatch",
+                "expected_action_type": action_type,
+                "phase": phase,
+                "valid_responses": explain.get("valid_responses", []),
+            }
+
+        if action_type == "human_gate":
+            gate_id = action.get("GATE")
+            valid_responses = GATE_VOCABULARY.get(gate_id, [])
+            if response not in valid_responses:
+                return {
+                    "ok": False,
+                    "error": f"Invalid gate response: {response}",
+                    "error_type": "ValueError",
+                    "expected_action_type": action_type,
+                    "phase": phase,
+                    "valid_responses": valid_responses,
+                }
+            new_state = dispatch_gate_response(
+                state,
+                gate_id,
+                response,
+                Path(project_root),
+            )
+            return {
+                "ok": True,
+                "applied_action_type": action_type,
+                "used_tool": "dispatch_gate_response_tool",
+                "phase": phase,
+                "response": response,
+                "state": new_state.to_dict(),
+                "guidance": guidance,
+            }
+
+        if action_type == "invoke_agent":
+            agent = action.get("AGENT")
+            valid_responses = AGENT_STATUS_LINES.get(agent, [])
+            if not _matches_agent_status(response, valid_responses):
+                return {
+                    "ok": False,
+                    "error": f"Invalid agent status line: {response}",
+                    "error_type": "ValueError",
+                    "expected_action_type": action_type,
+                    "phase": phase,
+                    "valid_responses": valid_responses,
+                }
+            if phase is None:
+                return {
+                    "ok": False,
+                    "error": "Unable to infer phase for invoke_agent action",
+                    "error_type": "ValueError",
+                    "expected_action_type": action_type,
+                    "phase": phase,
+                    "valid_responses": valid_responses,
+                }
+            new_state = dispatch_agent_status(
+                state,
+                agent,
+                response,
+                action.get("UNIT"),
+                phase,
+                Path(project_root),
+            )
+            return {
+                "ok": True,
+                "applied_action_type": action_type,
+                "used_tool": "dispatch_agent_status_tool",
+                "phase": phase,
+                "response": response,
+                "state": new_state.to_dict(),
+                "guidance": guidance,
+            }
+
+        if action_type == "run_command":
+            valid_responses = COMMAND_STATUS_PATTERNS
+            if not _matches_command_status(response, valid_responses):
+                return {
+                    "ok": False,
+                    "error": f"Invalid command status line: {response}",
+                    "error_type": "ValueError",
+                    "expected_action_type": action_type,
+                    "phase": phase,
+                    "valid_responses": valid_responses,
+                }
+            if phase is None:
+                return {
+                    "ok": False,
+                    "error": "Unable to infer phase for run_command action",
+                    "error_type": "ValueError",
+                    "expected_action_type": action_type,
+                    "phase": phase,
+                    "valid_responses": valid_responses,
+                }
+            new_state = dispatch_command_status(
+                state,
+                response,
+                action.get("UNIT"),
+                phase,
+                Path(project_root),
+            )
+            return {
+                "ok": True,
+                "applied_action_type": action_type,
+                "used_tool": "dispatch_command_status_tool",
+                "phase": phase,
+                "response": response,
+                "state": new_state.to_dict(),
+                "guidance": guidance,
+            }
+
+        return {
+            "ok": False,
+            "error": f"Unsupported action type: {action_type}",
+            "error_type": "ValueError",
+            "expected_action_type": action_type,
+            "phase": phase,
+            "valid_responses": [],
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "expected_action_type": None,
+            "phase": None,
+            "valid_responses": [],
+        }
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ from svp_core import (
     PipelineState,
     GATE_VOCABULARY,
     AGENT_STATUS_LINES,
+    COMMAND_STATUS_PATTERNS,
 )
 from svp_core.router import route
 
@@ -45,6 +46,7 @@ __all__ = [
     # Vocabulary
     "GATE_VOCABULARY",
     "AGENT_STATUS_LINES",
+    "COMMAND_STATUS_PATTERNS",
     # Project setup
     "create_project_directory",
     "write_initial_state",

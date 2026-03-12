@@ -39,6 +39,8 @@ class TestMcpServerSmoke:
             "dispatch_gate_response_tool",
             "dispatch_agent_status_tool",
             "dispatch_command_status_tool",
+            "explain_next_action_tool",
+            "apply_next_action_tool",
         ]
         for tool in expected_tools:
             assert tool in tool_names, f"Tool {tool} not found in {tool_names}"

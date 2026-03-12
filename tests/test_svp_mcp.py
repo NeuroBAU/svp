@@ -343,4 +343,187 @@ class TestExplainNextActionTool:
         assert result["action_type"] == "run_command"
         assert result["target"] == "pytest tests/"
         assert result["recommended_tool"] == "dispatch_command_status_tool"
+        assert result["valid_responses"] == [
+            "TESTS_PASSED",
+            "TESTS_FAILED",
+            "TESTS_ERROR",
+            "COMMAND_SUCCEEDED",
+            "COMMAND_FAILED",
+        ]
         assert "guidance" in result
+
+
+class TestApplyNextActionTool:
+    """Tests for apply_next_action_tool."""
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.route")
+    @patch("svp_mcp.server.dispatch_gate_response")
+    def test_apply_human_gate_success(
+        self, mock_dispatch_gate, mock_route, mock_load_state
+    ):
+        """apply_next_action_tool should dispatch human gate response."""
+        from svp_mcp.server import apply_next_action_tool
+
+        mock_state = MagicMock()
+        mock_state.sub_stage = "hook_activation"
+        mock_state.stage = "0"
+        mock_load_state.return_value = mock_state
+        mock_route.return_value = {
+            "ACTION": "human_gate",
+            "GATE": "gate_0_1_hook_activation",
+            "UNIT": None,
+        }
+
+        mock_new_state = MagicMock()
+        mock_new_state.to_dict.return_value = {
+            "stage": "0",
+            "sub_stage": "project_context",
+        }
+        mock_dispatch_gate.return_value = mock_new_state
+
+        result = apply_next_action_tool(
+            "/tmp/project",
+            response="HOOKS ACTIVATED",
+        )
+
+        assert result["ok"] is True
+        assert result["applied_action_type"] == "human_gate"
+        assert result["used_tool"] == "dispatch_gate_response_tool"
+        assert result["phase"] == "hook_activation"
+        assert result["response"] == "HOOKS ACTIVATED"
+        assert result["state"] == {"stage": "0", "sub_stage": "project_context"}
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.route")
+    @patch("svp_mcp.server.dispatch_agent_status")
+    def test_apply_invoke_agent_success_with_phase_fallback(
+        self, mock_dispatch_agent, mock_route, mock_load_state
+    ):
+        """apply_next_action_tool should infer phase for invoke_agent when sub_stage is None."""
+        from svp_mcp.server import apply_next_action_tool
+
+        mock_state = MagicMock()
+        mock_state.sub_stage = None
+        mock_state.stage = "1"
+        mock_state.debug_session = None
+        mock_state.fix_ladder_position = None
+        mock_load_state.return_value = mock_state
+        mock_route.return_value = {
+            "ACTION": "invoke_agent",
+            "AGENT": "stakeholder_dialog",
+            "UNIT": None,
+        }
+
+        mock_new_state = MagicMock()
+        mock_new_state.to_dict.return_value = {"stage": "1", "sub_stage": "approval"}
+        mock_dispatch_agent.return_value = mock_new_state
+
+        result = apply_next_action_tool(
+            "/tmp/project",
+            response="SPEC_DRAFT_COMPLETE",
+        )
+
+        assert result["ok"] is True
+        assert result["applied_action_type"] == "invoke_agent"
+        assert result["used_tool"] == "dispatch_agent_status_tool"
+        assert result["phase"] == "stakeholder_dialog"
+        assert result["response"] == "SPEC_DRAFT_COMPLETE"
+        assert result["state"] == {"stage": "1", "sub_stage": "approval"}
+        mock_dispatch_agent.assert_called_once()
+        args = mock_dispatch_agent.call_args[0]
+        assert args[1] == "stakeholder_dialog"
+        assert args[2] == "SPEC_DRAFT_COMPLETE"
+        assert args[4] == "stakeholder_dialog"
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.route")
+    @patch("svp_mcp.server.dispatch_command_status")
+    def test_apply_run_command_success(
+        self, mock_dispatch_command, mock_route, mock_load_state
+    ):
+        """apply_next_action_tool should dispatch run_command response."""
+        from svp_mcp.server import apply_next_action_tool
+
+        mock_state = MagicMock()
+        mock_state.sub_stage = "infrastructure_setup"
+        mock_state.stage = "pre_stage_3"
+        mock_load_state.return_value = mock_state
+        mock_route.return_value = {
+            "ACTION": "run_command",
+            "COMMAND": "conda run -n test python scripts/setup_infrastructure.py",
+            "UNIT": None,
+        }
+
+        mock_new_state = MagicMock()
+        mock_new_state.to_dict.return_value = {"stage": "3", "sub_stage": None}
+        mock_dispatch_command.return_value = mock_new_state
+
+        result = apply_next_action_tool(
+            "/tmp/project",
+            response="COMMAND_SUCCEEDED",
+        )
+
+        assert result["ok"] is True
+        assert result["applied_action_type"] == "run_command"
+        assert result["used_tool"] == "dispatch_command_status_tool"
+        assert result["phase"] == "infrastructure_setup"
+        assert result["response"] == "COMMAND_SUCCEEDED"
+        assert result["state"] == {"stage": "3", "sub_stage": None}
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.route")
+    @patch("svp_mcp.server.dispatch_command_status")
+    def test_apply_run_command_invalid_response(
+        self, mock_dispatch_command, mock_route, mock_load_state
+    ):
+        """apply_next_action_tool should reject invalid run_command responses."""
+        from svp_mcp.server import apply_next_action_tool
+
+        mock_state = MagicMock()
+        mock_state.sub_stage = "infrastructure_setup"
+        mock_state.stage = "pre_stage_3"
+        mock_load_state.return_value = mock_state
+        mock_route.return_value = {
+            "ACTION": "run_command",
+            "COMMAND": "conda run -n test python scripts/setup_infrastructure.py",
+            "UNIT": None,
+        }
+
+        result = apply_next_action_tool(
+            "/tmp/project",
+            response="NOT_A_VALID_STATUS",
+        )
+
+        assert result["ok"] is False
+        assert result["expected_action_type"] == "run_command"
+        assert result["phase"] == "infrastructure_setup"
+        assert "TESTS_PASSED" in result["valid_responses"]
+        assert "COMMAND_SUCCEEDED" in result["valid_responses"]
+        mock_dispatch_command.assert_not_called()
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.route")
+    def test_apply_action_type_mismatch(self, mock_route, mock_load_state):
+        """apply_next_action_tool should fail when expected_action_type mismatches."""
+        from svp_mcp.server import apply_next_action_tool
+
+        mock_state = MagicMock()
+        mock_state.sub_stage = "hook_activation"
+        mock_state.stage = "0"
+        mock_load_state.return_value = mock_state
+        mock_route.return_value = {
+            "ACTION": "human_gate",
+            "GATE": "gate_0_1_hook_activation",
+            "UNIT": None,
+        }
+
+        result = apply_next_action_tool(
+            "/tmp/project",
+            response="HOOKS ACTIVATED",
+            expected_action_type="invoke_agent",
+        )
+
+        assert result["ok"] is False
+        assert result["error_type"] == "ActionTypeMismatch"
+        assert result["expected_action_type"] == "human_gate"
