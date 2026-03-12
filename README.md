@@ -1,8 +1,19 @@
 # SVP — Stratified Verification Pipeline
 
-A Claude Code plugin that turns natural language requirements into verified Python projects. Also available as **SVP-G** for the Gemini CLI.
+A host-agnostic workflow engine that turns natural language requirements into verified Python projects. Works with **OpenCode**, **Claude Code**, **Gemini CLI**, or any MCP-compatible host.
 
 **Paper:** \[ArXiv link — forthcoming\]
+
+## Architecture
+
+SVP is built as a layered architecture:
+
+- **svp_core** — Deterministic workflow engine (state machine, routing, dispatch)
+- **svp_app** — Host-agnostic operation surface
+- **svp_mcp** — MCP server exposing all operations
+- **svp_host_claude** — Claude Code-specific adapters (optional)
+
+This means SVP is no longer tied to Claude Code — it can run on any LLM host that supports MCP.
 
 ## What SVP Does
 
@@ -38,10 +49,13 @@ You do not need:
 
 ## Installation
 
+SVP can run on any LLM host that supports MCP (OpenCode, Claude Code, Gemini CLI, etc.).
+
 ### Prerequisites
 
-- [Claude Code](https://docs.claude.com) installed and functional
-- A valid Anthropic API key configured
+- [OpenCode](https://opencode.ai) or any MCP-compatible host
+- A valid Anthropic API key configured (for OpenCode or Claude Code)
+- Python 3.11+
 - [Conda](https://docs.conda.io/en/latest/miniconda.html) (Miniconda or Anaconda) installed and on your PATH
 - [Git](https://git-scm.com/) installed and configured
 - Python 3.11+
