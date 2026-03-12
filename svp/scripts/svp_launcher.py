@@ -16,6 +16,22 @@ import time
 import importlib.util
 import socket
 
+# Import Claude host adapter functions (backward compatibility wrappers below)
+from svp_host_claude.launcher_adapter import (
+    _is_svp_plugin_dir as _adapter_is_svp_plugin_dir,
+    _find_plugin_root as _adapter_find_plugin_root,
+    check_claude_code as _adapter_check_claude_code,
+    check_svp_plugin as _adapter_check_svp_plugin,
+    check_api_credentials as _adapter_check_api_credentials,
+    _load_launch_config as _adapter_load_launch_config,
+    launch_claude_code as _adapter_launch_claude_code,
+    detect_restart_signal as _adapter_detect_restart_signal,
+    clear_restart_signal as _adapter_clear_restart_signal,
+    run_session_loop as _adapter_run_session_loop,
+    resume_project as _adapter_resume_project,
+    _copy_hooks as _adapter_copy_hooks,
+)
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -30,42 +46,37 @@ README_SVP_FILE: str = "README_SVP.txt"
 SVP_ENV_VAR: str = "SVP_PLUGIN_ACTIVE"
 
 PROJECT_DIRS: List[str] = [
-    ".svp", ".svp/markers", ".claude", "scripts", "ledgers",
-    "logs", "logs/rollback", "specs", "specs/history",
-    "blueprint", "blueprint/history", "references", "references/index",
-    "src", "tests", "data",
+    ".svp",
+    ".svp/markers",
+    ".claude",
+    "scripts",
+    "ledgers",
+    "logs",
+    "logs/rollback",
+    "specs",
+    "specs/history",
+    "blueprint",
+    "blueprint/history",
+    "references",
+    "references/index",
+    "src",
+    "tests",
+    "data",
 ]
 
 # ---------------------------------------------------------------------------
-# Plugin discovery
+# Plugin discovery (wrappers for backward compatibility)
 # ---------------------------------------------------------------------------
+
 
 def _is_svp_plugin_dir(path: Path) -> bool:
     """Check whether a directory contains .claude-plugin/plugin.json with name 'svp'."""
-    plugin_json = path / ".claude-plugin" / "plugin.json"
-    try:
-        with open(plugin_json, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data.get("name") == "svp"
-    except (FileNotFoundError, OSError, json.JSONDecodeError):
-        return False
+    return _adapter_is_svp_plugin_dir(path)
 
 
 def _find_plugin_root() -> Optional[Path]:
-    """Locate the SVP plugin root directory.
-
-    Checks SVP_PLUGIN_ROOT env var first, then standard plugin locations.
-    """
-    # Check environment variable first
-    env_root = os.environ.get("SVP_PLUGIN_ROOT")
-    if env_root:
-        p = Path(env_root)
-        if _is_svp_plugin_dir(p):
-            return p
-
-    home = Path.home()
-
-    # Standard Claude Code plugin locations, in order
+    """Locate the SVP plugin root directory."""
+    return _adapter_find_plugin_root()
     candidates: List[Path] = [
         home / ".claude" / "plugins" / "svp",
     ]
@@ -76,11 +87,13 @@ def _find_plugin_root() -> Optional[Path]:
         version_dirs = sorted(cache_base.iterdir())
         candidates.extend(version_dirs)
 
-    candidates.extend([
-        home / ".config" / "claude" / "plugins" / "svp",
-        Path("/usr/local/share/claude/plugins/svp"),
-        Path("/usr/share/claude/plugins/svp"),
-    ])
+    candidates.extend(
+        [
+            home / ".config" / "claude" / "plugins" / "svp",
+            Path("/usr/local/share/claude/plugins/svp"),
+            Path("/usr/share/claude/plugins/svp"),
+        ]
+    )
 
     for candidate in candidates:
         if candidate.is_dir() and _is_svp_plugin_dir(candidate):
@@ -92,6 +105,7 @@ def _find_plugin_root() -> Optional[Path]:
 # ---------------------------------------------------------------------------
 # Output formatting
 # ---------------------------------------------------------------------------
+
 
 def _print_header(text: str) -> None:
     """Print a decorated header line with = border and centered text."""
@@ -123,6 +137,7 @@ def _print_transition(message: str) -> None:
 # CLI argument parsing
 # ---------------------------------------------------------------------------
 
+
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     """Parse CLI arguments. Supports 'new', 'restore', and default 'resume'."""
     parser = argparse.ArgumentParser(
@@ -136,33 +151,46 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     new_parser = subparsers.add_parser("new", help="Create a new SVP project")
     new_parser.add_argument("project_name", type=str, help="Name of the project")
     new_parser.add_argument(
-        "--parent-dir", type=str, default=None,
+        "--parent-dir",
+        type=str,
+        default=None,
         help="Parent directory for the project (default: current directory)",
     )
 
     # 'restore' subcommand
     restore_parser = subparsers.add_parser(
-        "restore", help="Create a project with pre-existing spec and blueprint",
+        "restore",
+        help="Create a project with pre-existing spec and blueprint",
     )
     restore_parser.add_argument("project_name", type=str, help="Name of the project")
     restore_parser.add_argument(
-        "--spec", type=str, required=True,
+        "--spec",
+        type=str,
+        required=True,
         help="Path to the stakeholder spec file",
     )
     restore_parser.add_argument(
-        "--blueprint", type=str, required=True,
+        "--blueprint",
+        type=str,
+        required=True,
         help="Path to the blueprint file",
     )
     restore_parser.add_argument(
-        "--context", type=str, default=None,
+        "--context",
+        type=str,
+        default=None,
         help="Path to the project context file (optional)",
     )
     restore_parser.add_argument(
-        "--parent-dir", type=str, default=None,
+        "--parent-dir",
+        type=str,
+        default=None,
         help="Parent directory for the project (default: current directory)",
     )
     restore_parser.add_argument(
-        "--scripts-source", type=str, default=None,
+        "--scripts-source",
+        type=str,
+        default=None,
         help="Override where scripts are copied from (for development)",
     )
 
@@ -179,52 +207,20 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 # Prerequisite checking (8 checks, each returns (passed, message))
 # ---------------------------------------------------------------------------
 
+
 def check_claude_code() -> Tuple[bool, str]:
     """Check that Claude Code is installed and functional."""
-    try:
-        result = subprocess.run(
-            ["claude", "--dangerously-skip-permissions", "--version"],
-            capture_output=True, text=True, timeout=15,
-        )
-        if result.returncode == 0:
-            version = result.stdout.strip()
-            return (True, f"Claude Code {version}")
-        return (False, f"Claude Code returned exit code {result.returncode}")
-    except FileNotFoundError:
-        return (False, "Claude Code executable not found. Install from https://claude.ai/code")
-    except subprocess.TimeoutExpired:
-        return (False, "Claude Code version check timed out")
-    except Exception as e:
-        return (False, f"Error checking Claude Code: {e}")
+    return _adapter_check_claude_code()
 
 
 def check_svp_plugin() -> Tuple[bool, str]:
     """Check that the SVP plugin is installed."""
-    plugin_root = _find_plugin_root()
-    if plugin_root is None:
-        return (False, "SVP plugin not found. Check your plugin installation.")
-    # _find_plugin_root already validates the manifest via _is_svp_plugin_dir
-    return (True, f"SVP plugin found at {plugin_root}")
+    return _adapter_check_svp_plugin()
 
 
 def check_api_credentials() -> Tuple[bool, str]:
     """Check that API credentials are available."""
-    # Check environment variable first
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if api_key:
-        return (True, "ANTHROPIC_API_KEY environment variable is set")
-
-    # Fall back to claude auth status
-    try:
-        result = subprocess.run(
-            ["claude", "--dangerously-skip-permissions", "auth", "status"],
-            capture_output=True, text=True, timeout=15,
-        )
-        if result.returncode == 0:
-            return (True, "Authenticated via Claude Code")
-        return (False, "Not authenticated. Set ANTHROPIC_API_KEY or run 'claude auth login'")
-    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
-        return (False, "Not authenticated. Set ANTHROPIC_API_KEY or run 'claude auth login'")
+    return _adapter_check_api_credentials()
 
 
 def check_conda() -> Tuple[bool, str]:
@@ -232,7 +228,9 @@ def check_conda() -> Tuple[bool, str]:
     try:
         result = subprocess.run(
             ["conda", "--version"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0:
             version = result.stdout.strip()
@@ -251,7 +249,9 @@ def check_python() -> Tuple[bool, str]:
     try:
         result = subprocess.run(
             [sys.executable, "--version"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0:
             version_str = result.stdout.strip()
@@ -278,7 +278,9 @@ def check_pytest() -> Tuple[bool, str]:
     try:
         result = subprocess.run(
             [sys.executable, "-m", "pytest", "--version"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0:
             version = result.stdout.strip().split("\n")[0]
@@ -295,7 +297,9 @@ def check_git() -> Tuple[bool, str]:
     try:
         result = subprocess.run(
             ["git", "--version"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode != 0:
             return (False, f"git returned exit code {result.returncode}")
@@ -305,23 +309,27 @@ def check_git() -> Tuple[bool, str]:
         # Check user.name
         name_result = subprocess.run(
             ["git", "config", "user.name"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         # Check user.email
         email_result = subprocess.run(
             ["git", "config", "user.email"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
 
         if name_result.returncode != 0 or not name_result.stdout.strip():
             return (
                 False,
-                "Git user.name not configured. Run: git config --global user.name \"Your Name\"",
+                'Git user.name not configured. Run: git config --global user.name "Your Name"',
             )
         if email_result.returncode != 0 or not email_result.stdout.strip():
             return (
                 False,
-                "Git user.email not configured. Run: git config --global user.email \"you@example.com\"",
+                'Git user.email not configured. Run: git config --global user.email "you@example.com"',
             )
 
         return (True, f"{version}")
@@ -337,9 +345,20 @@ def check_network() -> Tuple[bool, str]:
     """Check network connectivity to the Anthropic API."""
     try:
         result = subprocess.run(
-            ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-             "--connect-timeout", "5", "https://api.anthropic.com"],
-            capture_output=True, text=True, timeout=15,
+            [
+                "curl",
+                "-s",
+                "-o",
+                "/dev/null",
+                "-w",
+                "%{http_code}",
+                "--connect-timeout",
+                "5",
+                "https://api.anthropic.com",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         if result.returncode == 0:
             code = result.stdout.strip()
@@ -381,6 +400,7 @@ def run_all_prerequisites() -> List[Tuple[str, bool, str]]:
 # Project setup
 # ---------------------------------------------------------------------------
 
+
 def create_project_directory(project_name: str, parent_dir: Path) -> Path:
     """Create project directory structure. Raises FileExistsError if it already exists."""
     project_root = parent_dir / project_name
@@ -416,7 +436,8 @@ def generate_claude_md(project_root: Path, project_name: str) -> None:
     if template_module_path.is_file():
         try:
             spec = importlib.util.spec_from_file_location(
-                "claude_md_template", str(template_module_path),
+                "claude_md_template",
+                str(template_module_path),
             )
             if spec and spec.loader:
                 mod = importlib.util.module_from_spec(spec)
@@ -491,7 +512,9 @@ For the complete orchestration protocol \u2014 action type handling, status line
 def write_initial_state(project_root: Path, project_name: str) -> None:
     """Write initial pipeline_state.json. Tries template, falls back to inline."""
     state_path = project_root / STATE_FILE
-    template_path = project_root / "scripts" / "templates" / "pipeline_state_initial.json"
+    template_path = (
+        project_root / "scripts" / "templates" / "pipeline_state_initial.json"
+    )
 
     now = datetime.now(timezone.utc).isoformat()
 
@@ -617,18 +640,21 @@ For more information about SVP, refer to the project documentation.
 # Filesystem permissions
 # ---------------------------------------------------------------------------
 
+
 def set_filesystem_permissions(project_root: Path, read_only: bool) -> None:
     """Set filesystem permissions on the project root. Best-effort."""
     try:
         if read_only:
             subprocess.run(
                 ["chmod", "-R", "a-w", str(project_root)],
-                capture_output=True, timeout=30,
+                capture_output=True,
+                timeout=30,
             )
         else:
             subprocess.run(
                 ["chmod", "-R", "u+w", str(project_root)],
-                capture_output=True, timeout=30,
+                capture_output=True,
+                timeout=30,
             )
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError, OSError):
         pass
@@ -638,99 +664,48 @@ def set_filesystem_permissions(project_root: Path, read_only: bool) -> None:
 # Config reading helper (inline, no external imports)
 # ---------------------------------------------------------------------------
 
+
 def _load_launch_config(project_root: Path) -> dict:
     """Load svp_config.json from project root. Returns empty dict on failure."""
-    config_path = project_root / CONFIG_FILE
-    try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError, PermissionError):
-        return {}
+    return _adapter_load_launch_config(project_root)
 
 
 # ---------------------------------------------------------------------------
-# Session lifecycle
+# Session lifecycle (wrappers for backward compatibility)
 # ---------------------------------------------------------------------------
+
 
 def launch_claude_code(project_root: Path, plugin_dir: Path) -> int:
     """Launch Claude Code subprocess with SVP_PLUGIN_ACTIVE set."""
-    # Check that claude is available
-    if not shutil.which("claude"):
-        raise RuntimeError("Session launch failed: Claude Code executable not found")
-
-    # Create environment copy with SVP_PLUGIN_ACTIVE (NOT in launcher's own env)
-    env = os.environ.copy()
-    env[SVP_ENV_VAR] = "1"
-
-    # Read skip_permissions from config (default True if missing or unreadable,
-    # because launching claude without --dangerously-skip-permissions from a
-    # subprocess hangs waiting for interactive permission approval)
-    config = _load_launch_config(project_root)
-    skip_permissions = config.get("skip_permissions", True)
-
-    # Build command
-    cmd = ["claude"]
-    if skip_permissions:
-        cmd.append("--dangerously-skip-permissions")
-    cmd.append("run the routing script")
-
-    try:
-        result = subprocess.run(cmd, cwd=str(project_root), env=env)
-        return result.returncode
-    except Exception as e:
-        raise RuntimeError(f"Session launch failed: {e}")
+    return _adapter_launch_claude_code(project_root, plugin_dir)
 
 
 def detect_restart_signal(project_root: Path) -> Optional[str]:
     """Read .svp/restart_signal if it exists. Returns content or None."""
-    signal_path = project_root / RESTART_SIGNAL_FILE
-    try:
-        with open(signal_path, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-        return content if content else ""
-    except (FileNotFoundError, OSError):
-        return None
+    return _adapter_detect_restart_signal(project_root)
 
 
 def clear_restart_signal(project_root: Path) -> None:
     """Delete the restart signal file."""
-    signal_path = project_root / RESTART_SIGNAL_FILE
-    try:
-        signal_path.unlink(missing_ok=True)
-    except OSError:
-        pass
+    return _adapter_clear_restart_signal(project_root)
 
 
 def run_session_loop(project_root: Path, plugin_dir: Path) -> int:
     """Run the session loop: launch, check restart, repeat."""
-    exit_code = 0
-    while True:
-        # Restore permissions (make writable)
-        set_filesystem_permissions(project_root, read_only=False)
-
-        # Launch Claude Code
-        exit_code = launch_claude_code(project_root, plugin_dir)
-
-        # Check for restart signal
-        signal = detect_restart_signal(project_root)
-        if signal is not None:
-            # Restart requested
-            clear_restart_signal(project_root)
-            set_filesystem_permissions(project_root, read_only=True)
-            _print_transition(f"Session restart: {signal}" if signal else "Session restarting...")
-            continue
-        else:
-            # No restart signal -- exit
-            set_filesystem_permissions(project_root, read_only=True)
-            print("\nSVP session ended.")
-            break
-
-    return exit_code
+    return _adapter_run_session_loop(
+        project_root,
+        plugin_dir,
+        set_permissions_fn=set_filesystem_permissions,
+        print_transition_fn=_print_transition,
+        detect_restart_fn=detect_restart_signal,
+        clear_restart_fn=clear_restart_signal,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Resume
 # ---------------------------------------------------------------------------
+
 
 def detect_existing_project(directory: Path) -> bool:
     """Return True if both pipeline_state.json and .svp/ exist in the directory."""
@@ -741,75 +716,23 @@ def detect_existing_project(directory: Path) -> bool:
 
 def resume_project(project_root: Path, plugin_dir: Path) -> int:
     """Resume an existing SVP project session."""
-    # Display current stage info
-    state_path = project_root / STATE_FILE
-    try:
-        with open(state_path, "r", encoding="utf-8") as f:
-            state = json.load(f)
-        stage = state.get("stage", "unknown")
-        sub_stage = state.get("sub_stage", "")
-        project_name = state.get("project_name", "unknown")
-        print(f"Resuming project: {project_name}")
-        print(f"Current stage: {stage} ({sub_stage})")
-    except (json.JSONDecodeError, OSError) as e:
-        print(f"Warning: Could not read pipeline state: {e}")
-        print("Attempting to resume anyway...")
-
-    return run_session_loop(project_root, plugin_dir)
+    return _adapter_resume_project(project_root, plugin_dir)
 
 
 # ---------------------------------------------------------------------------
-# Hook copying helper
+# Hook copying helper (wrapper for backward compatibility)
 # ---------------------------------------------------------------------------
+
 
 def _copy_hooks(plugin_root: Path, project_root: Path) -> None:
-    """Copy hook files from plugin's hooks/ directory to project's .claude/ directory.
-
-    Per spec Section 19.2, rewrites hook script paths so they reference
-    the correct location within the project's .claude/scripts/ directory.
-    """
-    hooks_src = plugin_root / "hooks"
-    claude_dir = project_root / ".claude"
-    claude_dir.mkdir(parents=True, exist_ok=True)
-
-    if not hooks_src.is_dir():
-        return
-
-    # Copy hooks.json with path rewriting (spec Section 19.2)
-    hooks_json_src = hooks_src / "hooks.json"
-    if hooks_json_src.is_file():
-        with open(str(hooks_json_src), "r", encoding="utf-8") as f:
-            hooks_data = json.load(f)
-        # Rewrite script paths to .claude/scripts/
-        hooks_obj = hooks_data.get("hooks", {}) if isinstance(hooks_data, dict) else {}
-        pre_tool_use = hooks_obj.get("PreToolUse", []) if isinstance(hooks_obj, dict) else []
-        for hook_group in pre_tool_use:
-            if not isinstance(hook_group, dict):
-                continue
-            for hook_entry in hook_group.get("hooks", []):
-                if not isinstance(hook_entry, dict):
-                    continue
-                cmd = hook_entry.get("command", "")
-                if cmd.startswith("bash ") and "scripts/" in cmd:
-                    script_name = cmd.rsplit("/", 1)[-1]
-                    hook_entry["command"] = f"bash .claude/scripts/{script_name}"
-        dst_hooks_json = claude_dir / "hooks.json"
-        with open(str(dst_hooks_json), "w", encoding="utf-8") as f:
-            json.dump(hooks_data, f, indent=2)
-            f.write("\n")
-
-    # Copy scripts/ subdirectory
-    hooks_scripts_src = hooks_src / "scripts"
-    if hooks_scripts_src.is_dir():
-        dst_scripts = claude_dir / "scripts"
-        if dst_scripts.exists():
-            shutil.rmtree(dst_scripts)
-        shutil.copytree(str(hooks_scripts_src), str(dst_scripts))
+    """Copy hook files from plugin's hooks/ directory to project's .claude/ directory."""
+    return _adapter_copy_hooks(plugin_root, project_root)
 
 
 # ---------------------------------------------------------------------------
 # Command handlers
 # ---------------------------------------------------------------------------
+
 
 def _handle_new_project(args: argparse.Namespace, plugin_dir: Path) -> int:
     """Handle the 'new' subcommand."""
@@ -977,6 +900,7 @@ def _handle_resume(plugin_dir: Path) -> int:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main(argv: Optional[List[str]] = None) -> int:
     """Main entry point for the SVP launcher."""

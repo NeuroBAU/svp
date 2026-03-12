@@ -87,6 +87,11 @@ from svp_core.router import (  # noqa: F401
     route as _core_route,
     RouterCommandBuilders,
 )
+from svp_host_claude.command_builders import (
+    gate_prepare_cmd as _gate_prepare_cmd,
+    post_cmd as _post_cmd,
+    prepare_cmd as _prepare_cmd,
+)
 
 __all__ = [
     "GATE_VOCABULARY",
@@ -125,51 +130,6 @@ _REMINDER_TEXT: str = (
     "- If the human types during an autonomous sequence, acknowledge and defer: "
     "complete the current action first."
 )
-
-# ---------------------------------------------------------------------------
-# Helper: POST command builder
-# ---------------------------------------------------------------------------
-
-
-def _post_cmd(
-    phase: str, unit: Optional[int] = None, gate_id: Optional[str] = None
-) -> str:
-    """Build the standard POST command string."""
-    parts = ["python scripts/update_state.py"]
-    if unit is not None:
-        parts.append(f"--unit {unit}")
-    if gate_id is not None:
-        parts.append(f"--gate {gate_id}")
-    parts.append(f"--phase {phase}")
-    parts.append("--status-file .svp/last_status.txt")
-    return " ".join(parts)
-
-
-def _prepare_cmd(
-    agent_or_gate: str, unit: Optional[int] = None, extra: Optional[str] = None
-) -> str:
-    """Build a PREPARE command string."""
-    parts = ["python scripts/prepare_task.py"]
-    if unit is not None:
-        parts.append(f"--unit {unit}")
-    parts.append(f"--agent {agent_or_gate}")
-    parts.append("--project-root .")
-    parts.append("--output .svp/task_prompt.md")
-    if extra:
-        parts.append(extra)
-    return " ".join(parts)
-
-
-def _gate_prepare_cmd(gate_id: str, unit: Optional[int] = None) -> str:
-    """Build a PREPARE command for a gate prompt."""
-    parts = ["python scripts/prepare_task.py"]
-    if unit is not None:
-        parts.append(f"--unit {unit}")
-    parts.append(f"--gate {gate_id}")
-    parts.append("--project-root .")
-    parts.append("--output .svp/gate_prompt.md")
-    return " ".join(parts)
-
 
 # ---------------------------------------------------------------------------
 # derive_env_name_from_state
@@ -372,6 +332,27 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+
+
+def _invoke_agent_action(
+    agent: str,
+    message: str,
+    unit: Optional[int] = None,
+    prepare: Optional[str] = None,
+    post: Optional[str] = None,
+    task_prompt_file: str = ".svp/task_prompt.md",
+) -> Dict[str, Any]:
+    """Build an invoke_agent action dict."""
+    return _base_invoke_agent_action(
+        agent=agent,
+        message=message,
+        unit=unit,
+        prepare=prepare,
+        post=post,
+        task_prompt_file=task_prompt_file,
+        prepare_cmd_builder=lambda a, unit=unit: _prepare_cmd(a, unit=unit),
+        post_cmd_builder=lambda phase, unit=unit: _post_cmd(phase, unit=unit),
+    )
 
 
 def _run_command_action(

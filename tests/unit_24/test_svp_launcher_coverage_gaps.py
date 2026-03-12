@@ -175,6 +175,7 @@ class TestCheckGitEmailNotConfigured:
     @patch("subprocess.run")
     def test_failure_no_email_config(self, mock_run):
         """Returns (False, ...) when git user.email is not configured, with guidance."""
+
         # DATA ASSUMPTION: git --version works, user.name works, but user.email fails.
         def side_effect(cmd, *args, **kwargs):
             if "git" in cmd and "--version" in cmd:
@@ -221,7 +222,9 @@ class TestCheckPythonUseSysExecutable:
     @patch("subprocess.run")
     def test_uses_sys_executable(self, mock_run):
         """check_python runs sys.executable --version."""
-        mock_run.return_value = MagicMock(returncode=0, stdout="Python 3.11.5\n", stderr="")
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="Python 3.11.5\n", stderr=""
+        )
         check_python()
 
         cmd = mock_run.call_args[0][0]
@@ -412,13 +415,14 @@ class TestLaunchClaudeCodeCommand:
 class TestRunSessionLoopPermissions:
     """Tests verifying permission management in run_session_loop."""
 
+    @patch("shutil.which", return_value="/usr/bin/claude")
     @patch("svp.scripts.svp_launcher.set_filesystem_permissions")
     @patch("svp.scripts.svp_launcher.detect_restart_signal")
     @patch("svp.scripts.svp_launcher.clear_restart_signal")
-    @patch("svp.scripts.svp_launcher.launch_claude_code")
+    @patch("svp_host_claude.launcher_adapter.launch_claude_code")
     @patch("svp.scripts.svp_launcher._print_transition")
     def test_restores_writable_before_launch(
-        self, mock_print, mock_launch, mock_clear, mock_detect, mock_perms
+        self, mock_print, mock_launch, mock_clear, mock_detect, mock_perms, mock_which
     ):
         """run_session_loop restores write permissions before each launch."""
         project_root = Path("/tmp/project")
@@ -429,17 +433,17 @@ class TestRunSessionLoopPermissions:
 
         run_session_loop(project_root, plugin_dir)
 
-        # First call to set_filesystem_permissions should be read_only=False (restore)
         first_perm_call = mock_perms.call_args_list[0]
         assert first_perm_call == call(project_root, read_only=False)
 
+    @patch("shutil.which", return_value="/usr/bin/claude")
     @patch("svp.scripts.svp_launcher.set_filesystem_permissions")
     @patch("svp.scripts.svp_launcher.detect_restart_signal")
     @patch("svp.scripts.svp_launcher.clear_restart_signal")
-    @patch("svp.scripts.svp_launcher.launch_claude_code")
+    @patch("svp_host_claude.launcher_adapter.launch_claude_code")
     @patch("svp.scripts.svp_launcher._print_transition")
     def test_sets_read_only_on_exit(
-        self, mock_print, mock_launch, mock_clear, mock_detect, mock_perms
+        self, mock_print, mock_launch, mock_clear, mock_detect, mock_perms, mock_which
     ):
         """run_session_loop sets read-only permissions before exiting."""
         project_root = Path("/tmp/project")
@@ -450,31 +454,28 @@ class TestRunSessionLoopPermissions:
 
         run_session_loop(project_root, plugin_dir)
 
-        # Last call to set_filesystem_permissions should be read_only=True
         last_perm_call = mock_perms.call_args_list[-1]
         assert last_perm_call == call(project_root, read_only=True)
 
+    @patch("shutil.which", return_value="/usr/bin/claude")
     @patch("svp.scripts.svp_launcher.set_filesystem_permissions")
     @patch("svp.scripts.svp_launcher.detect_restart_signal")
     @patch("svp.scripts.svp_launcher.clear_restart_signal")
-    @patch("svp.scripts.svp_launcher.launch_claude_code")
+    @patch("svp_host_claude.launcher_adapter.launch_claude_code")
     @patch("svp.scripts.svp_launcher._print_transition")
     def test_sets_read_only_before_restart(
-        self, mock_print, mock_launch, mock_clear, mock_detect, mock_perms
+        self, mock_print, mock_launch, mock_clear, mock_detect, mock_perms, mock_which
     ):
         """run_session_loop sets read-only permissions before printing transition on restart."""
         project_root = Path("/tmp/project")
         plugin_dir = Path("/tmp/plugin")
 
         mock_launch.return_value = 0
-        # First iteration: restart signal found, second: no signal
         mock_detect.side_effect = ["restart_reason", None]
 
         run_session_loop(project_root, plugin_dir)
 
-        # Permission calls should alternate: writable -> launch -> read-only (restart) -> writable -> launch -> read-only (exit)
         perm_calls = mock_perms.call_args_list
-        # At minimum: writable, read-only (restart), writable, read-only (exit) = 4 calls
         assert len(perm_calls) >= 4
 
 
@@ -512,7 +513,9 @@ class TestHandleRestoreValidation:
 
     @patch("svp.scripts.svp_launcher.run_session_loop", return_value=0)
     @patch("svp.scripts.svp_launcher.set_filesystem_permissions")
-    def test_returns_1_when_blueprint_file_missing(self, mock_perms, mock_loop, tmp_path):
+    def test_returns_1_when_blueprint_file_missing(
+        self, mock_perms, mock_loop, tmp_path
+    ):
         """_handle_restore returns 1 when --blueprint file does not exist."""
         plugin_dir = tmp_path / "plugin"
         plugin_dir.mkdir()
@@ -653,7 +656,7 @@ class TestMainPluginNotFound:
 class TestResumeProjectPermissionError:
     """Tests for resume_project with permission errors on state file."""
 
-    @patch("svp.scripts.svp_launcher.run_session_loop")
+    @patch("svp_host_claude.launcher_adapter.run_session_loop")
     def test_handles_permission_error_gracefully(self, mock_loop, tmp_path):
         """resume_project handles permission errors when reading state file gracefully."""
         # DATA ASSUMPTION: pipeline_state.json exists but cannot be read (permission error).
@@ -721,18 +724,26 @@ class TestParseArgsRestoreRequiredFields:
     def test_restore_requires_spec(self):
         """parse_args 'restore' fails when --spec is not provided."""
         with pytest.raises(SystemExit):
-            parse_args([
-                "restore", "my_project",
-                "--blueprint", "/path/to/blueprint.md",
-            ])
+            parse_args(
+                [
+                    "restore",
+                    "my_project",
+                    "--blueprint",
+                    "/path/to/blueprint.md",
+                ]
+            )
 
     def test_restore_requires_blueprint(self):
         """parse_args 'restore' fails when --blueprint is not provided."""
         with pytest.raises(SystemExit):
-            parse_args([
-                "restore", "my_project",
-                "--spec", "/path/to/spec.md",
-            ])
+            parse_args(
+                [
+                    "restore",
+                    "my_project",
+                    "--spec",
+                    "/path/to/spec.md",
+                ]
+            )
 
 
 # =============================================================================
@@ -831,7 +842,9 @@ class TestLaunchClaudeCodeErrorConditions:
 
     @patch("subprocess.run")
     @patch("shutil.which", return_value="/usr/bin/claude")
-    def test_raises_runtime_error_with_details_on_other_errors(self, mock_which, mock_run):
+    def test_raises_runtime_error_with_details_on_other_errors(
+        self, mock_which, mock_run
+    ):
         """Raises RuntimeError with 'Session launch failed: {details}' for other errors."""
         project_root = Path("/tmp/test_project")
         plugin_dir = Path("/tmp/plugin")

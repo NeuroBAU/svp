@@ -189,12 +189,14 @@ class TestSignatures:
     def test_find_plugin_root_returns_optional_path(self):
         """_find_plugin_root() -> Optional[Path]"""
         import inspect
+
         sig = inspect.signature(_find_plugin_root)
         assert len(sig.parameters) == 0
 
     def test_is_svp_plugin_dir_takes_path(self):
         """_is_svp_plugin_dir(path: Path) -> bool"""
         import inspect
+
         sig = inspect.signature(_is_svp_plugin_dir)
         params = list(sig.parameters.keys())
         assert "path" in params
@@ -202,6 +204,7 @@ class TestSignatures:
     def test_parse_args_takes_optional_argv(self):
         """parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace"""
         import inspect
+
         sig = inspect.signature(parse_args)
         params = sig.parameters
         assert "argv" in params
@@ -209,6 +212,7 @@ class TestSignatures:
 
     def test_create_project_directory_signature(self):
         import inspect
+
         sig = inspect.signature(create_project_directory)
         params = list(sig.parameters.keys())
         assert "project_name" in params
@@ -216,6 +220,7 @@ class TestSignatures:
 
     def test_copy_scripts_to_workspace_signature(self):
         import inspect
+
         sig = inspect.signature(copy_scripts_to_workspace)
         params = list(sig.parameters.keys())
         assert "plugin_root" in params
@@ -223,6 +228,7 @@ class TestSignatures:
 
     def test_generate_claude_md_signature(self):
         import inspect
+
         sig = inspect.signature(generate_claude_md)
         params = list(sig.parameters.keys())
         assert "project_root" in params
@@ -230,6 +236,7 @@ class TestSignatures:
 
     def test_set_filesystem_permissions_signature(self):
         import inspect
+
         sig = inspect.signature(set_filesystem_permissions)
         params = list(sig.parameters.keys())
         assert "project_root" in params
@@ -237,6 +244,7 @@ class TestSignatures:
 
     def test_launch_claude_code_signature(self):
         import inspect
+
         sig = inspect.signature(launch_claude_code)
         params = list(sig.parameters.keys())
         assert "project_root" in params
@@ -244,18 +252,21 @@ class TestSignatures:
 
     def test_detect_restart_signal_signature(self):
         import inspect
+
         sig = inspect.signature(detect_restart_signal)
         params = list(sig.parameters.keys())
         assert "project_root" in params
 
     def test_clear_restart_signal_signature(self):
         import inspect
+
         sig = inspect.signature(clear_restart_signal)
         params = list(sig.parameters.keys())
         assert "project_root" in params
 
     def test_run_session_loop_signature(self):
         import inspect
+
         sig = inspect.signature(run_session_loop)
         params = list(sig.parameters.keys())
         assert "project_root" in params
@@ -263,12 +274,14 @@ class TestSignatures:
 
     def test_detect_existing_project_signature(self):
         import inspect
+
         sig = inspect.signature(detect_existing_project)
         params = list(sig.parameters.keys())
         assert "directory" in params
 
     def test_resume_project_signature(self):
         import inspect
+
         sig = inspect.signature(resume_project)
         params = list(sig.parameters.keys())
         assert "project_root" in params
@@ -276,6 +289,7 @@ class TestSignatures:
 
     def test_main_signature(self):
         import inspect
+
         sig = inspect.signature(main)
         params = sig.parameters
         assert "argv" in params
@@ -284,14 +298,23 @@ class TestSignatures:
     def test_check_functions_return_tuple(self):
         """All check functions should have no parameters."""
         import inspect
-        for fn in [check_claude_code, check_svp_plugin, check_api_credentials,
-                    check_conda, check_python, check_pytest_func, check_git,
-                    check_network]:
+
+        for fn in [
+            check_claude_code,
+            check_svp_plugin,
+            check_api_credentials,
+            check_conda,
+            check_python,
+            check_pytest_func,
+            check_git,
+            check_network,
+        ]:
             sig = inspect.signature(fn)
             assert len(sig.parameters) == 0, f"{fn.__name__} should take no params"
 
     def test_write_initial_state_signature(self):
         import inspect
+
         sig = inspect.signature(write_initial_state)
         params = list(sig.parameters.keys())
         assert "project_root" in params
@@ -299,18 +322,21 @@ class TestSignatures:
 
     def test_write_default_config_signature(self):
         import inspect
+
         sig = inspect.signature(write_default_config)
         params = list(sig.parameters.keys())
         assert "project_root" in params
 
     def test_write_readme_svp_signature(self):
         import inspect
+
         sig = inspect.signature(write_readme_svp)
         params = list(sig.parameters.keys())
         assert "project_root" in params
 
     def test_handle_new_project_signature(self):
         import inspect
+
         sig = inspect.signature(_handle_new_project)
         params = list(sig.parameters.keys())
         assert "args" in params
@@ -318,6 +344,7 @@ class TestSignatures:
 
     def test_handle_restore_signature(self):
         import inspect
+
         sig = inspect.signature(_handle_restore)
         params = list(sig.parameters.keys())
         assert "args" in params
@@ -325,29 +352,34 @@ class TestSignatures:
 
     def test_handle_resume_signature(self):
         import inspect
+
         sig = inspect.signature(_handle_resume)
         params = list(sig.parameters.keys())
         assert "plugin_dir" in params
 
     def test_run_all_prerequisites_signature(self):
         import inspect
+
         sig = inspect.signature(run_all_prerequisites)
         assert len(sig.parameters) == 0
 
     def test_generate_claude_md_fallback_signature(self):
         import inspect
+
         sig = inspect.signature(_generate_claude_md_fallback)
         params = list(sig.parameters.keys())
         assert "project_name" in params
 
     def test_print_header_signature(self):
         import inspect
+
         sig = inspect.signature(_print_header)
         params = list(sig.parameters.keys())
         assert "text" in params
 
     def test_print_status_signature(self):
         import inspect
+
         sig = inspect.signature(_print_status)
         params = list(sig.parameters.keys())
         assert "name" in params
@@ -356,6 +388,7 @@ class TestSignatures:
 
     def test_print_transition_signature(self):
         import inspect
+
         sig = inspect.signature(_print_transition)
         params = list(sig.parameters.keys())
         assert "message" in params
@@ -451,7 +484,9 @@ class TestFindPluginRoot:
         """Returns None when no plugin directory exists at any search location."""
         # Mock all paths as non-existent
         with patch.dict(os.environ, {}, clear=True):
-            with patch("svp.scripts.svp_launcher._is_svp_plugin_dir", return_value=False):
+            with patch(
+                "svp.scripts.svp_launcher._is_svp_plugin_dir", return_value=False
+            ):
                 result = _find_plugin_root()
                 assert result is None
 
@@ -528,42 +563,65 @@ class TestParseArgs:
     def test_restore_subcommand(self):
         """parse_args parses 'restore <project_name> --spec ... --blueprint ...'."""
         # DATA ASSUMPTION: Valid file paths for spec and blueprint files.
-        result = parse_args([
-            "restore", "my_project",
-            "--spec", "/path/to/spec.md",
-            "--blueprint", "/path/to/blueprint.md",
-        ])
+        result = parse_args(
+            [
+                "restore",
+                "my_project",
+                "--spec",
+                "/path/to/spec.md",
+                "--blueprint",
+                "/path/to/blueprint.md",
+            ]
+        )
         assert isinstance(result, argparse.Namespace)
         assert result.project_name == "my_project"
 
     def test_restore_with_context(self):
         """parse_args accepts optional --context on restore."""
-        result = parse_args([
-            "restore", "my_project",
-            "--spec", "/path/to/spec.md",
-            "--blueprint", "/path/to/blueprint.md",
-            "--context", "/path/to/context.md",
-        ])
+        result = parse_args(
+            [
+                "restore",
+                "my_project",
+                "--spec",
+                "/path/to/spec.md",
+                "--blueprint",
+                "/path/to/blueprint.md",
+                "--context",
+                "/path/to/context.md",
+            ]
+        )
         assert isinstance(result, argparse.Namespace)
 
     def test_restore_with_scripts_source(self):
         """parse_args accepts --scripts-source on restore."""
-        result = parse_args([
-            "restore", "my_project",
-            "--spec", "/path/to/spec.md",
-            "--blueprint", "/path/to/blueprint.md",
-            "--scripts-source", "/dev/scripts",
-        ])
+        result = parse_args(
+            [
+                "restore",
+                "my_project",
+                "--spec",
+                "/path/to/spec.md",
+                "--blueprint",
+                "/path/to/blueprint.md",
+                "--scripts-source",
+                "/dev/scripts",
+            ]
+        )
         assert isinstance(result, argparse.Namespace)
 
     def test_restore_with_parent_dir(self):
         """parse_args accepts --parent-dir on restore."""
-        result = parse_args([
-            "restore", "my_project",
-            "--spec", "/path/to/spec.md",
-            "--blueprint", "/path/to/blueprint.md",
-            "--parent-dir", "/tmp/bar",
-        ])
+        result = parse_args(
+            [
+                "restore",
+                "my_project",
+                "--spec",
+                "/path/to/spec.md",
+                "--blueprint",
+                "/path/to/blueprint.md",
+                "--parent-dir",
+                "/tmp/bar",
+            ]
+        )
         assert isinstance(result, argparse.Namespace)
 
     def test_no_subcommand_defaults_to_resume(self):
@@ -599,9 +657,7 @@ class TestCheckClaudeCode:
     def test_success(self, mock_run):
         """Returns (True, version_message) when claude is available."""
         # DATA ASSUMPTION: Claude CLI returns version string like "1.0.0".
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="1.0.0\n", stderr=""
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="1.0.0\n", stderr="")
         passed, message = check_claude_code()
         assert passed is True
         # The version should be mentioned in the message
@@ -624,7 +680,7 @@ class TestCheckSvpPlugin:
         assert isinstance(result, tuple)
         assert len(result) == 2
 
-    @patch("svp.scripts.svp_launcher._find_plugin_root")
+    @patch("svp_host_claude.launcher_adapter._find_plugin_root")
     def test_success(self, mock_find):
         """Returns (True, ...) when plugin is found."""
         # DATA ASSUMPTION: Plugin root at a typical path.
@@ -632,15 +688,13 @@ class TestCheckSvpPlugin:
         passed, message = check_svp_plugin()
         assert passed is True
 
-    @patch("svp.scripts.svp_launcher._find_plugin_root")
+    @patch("svp_host_claude.launcher_adapter._find_plugin_root")
     def test_failure(self, mock_find):
         """Returns (False, ...) when plugin is not found."""
         mock_find.return_value = None
         passed, message = check_svp_plugin()
         assert passed is False
 
-
-class TestCheckApiCredentials:
     """Tests for check_api_credentials."""
 
     def test_returns_tuple(self):
@@ -661,7 +715,9 @@ class TestCheckApiCredentials:
         """Falls back to 'claude auth status' when env var is absent."""
         # Remove ANTHROPIC_API_KEY if present
         mock_env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
-        mock_run.return_value = MagicMock(returncode=0, stdout="Authenticated", stderr="")
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="Authenticated", stderr=""
+        )
         with patch.dict(os.environ, mock_env, clear=True):
             passed, message = check_api_credentials()
             # Should at least not crash; result depends on implementation
@@ -759,6 +815,7 @@ class TestCheckGit:
     @patch("subprocess.run")
     def test_success(self, mock_run):
         """Returns (True, ...) when git is configured with user name and email."""
+
         # DATA ASSUMPTION: git --version returns a version, git config returns user info.
         def side_effect(cmd, *args, **kwargs):
             if "git" in cmd and "--version" in cmd:
@@ -776,6 +833,7 @@ class TestCheckGit:
     @patch("subprocess.run")
     def test_failure_no_user_config(self, mock_run):
         """Returns (False, ...) when git user is not configured."""
+
         # DATA ASSUMPTION: git config user.name fails with non-zero exit code.
         def side_effect(cmd, *args, **kwargs):
             if "git" in cmd and "--version" in cmd:
@@ -801,9 +859,7 @@ class TestCheckNetwork:
     def test_success_via_curl(self, mock_run):
         """Returns (True, ...) when curl succeeds to api.anthropic.com."""
         # DATA ASSUMPTION: curl returns HTTP 200 for api.anthropic.com.
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="200", stderr=""
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="200", stderr="")
         passed, message = check_network()
         assert passed is True
 
@@ -982,10 +1038,10 @@ class TestGenerateClaudeMd:
         templates_dir.mkdir()
 
         # Write a simple template module
-        template_content = '''
+        template_content = """
 def render_claude_md(project_name):
     return f"# SVP Project: {project_name}\\nTemplate-generated content."
-'''
+"""
         (templates_dir / "claude_md.py").write_text(template_content)
 
         generate_claude_md(project_root, "template_test")
@@ -1201,7 +1257,8 @@ class TestLaunchClaudeCode:
     """Tests for launch_claude_code."""
 
     @patch("subprocess.run")
-    def test_sets_env_var_in_subprocess(self, mock_run):
+    @patch("shutil.which", return_value="/usr/bin/claude")
+    def test_sets_env_var_in_subprocess(self, mock_which, mock_run):
         """Sets SVP_PLUGIN_ACTIVE=1 in the subprocess environment, not launcher's."""
         # DATA ASSUMPTION: Config file exists with skip_permissions=True.
         project_root = Path("/tmp/test_project")
@@ -1226,7 +1283,8 @@ class TestLaunchClaudeCode:
             pass
 
     @patch("subprocess.run")
-    def test_env_var_not_set_on_launcher_process(self, mock_run):
+    @patch("shutil.which", return_value="/usr/bin/claude")
+    def test_env_var_not_set_on_launcher_process(self, mock_which, mock_run):
         """SVP_PLUGIN_ACTIVE must NOT be set in the launcher's own os.environ."""
         project_root = Path("/tmp/test_project")
         plugin_dir = Path("/tmp/plugin")
@@ -1243,7 +1301,8 @@ class TestLaunchClaudeCode:
         assert os.environ.get("SVP_PLUGIN_ACTIVE") == original_env
 
     @patch("subprocess.run")
-    def test_returns_exit_code(self, mock_run):
+    @patch("shutil.which", return_value="/usr/bin/claude")
+    def test_returns_exit_code(self, mock_which, mock_run):
         """Returns the subprocess exit code."""
         project_root = Path("/tmp/test_project")
         plugin_dir = Path("/tmp/plugin")
@@ -1269,7 +1328,9 @@ class TestLaunchClaudeCode:
 
         with patch("builtins.open", mock_open(read_data=config_content)):
             with patch("pathlib.Path.exists", return_value=True):
-                with pytest.raises(RuntimeError, match="Claude Code executable not found"):
+                with pytest.raises(
+                    RuntimeError, match="Claude Code executable not found"
+                ):
                     launch_claude_code(project_root, plugin_dir)
 
     @patch("subprocess.run")
@@ -1287,7 +1348,8 @@ class TestLaunchClaudeCode:
                     launch_claude_code(project_root, plugin_dir)
 
     @patch("subprocess.run")
-    def test_skip_permissions_adds_flag(self, mock_run):
+    @patch("shutil.which", return_value="/usr/bin/claude")
+    def test_skip_permissions_adds_flag(self, mock_which, mock_run):
         """When skip_permissions=True, adds --dangerously-skip-permissions to cmd."""
         project_root = Path("/tmp/test_project")
         plugin_dir = Path("/tmp/plugin")
@@ -1303,7 +1365,8 @@ class TestLaunchClaudeCode:
         assert "--dangerously-skip-permissions" in cmd
 
     @patch("subprocess.run")
-    def test_no_skip_permissions_omits_flag(self, mock_run):
+    @patch("shutil.which", return_value="/usr/bin/claude")
+    def test_no_skip_permissions_omits_flag(self, mock_which, mock_run):
         """When skip_permissions=False, does not add the flag."""
         project_root = Path("/tmp/test_project")
         plugin_dir = Path("/tmp/plugin")
@@ -1372,13 +1435,14 @@ class TestClearRestartSignal:
 class TestRunSessionLoop:
     """Tests for run_session_loop."""
 
+    @patch("shutil.which", return_value="/usr/bin/claude")
     @patch("svp.scripts.svp_launcher.set_filesystem_permissions")
     @patch("svp.scripts.svp_launcher.detect_restart_signal")
     @patch("svp.scripts.svp_launcher.clear_restart_signal")
-    @patch("svp.scripts.svp_launcher.launch_claude_code")
+    @patch("svp_host_claude.launcher_adapter.launch_claude_code")
     @patch("svp.scripts.svp_launcher._print_transition")
     def test_single_session_no_restart(
-        self, mock_print, mock_launch, mock_clear, mock_detect, mock_perms
+        self, mock_print, mock_launch, mock_clear, mock_detect, mock_perms, mock_which
     ):
         """Exits after one session when no restart signal is detected."""
         project_root = Path("/tmp/project")
@@ -1392,13 +1456,14 @@ class TestRunSessionLoop:
         assert result == 0
         mock_launch.assert_called_once()
 
+    @patch("shutil.which", return_value="/usr/bin/claude")
     @patch("svp.scripts.svp_launcher.set_filesystem_permissions")
     @patch("svp.scripts.svp_launcher.detect_restart_signal")
     @patch("svp.scripts.svp_launcher.clear_restart_signal")
-    @patch("svp.scripts.svp_launcher.launch_claude_code")
+    @patch("svp_host_claude.launcher_adapter.launch_claude_code")
     @patch("svp.scripts.svp_launcher._print_transition")
     def test_restart_loop(
-        self, mock_print, mock_launch, mock_clear, mock_detect, mock_perms
+        self, mock_print, mock_launch, mock_clear, mock_detect, mock_perms, mock_which
     ):
         """Loops when restart signal is detected, then exits on no signal."""
         project_root = Path("/tmp/project")
@@ -1449,7 +1514,7 @@ class TestDetectExistingProject:
 class TestResumeProject:
     """Tests for resume_project."""
 
-    @patch("svp.scripts.svp_launcher.run_session_loop")
+    @patch("svp_host_claude.launcher_adapter.run_session_loop")
     def test_calls_run_session_loop(self, mock_loop, tmp_path):
         """resume_project calls run_session_loop."""
         # DATA ASSUMPTION: Valid pipeline state JSON for resume display.
@@ -1469,7 +1534,7 @@ class TestResumeProject:
         mock_loop.assert_called_once_with(tmp_path, plugin_dir)
         assert result == 0
 
-    @patch("svp.scripts.svp_launcher.run_session_loop")
+    @patch("svp_host_claude.launcher_adapter.run_session_loop")
     def test_handles_malformed_json_gracefully(self, mock_loop, tmp_path):
         """Gracefully handles malformed pipeline_state.json on resume."""
         # DATA ASSUMPTION: Corrupted JSON in pipeline_state.json.
@@ -1602,9 +1667,11 @@ class TestHandleRestore:
 
         project_root = tmp_path / "projects" / "restored_project"
         state = json.loads((project_root / "pipeline_state.json").read_text())
-        assert "pre_stage_3" in str(state.get("stage", "")) or \
-               "pre_stage_3" in str(state.get("sub_stage", "")) or \
-               state.get("stage") == "pre_stage_3"
+        assert (
+            "pre_stage_3" in str(state.get("stage", ""))
+            or "pre_stage_3" in str(state.get("sub_stage", ""))
+            or state.get("stage") == "pre_stage_3"
+        )
 
     @patch("svp.scripts.svp_launcher.run_session_loop", return_value=0)
     @patch("svp.scripts.svp_launcher.set_filesystem_permissions")
@@ -1770,6 +1837,7 @@ class TestMain:
         """main() accepts an argv parameter for testing."""
         # This just verifies the interface; actual behavior requires mocking
         import inspect
+
         sig = inspect.signature(main)
         assert "argv" in sig.parameters
 
@@ -1820,11 +1888,16 @@ class TestMain:
         ]
         mock_find.return_value = Path("/tmp/plugin")
 
-        result = main([
-            "restore", "my_proj",
-            "--spec", "/tmp/spec.md",
-            "--blueprint", "/tmp/bp.md",
-        ])
+        result = main(
+            [
+                "restore",
+                "my_proj",
+                "--spec",
+                "/tmp/spec.md",
+                "--blueprint",
+                "/tmp/bp.md",
+            ]
+        )
 
         assert result == 0
         mock_restore.assert_called_once()
@@ -1865,6 +1938,7 @@ class TestSelfContainment:
         """Stub file should not import from other SVP units."""
         # DATA ASSUMPTION: The stub.py file is at src/unit_24/stub.py.
         import importlib
+
         module = importlib.import_module("svp.scripts.svp_launcher")
         source_file = module.__file__
         if source_file:

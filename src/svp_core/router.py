@@ -502,7 +502,17 @@ def _route_stage_3(
         )
 
     elif sub == "unit_completion":
-        return _session_boundary_action(message=f"Unit {unit} is complete.")
+        return _run_command_action(
+            command=(
+                "echo COMMAND_SUCCEEDED > .svp/last_status.txt &&"
+                " PYTHONPATH=scripts python scripts/update_state.py"
+                f" --unit {unit} --phase unit_completion"
+                " --status-file .svp/last_status.txt --project-root ."
+            ),
+            message=f"Unit {unit} verified. Advancing pipeline.",
+            post=None,
+            unit=unit,
+        )
 
     elif sub == "unit_verified":
         return _session_boundary_action(
