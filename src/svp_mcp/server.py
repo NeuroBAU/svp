@@ -31,7 +31,7 @@ def load_state_tool(project_root: str) -> dict:
         Dictionary representation of the pipeline state.
     """
     state = load_state(Path(project_root))
-    return state.model_dump(mode="json")
+    return state.to_dict()
 
 
 @mcp.tool()
@@ -93,7 +93,7 @@ def dispatch_status_tool(
         gate_id=gate_id,
         project_root=Path(project_root),
     )
-    return new_state.model_dump(mode="json")
+    return new_state.to_dict()
 
 
 @mcp.tool()
@@ -115,7 +115,7 @@ def save_state_tool(project_root: str, state: dict) -> dict:
 
     Args:
         project_root: Path to the project root directory.
-        state: Pipeline state dictionary (from model_dump with mode="json").
+        state: Pipeline state dictionary (from to_dict()).
 
     Returns:
         Success: {"ok": true, "state": {...}}
@@ -156,7 +156,7 @@ def dispatch_gate_response_tool(
             response,
             Path(project_root),
         )
-        return {"ok": True, "state": new_state.model_dump(mode="json")}
+        return {"ok": True, "state": new_state.to_dict()}
     except Exception as e:
         return {"ok": False, "error": str(e), "error_type": type(e).__name__}
 
@@ -192,7 +192,7 @@ def dispatch_agent_status_tool(
             phase,
             Path(project_root),
         )
-        return {"ok": True, "state": new_state.model_dump(mode="json")}
+        return {"ok": True, "state": new_state.to_dict()}
     except Exception as e:
         return {"ok": False, "error": str(e), "error_type": type(e).__name__}
 
@@ -225,7 +225,7 @@ def dispatch_command_status_tool(
             phase,
             Path(project_root),
         )
-        return {"ok": True, "state": new_state.model_dump(mode="json")}
+        return {"ok": True, "state": new_state.to_dict()}
     except Exception as e:
         return {"ok": False, "error": str(e), "error_type": type(e).__name__}
 

@@ -16,7 +16,7 @@ class TestLoadStateTool:
         from svp_mcp.server import load_state_tool
 
         mock_state = MagicMock()
-        mock_state.model_dump.return_value = {"stage": "0", "sub_stage": None}
+        mock_state.to_dict.return_value = {"stage": "0", "sub_stage": None}
         mock_load_state.return_value = mock_state
 
         result = load_state_tool("/tmp/project")
@@ -91,7 +91,7 @@ class TestDispatchStatusTool:
         mock_new_state = MagicMock()
         mock_load_state.return_value = mock_state
         mock_dispatch.return_value = mock_new_state
-        mock_new_state.model_dump.return_value = {"stage": "1", "sub_stage": "dialog"}
+        mock_new_state.to_dict.return_value = {"stage": "1", "sub_stage": "dialog"}
 
         result = dispatch_status_tool(
             "/tmp/project", "IMPLEMENTATION_COMPLETE", "implementation_dialog"
@@ -132,7 +132,7 @@ class TestSaveStateTool:
         from svp_core import PipelineState
 
         mock_state = MagicMock()
-        mock_state.model_dump.return_value = {"stage": "0"}
+        mock_state.to_dict.return_value = {"stage": "0"}
 
         with patch.object(PipelineState, "from_dict", return_value=mock_state):
             state_dict = {"stage": "0", "sub_stage": "hook_activation"}
@@ -172,7 +172,7 @@ class TestDispatchGateResponseTool:
         mock_new_state = MagicMock()
         mock_load_state.return_value = mock_state
         mock_dispatch.return_value = mock_new_state
-        mock_new_state.model_dump.return_value = {"stage": "1"}
+        mock_new_state.to_dict.return_value = {"stage": "1"}
 
         result = dispatch_gate_response_tool("/tmp/project", "gate_0_1", "APPROVE")
 
@@ -207,7 +207,7 @@ class TestDispatchAgentStatusTool:
         mock_new_state = MagicMock()
         mock_load_state.return_value = mock_state
         mock_dispatch.return_value = mock_new_state
-        mock_new_state.model_dump.return_value = {"stage": "2"}
+        mock_new_state.to_dict.return_value = {"stage": "2"}
 
         result = dispatch_agent_status_tool(
             "/tmp/project",
@@ -249,7 +249,7 @@ class TestDispatchCommandStatusTool:
         mock_new_state = MagicMock()
         mock_load_state.return_value = mock_state
         mock_dispatch.return_value = mock_new_state
-        mock_new_state.model_dump.return_value = {"stage": "3"}
+        mock_new_state.to_dict.return_value = {"stage": "3"}
 
         result = dispatch_command_status_tool(
             "/tmp/project", "COMMAND_SUCCEEDED", "test"
