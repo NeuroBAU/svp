@@ -20,7 +20,7 @@ svp = "svp.scripts.svp_launcher:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["svp*", "svp_core*", "svp_host_claude*"]
+include = ["svp*", "svp_core*", "svp_host_claude*", "svp_app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
