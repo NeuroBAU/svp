@@ -7,9 +7,13 @@ from mcp.server.fastmcp import FastMCP
 
 from svp_app import (
     load_state,
+    save_state,
     validate_state,
     route,
     dispatch_status,
+    dispatch_gate_response,
+    dispatch_agent_status,
+    dispatch_command_status,
     format_action_block,
 )
 
@@ -103,6 +107,127 @@ def format_action_block_tool(action: dict) -> str:
         Formatted action block string.
     """
     return format_action_block(action)
+
+
+@mcp.tool()
+def save_state_tool(project_root: str, state: dict) -> dict:
+    """Save the pipeline state to disk.
+
+    Args:
+        project_root: Path to the project root directory.
+        state: Pipeline state dictionary (from model_dump with mode="json").
+
+    Returns:
+        Success: {"ok": true, "state": {...}}
+        Failure: {"ok": false, "error": "...", "error_type": "..."}
+    """
+    try:
+        from svp_core import PipelineState
+
+        state_obj = PipelineState.from_dict(state)
+        save_state(state_obj, Path(project_root))
+        return {"ok": True, "state": state}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "error_type": type(e).__name__}
+
+
+@mcp.tool()
+def dispatch_gate_response_tool(
+    project_root: str,
+    gate_id: str,
+    response: str,
+) -> dict:
+    """Dispatch a human gate response.
+
+    Args:
+        project_root: Path to the project root directory.
+        gate_id: The gate identifier (e.g., "gate_0_1_hook_activation").
+        response: The human's response (must be in GATE_VOCABULARY).
+
+    Returns:
+        Success: {"ok": true, "state": {...}}
+        Failure: {"ok": false, "error": "...", "error_type": "..."}
+    """
+    try:
+        state = load_state(Path(project_root))
+        new_state = dispatch_gate_response(
+            state,
+            gate_id,
+            response,
+            Path(project_root),
+        )
+        return {"ok": True, "state": new_state.model_dump(mode="json")}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "error_type": type(e).__name__}
+
+
+@mcp.tool()
+def dispatch_agent_status_tool(
+    project_root: str,
+    agent_type: str,
+    status_line: str,
+    phase: str,
+    unit: Optional[int] = None,
+) -> dict:
+    """Dispatch an agent status line.
+
+    Args:
+        project_root: Path to the project root directory.
+        agent_type: The agent type that produced the status.
+        status_line: The status line from agent output.
+        phase: The phase that produced the status.
+        unit: Unit number if applicable.
+
+    Returns:
+        Success: {"ok": true, "state": {...}}
+        Failure: {"ok": false, "error": "...", "error_type": "..."}
+    """
+    try:
+        state = load_state(Path(project_root))
+        new_state = dispatch_agent_status(
+            state,
+            agent_type,
+            status_line,
+            unit,
+            phase,
+            Path(project_root),
+        )
+        return {"ok": True, "state": new_state.model_dump(mode="json")}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "error_type": type(e).__name__}
+
+
+@mcp.tool()
+def dispatch_command_status_tool(
+    project_root: str,
+    status_line: str,
+    phase: str,
+    unit: Optional[int] = None,
+) -> dict:
+    """Dispatch a command status line.
+
+    Args:
+        project_root: Path to the project root directory.
+        status_line: The status line from command output.
+        phase: The phase that produced the status.
+        unit: Unit number if applicable.
+
+    Returns:
+        Success: {"ok": true, "state": {...}}
+        Failure: {"ok": false, "error": "...", "error_type": "..."}
+    """
+    try:
+        state = load_state(Path(project_root))
+        new_state = dispatch_command_status(
+            state,
+            status_line,
+            unit,
+            phase,
+            Path(project_root),
+        )
+        return {"ok": True, "state": new_state.model_dump(mode="json")}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "error_type": type(e).__name__}
 
 
 if __name__ == "__main__":

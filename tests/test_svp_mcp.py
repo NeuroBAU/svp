@@ -120,3 +120,154 @@ class TestFormatActionBlockTool:
 
         assert result == "ACTION: human_gate\nGATE: gate_0_1\nMESSAGE: test"
         mock_format.assert_called_once_with(action)
+
+
+class TestSaveStateTool:
+    """Tests for save_state_tool."""
+
+    @patch("svp_mcp.server.save_state")
+    def test_success(self, mock_save):
+        """save_state_tool should return ok=True on success."""
+        from svp_mcp.server import save_state_tool
+        from svp_core import PipelineState
+
+        mock_state = MagicMock()
+        mock_state.model_dump.return_value = {"stage": "0"}
+
+        with patch.object(PipelineState, "from_dict", return_value=mock_state):
+            state_dict = {"stage": "0", "sub_stage": "hook_activation"}
+            result = save_state_tool("/tmp/project", state_dict)
+
+        assert result["ok"] is True
+        assert result["state"] == state_dict
+
+    @patch("svp_mcp.server.save_state")
+    def test_failure(self, mock_save):
+        """save_state_tool should return ok=False on failure."""
+        from svp_mcp.server import save_state_tool
+        from svp_core import PipelineState
+
+        mock_state = MagicMock()
+        mock_save.side_effect = IOError("Permission denied")
+
+        with patch.object(PipelineState, "from_dict", return_value=mock_state):
+            state_dict = {"stage": "0"}
+            result = save_state_tool("/tmp/project", state_dict)
+
+        assert result["ok"] is False
+        assert "Permission denied" in result["error"]
+        assert result["error_type"] == "OSError"
+
+
+class TestDispatchGateResponseTool:
+    """Tests for dispatch_gate_response_tool."""
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.dispatch_gate_response")
+    def test_success(self, mock_dispatch, mock_load_state):
+        """dispatch_gate_response_tool should return ok=True on success."""
+        from svp_mcp.server import dispatch_gate_response_tool
+
+        mock_state = MagicMock()
+        mock_new_state = MagicMock()
+        mock_load_state.return_value = mock_state
+        mock_dispatch.return_value = mock_new_state
+        mock_new_state.model_dump.return_value = {"stage": "1"}
+
+        result = dispatch_gate_response_tool("/tmp/project", "gate_0_1", "APPROVE")
+
+        assert result["ok"] is True
+        assert result["state"] == {"stage": "1"}
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.dispatch_gate_response")
+    def test_failure(self, mock_dispatch, mock_load_state):
+        """dispatch_gate_response_tool should return ok=False on error."""
+        from svp_mcp.server import dispatch_gate_response_tool
+
+        mock_dispatch.side_effect = ValueError("Invalid gate response")
+
+        result = dispatch_gate_response_tool("/tmp/project", "gate_0_1", "INVALID")
+
+        assert result["ok"] is False
+        assert "Invalid gate response" in result["error"]
+        assert result["error_type"] == "ValueError"
+
+
+class TestDispatchAgentStatusTool:
+    """Tests for dispatch_agent_status_tool."""
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.dispatch_agent_status")
+    def test_success(self, mock_dispatch, mock_load_state):
+        """dispatch_agent_status_tool should return ok=True on success."""
+        from svp_mcp.server import dispatch_agent_status_tool
+
+        mock_state = MagicMock()
+        mock_new_state = MagicMock()
+        mock_load_state.return_value = mock_state
+        mock_dispatch.return_value = mock_new_state
+        mock_new_state.model_dump.return_value = {"stage": "2"}
+
+        result = dispatch_agent_status_tool(
+            "/tmp/project",
+            "implementation_agent",
+            "IMPLEMENTATION_COMPLETE",
+            "implementation",
+        )
+
+        assert result["ok"] is True
+        assert result["state"] == {"stage": "2"}
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.dispatch_agent_status")
+    def test_failure(self, mock_dispatch, mock_load_state):
+        """dispatch_agent_status_tool should return ok=False on error."""
+        from svp_mcp.server import dispatch_agent_status_tool
+
+        mock_dispatch.side_effect = ValueError("Unknown status")
+
+        result = dispatch_agent_status_tool(
+            "/tmp/project", "test", "UNKNOWN_STATUS", "test"
+        )
+
+        assert result["ok"] is False
+        assert "Unknown status" in result["error"]
+        assert result["error_type"] == "ValueError"
+
+
+class TestDispatchCommandStatusTool:
+    """Tests for dispatch_command_status_tool."""
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.dispatch_command_status")
+    def test_success(self, mock_dispatch, mock_load_state):
+        """dispatch_command_status_tool should return ok=True on success."""
+        from svp_mcp.server import dispatch_command_status_tool
+
+        mock_state = MagicMock()
+        mock_new_state = MagicMock()
+        mock_load_state.return_value = mock_state
+        mock_dispatch.return_value = mock_new_state
+        mock_new_state.model_dump.return_value = {"stage": "3"}
+
+        result = dispatch_command_status_tool(
+            "/tmp/project", "COMMAND_SUCCEEDED", "test"
+        )
+
+        assert result["ok"] is True
+        assert result["state"] == {"stage": "3"}
+
+    @patch("svp_mcp.server.load_state")
+    @patch("svp_mcp.server.dispatch_command_status")
+    def test_failure(self, mock_dispatch, mock_load_state):
+        """dispatch_command_status_tool should return ok=False on error."""
+        from svp_mcp.server import dispatch_command_status_tool
+
+        mock_dispatch.side_effect = ValueError("Unknown command status")
+
+        result = dispatch_command_status_tool("/tmp/project", "UNKNOWN_COMMAND", "test")
+
+        assert result["ok"] is False
+        assert "Unknown command status" in result["error"]
+        assert result["error_type"] == "ValueError"
