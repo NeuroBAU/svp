@@ -61,7 +61,7 @@ Clone the repository, then register it as a Claude Code marketplace and install 
 #### macOS / Linux / Windows (WSL2)
 
 ```bash
-git clone https://github.com/wilya7/svp.git
+git clone https://github.com/NeuroBAU/svp.git
 cd svp
 claude plugin marketplace add "$(pwd)"
 claude plugin install svp@svp
