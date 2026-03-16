@@ -1,6 +1,13 @@
 # SVP — Stratified Verification Pipeline
 
-A Claude Code plugin that turns natural language requirements into verified Python projects. You describe what you want; SVP orchestrates LLM agents to build, test, and deliver it — with deterministic state management, multi-agent cross-checking, and human decision gates at every critical point.
+A Claude Code plugin that turns natural language
+requirements into verified Python projects. SVP builds
+Python and delivers Python — it is not designed for other
+languages. You describe what you want; SVP orchestrates
+LLM agents to build, test, and deliver it — with
+deterministic state management, multi-agent
+cross-checking, and human decision gates at every
+critical point.
 
 **Paper:** [TODO: link to ArXiv paper] — the theoretical
 foundations, design rationale, and empirical results
@@ -172,6 +179,18 @@ state.
 The two directories serve different purposes: the
 workspace is disposable build scaffolding; the delivered
 repo is what you ship, share, or publish.
+
+If you use `/svp:redo` to roll back to the stakeholder
+spec or blueprint (before Stage 3), the pipeline rebuilds
+from scratch. When Stage 5 runs again, it does not
+overwrite the existing delivered repo — it renames the
+old one with a timestamp (e.g., `my-project-repo` becomes
+`my-project-repo_20260315_143022`) and creates a fresh
+`my-project-repo`. Each restart produces a new delivered
+directory. After N restarts, you will have N+1 directories:
+the current `my-project-repo` plus N timestamped backups.
+You can delete the backups once you are satisfied with the
+current delivery.
 
 When you use `/svp:bug` after delivery, the triage agent
 investigates in the delivered repository (using the
