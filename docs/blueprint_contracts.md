@@ -3,7 +3,7 @@
 ## Technical Blueprint: Contracts (Tier 2 + Tier 3)
 
 **Date:** 2026-03-15
-**Decomposes:** Stakeholder Specification v8.25
+**Decomposes:** Stakeholder Specification v8.28
 **Companion File:** The other `.md` file(s) in this blueprint directory (Tier 1 descriptions)
 
 ---
@@ -246,6 +246,31 @@ assert ARTIFACT_FILENAMES["blueprint_dir"] == "blueprint"
 assert "blueprint_prose" not in ARTIFACT_FILENAMES, "No hardcoded blueprint filenames"
 assert "blueprint_contracts" not in ARTIFACT_FILENAMES, "No hardcoded blueprint filenames"
 assert ARTIFACT_FILENAMES["project_context"] == "project_context.md"
+
+# Model context window mapping (Bug 50 fix: contract sufficiency)
+# _MODEL_CONTEXT_WINDOWS: Dict[str, int] maps model ID to token count
+# Must include at minimum: "claude-opus-4-6", "claude-sonnet-4-6"
+# _CONTEXT_BUDGET_OVERHEAD: int = 20000
+# Fallback when model not found: 200000
+
+# Profile validation enum sets (Bug 50 fix: contract sufficiency)
+# Each set must match the spec's Section 6.4 enum definitions:
+# linter: "ruff", "flake8", "pylint", "none"
+# formatter: "ruff", "black", "none"
+# type_checker: "mypy", "pyright", "none"
+# import_sorter: "ruff", "isort", "none"
+# commit_style: "conventional", "freeform", "custom"
+# changelog: "keep_a_changelog", "conventional_changelog", "none"
+# environment_recommendation: "conda", "pyenv", "venv", "poetry", "none"
+# source_layout: "conventional", "flat", "svp_native"
+# readme.depth: "minimal", "standard", "comprehensive"
+
+# Toolchain recognized placeholders (Bug 50 fix: contract sufficiency)
+# _RECOGNIZED_PLACEHOLDERS: Set[str] = {
+#     "env_name", "python_version", "run_prefix", "target",
+#     "flags", "packages", "files", "message", "module",
+#     "test_path"
+# }
 ```
 
 ### Tier 3 -- Error Conditions
@@ -267,23 +292,23 @@ assert ARTIFACT_FILENAMES["project_context"] == "project_context.md"
 ### Tier 3 -- Behavioral Contracts
 
 **Config loader (unchanged from v1.0):**
-- `load_config` returns the merged result of file content over defaults -- missing keys in the file are filled from `DEFAULT_CONFIG`.
+- `load_config` returns the merged result of file content over defaults -- missing keys filled from defaults via recursive merge: for nested dicts, merge recursively; for non-dict values, override wins; base keys not in override are preserved.
 - `load_config` on a non-existent file returns a copy of `DEFAULT_CONFIG` without error.
 - `validate_config` returns an empty list when config is valid, a list of human-readable error strings for each violation found.
 - `get_model_for_agent` returns the agent-specific model if configured, otherwise the `models.default` value.
-- `get_effective_context_budget` returns the `context_budget_override` when set and non-null, otherwise computes from the smallest model context window minus 20,000 tokens overhead.
+- `get_effective_context_budget` returns `context_budget_override` if set and non-null. Otherwise: iterates all configured models in `config["models"]`, looks up each in `_MODEL_CONTEXT_WINDOWS`, finds the minimum context window, subtracts `_CONTEXT_BUDGET_OVERHEAD` (20000). If no model found in the mapping, uses fallback of 200000 minus overhead.
 - `write_default_config` writes `DEFAULT_CONFIG` as formatted JSON to `{project_root}/svp_config.json` and returns the path.
 - Config changes made by the human take effect on next load -- no caching across invocations.
 
 **Profile loader (CHANGED IN 2.1):**
-- `load_profile` reads `project_profile.json` from `project_root`, validates fields it uses against expected types. Unknown fields are ignored (forward compatibility). Missing fields are filled from `DEFAULT_PROFILE` via `_deep_merge` -- a recursive merge that fills missing keys at all nesting levels. Raises `RuntimeError` if the file is missing or fails JSON parsing.
+- `load_profile` reads `project_profile.json` from `project_root`, validates fields it uses against expected types. Unknown fields are ignored (forward compatibility). Missing keys filled from defaults via recursive merge: for nested dicts, merge recursively; for non-dict values, override wins; base keys not in override are preserved. Raises `RuntimeError` if the file is missing or fails JSON parsing.
 - `validate_profile` checks structural integrity: all required sections present, correct types for each field, `delivery.environment_recommendation` is one of `"conda"`, `"pyenv"`, `"venv"`, `"poetry"`, `"none"`, `delivery.source_layout` is one of `"conventional"`, `"flat"`, `"svp_native"`, `vcs.commit_style` is one of `"conventional"`, `"freeform"`, `"custom"`, `vcs.changelog` is one of `"keep_a_changelog"`, `"conventional_changelog"`, `"none"`, `readme.depth` is one of `"minimal"`, `"standard"`, `"comprehensive"`, `testing.coverage_target` is null or integer 0-100, `quality.linter` is one of `"ruff"`, `"flake8"`, `"pylint"`, `"none"`, `quality.formatter` is one of `"ruff"`, `"black"`, `"none"`, `quality.type_checker` is one of `"mypy"`, `"pyright"`, `"none"`, `quality.import_sorter` is one of `"ruff"`, `"isort"`, `"none"`, `quality.line_length` is a positive integer. Returns empty list when valid, list of error strings otherwise.
 - `get_profile_section` returns a specific top-level section of the profile. Raises `KeyError` if the section does not exist.
-- `detect_profile_contradictions` checks for known contradictory combinations (spec Section 6.4). Returns list of contradiction descriptions.
+- `detect_profile_contradictions` checks three specific patterns: (1) `delivery.environment_recommendation` differs from expected `delivery.dependency_format` (conda->environment.yml, pyenv/venv->requirements.txt, poetry->pyproject.toml); (2) `vcs.commit_style == "custom"` while `vcs.commit_template` is None; (3) `readme.depth == "minimal"` with more than 5 sections or custom_sections. Returns list of contradiction descriptions.
 
 **Toolchain reader (CHANGED IN 2.1):**
 - `load_toolchain` reads `toolchain.json` from `project_root`. Raises `RuntimeError` if missing or malformed. No fallback to hardcoded values.
-- `validate_toolchain` checks structural integrity: all required sections present including the `quality` section (`formatter`, `linter`, `type_checker`, `packages`, `gate_a`, `gate_b`, `gate_c`), command templates contain only recognized placeholders. Returns empty list when valid.
+- `validate_toolchain` validates required sections present. Also recursively walks all command templates, extracts `{placeholder}` patterns via regex, and reports any placeholder not in `_RECOGNIZED_PLACEHOLDERS`. Returns empty list when valid.
 - `resolve_command` performs single-pass placeholder resolution. The recognized placeholder vocabulary is a closed set: `{env_name}`, `{python_version}`, `{run_prefix}`, `{target}`, `{flags}`, `{packages}`, `{files}`, `{message}`, `{module}`, `{test_path}`. Resolution order: first resolves `environment.run_prefix` by substituting `{env_name}` internally, then substitutes the resolved `run_prefix` value into all templates referencing `{run_prefix}`. **The canonical placeholder for file/directory paths is `{target}`, not `{path}` (Bug 33 fix).** No recursive resolution. Raises `ValueError` if any placeholder remains unresolved after substitution.
 - `resolve_run_prefix` is a convenience function: resolves `environment.run_prefix` template with the given `env_name`.
 - `get_framework_packages` returns `testing.framework_packages` from the toolchain.
@@ -301,7 +326,7 @@ assert ARTIFACT_FILENAMES["project_context"] == "project_context.md"
 - `discover_blueprint_files(project_root)` returns a sorted list of `Path` objects for all `.md` files in `project_root / ARTIFACT_FILENAMES["blueprint_dir"]`. Raises `FileNotFoundError` if the blueprint directory does not exist or contains no `.md` files -- a missing blueprint directory is an error condition, not an empty result. Sorting is alphabetical by filename to ensure deterministic ordering.
 - `load_blueprint_content(project_root)` calls `discover_blueprint_files`, reads each file, and concatenates their contents separated by `\n\n---\n\n`. Raises `FileNotFoundError` if the blueprint directory does not exist or contains no `.md` files. This function is the single entry point for loading blueprint content -- all consumers use it instead of hardcoded file paths.
 - **Backward compatibility:** A single `blueprint.md` file in the blueprint directory is handled correctly -- `discover_blueprint_files` returns it as the sole entry. Multiple files (e.g., `blueprint_contracts.md` and `blueprint_prose.md`) are also handled. The system makes no assumption about the number or names of blueprint files.
-- **Spec v8.25 filename convention:** While the discovery mechanism is filename-agnostic at the code level (any `.md` files in the blueprint directory are discovered and loaded), spec v8.25 constrains this build to use `blueprint_prose.md` and `blueprint_contracts.md` as the actual blueprint filenames. These names appear in the project file tree, the bundled Game of Life example, and the `svp restore` workflow. The code must not hardcode these names, but the project's blueprint directory will contain exactly these two files.
+- **Spec v8.27 filename convention:** While the discovery mechanism is filename-agnostic at the code level (any `.md` files in the blueprint directory are discovered and loaded), spec v8.26 constrains this build to use `blueprint_prose.md` and `blueprint_contracts.md` as the actual blueprint filenames. These names appear in the project file tree, the bundled Game of Life example, and the `svp restore` workflow. The code must not hardcode these names, but the project's blueprint directory will contain exactly these two files.
 
 **DEFAULT_PROFILE key path regression test (spec Section 30):**
 - A Unit 1 unit test (in `tests/unit_1/`) must verify that every key path in `DEFAULT_PROFILE` matches the canonical profile schema defined in spec Section 6.4. This is a unit test of Unit 1's data contract, not a separate regression file.
@@ -598,6 +623,7 @@ assert result.delivered_repo_path == repo_path
 
 - `advance_stage` moves the state to the next stage. Resets `sub_stage` to `None`. Validates exit criteria per stage (Stage 2 to Pre-Stage-3 requires `ALIGNMENT_CONFIRMED` and `alignment_check` sub-stage -- Bug 23 fix).
 - `complete_unit` writes marker file, updates `verified_units`, resets fix ladder, red_run_retries, and sub_stage to `None`. Advances `current_unit`. When `current_unit` exceeds `total_units`, advances to Stage 4.
+- `rollback_to_unit` before deleting rolled-back units: copies `src/unit_N/` to `logs/rollback/unit_N_src` and `tests/unit_N/` to `logs/rollback/unit_N_tests` for all units >= target. Deletes completion markers matching `unit_N_verified` in `.svp/markers/`. Resets fix_ladder_position and red_run_retries.
 - `version_document` copies document to history, writes diff summary. **When `companion_paths` is not None and non-empty (used for the blueprint directory -- the caller passes all discovered `.md` files), all files are versioned together atomically: produces versioned copies (e.g., `blueprint_prose_vN.md`, `blueprint_contracts_vN.md`) and diff summaries for each file. The files share a version number. When `companion_paths` is None, only the primary `doc_path` file is versioned. The caller (Unit 10's routing/update logic) uses `discover_blueprint_files` from Unit 1 to determine which files to pass as companions.**
 - `enter_alignment_check` sets `sub_stage` to `"alignment_check"`. Called after Gate 2.1 APPROVE.
 - `complete_alignment_check` calls `advance_stage` to transition Stage 2 to Pre-Stage-3.
@@ -606,7 +632,7 @@ assert result.delivered_repo_path == repo_path
 - `quality_gate_pass` advances past quality gate: from `quality_gate_a`/`quality_gate_a_retry` to `"red_run"`; from `quality_gate_b`/`quality_gate_b_retry` to `"green_run"`.
 - `quality_gate_fail_to_ladder` calls `advance_fix_ladder` internally. If ladder has room, sets `sub_stage` to `None`. If exhausted, preserves sub_stage for routing to present exhaustion gate.
 - `set_delivered_repo_path` records the absolute path to the delivered repository.
-- All transition functions return a new `PipelineState` -- they do not mutate the input.
+- All transition functions return a new PipelineState via deep copy (to_dict -> deepcopy -> from_dict). Input state is never mutated. This is a structural invariant, not an implementation suggestion.
 
 ### Tier 3 -- Dependencies
 
@@ -786,6 +812,13 @@ assert "NotImplementedError" in result
 assert "__SVP_STUB__" in result, "Stub source must contain stub sentinel"
 assert result.exists()
 assert result.suffix == ".py"
+
+# CLI argument enumeration (Bug 49 fix):
+# main() uses argparse with:
+#   --blueprint  (required, type=Path) — path to blueprint file
+#   --unit       (required, type=int) — unit number to generate stub for
+#   --output-dir (required, type=Path) — output directory for stub file
+#   --upstream   (optional, flag) — also generate upstream mock files
 ```
 
 ### Tier 3 -- Error Conditions
@@ -796,7 +829,7 @@ assert result.suffix == ".py"
 ### Tier 3 -- Behavioral Contracts
 
 - `parse_signatures` calls `ast.parse()` on the signature block and returns the AST.
-- `generate_stub_source` transforms the AST: replaces all function bodies with `raise NotImplementedError()`, preserves import statements and class definitions, strips module-level `assert` statements. **Must prepend `__SVP_STUB__ = True  # DO NOT DELIVER -- stub file generated by SVP` as the first non-import statement (NEW IN 2.1 -- stub sentinel).**
+- `generate_stub_source` transforms AST by replacing all function bodies with `raise NotImplementedError()`. Uses `ast.unparse()` to convert back to source. Prepends `STUB_SENTINEL` as the first non-import statement. The sentinel comment portion (after `True`) must be preserved in output -- `ast.unparse()` strips comments, so post-processing is required. Strips module-level `assert` statements. Preserves import statements and class definitions.
 - `strip_module_level_asserts` removes all `ast.Assert` nodes at the module level.
 - `write_stub_file` combines parsing, stripping, and stub generation to produce a stub file at `{output_dir}/stub.py`.
 - The generated stub must be importable without error (importability invariant).
@@ -844,6 +877,10 @@ assert all(isinstance(s, str) for s in result)
 assert result > 0, "total_units must be a positive integer, never None or zero"
 assert isinstance(total_units, int) and total_units > 0, \
     "total_units must be a positive integer -- never None (Bug 24 guard)"
+
+# CLI argument enumeration (Bug 49 fix):
+# main() uses argparse with:
+#   --project-root (required, type=str) — project root directory
 ```
 
 ### Tier 3 -- Error Conditions
@@ -986,6 +1023,18 @@ assert result.exists(), "Task prompt file must exist after preparation"
 assert result.stat().st_size > 0
 # Bug 22: all artifact path construction must use ARTIFACT_FILENAMES from Unit 1
 # Bug 41: ALL_GATE_IDS must contain every gate ID in the pipeline
+
+# CLI argument enumeration (Bug 49 fix):
+# main() uses argparse with:
+#   --project-root   (default=".", type=str) — project root directory
+#   --agent          (optional, type=str) — agent type for task prompt
+#   --gate           (optional, type=str) — gate ID for gate prompt
+#   --unit           (optional, type=int) — unit number
+#   --output         (optional, type=str) — override output path
+#   --ladder         (optional, type=str) — fix ladder position
+#   --revision-mode  (optional, type=str) — revision mode
+#   --quality-report (optional, type=str) — quality report path
+# Invariant: exactly one of --agent or --gate must be provided
 ```
 
 ### Tier 3 -- Error Conditions
@@ -1137,6 +1186,26 @@ assert set(GATE_RESPONSES.keys()) == set(ALL_GATE_IDS), \
 
 # COMMAND/POST separation invariant (Bug 47 fix):
 # No COMMAND field may contain "update_state.py" -- state updates are POST-only
+
+# CLI argument enumeration (Bug 49 fix):
+# update_state_main(argv) uses argparse with:
+#   --project-root (default=".", type=str) — project root directory
+#   --gate-id      (optional, type=str) — gate ID for gate response dispatch
+#   --unit         (optional, type=int) — unit number
+#   --phase        (default="main", type=str) — pipeline phase
+#
+# run_tests_main(argv) uses argparse with:
+#   test_path      (positional, nargs="?", default="tests") — path to test dir
+#   --env-name     (default="default", type=str) — conda environment name
+#   --project-root (default=".", type=str) — project root directory
+#   --test-path    (optional, type=str) — alternative to positional
+#
+# run_quality_gate_main(argv) uses argparse with:
+#   gate_id        (positional, nargs="?", default="gate_a") — gate identifier
+#   --gate         (optional, type=str) — alternative to positional
+#   --target       (default="src", type=str) — target path for quality tools
+#   --env-name     (default="default", type=str) — conda environment name
+#   --project-root (default=".", type=str) — project root directory
 ```
 
 ### Tier 3 -- Error Conditions
@@ -1192,6 +1261,8 @@ assert set(GATE_RESPONSES.keys()) == set(ALL_GATE_IDS), \
 - `sub_stage="repo_test"`: present `gate_5_1_repo_test`
 - `sub_stage="compliance_scan"`: run compliance scan script
 - `sub_stage="repo_complete"`: return `pipeline_complete`
+
+**`dispatch_agent_status` explicit transitions (Bug 50 fix: contract sufficiency).** Agent-type-keyed dispatch: help_agent/hint_agent -> no-op (clone only); test_agent -> sub_stage="quality_gate_a" (Bug 44: handles sub_stage None and "test_generation"); implementation_agent -> sub_stage="quality_gate_b"; coverage_review -> sub_stage="unit_completion" (Bug 46); reference_indexing -> stage="3", sub_stage=None, current_unit=1 if None. All other agent types: clone and set last_action.
 
 **`dispatch_agent_status` for `setup_agent` -- `PROJECT_CONTEXT_REJECTED` handling:** When `dispatch_agent_status` receives `PROJECT_CONTEXT_REJECTED` from the setup agent, it does NOT advance the pipeline. The next `route()` call reads `PROJECT_CONTEXT_REJECTED` from `last_status.txt` and emits a `pipeline_held` action. This is distinct from `PROJECT_CONTEXT_COMPLETE`, which advances to the context approval gate. `pipeline_held` signals that the human cannot provide sufficient project context and the pipeline holds until the human re-engages (e.g., via a new session or by providing context externally and resuming).
 
@@ -1977,6 +2048,12 @@ assert (repo_root / "svp" / "scripts" / "toolchain_defaults" / "ruff.toml").exis
 assert any((repo_root / "docs").glob("*.md")), "docs/ must contain at least one .md file (blueprint files are discovered, not hardcoded by name)"
 # Stub sentinel check
 # No delivered Python source file may contain __SVP_STUB__
+
+# CLI argument enumeration (Bug 49 fix):
+# compliance_scan_main() uses argparse with:
+#   --project-root (default=Path("."), type=Path) — project root directory
+#   --src-dir      (optional, type=Path) — delivered source directory
+#   --tests-dir    (optional, type=Path) — delivered tests directory
 ```
 
 ### Tier 3 -- Behavioral Contracts
@@ -2082,6 +2159,24 @@ assert "scripts" in PROJECT_DIRS
 assert "tests/regressions" in PROJECT_DIRS
 # Self-containment: no imports from other SVP modules
 # SVP_PLUGIN_ACTIVE must be set in subprocess environment, never on launcher's own os.environ
+#
+# CLI argument enumeration invariant (Bug 48 fix):
+# parse_args argparse arguments:
+#   new subcommand:
+#     project_name (positional, required)
+#     --parent-dir (optional, type=str/Path)
+#   restore subcommand:
+#     project_name (positional, required)
+#     --spec (required, type=str/Path)
+#     --blueprint-dir (required, directory path)
+#     --profile (required, type=str/Path)
+#     --context (optional, type=str/Path)
+#     --scripts-source (optional, type=str/Path)
+#     --parent-dir (optional, type=str/Path)
+#   Default (no subcommand):
+#     args.command defaults to "resume"
+assert parse_args([]).command == "resume"
+assert parse_args(["new", "p"]).command == "new"
 ```
 
 ### Tier 3 -- Error Conditions
@@ -2096,13 +2191,17 @@ assert "tests/regressions" in PROJECT_DIRS
 
 **Plugin discovery:** `_find_plugin_root()` checks `SVP_PLUGIN_ROOT` env var first, then searches 5 paths. `_is_svp_plugin_dir` validates by reading `.claude-plugin/plugin.json` and checking `name == "svp"`. Must NOT rely on directory-existence checks alone.
 
-**CLI parsing (Bug 32 fix):** Two subcommands: `new` and `restore`. No `resume` subcommand. `svp restore` accepts `--blueprint-dir` pointing to a directory containing one or more `.md` blueprint files; validates that the directory exists and contains at least one `.md` file before proceeding. No assumption about the number or names of blueprint files. Running `svp` with no arguments auto-detects existing project.
+**CLI parsing (Bug 32 fix, Bug 48 fix):** Two subcommands: `new` and `restore`. No `resume` subcommand. `svp restore` accepts `--blueprint-dir` pointing to a directory containing one or more `.md` blueprint files; validates that the directory exists and contains at least one `.md` file before proceeding. `--profile` is a required restore argument pointing to a valid `project_profile.json`. No assumption about the number or names of blueprint files. Running bare `svp` with no arguments must set `args.command = "resume"` before returning — `args.command` must never be `None` after `parse_args` returns.
 
 **Project setup:** `copy_ruff_config` copies `ruff.toml` and sets read-only via `os.chmod`.
 
-**Session lifecycle (Bug 31, 34 fix):** `launch_claude_code` uses `subprocess.run` with `cwd=str(project_root)`, `env` with `SVP_PLUGIN_ACTIVE=1`, `--prompt "run the routing script"`. No `--project-dir` flag.
+**Hook copying (Bug 50 fix: contract sufficiency).** `copy_hooks` (aliased from `_copy_hooks`): copies `hooks/hooks.json` and all files from `hooks/scripts/` to project's `.claude/` equivalent. Creates directories with exist_ok=True. Gracefully returns if hooks directory doesn't exist.
 
-**Restore mode:** `_handle_restore` copies all `.md` files from `--blueprint-dir` into the project's `blueprint/` directory, preserving their original filenames. Writes minimal `project_profile.json` using `_DEFAULT_PROFILE`. Writes state at `pre_stage_3`. No assumption about the number or names of blueprint files -- all `.md` files in the source directory are copied.
+**Filesystem permissions (Bug 50 fix: contract sufficiency).** `set_filesystem_permissions`: when `read_only=True`, removes write permissions from project files. No action when `read_only=False` (best-effort permission management).
+
+**Session lifecycle (Bug 31, 34 fix):** `launch_claude_code` copies os.environ, injects SVP_PLUGIN_ACTIVE=1. Reads `skip_permissions` from svp_config.json -- if true, adds `--dangerously-skip-permissions` flag. Command: `["claude", ...]` with `--prompt "run the routing script"`. Uses `subprocess.run` with `cwd=str(project_root)`. Returns subprocess return code. Catches exceptions, raises RuntimeError. No `--project-dir` flag.
+
+**Restore mode:** `_handle_restore` copies all files from `--blueprint-dir` into the project's `blueprint/` directory, preserving their original filenames. Copies `--profile` to `project_profile.json`. Writes state at `pre_stage_3`. No assumption about the number or names of blueprint files -- all files in the source directory are copied.
 
 **`_DEFAULT_PROFILE` structural match invariant:** `_DEFAULT_PROFILE` in Unit 24 must have the same key structure (all nested keys at all levels) as `DEFAULT_PROFILE` in Unit 1. Because Unit 24 is self-contained (no imports from other SVP units), it maintains its own copy. A Unit 24 unit test must verify that the key paths of `_DEFAULT_PROFILE` match the key paths of Unit 1's `DEFAULT_PROFILE`. Any structural divergence between the two is a contract violation.
 

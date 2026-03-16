@@ -1,7 +1,7 @@
 # SVP 2.1 — Specification Summary and Glossary
 
 **Date:** 2026-03-15
-**Companion to:** Stakeholder Specification v8.25 (Document 2)
+**Companion to:** Stakeholder Specification v8.28 (Document 2)
 **Pipeline role:** Reference document. Available to blueprint checker as cross-check.
 
 ---
@@ -38,6 +38,9 @@ Each line is a verifiable contract. Section numbers reference Document 2.
 - **Exhaustive dispatch_agent_status invariant (§3.6, Bug 42 fix, Bugs 44/46 fix):** Every main-pipeline agent type in `dispatch_agent_status` must explicitly advance pipeline state (modify stage, sub_stage, or a state flag). A bare `return state` is only valid for slash-command-initiated agents (help, hint). Structural tests must verify main-pipeline handlers are not no-ops. Routing and dispatch must have consistent null-handling for sub_stage (Bug 44).
 - **Exhaustive dispatch_command_status invariant (§3.6, Bug 45 fix):** Every `dispatch_command_status` handler for `test_execution` must produce a state transition for the expected outcome at each sub_stage. No-op returns are invalid for `red_run` (TESTS_FAILED -> implementation) and `green_run` (TESTS_PASSED -> coverage_review).
 - **COMMAND/POST separation invariant (§3.6, Bug 47 fix):** COMMAND fields must never embed state update calls (`update_state.py`). State updates are exclusively the responsibility of POST commands. Embedding updates in both causes double dispatch and TransitionError.
+- **CLI argument enumeration invariant (§3.6, Bug 48 fix, STRENGTHENED Bug 49 fix):** Any blueprint Tier 2 function signature that accepts `argv` and uses `argparse` internally must enumerate every `add_argument` call (argument name, type, required/optional) in the Tier 2 invariants section. Prose-only descriptions in Tier 3 are insufficient for CLI contracts. This invariant applies to ALL units with CLI entry points: Unit 6 (`main`), Unit 7 (`main`), Unit 9 (`main`), Unit 10 (`update_state_main`, `run_tests_main`, `run_quality_gate_main`), Unit 23 (`compliance_scan_main`), Unit 24 (`parse_args`). A structural regression test (`test_bug49_argparse_enumeration.py`) verifies compliance.
+- **Contract sufficiency invariant (§3.16, Bug 50 fix):** A Tier 3 behavioral contract is sufficient if and only if an implementation agent reading ONLY the Tier 2 signature and Tier 3 contract could produce a correct implementation. If behavior depends on specific values (lookup tables, enum validation sets, magic numbers, algorithm parameters, file paths for side effects), those values must appear in Tier 2 invariants or Tier 3 contract.
+- **Contract boundary rule (§3.16, Bug 50 fix):** The blueprint MUST NOT include internal helper function signatures in Tier 2. Internal helpers (underscore-prefixed, not imported cross-unit, replaceable without affecting tests) belong in implementation, not contracts. Observable behavioral details (lookup table values, validation sets, algorithm parameters) MUST appear in Tier 3 contracts.
 - **Profile canonical naming invariant (§6.4):** Schema defines exact canonical section/field names. `DEFAULT_PROFILE`, setup agent output, and all consumers must use identical names. Mismatches (e.g., `licensing` vs `license`, `readme.target_audience` vs `readme.audience`) cause silent merge conflicts in `_deep_merge`.
 - Profile is immutable after Gate 0.3. Changes via /svp:redo only.
 - toolchain.json is permanently read-only.

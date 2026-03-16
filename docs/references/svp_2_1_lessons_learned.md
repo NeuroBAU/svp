@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-47)
+## Part 1: Unified Bug Catalog (Bugs 1-50)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -768,6 +768,67 @@ The `unit_completion` routing action embedded `python scripts/update_state.py --
 **Pattern:** P1 (Cross-unit contract drift). The COMMAND and POST fields have overlapping responsibilities.
 
 **Prevention:** COMMAND should never embed state update calls. State updates are exclusively the responsibility of POST commands. The COMMAND should only produce output/status; POST handles state transitions.
+
+---
+
+### Bug 48 — Launcher CLI contract loss across spec-blueprint-implementation boundary
+
+**Caught:** Post-delivery (SVP 2.1 build, Stage 5 QC). **Test:** `tests/regressions/test_bug48_launcher_cli_contract.py`
+
+The delivered launcher had three defects: (1) bare `svp` with no subcommand produced "Unknown command: None" instead of auto-detecting resume mode, (2) `--profile` argument missing from restore mode despite being required by the spec, (3) `--blueprint` (file) used instead of `--blueprint-dir` (directory) despite spec and blueprint both specifying directory semantics.
+
+**Root cause:** The blueprint's Tier 2 signatures listed `parse_args` as a bare stub (`def parse_args(argv): ...`) without enumerating the argparse arguments. The spec defined 6 restore mode arguments in a single dense paragraph (Section 6.1.1), but the blueprint translated this into two sentences, losing `--profile` and the exact argument names. The test for bare `svp` mode accepted `None` (the broken state) instead of asserting `"resume"` (the correct post-default state). The implementation agent had no way to know what arguments to add.
+
+**Pattern:** P1 (Cross-unit contract drift) + P7 (Spec completeness). CLI argument contracts require explicit enumeration in Tier 2 signatures, not prose descriptions in Tier 3.
+
+**Prevention:** (1) Blueprint Tier 2 for any function using argparse must enumerate every `add_argument` call with name, type, required/optional status. (2) Tests must assert post-fix state, not accept pre-fix broken state. (3) Blueprint checker should verify every CLI argument name from the spec appears in the blueprint. New structural invariant: **CLI argument enumeration invariant** — any Tier 2 function that accepts `argv` and uses `argparse` must have its arguments enumerated in the signature block or invariants.
+
+### Bug 49 — Systemic bare argparse stubs across 5 units
+
+**Caught:** Post-delivery (SVP 2.1 QC audit). **Test:** `tests/regressions/test_bug49_argparse_enumeration.py`
+
+Following Bug 48 (launcher CLI contract loss), an audit found that 5 additional units (6, 7, 9, 10, 23) had the same pattern: bare `main() -> None: ...` stubs in the blueprint's Tier 2 signatures with no argparse argument enumeration. Unit 10 was the worst offender with THREE CLI wrappers (`update_state_main`, `run_tests_main`, `run_quality_gate_main`) each having complex argument signatures. The implementations happen to be correct in this build because the implementation agents inferred arguments from context, but a future rebuild from the blueprint alone would likely produce incorrect CLI interfaces.
+
+**Root cause:** Bug 48's prevention rule (CLI argument enumeration invariant) was applied only to Unit 24 (the immediate fix target). The systemic application to all units with argparse was not performed. This is the same piecemeal-fix pattern as Bug 43 (two-branch routing applied to one stage, not all).
+
+**Pattern:** P1 (Cross-unit contract drift) + P7 (Spec completeness). The CLI argument enumeration invariant must be applied universally, not incrementally.
+
+**Prevention:** (1) The blueprint checker must verify that EVERY `main()` or `*_main()` function with `argv` parameter has argparse arguments enumerated in Tier 2. (2) A structural regression test must scan all Tier 2 signatures for functions accepting `argv` and verify they have corresponding argument enumerations. (3) The spec must mandate universal application, not per-unit application.
+
+---
+
+### Bug 50 — Insufficient contract specificity and boundary violations in blueprint
+
+**Caught:** Post-delivery (SVP 2.1 QC audit). **Test:** `tests/regressions/test_bug50_contract_sufficiency.py`
+
+A systematic audit of the blueprint contracts found 16 functions across 6 units where the Tier 3 behavioral contracts were too vague for deterministic reimplementation, and several internal helper functions that had leaked into Tier 2 signatures where they don't belong. The two-sided problem:
+
+**Under-specification (bare stubs with vague contracts):**
+Functions where the implementation depends on specific data values, lookup tables, validation sets, or algorithm parameters that the contract doesn't mention. A fresh implementation agent reading only the contract would have to guess these values. Examples:
+- Unit 1 `get_effective_context_budget`: depends on `_MODEL_CONTEXT_WINDOWS` mapping (model name -> token count), fallback default of 200000, and overhead constant of 20000 -- none specified in contract
+- Unit 1 `validate_profile`: depends on 6+ enum validation sets (`_VALID_LINTERS = {"ruff", "flake8", "pylint", "none"}`, etc.) -- none enumerated
+- Unit 1 `detect_profile_contradictions`: checks 3 specific patterns -- none listed
+- Unit 1 `validate_toolchain`: uses recursive tree-walk with recognized placeholder set -- set not listed
+- Unit 3 `rollback_to_unit`: creates backups in `logs/rollback/` -- backup mechanism not mentioned
+- Unit 6 `generate_stub_source`: uses `ast.unparse()` and specific sentinel prepending format -- not specified
+- Unit 9 `prepare_agent_task`: conditional document loading per agent type, lessons learned filtering -- strategy not described
+- Unit 10 `dispatch_agent_status`: 7+ agent types with hardcoded state transitions -- transitions not listed per agent
+- Unit 24 `copy_hooks`: sets executable permissions on hook scripts -- not mentioned
+- Unit 24 `set_filesystem_permissions`: entirely undocumented function
+- Unit 24 `launch_claude_code`: skip_permissions conditional logic not described
+
+**Over-specification (internal helpers in Tier 2):**
+Functions that are implementation choices, not cross-unit contracts, appearing in blueprint Tier 2 signatures:
+- Unit 1 `_deep_merge` -- internal helper, merge BEHAVIOR should be in Tier 3 for `load_config`/`load_profile`
+- Unit 3 `_clone_state` -- internal helper, immutability INVARIANT should be cross-cutting in Tier 3
+- Unit 6 `_replace_function_bodies` -- internal AST manipulation helper
+- Unit 3 `version_document` with `companion_paths` -- complex but was absent from Tier 2 entirely (opposite problem)
+
+**Root cause:** The spec gave the blueprint author no guidance on what level of detail is required in each tier, or where the boundary lies between contracts and implementation details. The blueprint author made reasonable but inconsistent choices.
+
+**Pattern:** P7 (Spec completeness). Two new invariants needed: contract sufficiency ("could an agent implement this from the contract alone?") and contract boundary ("observable behavior and critical data IN, internal helpers OUT").
+
+**Prevention:** (1) Contract sufficiency invariant in spec Section 3.16. (2) Contract boundary rule in spec Section 3.16. (3) Blueprint checker verifies that every public function with non-trivial behavior has sufficient detail for deterministic reimplementation. (4) Regression test verifying critical data values and behavioral details are correct.
 
 ---
 

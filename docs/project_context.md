@@ -97,7 +97,7 @@ Seven-step logic bug path:
 
 ### Regression Test Inventory (Carry-Forward)
 
-All regression test files carry forward to `tests/regressions/`. 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 9 newly authored in this build (31 total):
+All regression test files carry forward to `tests/regressions/`. 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 12 newly authored in this build (34 total):
 
 | File | Bug Covered |
 |------|-------------|
@@ -132,6 +132,9 @@ All regression test files carry forward to `tests/regressions/`. 15 carry-forwar
 | test_bug45_test_execution_dispatch.py | dispatch_command_status test_execution advancement (Bug 45) |
 | test_bug46_coverage_dispatch.py | dispatch_agent_status coverage_review advancement (Bug 46) |
 | test_bug47_unit_completion_double_dispatch.py | unit_completion COMMAND/POST separation (Bug 47) |
+| test_bug48_launcher_cli_contract.py | Launcher CLI contract (Bug 48) |
+| test_bug49_argparse_enumeration.py | CLI argument enumeration (Bug 49) |
+| test_bug50_contract_sufficiency.py | Contract sufficiency (Bug 50) |
 
 Note: Three filename prefixes are reused across different bugs due to the dual numbering scheme (see spec Section 6.8). The following nine test files were not present in the SVP 2.0 source repository and must be authored (see spec Section 6.8 for details):
 1. `test_bug13_hook_schema_validation.py` (Bug 17) -- newly authored during build
@@ -143,6 +146,9 @@ Note: Three filename prefixes are reused across different bugs due to the dual n
 7. `test_bug45_test_execution_dispatch.py` (Bug 45) -- authored during debug loop
 8. `test_bug46_coverage_dispatch.py` (Bug 46) -- authored during debug loop
 9. `test_bug47_unit_completion_double_dispatch.py` (Bug 47) -- authored during debug loop
+10. `test_bug48_launcher_cli_contract.py` (Bug 48) -- authored during debug loop
+11. `test_bug49_argparse_enumeration.py` (Bug 49) -- authored during debug loop
+12. `test_bug50_contract_sufficiency.py` (Bug 50) -- authored during debug loop
 
 ### Variant Model
 
@@ -179,7 +185,7 @@ SVP processes text artifacts:
 
 ## Success Criteria
 
-1. All SVP 2.0 regression tests pass (updated for signature changes; covering same bug scenarios). All 31 regression test files carry forward (15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 9 newly authored in this build).
+1. All SVP 2.0 regression tests pass (updated for signature changes; covering same bug scenarios). All 34 regression test files carry forward (15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 12 newly authored in this build).
 2. Quality Gate A: post-test, pre-red-run. Format + light lint (E, F, I). No type check on tests.
 3. Quality Gate B: post-implementation, pre-green-run. Format + heavy lint + mypy (--ignore-missing-imports, unit level).
 4. Quality Gate C: Stage 5 assembly. Format check + full lint + full mypy (cross-unit, no --ignore-missing-imports).
@@ -202,7 +208,7 @@ SVP processes text artifacts:
 21. Profile canonical naming invariant: `DEFAULT_PROFILE`, setup agent output, and all consumers use identical section/field names from the canonical schema.
 22. Launcher fully specified: ordered pre-flight checks with specific error messages, three CLI modes (`svp new`, bare `svp`, `svp restore`), session launch via `subprocess.run` with `cwd`/`env`/restart-signal loop.
 23. Setup agent UX: four behavioral rules (plain-language explanations, best-option recommendations, sensible defaults, progressive disclosure) applied to all five dialog areas.
-24. All carry-forward regression tests pass (31 files total: 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 9 newly authored in this build).
+24. All carry-forward regression tests pass (34 files total: 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 12 newly authored in this build).
 25. Route-level state persistence invariant: every `route()` branch that performs an in-memory state transition and recursively routes must persist state to disk before returning the action block. Exhaustive `dispatch_agent_status` coverage: every main-pipeline agent type must have an explicit state-advancing handler (not a bare `return state`).
 26. Redo-triggered re-delivery must not collide with existing delivered repo directory (repo collision avoidance mechanism, spec Section 12.1).
 27. Universal two-branch routing compliance: every entry in the Section 3.6 exhaustive list must have a corresponding two-branch check in `route()`, verified by a single structural regression test (`test_bug43_stage2_blueprint_routing.py`). Gate ID consistency: every gate ID in `GATE_VOCABULARY` must appear in `ALL_GATE_IDS` and vice versa.
@@ -212,7 +218,7 @@ SVP processes text artifacts:
 
 | Document | Location |
 |----------|----------|
-| SVP 2.1 Stakeholder Spec (v8.25) | `specs/stakeholder_spec.md` |
+| SVP 2.1 Stakeholder Spec (v8.28) | `specs/stakeholder_spec.md` |
 | SVP 2.0 Stakeholder Spec (v7.0) | `references/svp_v7_stakeholder_spec.md` |
 | SVP 2.0 Blueprint | `references/svp_v2_blueprint.md` |
 | SVP 2.1 Baseline and Rationale (Doc 1) | `references/svp_2_1_baseline.md` |

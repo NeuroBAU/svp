@@ -3,7 +3,7 @@
 ## Technical Blueprint: Prose Descriptions (Tier 1)
 
 **Date:** 2026-03-15
-**Decomposes:** Stakeholder Specification v8.25
+**Decomposes:** Stakeholder Specification v8.28
 **Artifact Type:** Claude Code Plugin + Standalone Launcher
 **Companion File:** The other `.md` file(s) in this blueprint directory (Tier 2 signatures + Tier 3 contracts)
 
@@ -128,6 +128,9 @@ svp-repo/                      <- repository root
 |       |-- test_bug45_test_execution_dispatch.py  (Bug 45 -- dispatch_command_status test_execution advancement)
 |       |-- test_bug46_coverage_dispatch.py  (Bug 46 -- dispatch_agent_status coverage_review advancement)
 |       +-- test_bug47_unit_completion_double_dispatch.py  (Bug 47 -- COMMAND/POST separation)
+|       +-- test_bug48_launcher_cli_contract.py           (Bug 48 -- launcher CLI contract)
+|       +-- test_bug49_argparse_enumeration.py            (Bug 49 -- argparse enumeration)
+|       +-- test_bug50_contract_sufficiency.py            (Bug 50 -- contract sufficiency)
 |-- examples/                    <- Bundled example (SVP self-build only)
 |   +-- game-of-life/            <- Unit 22
 |       |-- stakeholder_spec.md
@@ -161,6 +164,10 @@ The SVP launcher (`svp` CLI tool, Unit 24) is distributed at `svp/scripts/svp_la
 **Canonical pipeline artifact filenames (Bug 22 fix -- NEW IN 2.1):** All pipeline artifact filenames are defined as shared constants in Unit 1 (`ARTIFACT_FILENAMES`). Every component that produces or consumes a pipeline artifact must reference these constants -- never hardcode filenames independently. The canonical entries include: `stakeholder_spec.md`, `blueprint_dir` (directory name `blueprint`), `project_context.md`, `project_profile.json`, `pipeline_state.json`, `svp_config.json`, `toolchain.json`, `ruff.toml`, `svp_2_1_lessons_learned.md`. Blueprint files are NOT individually listed in `ARTIFACT_FILENAMES` -- the `blueprint_dir` entry points to the directory, and `discover_blueprint_files` dynamically finds all `.md` files within it. This supports both the single-file format (SVP 2.0 `blueprint.md`) and the split-file format (SVP 2.1 `blueprint_prose.md` + `blueprint_contracts.md`) without hardcoded assumptions.
 
 **Dual write-path awareness (NEW IN 2.1):** Two independent write paths exist in the pipeline: agent writes (through Claude Code's Write tool, validated by `PreToolUse` hooks) and pipeline subprocess writes (quality auto-fix, assembly scripts, executed via `subprocess.run` from deterministic scripts). Hooks control the first path; they do not intercept the second. This is correct by design.
+
+**Contract sufficiency invariant (Bug 50 fix):** Every Tier 3 behavioral contract must be sufficient for deterministic reimplementation -- if behavior depends on specific values (lookup tables, enum sets, magic numbers), those values must appear in Tier 2 invariants or Tier 3 contracts. See spec Section 3.16.
+
+**Contract boundary rule (Bug 50 fix):** Internal helpers (underscore-prefixed, not imported cross-unit) must NOT appear in Tier 2 signatures. Observable behavioral details (lookup table values, validation sets, algorithm parameters) MUST appear in Tier 3 contracts. See spec Section 3.16.
 
 ### Dependency Graph
 
@@ -201,10 +208,10 @@ SVP 2.1 adds quality gates, delivered quality configuration, changelog support, 
 4. **Blueprint Directory Discovery (NEW):** Blueprint files are discovered dynamically from the `blueprint/` directory rather than hardcoded by name. The system supports any number of `.md` files (single `blueprint.md` for SVP 2.0 backward compatibility, or split `blueprint_prose.md` + `blueprint_contracts.md`, or any other arrangement). Affects Units 1, 3, 5, 7, 9, 14, 18, 23, 24.
 5. **Stub Sentinel (NEW):** `__SVP_STUB__` marker in stub files. Affects Units 6, 12, and structural validation.
 6. **Proactive Lessons Learned (NEW):** Test agent receives filtered historical failure patterns. Affects Units 9, 14.
-7. **Bug fixes:** Bug 17 (hook schema), Bug 21 (two-branch routing), Bug 22 (canonical filenames), Bug 23 (alignment check), Bug 24 (total_units), Bug 25 (Stage 3 routing), Bug 26 (Stage 5 routing), Bug 28 (commit count), Bug 30 (README carry-forward), Bug 31 (launcher flag), Bug 32 (CLI subcommands), Bug 33 (quality gate operations), Bug 34 (toolchain portability), Bug 35 (routing output resolution), Bug 36 (stub generation sub-stage), Bug 37 (repo sibling directory), Bug 38 (Group B commands), Bug 39 (skill slash-command cycle), Bug 41 (Stage 1 routing + gate ID consistency), Bug 42 (pre-Stage-3 state persistence), Bug 43 (universal two-branch routing compliance), Bug 44 (dispatch_agent_status null sub_stage for test_agent), Bug 45 (dispatch_command_status test_execution advancement), Bug 46 (dispatch_agent_status coverage_review advancement), Bug 47 (unit_completion COMMAND/POST separation).
+7. **Bug fixes:** Bug 17 (hook schema), Bug 21 (two-branch routing), Bug 22 (canonical filenames), Bug 23 (alignment check), Bug 24 (total_units), Bug 25 (Stage 3 routing), Bug 26 (Stage 5 routing), Bug 28 (commit count), Bug 30 (README carry-forward), Bug 31 (launcher flag), Bug 32 (CLI subcommands), Bug 33 (quality gate operations), Bug 34 (toolchain portability), Bug 35 (routing output resolution), Bug 36 (stub generation sub-stage), Bug 37 (repo sibling directory), Bug 38 (Group B commands), Bug 39 (skill slash-command cycle), Bug 41 (Stage 1 routing + gate ID consistency), Bug 42 (pre-Stage-3 state persistence), Bug 43 (universal two-branch routing compliance), Bug 44 (dispatch_agent_status null sub_stage for test_agent), Bug 45 (dispatch_command_status test_execution advancement), Bug 46 (dispatch_agent_status coverage_review advancement), Bug 47 (unit_completion COMMAND/POST separation), Bug 48 (launcher CLI contract loss), Bug 49 (systemic bare argparse stubs), Bug 50 (contract sufficiency and boundary violations).
 8. **Repo collision avoidance:** Existing repo directories renamed before new assembly.
 
-SVP 2.1 carries forward 22 regression tests from prior builds and adds 9 new ones (test_bug13_hook_schema_validation.py, test_bug22_repo_sibling_directory.py, test_bug23_stage1_spec_gate_routing.py, test_bug42_pre_stage3_state_persistence.py, test_bug43_stage2_blueprint_routing.py, test_bug44_null_substage_dispatch.py, test_bug45_test_execution_dispatch.py, test_bug46_coverage_dispatch.py, test_bug47_unit_completion_double_dispatch.py), totaling 31 regression test files.
+SVP 2.1 carries forward 22 regression tests from prior builds and adds 12 new ones (test_bug13_hook_schema_validation.py, test_bug22_repo_sibling_directory.py, test_bug23_stage1_spec_gate_routing.py, test_bug42_pre_stage3_state_persistence.py, test_bug43_stage2_blueprint_routing.py, test_bug44_null_substage_dispatch.py, test_bug45_test_execution_dispatch.py, test_bug46_coverage_dispatch.py, test_bug47_unit_completion_double_dispatch.py, test_bug48_launcher_cli_contract.py, test_bug49_argparse_enumeration.py, test_bug50_contract_sufficiency.py), totaling 34 regression test files.
 
 ---
 
@@ -280,6 +287,8 @@ Parses machine-readable signatures from the blueprint using Python's `ast` modul
 
 Updated for stub sentinel: `generate_stub_source` must prepend `__SVP_STUB__ = True  # DO NOT DELIVER -- stub file generated by SVP` as the first non-import statement in every generated stub file. This sentinel is a machine-detectable marker whose absence from stub output is a Unit 6 contract violation.
 
+Per the CLI argument enumeration invariant (Bug 49 fix), `main()` accepts `--blueprint`, `--unit`, `--output-dir`, and `--upstream` via argparse. See Tier 2 for full enumeration.
+
 ---
 
 ## Unit 7: Dependency Extractor and Import Validator
@@ -289,6 +298,8 @@ Updated for stub sentinel: `generate_stub_source` must prepend `__SVP_STUB__ = T
 ### Tier 1 -- Description
 
 Scans all machine-readable signature blocks across all units in the blueprint directory, extracts every external import statement, produces a complete dependency list, creates the Conda environment, installs all packages (including quality tool packages from `toolchain.json`), and validates that every extracted import resolves. The `extract_all_imports` function takes `blueprint_dir` (the path to the blueprint directory) as its parameter and uses `discover_blueprint_files` from Unit 1 to find all `.md` files, then parses Tier 2 signature blocks from the combined content. Tool commands are read from `toolchain.json` via Unit 1's toolchain reader. Implements spec Sections 9 (Pre-Stage-3 Infrastructure Setup).
+
+Per the CLI argument enumeration invariant (Bug 49 fix), `main()` accepts `--project-root` via argparse. See Tier 2 for full enumeration.
 
 SVP 2.1 changes: installs `quality.packages` from `toolchain.json` alongside `testing.framework_packages`. Bug 24 fix: `total_units` is derived from the blueprint during infrastructure setup, not read from state. `derive_total_units` takes the blueprint directory path, uses `discover_blueprint_files` from Unit 1 to find all `.md` files, reads and concatenates their content, and counts `## Unit N:` headings. The function is agnostic to the number or names of blueprint files. All three blueprint-reading functions in Unit 7 (`extract_all_imports`, `derive_total_units`, `validate_dependency_dag`) use `discover_blueprint_files` from Unit 1 rather than globbing independently, because Unit 7 already depends on Unit 1 for `derive_env_name`, `load_toolchain`, and other configuration functions. This contrasts with Unit 5, which globs independently to preserve its zero-dependency status.
 
@@ -320,6 +331,8 @@ Updated for proactive lessons learned: when assembling the test agent's task pro
 
 Updated for gate ID consistency (Bug 41 fix): `ALL_GATE_IDS` must include every gate ID in the pipeline -- including `gate_1_1_spec_draft` and `gate_1_2_spec_post_review`. The set of gate IDs in `ALL_GATE_IDS` must be identical to the set in `GATE_RESPONSES` in Unit 10.
 
+Per the CLI argument enumeration invariant (Bug 49 fix), `main()` accepts `--project-root`, `--agent`, `--gate`, `--unit`, `--output`, `--ladder`, `--revision-mode`, `--quality-report` via argparse. See Tier 2 for full enumeration.
+
 ---
 
 ## Unit 10: Routing Script and Update State
@@ -329,6 +342,8 @@ Updated for gate ID consistency (Bug 41 fix): `ALL_GATE_IDS` must include every 
 ### Tier 1 -- Description
 
 Reads `pipeline_state.json` and outputs the exact next action as a structured key-value block. Handles every stage, sub-stage, gate, and agent transition in the pipeline. Includes `update_state_main` (CLI wrapper for POST commands), `run_tests_main` (CLI wrapper for test execution), and `run_quality_gate_main` (CLI wrapper for quality gate execution, NEW IN 2.1).
+
+Per the CLI argument enumeration invariant (Bug 49 fix), all three CLI wrappers (`update_state_main`, `run_tests_main`, `run_quality_gate_main`) have argparse arguments enumerated in Tier 2.
 
 This is the heaviest-change unit in SVP 2.1. It must implement the two-branch routing invariant for every sub-stage with an agent-to-gate transition (Section 3.6), full Stage 0 sub-stage routing (hook activation, project context, project profile) including `PROJECT_CONTEXT_REJECTED` to `pipeline_held`, full Stage 1 two-branch routing with Gates 1.1 and 1.2 (Bug 41 fix), full Stage 2 routing with blueprint dialog, alignment check, and Gates 2.1/2.2/2.3 (Bug 23 fix), full Stage 3 sub-stage routing including diagnostic escalation two-branch check (fix ladder `"diagnostic"` to Gate 3.2), coverage_review two-branch check with auto-format flow (Bug 25 fix), full Stage 4 two-branch routing (Bug 43 fix), full Stage 5 sub-stage routing (Bug 26 fix), quality gate routing paths, redo profile sub-stage routing for both `redo_profile_delivery` and `redo_profile_blueprint` (Bug 43 fix), post-delivery debug loop routing (Gates 6.0 through 6.5) including `stage3_reentry` phase routing for FIX UNIT path, cross-agent `HINT_BLUEPRINT_CONFLICT` status detection and `gate_hint_conflict` dispatch, gate ID consistency with Unit 9 (Bug 41 fix -- `GATE_RESPONSES` is the implementation name for the spec's `GATE_VOCABULARY`), repo collision avoidance on Stage 5 entry, routing output resolution (Bug 35 fix), and Stage 3 dispatch completeness (Bugs 44-47 fix): `dispatch_agent_status` for `test_agent` must handle `sub_stage in (None, "test_generation")` (Bug 44), `dispatch_command_status` for `test_execution` must advance `red_run` to `implementation` on `TESTS_FAILED` and `green_run` to `coverage_review` on `TESTS_PASSED` (Bug 45), `dispatch_agent_status` for `coverage_review` must advance to `unit_completion` on `COVERAGE_COMPLETE` (Bug 46), and `unit_completion` COMMAND must not embed state update calls (Bug 47). Implements spec Sections 3.6, 6, 7, 8, 10.11, 10.13, 12.17, 13, 14.4, 17, 18, and 22.4.
 
@@ -487,6 +502,8 @@ SVP 2.0 expansion: toolchain default JSON. SVP 2.1 expansion: `ruff.toml` qualit
 
 Defines the `plugin.json` manifest for the SVP plugin subdirectory and the `marketplace.json` catalog at the repository root. Includes structural validation logic for the plugin directory layout. Also includes the delivery compliance scan (Layer 3 of preference enforcement). Implements spec Sections 1.4, 11.1, and 12.3.
 
+Per the CLI argument enumeration invariant (Bug 49 fix), `compliance_scan_main()` accepts `--project-root`, `--src-dir`, `--tests-dir` via argparse. See Tier 2 for full enumeration.
+
 SVP 2.0 expansion: structural validation includes `toolchain_defaults/`. SVP 2.1 expansion: structural validation includes `ruff.toml` in `toolchain_defaults/`; version bump to 2.1.0; validates `quality` section in toolchain; structural validation checks that `docs/` contains at least one blueprint `.md` file (discovered dynamically, not by hardcoded filenames); structural validation checks for `__SVP_STUB__` sentinel in delivered Python source files; commit count validation; tests-in-delivered-layout check; pytest path config check; README carry-forward check (Mode A).
 
 ---
@@ -501,7 +518,7 @@ The standalone `svp` CLI tool that manages the complete SVP session lifecycle: p
 
 **Self-containment requirement:** The launcher must be a single, self-contained Python file with NO imports from other SVP units.
 
-SVP 2.0 expansion: copies `toolchain.json` and regression tests. SVP 2.1 expansion: copies `ruff.toml` during project creation (set to read-only immediately after copying); `svp restore` accepts `--blueprint-dir` pointing to a directory containing one or more `.md` blueprint files (validates that the directory exists and contains at least one `.md` file before proceeding -- no assumption about the number or names of files). Implements the three CLI modes: `svp new <project_name>`, bare `svp` (auto-detect and resume), and `svp restore` with required arguments.
+SVP 2.0 expansion: copies `toolchain.json` and regression tests. SVP 2.1 expansion: copies `ruff.toml` during project creation (set to read-only immediately after copying); `svp restore` accepts `--blueprint-dir` pointing to a directory containing one or more `.md` blueprint files (validates that the directory exists and contains at least one `.md` file before proceeding -- no assumption about the number or names of files). Implements the three CLI modes: `svp new <project_name>`, bare `svp` (auto-detect and resume), and `svp restore` with required arguments. Per the CLI argument enumeration invariant (Bug 48 fix), all argparse arguments are enumerated in Tier 2 invariants.
 
 ---
 
