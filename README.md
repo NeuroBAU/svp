@@ -461,6 +461,148 @@ The discipline is: before you write a requirement, ask
 answer that question, rewrite the requirement until you
 can.
 
+### The Spec Prompt: A Checklist for Prevention
+
+SVP itself was built by SVP. The lessons learned document
+(`docs/references/svp_2_1_lessons_learned.md` in the
+delivered repository) catalogs 50 bugs discovered across
+five build generations — from SVP 1.0 through SVP 2.1.
+Nearly every one traces back to something the stakeholder
+spec didn't say clearly enough. The checklist below is
+distilled from that experience. It is not project-specific;
+it applies to any spec you write.
+
+Carry these questions in your head during the Socratic
+dialog. The agent will ask you about your domain. These
+questions help you answer with the precision the pipeline
+needs.
+
+**1. Have I listed every valid value?**
+
+Whenever your spec says a field is "configurable" or
+accepts "one of several options," stop and list them all.
+"The linter is configurable" becomes "the linter is one
+of: ruff, flake8, pylint, none." If you cannot list the
+values, you do not yet understand the requirement well
+enough. This single habit prevents more bugs than any
+other. In SVP's own build, Bug 50 found that six
+validation sets — linters, formatters, type checkers,
+import sorters, commit styles, changelog formats — were
+described in prose but never enumerated. The
+implementation agents guessed, and guessed differently
+from each other.
+
+**2. Have I said what happens when things go wrong?**
+
+For every operation in your spec, ask: what if the input
+is missing? What if it is malformed? What if it is empty?
+The answer must be specific: "raises RuntimeError with
+the file path in the message" — not "handles errors
+gracefully." An LLM interpreting "handles errors
+gracefully" might return a default, raise an exception,
+print a warning, or silently continue. Each is graceful.
+Only one is what you meant.
+
+**3. Have I stated every side effect?**
+
+If an operation writes a file, creates a directory,
+deletes something, sets permissions, or modifies anything
+outside its own return value — say so. "Validates the
+input" has no side effects. "Validates the input and
+writes a log entry" does. In SVP's build, Bug 50 found
+that `rollback_to_unit` created backup copies in
+`logs/rollback/` before deleting code — a critical side
+effect that the spec never mentioned. If the spec had
+said "preserves rolled-back code in a backup directory
+before deletion," the blueprint would have contracted it,
+the tests would have verified it, and no audit would have
+been needed.
+
+**4. Have I specified every value the system uses?**
+
+If the system needs a number, a mapping, a threshold, or
+a default — where does it come from? "Computes the
+context budget" is a wish. "Looks up each model in a
+mapping of model names to context window sizes, finds the
+smallest, subtracts 20,000 tokens overhead, returns the
+result; if no model is found, uses 200,000 as the
+fallback" is a spec. Every value must have an explicit
+source: a constant you define, a configuration file, a
+user input, or a computation you describe. "The agent
+will figure it out" is not a source. This is the core
+lesson of Bug 50: 16 functions across 6 units had
+correct implementations, but their contracts didn't
+specify the values they used — model context windows,
+overhead constants, fallback defaults, placeholder sets.
+A fresh rebuild from those contracts would have produced
+different (wrong) values.
+
+**5. Have I described the behavior, not the mechanism?**
+
+Your spec should say what the system does, not how it
+does it internally. "Missing keys are filled from
+defaults via recursive merge" is behavior — it tells the
+implementation what the output must look like. "Use a
+helper function called `_deep_merge` that recurses into
+nested dicts" is mechanism — it dictates an internal
+design choice that the implementation agent should make
+on its own. The boundary: if changing the internal
+approach would cause a test to fail, it is behavior and
+belongs in the spec. If changing it would produce the
+same outputs, it is mechanism and does not.
+
+**6. Have I applied every rule universally?**
+
+When you discover a rule that prevents a bug, apply it
+everywhere — not just where the bug appeared. "Every CLI
+function must have its arguments enumerated" is a rule.
+If you apply it only to the function where you found the
+bug, the same bug will appear in every other CLI function
+you didn't check. In SVP's build, this pattern appeared
+three times: Bug 43 (two-branch routing applied to one
+stage, not all), Bug 48 (CLI argument enumeration applied
+to one unit, not all), and Bug 49 (the systemic audit
+that found five more units with the same gap). Each time,
+the fix for one instance should have been applied
+universally from the start.
+
+**7. Have I made every requirement testable?**
+
+Before you write a requirement, ask: "How would I verify
+this is working?" If the answer is "I would check that
+the output contains X when given input Y," the
+requirement is testable. If the answer is "I would look
+at the code and see if it seems right," the requirement
+is not testable — rewrite it until it is. Every sentence
+in your spec will become a test. If you cannot imagine
+the test, the sentence is too vague.
+
+**8. Have I distinguished what must always be true from
+what happens once?**
+
+A contract says what a specific function does. An
+invariant says what must be true everywhere, always.
+"This function returns a new state without modifying the
+input" is a contract. "No function in the system may
+modify its input state" is an invariant. Invariants are
+more powerful because they prevent bugs in units that
+do not exist yet. When you find a rule that applies to
+more than one unit, promote it from a contract to an
+invariant.
+
+These eight questions are not exhaustive, but they cover
+the patterns that produced 50 bugs across five build
+generations of SVP. The lessons learned document in the
+delivered repository contains the full catalog with root
+causes, patterns, and prevention rules. Bug 50 in
+particular demonstrates why this checklist matters: an
+audit of the delivered system found 16 functions where
+the contracts were technically correct but too vague to
+reproduce — the implementations worked by luck, not by
+specification. The checklist above, applied consistently
+during the Socratic dialog, would have prevented every
+one of them.
+
 ## Example Project
 
 SVP includes a complete Game of Life example in `examples/game-of-life/` with a stakeholder spec, blueprint, and project context.
