@@ -27,47 +27,6 @@ The pipeline stages:
 6. **Repository Delivery** — A clean git repo with meaningful commit history, profile-driven README, and all artifacts.
 7. **Post-Delivery Debugging** *(optional)* — Investigate and fix bugs in the delivered software via `/svp:bug`. See "When Things Go Wrong" below.
 
-## SVP 2.0 Features
-
-SVP 2.0 adds two capabilities to the complete SVP 1.2 baseline:
-
-**Project Profile (`project_profile.json`)**
-The setup agent conducts a Socratic dialog to capture your delivery preferences: README structure, commit message style, documentation depth, license, dependency format, and more. These preferences are recorded in `project_profile.json` and used to drive Stage 5 delivery. You can accept sensible defaults with a single response or dive into detailed configuration.
-
-**Pipeline Toolchain Abstraction (`toolchain.json`)**
-SVP's own build commands (conda, pytest, setuptools, git) are now read from a configuration file rather than hardcoded. This is a code quality improvement — it does not change how SVP builds your project. The file is copied from the plugin at project creation and is permanently read-only.
-
-## SVP 2.1 Features
-
-SVP 2.1 is the terminal release of the SVP product line, adding pipeline-integrated quality gates and delivered quality configuration.
-
-**Pipeline Quality Gates (A, B, C)**
-Every project built by SVP 2.1 is automatically formatted, linted, and type-checked during the build. Quality is a pipeline guarantee, not an opt-out feature.
-
-| Gate | Position | Operations |
-|------|----------|------------|
-| Gate A | Post-test generation, pre-red-run | `ruff format` + light lint (E, F, I rules). No type check on tests. |
-| Gate B | Post-implementation, pre-green-run | `ruff format` + heavy lint + `mypy --ignore-missing-imports` |
-| Gate C | Stage 5 assembly | `ruff format --check` + full lint + full `mypy` (cross-unit) |
-
-- Gate composition is data-driven from `toolchain.json` (`gate_a`, `gate_b`, `gate_c` lists).
-- All gates are mandatory. No opt-out.
-- Auto-fix runs first; residuals trigger one agent re-pass; then fix ladder.
-- Quality gate retry budget is separate from fix ladder retry budget.
-
-**Delivered Quality Configuration**
-The `project_profile.json` `quality` section captures your preferences for the delivered project's quality tools (linter, formatter, type checker, import sorter, line length). The git repo agent generates the corresponding configuration in `pyproject.toml`.
-
-**Changelog Support**
-Set `vcs.changelog` in your profile to `"keep_a_changelog"` or `"conventional_changelog"` to generate a `CHANGELOG.md` in the delivered repository.
-
-**Post-Delivery Debug Workflow**
-See "When Things Go Wrong: The Two Fix Ladders" and
-"Workspace and Delivered Repository" below.
-
-**Test Scenarios in README**
-When `testing.readme_test_scenarios` is set in the profile, the README includes a section describing the test suite's coverage approach.
-
 ## Who It's For
 
 Domain experts who know exactly what their software should do but cannot write it themselves. The motivating example is an academic scientist — a neuroscientist who understands spike sorting, a climate scientist who understands atmospheric models — but SVP is domain-agnostic. If you can judge whether a test assertion makes domain sense when explained in plain language, SVP can build your project.
@@ -833,6 +792,43 @@ Run the full test suite from the repository root:
 ```bash
 conda run -n svp2_1 pytest tests/ -v
 ```
+
+## SVP 2.0 Features
+
+SVP 2.0 adds two capabilities to the complete SVP 1.2 baseline:
+
+**Project Profile (`project_profile.json`)**
+The setup agent conducts a Socratic dialog to capture your delivery preferences: README structure, commit message style, documentation depth, license, dependency format, and more. These preferences are recorded in `project_profile.json` and used to drive Stage 5 delivery. You can accept sensible defaults with a single response or dive into detailed configuration.
+
+**Pipeline Toolchain Abstraction (`toolchain.json`)**
+SVP's own build commands (conda, pytest, setuptools, git) are now read from a configuration file rather than hardcoded. This is a code quality improvement — it does not change how SVP builds your project. The file is copied from the plugin at project creation and is permanently read-only.
+
+## SVP 2.1 Features
+
+SVP 2.1 is the terminal release of the SVP product line, adding pipeline-integrated quality gates and delivered quality configuration.
+
+**Pipeline Quality Gates (A, B, C)**
+Every project built by SVP 2.1 is automatically formatted, linted, and type-checked during the build. Quality is a pipeline guarantee, not an opt-out feature.
+
+| Gate | Position | Operations |
+|------|----------|------------|
+| Gate A | Post-test generation, pre-red-run | `ruff format` + light lint (E, F, I rules). No type check on tests. |
+| Gate B | Post-implementation, pre-green-run | `ruff format` + heavy lint + `mypy --ignore-missing-imports` |
+| Gate C | Stage 5 assembly | `ruff format --check` + full lint + full `mypy` (cross-unit) |
+
+- Gate composition is data-driven from `toolchain.json` (`gate_a`, `gate_b`, `gate_c` lists).
+- All gates are mandatory. No opt-out.
+- Auto-fix runs first; residuals trigger one agent re-pass; then fix ladder.
+- Quality gate retry budget is separate from fix ladder retry budget.
+
+**Delivered Quality Configuration**
+The `project_profile.json` `quality` section captures your preferences for the delivered project's quality tools (linter, formatter, type checker, import sorter, line length). The git repo agent generates the corresponding configuration in `pyproject.toml`.
+
+**Changelog Support**
+Set `vcs.changelog` in your profile to `"keep_a_changelog"` or `"conventional_changelog"` to generate a `CHANGELOG.md` in the delivered repository.
+
+**Test Scenarios in README**
+When `testing.readme_test_scenarios` is set in the profile, the README includes a section describing the test suite's coverage approach.
 
 ## History
 
