@@ -181,21 +181,34 @@ All SVP commands use the `/svp:` namespace.
 
 ## When Things Go Wrong: The Two Fix Ladders
 
-Every project has bugs. SVP provides two strategies for
-fixing them, depending on where the bug comes from. Both
-start the same way — you find something wrong in the
-delivered software — but they climb different ladders.
+Every project has bugs. In practice, bugs almost always
+trace back to something the stakeholder spec didn't say
+clearly enough. The agents are probabilistic, but when
+they produce wrong code it is nearly always because the
+spec left room for the wrong interpretation — a vague
+contract, a missing constraint, an unstated assumption.
+The code is wrong because the spec allowed it to be wrong.
+
+SVP provides two strategies for fixing bugs. Both start
+the same way — you find something wrong in the delivered
+software — but they climb different ladders. The
+difference is not where the bug comes from (it comes from
+the spec), but whether the cost of fixing the spec is
+worth it for your project.
 
 ### Ladder 1: Fix the Unit
 
-This is the common case for most projects. A function
-returns the wrong value, an edge case is mishandled, a
-test is missing. The bug is in the code, not in your
-requirements.
+The pragmatic choice for small projects and disposable
+code. You know the bug comes from the spec, but fixing
+the spec, regenerating the blueprint, and rebuilding from
+scratch would cost more in time and tokens than the
+project is worth. So you fix the symptom and move on.
 
-**When to use:** The delivered software does the wrong
-thing, but your stakeholder spec correctly describes what
-it *should* do. The spec is right; the code is wrong.
+**When to use:** Small projects, exploratory code, or any
+situation where the cost of a full rebuild outweighs the
+benefit. The LLM can compensate for spec vagueness in
+common domains — data analysis, simulations, utilities —
+so unit-level fixes stick well enough.
 
 **How it works:**
 
@@ -208,37 +221,34 @@ it *should* do. The spec is right; the code is wrong.
 6. The fix is committed to the delivered repo.
 
 This is fast and self-contained. The spec and blueprint
-are not touched. For most projects — data analysis tools,
-simulations, utilities — this ladder handles the vast
-majority of post-delivery issues. The LLM can compensate
-for minor spec vagueness because it understands common
-domains well enough to infer the right behavior.
+are not touched. You are fixing the instance of the bug,
+not the class. For most projects, this is the right
+trade-off.
 
 ### Ladder 2: Fix the Source
 
-This is the harder case. The code is wrong, but the code
-is wrong *because the spec was incomplete or ambiguous*.
-The implementation agent wrote exactly what the blueprint
-contracted, and the blueprint faithfully decomposed what
-the spec said — but the spec didn't say enough.
+The thorough choice for complex projects where spec-level
+gaps produce cascading bugs across multiple units. You fix
+the root cause — the spec itself — and rebuild.
 
-**When to use:** You find a bug and realize that no amount
-of unit-level fixing will prevent it from recurring,
-because the root cause is upstream. The spec needs to say
-something it currently doesn't.
+**When to use:** Complex projects with cross-unit
+contracts, state machines, or architectural invariants.
+Also any project where you fix a unit bug and the same
+*kind* of bug keeps appearing elsewhere — that pattern
+means the spec has a systemic gap that unit-level repair
+cannot close.
 
 **How it works:**
 
 1. Run `/svp:bug` and describe what you observed.
-2. The triage agent investigates — but this time, pay
-   attention to its root cause analysis. Ask yourself:
-   *Why did this happen? What was missing from the spec
-   that allowed this bug to exist?*
-3. Use the triage agent's findings to understand the gap.
-   The agent can help you trace the bug backward: from
-   the failing code, to the blueprint contract that
-   produced it, to the spec section that should have
-   prevented it.
+2. The triage agent investigates. Pay attention to its
+   root cause analysis and ask yourself: *Why did the
+   spec allow this bug to exist? What should it have
+   said?*
+3. Use the triage agent's findings to trace the bug
+   backward: from the failing code, to the blueprint
+   contract that produced it, to the spec section that
+   should have prevented it.
 4. Run `/svp:redo` to roll back to the stakeholder spec.
 5. Revise the spec to close the gap — add the missing
    detail, the missing constraint, the missing invariant.
@@ -247,30 +257,28 @@ something it currently doesn't.
 
 This is expensive in time and tokens. You are throwing
 away completed work and rebuilding from scratch. But for
-complex projects — systems with cross-component contracts,
-state machines, or architectural invariants — it is the
-only way to fix the class of bug, not just the instance.
+the class of project that needs it, there is no
+alternative — you cannot test your way out of a spec gap.
 
 ### How to Choose
 
-The question is not "how bad is the bug?" but "where does
-the bug live?"
+The question is not "where does the bug come from?" (it
+comes from the spec) but "is fixing the spec worth the
+cost?"
 
-If you fix the unit and the same *kind* of bug keeps
-appearing in other units, the bug lives in the spec. No
-amount of unit-level repair will fix a spec-level gap.
+For a small data analysis tool, a spec gap that causes one
+wrong function is cheaper to patch at the unit level than
+to rebuild the entire project. You fix the unit, write a
+regression test, accept the imperfect spec, and ship.
 
-For most projects, Ladder 1 is sufficient. The spec can be
-somewhat imprecise because the LLM understands enough
-about common domains to fill in the gaps. You fix the
-occasional unit bug, write a regression test, and move on.
-
-For architecturally complex projects — anything with
-cross-unit contracts, state management invariants, or
-novel domain-specific rules that an LLM cannot infer from
-general knowledge — Ladder 2 is essential. The discipline
-is: every bug is an opportunity to ask "what should the
-spec have said to prevent this?"
+For a system with 24 interdependent units, a spec gap that
+says "compute the budget" without specifying which model
+context windows to use will produce wrong implementations
+in every unit that touches context budgets. Fixing each
+unit individually is more expensive than fixing the spec
+once and rebuilding. The discipline is: every bug is an
+opportunity to ask "what should the spec have said to
+prevent this entire class of bug?"
 
 ## Example Project
 
