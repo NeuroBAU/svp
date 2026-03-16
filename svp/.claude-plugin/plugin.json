@@ -1,0 +1,5 @@
+{
+  "name": "svp",
+  "version": "2.1.0",
+  "description": "Stratified Verification Pipeline - deterministically orchestrated software development"
+}
