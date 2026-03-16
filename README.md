@@ -142,7 +142,45 @@ svp --help
 svp new my-project
 ```
 
-The launcher verifies all prerequisites, creates the project directory structure, writes the initial configuration, and launches Claude Code with SVP active.
+The launcher verifies all prerequisites, creates the
+project directory structure, writes the initial
+configuration, and launches Claude Code with SVP active.
+
+### Workspace and Delivered Repository
+
+SVP maintains two separate directories for your project:
+
+The **workspace** is where the pipeline builds your
+software. When you run `svp new my-project`, the launcher
+creates `my-project/` containing the pipeline scripts,
+configuration files, source directories (`src/unit_N/`),
+test directories (`tests/unit_N/`), and all pipeline
+state. This is the build environment — you work here
+during Stages 0 through 4.
+
+The **delivered repository** is the clean output. At
+Stage 5, the git repo agent assembles a separate git
+repository at `my-project-repo/` (a sibling directory,
+not inside the workspace). It relocates your code from
+the workspace's `src/unit_N/stub.py` structure into
+proper module paths, rewrites imports, generates
+`pyproject.toml`, creates a meaningful commit history,
+and delivers a repository that looks like a normal Python
+project — no SVP infrastructure, no stubs, no pipeline
+state.
+
+The two directories serve different purposes: the
+workspace is disposable build scaffolding; the delivered
+repo is what you ship, share, or publish.
+
+When you use `/svp:bug` after delivery, the triage agent
+investigates in the delivered repository (using the
+`delivered_repo_path` recorded in pipeline state) and
+applies fixes to the workspace source first. The pipeline
+then triggers a Stage 5 reassembly to propagate the fix
+into the delivered repository. This ensures the workspace
+remains the canonical source and the delivered repo stays
+in sync.
 
 ## Configuration
 
