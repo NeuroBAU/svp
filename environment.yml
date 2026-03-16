@@ -1,0 +1,12 @@
+name: svp2.1
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+    - pytest>=7.4
+    - pytest-cov>=4.1
+    - ruff>=0.3
+    - mypy>=1.8
