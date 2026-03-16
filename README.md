@@ -317,6 +317,61 @@ the ability to write Python, but the ability to close the
 gap between what you know and what the machine needs to
 hear.
 
+### The Two Documents: Spec and Blueprint
+
+SVP produces two key documents during the first three
+stages. Understanding what they are — and the
+relationship between them — is essential for intent
+engineering.
+
+The **stakeholder spec** is yours. You write it, with the
+help of the Socratic dialog agent. It describes *what*
+your software should do, in your language, using your
+domain concepts. It says nothing about functions, classes,
+or modules. It talks about behavior: "the system accepts
+a configuration file and fills in missing fields from
+sensible defaults." The spec is the single source of
+truth for the entire pipeline. Everything downstream —
+every test, every line of code — traces back to a
+sentence in the spec.
+
+The **blueprint** is the LLM's translation of your spec
+into software architecture. An agent reads your spec and
+decomposes it into units with signatures, contracts, and
+dependencies. You approve the blueprint, but you do not
+write it. The blueprint is written in plain English with
+embedded code signatures — not source code, but the
+*shape* of the code: what each unit accepts, what it
+returns, what it promises to do.
+
+Two things follow from the blueprint being in plain
+English rather than opaque code:
+
+First, it is documentation. The blueprint describes what
+every piece of your software does and why, in language
+you can read. When your delivered project produces a
+result you do not understand — an unexpected value, a
+graph that looks wrong — you can feed the blueprint to
+an LLM and ask: "Why does unit 7 produce this output
+given this input?" The LLM can trace the answer through
+the contracts and explain it in your domain terms. This
+eliminates the transparency problem that plagues
+AI-generated code: you may not be able to read Python,
+but you can read the blueprint, and the blueprint is the
+authoritative description of what the Python does.
+
+Second, it teaches you. As your software design skills
+grow through experience with SVP, your ability to read
+the blueprint compounds on itself. You start noticing
+patterns: "this contract is vague — it says 'processes
+the data' but doesn't say what happens when the data is
+empty." You start recognizing the gap between what your
+spec said and what the blueprint had to infer. Over
+time, reading blueprints from your previous projects
+teaches you to write better specs for your next project.
+The blueprint becomes a mirror that shows you exactly
+where your intent was clear and where it was not.
+
 ### Concepts That Matter
 
 You do not need a computer science degree. You need a
