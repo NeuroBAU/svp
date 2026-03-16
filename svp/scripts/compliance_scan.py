@@ -50,6 +50,7 @@ MARKETPLACE_JSON_CONTENT: str = json.dumps(MARKETPLACE_JSON, indent=2)
 # Structural validation
 # ===========================================================================
 
+
 def validate_plugin_structure(repo_root: Path) -> List[str]:
     """Validate the plugin directory structure.
 
@@ -71,7 +72,9 @@ def validate_plugin_structure(repo_root: Path) -> List[str]:
         if not (repo_root / "svp" / component).is_dir():
             errors.append(f"Missing svp/{component}/ directory")
         if (repo_root / component).is_dir():
-            errors.append(f"Component directory '{component}' found at repo root (should be under svp/)")
+            errors.append(
+                f"Component directory '{component}' found at repo root (should be under svp/)"
+            )
 
     # Check toolchain_defaults directory
     td_dir = repo_root / "svp" / "scripts" / "toolchain_defaults"
@@ -79,7 +82,9 @@ def validate_plugin_structure(repo_root: Path) -> List[str]:
         errors.append("Missing svp/scripts/toolchain_defaults/ directory")
     else:
         if not (td_dir / "python_conda_pytest.json").exists():
-            errors.append("Missing svp/scripts/toolchain_defaults/python_conda_pytest.json")
+            errors.append(
+                "Missing svp/scripts/toolchain_defaults/python_conda_pytest.json"
+            )
         else:
             # Validate toolchain JSON is valid JSON
             try:
@@ -142,17 +147,24 @@ def _scan_file_ast(
 
     # Check for __SVP_STUB__ sentinel (always, regardless of banned_patterns)
     if "__SVP_STUB__" in source:
-        violations.append({
-            "file": str(file_path),
-            "line": 0,
-            "issue": "__SVP_STUB__ sentinel found",
-        })
+        violations.append(
+            {
+                "file": str(file_path),
+                "line": 0,
+                "issue": "__SVP_STUB__ sentinel found",
+            }
+        )
 
     if not banned_patterns:
         return violations
 
     # Functions we consider as executable subprocess calls
-    SUBPROCESS_FUNCS = {"subprocess.run", "subprocess.call", "subprocess.Popen", "os.system"}
+    SUBPROCESS_FUNCS = {
+        "subprocess.run",
+        "subprocess.call",
+        "subprocess.Popen",
+        "os.system",
+    }
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -175,13 +187,15 @@ def _scan_file_ast(
         for bp in banned_patterns:
             pattern = bp["pattern"]
             if _is_pattern_violation(cmd_str, pattern):
-                violations.append({
-                    "file": file_path,
-                    "line": node.lineno,
-                    "pattern": pattern,
-                    "context": cmd_str,
-                    "issue": f"Banned pattern '{pattern}' found",
-                })
+                violations.append(
+                    {
+                        "file": file_path,
+                        "line": node.lineno,
+                        "pattern": pattern,
+                        "context": cmd_str,
+                        "issue": f"Banned pattern '{pattern}' found",
+                    }
+                )
 
     return violations
 
@@ -263,20 +277,54 @@ def run_compliance_scan(
 
 def compliance_scan_main() -> None:
     """CLI entry point for the compliance scan."""
+    import argparse
     import sys
 
-    project_root = Path(".")
+    parser = argparse.ArgumentParser(description="SVP Delivery Compliance Scan")
+    parser.add_argument(
+        "--project-root",
+        type=Path,
+        default=Path("."),
+        help="Project root directory",
+    )
+    parser.add_argument(
+        "--src-dir",
+        type=Path,
+        default=None,
+        help="Delivered source directory",
+    )
+    parser.add_argument(
+        "--tests-dir",
+        type=Path,
+        default=None,
+        help="Delivered tests directory",
+    )
+    args = parser.parse_args()
+
+    project_root = args.project_root
     # Load profile via Unit 1
     from svp_config import load_profile
+
     profile = load_profile(project_root)
 
-    # Determine delivered repo paths
-    project_name = json.loads(
-        (project_root / "pipeline_state.json").read_text()
-    ).get("project_name", "project")
-    delivered_root = project_root.parent / f"{project_name}-repo"
-    src_dir = delivered_root / "src"
-    tests_dir = delivered_root / "tests"
+    # Determine delivered repo paths if not provided
+    if args.src_dir is not None:
+        src_dir = args.src_dir
+    else:
+        project_name = json.loads(
+            (project_root / "pipeline_state.json").read_text()
+        ).get("project_name", "project")
+        delivered_root = project_root.parent / f"{project_name}-repo"
+        src_dir = delivered_root / "src"
+
+    if args.tests_dir is not None:
+        tests_dir = args.tests_dir
+    else:
+        project_name = json.loads(
+            (project_root / "pipeline_state.json").read_text()
+        ).get("project_name", "project")
+        delivered_root = project_root.parent / f"{project_name}-repo"
+        tests_dir = delivered_root / "tests"
 
     violations = run_compliance_scan(project_root, src_dir, tests_dir, profile)
 
