@@ -260,6 +260,59 @@ away completed work and rebuilding from scratch. But for
 the class of project that needs it, there is no
 alternative — you cannot test your way out of a spec gap.
 
+## Writing a Good Spec: Intent Engineering
+
+You do not need to learn to code. In a world with AI,
+learning to code is not the skill that matters. What
+matters is learning to tell the LLM what you actually
+need — precisely enough that the gap between what you said
+and what you meant is as small as possible. That gap is
+where bugs live. Closing it is the skill. We call it
+intent engineering.
+
+When you start your first SVP project, you will not be
+good at this. That is expected. The Socratic dialog in
+Stage 1 exists precisely to compensate: the agent asks
+you questions, surfaces contradictions, pushes you to
+think about edge cases you hadn't considered, and
+structures your answers into a formal specification. You
+bring the domain knowledge; the agent brings the
+engineering discipline. Together you produce a spec that
+is better than either of you would write alone.
+
+But here is what changes with experience: the dialog gets
+shorter. Not linearly — exponentially. Your first project
+might take an hour of back-and-forth in Stage 1 as the
+agent extracts requirements you didn't know you had. Your
+fifth project, you walk in with half the spec already
+clear in your head because you have learned what the
+pipeline needs to hear. Your tenth project, you write a
+draft spec before starting SVP and the dialog becomes a
+focused review rather than an extraction.
+
+This happens because you are not learning to code. You
+are learning to think like someone who specifies software.
+You learn that "compute the budget" is not a spec — it is
+a wish. A spec says which models to look up, what their
+context windows are, what to subtract, and what to return
+when no model matches. You learn that every value the
+system uses must come from somewhere explicit — a constant
+in the spec, a configuration file, a user input — and
+that "the agent will figure it out" is not a source.
+
+The return on this skill is enormous. A domain expert who
+has learned intent engineering can produce a stakeholder
+spec that flows through the pipeline with minimal
+friction: fewer review rounds, fewer redo cycles, fewer
+post-delivery bugs. The spec is the highest-leverage
+artifact in the entire system. Every hour spent making it
+precise saves many hours downstream.
+
+This is what makes you a developer for your domain. Not
+the ability to write Python, but the ability to close the
+gap between what you know and what the machine needs to
+hear.
+
 ## Example Project
 
 SVP includes a complete Game of Life example in `examples/game-of-life/` with a stakeholder spec, blueprint, and project context.
