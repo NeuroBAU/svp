@@ -179,6 +179,99 @@ All SVP commands use the `/svp:` namespace.
 | `/svp:bug` | Enter the post-delivery debug loop (after Stage 5). |
 | `/svp:clean` | Archive, delete, or keep the workspace after delivery. |
 
+## When Things Go Wrong: The Two Fix Ladders
+
+Every project has bugs. SVP provides two strategies for
+fixing them, depending on where the bug comes from. Both
+start the same way — you find something wrong in the
+delivered software — but they climb different ladders.
+
+### Ladder 1: Fix the Unit
+
+This is the common case for most projects. A function
+returns the wrong value, an edge case is mishandled, a
+test is missing. The bug is in the code, not in your
+requirements.
+
+**When to use:** The delivered software does the wrong
+thing, but your stakeholder spec correctly describes what
+it *should* do. The spec is right; the code is wrong.
+
+**How it works:**
+
+1. Run `/svp:bug` and describe what you observed.
+2. The triage agent investigates the delivered repo,
+   identifies the affected unit, and classifies the bug.
+3. A regression test is written to reproduce the failure.
+4. The repair agent fixes the unit implementation.
+5. All tests pass (including the new regression test).
+6. The fix is committed to the delivered repo.
+
+This is fast and self-contained. The spec and blueprint
+are not touched. For most projects — data analysis tools,
+simulations, utilities — this ladder handles the vast
+majority of post-delivery issues. The LLM can compensate
+for minor spec vagueness because it understands common
+domains well enough to infer the right behavior.
+
+### Ladder 2: Fix the Source
+
+This is the harder case. The code is wrong, but the code
+is wrong *because the spec was incomplete or ambiguous*.
+The implementation agent wrote exactly what the blueprint
+contracted, and the blueprint faithfully decomposed what
+the spec said — but the spec didn't say enough.
+
+**When to use:** You find a bug and realize that no amount
+of unit-level fixing will prevent it from recurring,
+because the root cause is upstream. The spec needs to say
+something it currently doesn't.
+
+**How it works:**
+
+1. Run `/svp:bug` and describe what you observed.
+2. The triage agent investigates — but this time, pay
+   attention to its root cause analysis. Ask yourself:
+   *Why did this happen? What was missing from the spec
+   that allowed this bug to exist?*
+3. Use the triage agent's findings to understand the gap.
+   The agent can help you trace the bug backward: from
+   the failing code, to the blueprint contract that
+   produced it, to the spec section that should have
+   prevented it.
+4. Run `/svp:redo` to roll back to the stakeholder spec.
+5. Revise the spec to close the gap — add the missing
+   detail, the missing constraint, the missing invariant.
+6. The pipeline rebuilds from the corrected spec: new
+   blueprint, new tests, new implementation.
+
+This is expensive in time and tokens. You are throwing
+away completed work and rebuilding from scratch. But for
+complex projects — systems with cross-component contracts,
+state machines, or architectural invariants — it is the
+only way to fix the class of bug, not just the instance.
+
+### How to Choose
+
+The question is not "how bad is the bug?" but "where does
+the bug live?"
+
+If you fix the unit and the same *kind* of bug keeps
+appearing in other units, the bug lives in the spec. No
+amount of unit-level repair will fix a spec-level gap.
+
+For most projects, Ladder 1 is sufficient. The spec can be
+somewhat imprecise because the LLM understands enough
+about common domains to fill in the gaps. You fix the
+occasional unit bug, write a regression test, and move on.
+
+For architecturally complex projects — anything with
+cross-unit contracts, state management invariants, or
+novel domain-specific rules that an LLM cannot infer from
+general knowledge — Ladder 2 is essential. The discipline
+is: every bug is an opportunity to ask "what should the
+spec have said to prevent this?"
+
 ## Example Project
 
 SVP includes a complete Game of Life example in `examples/game-of-life/` with a stakeholder spec, blueprint, and project context.
