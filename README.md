@@ -25,8 +25,7 @@ The pipeline stages:
 4. **Unit Verification** — Each unit goes through test generation → red run → implementation → green run → coverage review. Human gates at every decision point.
 5. **Integration Testing** — Cross-unit tests verify the seams. Bounded fix cycles handle assembly issues.
 6. **Repository Delivery** — A clean git repo with meaningful commit history, profile-driven README, and all artifacts.
-
-After delivery, an optional **post-delivery debug loop** (Gate 6) allows investigation and fixing of bugs discovered in the delivered software without requiring engineering judgment from the human.
+7. **Post-Delivery Debugging** *(optional)* — Investigate and fix bugs in the delivered software via `/svp:bug`. See "When Things Go Wrong" below.
 
 ## SVP 2.0 Features
 
