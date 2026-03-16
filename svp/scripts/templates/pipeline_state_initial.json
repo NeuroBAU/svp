@@ -1,0 +1,20 @@
+{
+  "stage": "0",
+  "sub_stage": "hook_activation",
+  "current_unit": null,
+  "total_units": null,
+  "fix_ladder_position": null,
+  "red_run_retries": 0,
+  "alignment_iteration": 0,
+  "verified_units": [],
+  "pass_history": [],
+  "log_references": {},
+  "project_name": "{project_name}",
+  "last_action": null,
+  "debug_session": null,
+  "debug_history": [],
+  "redo_triggered_from": null,
+  "delivered_repo_path": null,
+  "created_at": "",
+  "updated_at": ""
+}

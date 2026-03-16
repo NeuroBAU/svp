@@ -1,0 +1,14 @@
+{
+  "iteration_limit": 3,
+  "models": {
+    "test_agent": "claude-opus-4-6",
+    "implementation_agent": "claude-opus-4-6",
+    "help_agent": "claude-sonnet-4-6",
+    "default": "claude-opus-4-6"
+  },
+  "context_budget_override": null,
+  "context_budget_threshold": 65,
+  "compaction_character_threshold": 200,
+  "auto_save": true,
+  "skip_permissions": true
+}
