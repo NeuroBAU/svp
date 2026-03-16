@@ -2,6 +2,10 @@
 
 A Claude Code plugin that turns natural language requirements into verified Python projects. You describe what you want; SVP orchestrates LLM agents to build, test, and deliver it — with deterministic state management, multi-agent cross-checking, and human decision gates at every critical point.
 
+**Paper:** [TODO: link to ArXiv paper] — the theoretical
+foundations, design rationale, and empirical results
+behind SVP.
+
 ## What SVP Does
 
 SVP is a six-stage pipeline where a domain expert authors software requirements in conversation, and LLM agents generate, verify, and deliver a working Python project. You never write code. The pipeline compensates for your inability to evaluate generated code through forced separation of concerns: one agent writes tests, a different agent writes implementation, a third reviews coverage, and deterministic scripts control every state transition.
@@ -320,6 +324,8 @@ working vocabulary of about ten ideas. These are the 20%
 of software design that deliver 80% of the value when
 writing a spec. Everything else — design patterns, class
 hierarchies, memory management — is the LLM's problem.
+What follows is a distillation of the ideas presented in
+the SVP paper (TODO: ArXiv link).
 
 **Unit.** A self-contained piece of the system that does
 one thing. It might be a single function, a group of
@@ -331,7 +337,18 @@ units. When you write a spec, you are implicitly defining
 units: "the system loads configuration" is one unit, "the
 system validates user input" is another. If you can
 describe a responsibility in one sentence, it is probably
-one unit.
+one unit. SVP enforces a strict rule: each unit may only
+depend on previously produced units. Unit 5 can use Units
+1 through 4, but never Unit 6 or beyond. This means
+units are built and verified one at a time, in order —
+a linear pipeline, not a parallel one. This is
+deliberately less efficient than building multiple units
+simultaneously. The trade-off is correctness: when each
+unit is tested against already-verified dependencies,
+errors cannot hide in circular references or race
+conditions between units being built at the same time.
+The linear approach is slower but produces far fewer bugs
+at the seams.
 
 **Signature.** What a unit accepts and what it returns.
 Not how it works — just the shape of the conversation
