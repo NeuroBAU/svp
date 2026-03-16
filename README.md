@@ -313,6 +313,137 @@ the ability to write Python, but the ability to close the
 gap between what you know and what the machine needs to
 hear.
 
+### Concepts That Matter
+
+You do not need a computer science degree. You need a
+working vocabulary of about ten ideas. These are the 20%
+of software design that deliver 80% of the value when
+writing a spec. Everything else — design patterns, class
+hierarchies, memory management — is the LLM's problem.
+
+**Unit.** A self-contained piece of the system that does
+one thing. It might be a single function, a group of
+related functions, or a module — the internal structure
+does not matter at spec level. What matters is that you
+can describe what it does, what it needs, and what it
+produces without referring to the internals of other
+units. When you write a spec, you are implicitly defining
+units: "the system loads configuration" is one unit, "the
+system validates user input" is another. If you can
+describe a responsibility in one sentence, it is probably
+one unit.
+
+**Signature.** What a unit accepts and what it returns.
+Not how it works — just the shape of the conversation
+between the unit and the rest of the system. "This unit
+takes a project directory and returns a configuration
+dictionary" is a signature. Signatures matter because
+they are the connection points between units. If two
+units disagree about a signature — one passes a file
+path, the other expects a directory path — the system
+breaks at the seam, not inside either unit. Many bugs in
+complex systems are signature mismatches, not logic
+errors. When you write a spec, be precise about what
+goes in and what comes out.
+
+**Contract.** What a unit promises to do — not just its
+signature, but its behavior. "Takes a configuration file
+and returns a dictionary" is a signature. "Missing keys
+are filled from defaults via recursive merge; unknown
+keys are preserved for forward compatibility; a missing
+file returns the default configuration without error" is
+a contract. Contracts are where spec precision pays off
+most. A vague contract ("loads the config") gives the LLM
+room to make choices you didn't intend. A precise contract
+("missing file returns defaults, malformed file raises
+RuntimeError with the file path in the message") leaves
+no room for the wrong choice.
+
+**Invariant.** Something that must always be true, no
+matter what. Not a behavior of one function, but a rule
+that applies across the entire system. "No function that
+modifies pipeline state may mutate its input — it must
+return a new copy" is an invariant. "Every gate ID that
+appears in the routing table must also appear in the
+preparation script's registry" is an invariant.
+Invariants are your most powerful tool because they
+prevent entire classes of bugs, not individual instances.
+A single invariant like "every CLI function must have its
+arguments enumerated in the blueprint" prevents a bug
+from appearing in any of the 24 units, forever. When you
+find yourself fixing the same kind of bug in multiple
+places, you are missing an invariant.
+
+**Dependency.** When one unit needs another unit to work.
+"The routing script reads pipeline state" means the
+routing script depends on the state module. Dependencies
+must flow in one direction — if A depends on B and B
+depends on A, you have a cycle, and cycles make systems
+fragile and hard to test. In your spec, stating
+dependencies explicitly ("this component needs
+configuration data from that component") helps the
+blueprint author arrange units in the right order and
+helps the test agent isolate units for testing.
+
+**State.** Data that changes over time. A configuration
+file that is read once is not state — it is input. A
+pipeline position that advances from stage to stage is
+state. State is where most complexity lives, because
+every piece of code that reads state must handle every
+possible value that state could have at that point. When
+you write a spec, identify what changes over time and
+describe all the values it can take. "The pipeline
+tracks the current stage" is insufficient. "The stage is
+one of: 0, 1, 2, pre_stage_3, 3, 4, 5" is sufficient.
+
+**Side effect.** When a unit changes something outside
+itself — writes a file, creates a directory, sends a
+message, modifies a database. Side effects matter because
+they are invisible to the caller unless documented. "This
+function validates the input" has no side effects — it
+takes data and returns a result. "This function validates
+the input and writes a log entry" has a side effect. In
+your spec, every side effect must be stated explicitly.
+If a function creates a backup directory before deleting
+files, that is a side effect. If it sets file permissions,
+that is a side effect. Unstated side effects become bugs
+that are impossible to diagnose from the contract alone.
+
+**Error condition.** What happens when things go wrong.
+Every unit will encounter situations it cannot handle: a
+missing file, an invalid value, a network timeout. The
+spec must say what happens in each case — not just "it
+handles errors gracefully" but "a missing file raises
+FileNotFoundError with the path in the message; a
+malformed file raises RuntimeError." Without explicit
+error conditions, the LLM will make reasonable but
+potentially wrong choices about how to fail, and the
+tests will not know what to check for.
+
+**Enumeration.** Listing all valid values explicitly
+rather than describing them in prose. "The linter can be
+ruff, flake8, pylint, or none" is an enumeration. "The
+linter is configurable" is not — it leaves the valid
+values unspecified, and the implementation agent will
+have to guess. Enumerations are the single most common
+source of spec gaps. Every time your spec says "one of
+several options" or "a valid value," ask yourself: can I
+list them all? If you can, list them. The implementation
+cannot guess what you consider valid.
+
+**Testability.** Can you verify the behavior from the
+outside, without looking at the code? A contract is
+testable if you can write a sentence of the form "given
+this input, the output must be that." A contract is not
+testable if it says "handles the data appropriately" —
+appropriate according to whom? Every contract you write
+in the spec will become a test. If you cannot imagine
+what the test would check, the contract is too vague.
+The discipline is: before you write a requirement, ask
+"how would I verify this is working?" If you cannot
+answer that question, rewrite the requirement until you
+can.
+
 ## Example Project
 
 SVP includes a complete Game of Life example in `examples/game-of-life/` with a stakeholder spec, blueprint, and project context.
