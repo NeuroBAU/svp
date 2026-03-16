@@ -3,7 +3,7 @@
 ## Technical Blueprint: Prose Descriptions (Tier 1)
 
 **Date:** 2026-03-15
-**Decomposes:** Stakeholder Specification v8.28
+**Decomposes:** Stakeholder Specification v8.29
 **Artifact Type:** Claude Code Plugin + Standalone Launcher
 **Companion File:** The other `.md` file(s) in this blueprint directory (Tier 2 signatures + Tier 3 contracts)
 
@@ -131,6 +131,7 @@ svp-repo/                      <- repository root
 |       +-- test_bug48_launcher_cli_contract.py           (Bug 48 -- launcher CLI contract)
 |       +-- test_bug49_argparse_enumeration.py            (Bug 49 -- argparse enumeration)
 |       +-- test_bug50_contract_sufficiency.py            (Bug 50 -- contract sufficiency)
+|       +-- test_bug51_debug_reassembly.py               (Bug 51 -- debug loop reassembly)
 |-- examples/                    <- Bundled example (SVP self-build only)
 |   +-- game-of-life/            <- Unit 22
 |       |-- stakeholder_spec.md
@@ -208,10 +209,10 @@ SVP 2.1 adds quality gates, delivered quality configuration, changelog support, 
 4. **Blueprint Directory Discovery (NEW):** Blueprint files are discovered dynamically from the `blueprint/` directory rather than hardcoded by name. The system supports any number of `.md` files (single `blueprint.md` for SVP 2.0 backward compatibility, or split `blueprint_prose.md` + `blueprint_contracts.md`, or any other arrangement). Affects Units 1, 3, 5, 7, 9, 14, 18, 23, 24.
 5. **Stub Sentinel (NEW):** `__SVP_STUB__` marker in stub files. Affects Units 6, 12, and structural validation.
 6. **Proactive Lessons Learned (NEW):** Test agent receives filtered historical failure patterns. Affects Units 9, 14.
-7. **Bug fixes:** Bug 17 (hook schema), Bug 21 (two-branch routing), Bug 22 (canonical filenames), Bug 23 (alignment check), Bug 24 (total_units), Bug 25 (Stage 3 routing), Bug 26 (Stage 5 routing), Bug 28 (commit count), Bug 30 (README carry-forward), Bug 31 (launcher flag), Bug 32 (CLI subcommands), Bug 33 (quality gate operations), Bug 34 (toolchain portability), Bug 35 (routing output resolution), Bug 36 (stub generation sub-stage), Bug 37 (repo sibling directory), Bug 38 (Group B commands), Bug 39 (skill slash-command cycle), Bug 41 (Stage 1 routing + gate ID consistency), Bug 42 (pre-Stage-3 state persistence), Bug 43 (universal two-branch routing compliance), Bug 44 (dispatch_agent_status null sub_stage for test_agent), Bug 45 (dispatch_command_status test_execution advancement), Bug 46 (dispatch_agent_status coverage_review advancement), Bug 47 (unit_completion COMMAND/POST separation), Bug 48 (launcher CLI contract loss), Bug 49 (systemic bare argparse stubs), Bug 50 (contract sufficiency and boundary violations).
+7. **Bug fixes:** Bug 17 (hook schema), Bug 21 (two-branch routing), Bug 22 (canonical filenames), Bug 23 (alignment check), Bug 24 (total_units), Bug 25 (Stage 3 routing), Bug 26 (Stage 5 routing), Bug 28 (commit count), Bug 30 (README carry-forward), Bug 31 (launcher flag), Bug 32 (CLI subcommands), Bug 33 (quality gate operations), Bug 34 (toolchain portability), Bug 35 (routing output resolution), Bug 36 (stub generation sub-stage), Bug 37 (repo sibling directory), Bug 38 (Group B commands), Bug 39 (skill slash-command cycle), Bug 41 (Stage 1 routing + gate ID consistency), Bug 42 (pre-Stage-3 state persistence), Bug 43 (universal two-branch routing compliance), Bug 44 (dispatch_agent_status null sub_stage for test_agent), Bug 45 (dispatch_command_status test_execution advancement), Bug 46 (dispatch_agent_status coverage_review advancement), Bug 47 (unit_completion COMMAND/POST separation), Bug 48 (launcher CLI contract loss), Bug 49 (systemic bare argparse stubs), Bug 50 (contract sufficiency and boundary violations), Bug 51 (debug loop reassembly routing).
 8. **Repo collision avoidance:** Existing repo directories renamed before new assembly.
 
-SVP 2.1 carries forward 22 regression tests from prior builds and adds 12 new ones (test_bug13_hook_schema_validation.py, test_bug22_repo_sibling_directory.py, test_bug23_stage1_spec_gate_routing.py, test_bug42_pre_stage3_state_persistence.py, test_bug43_stage2_blueprint_routing.py, test_bug44_null_substage_dispatch.py, test_bug45_test_execution_dispatch.py, test_bug46_coverage_dispatch.py, test_bug47_unit_completion_double_dispatch.py, test_bug48_launcher_cli_contract.py, test_bug49_argparse_enumeration.py, test_bug50_contract_sufficiency.py), totaling 34 regression test files.
+SVP 2.1 carries forward 22 regression tests from prior builds and adds 13 new ones (test_bug13_hook_schema_validation.py, test_bug22_repo_sibling_directory.py, test_bug23_stage1_spec_gate_routing.py, test_bug42_pre_stage3_state_persistence.py, test_bug43_stage2_blueprint_routing.py, test_bug44_null_substage_dispatch.py, test_bug45_test_execution_dispatch.py, test_bug46_coverage_dispatch.py, test_bug47_unit_completion_double_dispatch.py, test_bug48_launcher_cli_contract.py, test_bug49_argparse_enumeration.py, test_bug50_contract_sufficiency.py, test_bug51_debug_reassembly.py), totaling 35 regression test files.
 
 ---
 

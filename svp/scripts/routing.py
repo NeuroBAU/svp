@@ -1307,6 +1307,20 @@ def dispatch_agent_status(
         return state
 
     elif agent_type == "repair_agent":
+        if status_line == "REPAIR_COMPLETE":
+            if state.debug_session is not None:
+                # Bug 51: trigger Stage 5 reassembly
+                import copy as _copy
+
+                new_state = PipelineState.from_dict(
+                    _copy.deepcopy(state.to_dict())
+                )
+                new_state.stage = "5"
+                new_state.sub_stage = None
+                new_state.last_action = (
+                    "Debug repair complete, reassembling"
+                )
+                return new_state
         return state
 
     elif agent_type == "reference_indexing":

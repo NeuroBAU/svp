@@ -3,7 +3,7 @@
 ## Technical Blueprint: Contracts (Tier 2 + Tier 3)
 
 **Date:** 2026-03-15
-**Decomposes:** Stakeholder Specification v8.28
+**Decomposes:** Stakeholder Specification v8.29
 **Companion File:** The other `.md` file(s) in this blueprint directory (Tier 1 descriptions)
 
 ---
@@ -1262,7 +1262,7 @@ assert set(GATE_RESPONSES.keys()) == set(ALL_GATE_IDS), \
 - `sub_stage="compliance_scan"`: run compliance scan script
 - `sub_stage="repo_complete"`: return `pipeline_complete`
 
-**`dispatch_agent_status` explicit transitions (Bug 50 fix: contract sufficiency).** Agent-type-keyed dispatch: help_agent/hint_agent -> no-op (clone only); test_agent -> sub_stage="quality_gate_a" (Bug 44: handles sub_stage None and "test_generation"); implementation_agent -> sub_stage="quality_gate_b"; coverage_review -> sub_stage="unit_completion" (Bug 46); reference_indexing -> stage="3", sub_stage=None, current_unit=1 if None. All other agent types: clone and set last_action.
+**`dispatch_agent_status` explicit transitions (Bug 50 fix: contract sufficiency).** Agent-type-keyed dispatch: help_agent/hint_agent -> no-op (clone only); test_agent -> sub_stage="quality_gate_a" (Bug 44: handles sub_stage None and "test_generation"); implementation_agent -> sub_stage="quality_gate_b"; coverage_review -> sub_stage="unit_completion" (Bug 46); reference_indexing -> stage="3", sub_stage=None, current_unit=1 if None; repair_agent -> on `REPAIR_COMPLETE` during an active debug session (`state.debug_session is not None`): set `stage = "5"`, `sub_stage = None` to trigger git_repo_agent reassembly, debug session remains active; on `REPAIR_FAILED` and `REPAIR_RECLASSIFY`: existing behavior (retry/reclassify/gate 6.3) (Bug 51 fix). All other agent types: clone and set last_action.
 
 **`dispatch_agent_status` for `setup_agent` -- `PROJECT_CONTEXT_REJECTED` handling:** When `dispatch_agent_status` receives `PROJECT_CONTEXT_REJECTED` from the setup agent, it does NOT advance the pipeline. The next `route()` call reads `PROJECT_CONTEXT_REJECTED` from `last_status.txt` and emits a `pipeline_held` action. This is distinct from `PROJECT_CONTEXT_COMPLETE`, which advances to the context approval gate. `pipeline_held` signals that the human cannot provide sufficient project context and the pipeline holds until the human re-engages (e.g., via a new session or by providing context externally and resuming).
 

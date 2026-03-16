@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-50)
+## Part 1: Unified Bug Catalog (Bugs 1-51)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -829,6 +829,20 @@ Functions that are implementation choices, not cross-unit contracts, appearing i
 **Pattern:** P7 (Spec completeness). Two new invariants needed: contract sufficiency ("could an agent implement this from the contract alone?") and contract boundary ("observable behavior and critical data IN, internal helpers OUT").
 
 **Prevention:** (1) Contract sufficiency invariant in spec Section 3.16. (2) Contract boundary rule in spec Section 3.16. (3) Blueprint checker verifies that every public function with non-trivial behavior has sufficient detail for deterministic reimplementation. (4) Regression test verifying critical data values and behavioral details are correct.
+
+---
+
+### Bug 51 — Debug loop missing reassembly routing after repair completion
+
+**Caught:** Post-delivery (SVP 2.1 QC audit). **Test:** `tests/regressions/test_bug51_debug_reassembly.py`
+
+After a successful repair in the debug loop, the triage agent's Step 6 instructs "fix workspace, then Stage 5 reassembly." But `dispatch_agent_status` for `repair_agent` with `REPAIR_COMPLETE` returned `state` unchanged — no routing to re-enter Stage 5. The workspace fix was never propagated to the delivered repo through the pipeline. In practice, fixes were applied directly to the delivered repo, bypassing the canonical workspace-then-reassemble flow and creating potential drift between workspace and delivered repo.
+
+**Root cause:** The triage agent definition documented the intent (Step 6), but the routing script had no corresponding state transition. The agent's behavioral instructions and the routing dispatch were not synchronized.
+
+**Pattern:** P1 (Cross-unit contract drift). The agent definition (Unit 19) described a workflow step that the routing script (Unit 10) did not implement.
+
+**Prevention:** Every workflow step described in an agent definition that requires a state transition must have a corresponding dispatch handler in Unit 10. A structural test should verify that every agent terminal status line has a non-trivial dispatch handler (not bare `return state`) for main-pipeline agents.
 
 ---
 

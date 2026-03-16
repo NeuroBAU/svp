@@ -1,7 +1,7 @@
 # SVP 2.1 — Specification Summary and Glossary
 
 **Date:** 2026-03-15
-**Companion to:** Stakeholder Specification v8.28 (Document 2)
+**Companion to:** Stakeholder Specification v8.29 (Document 2)
 **Pipeline role:** Reference document. Available to blueprint checker as cross-check.
 
 ---

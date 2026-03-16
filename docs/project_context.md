@@ -97,7 +97,7 @@ Seven-step logic bug path:
 
 ### Regression Test Inventory (Carry-Forward)
 
-All regression test files carry forward to `tests/regressions/`. 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 12 newly authored in this build (34 total):
+All regression test files carry forward to `tests/regressions/`. 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 13 newly authored in this build (35 total):
 
 | File | Bug Covered |
 |------|-------------|
@@ -135,6 +135,7 @@ All regression test files carry forward to `tests/regressions/`. 15 carry-forwar
 | test_bug48_launcher_cli_contract.py | Launcher CLI contract (Bug 48) |
 | test_bug49_argparse_enumeration.py | CLI argument enumeration (Bug 49) |
 | test_bug50_contract_sufficiency.py | Contract sufficiency (Bug 50) |
+| test_bug51_debug_reassembly.py | Debug loop reassembly routing (Bug 51) |
 
 Note: Three filename prefixes are reused across different bugs due to the dual numbering scheme (see spec Section 6.8). The following nine test files were not present in the SVP 2.0 source repository and must be authored (see spec Section 6.8 for details):
 1. `test_bug13_hook_schema_validation.py` (Bug 17) -- newly authored during build
@@ -149,6 +150,7 @@ Note: Three filename prefixes are reused across different bugs due to the dual n
 10. `test_bug48_launcher_cli_contract.py` (Bug 48) -- authored during debug loop
 11. `test_bug49_argparse_enumeration.py` (Bug 49) -- authored during debug loop
 12. `test_bug50_contract_sufficiency.py` (Bug 50) -- authored during debug loop
+13. `test_bug51_debug_reassembly.py` (Bug 51) -- authored during debug loop
 
 ### Variant Model
 
@@ -185,7 +187,7 @@ SVP processes text artifacts:
 
 ## Success Criteria
 
-1. All SVP 2.0 regression tests pass (updated for signature changes; covering same bug scenarios). All 34 regression test files carry forward (15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 12 newly authored in this build).
+1. All SVP 2.0 regression tests pass (updated for signature changes; covering same bug scenarios). All 35 regression test files carry forward (15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 13 newly authored in this build).
 2. Quality Gate A: post-test, pre-red-run. Format + light lint (E, F, I). No type check on tests.
 3. Quality Gate B: post-implementation, pre-green-run. Format + heavy lint + mypy (--ignore-missing-imports, unit level).
 4. Quality Gate C: Stage 5 assembly. Format check + full lint + full mypy (cross-unit, no --ignore-missing-imports).
@@ -218,7 +220,7 @@ SVP processes text artifacts:
 
 | Document | Location |
 |----------|----------|
-| SVP 2.1 Stakeholder Spec (v8.28) | `specs/stakeholder_spec.md` |
+| SVP 2.1 Stakeholder Spec (v8.29) | `specs/stakeholder_spec.md` |
 | SVP 2.0 Stakeholder Spec (v7.0) | `references/svp_v7_stakeholder_spec.md` |
 | SVP 2.0 Blueprint | `references/svp_v2_blueprint.md` |
 | SVP 2.1 Baseline and Rationale (Doc 1) | `references/svp_2_1_baseline.md` |
