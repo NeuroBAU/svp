@@ -63,7 +63,8 @@ The `project_profile.json` `quality` section captures your preferences for the d
 Set `vcs.changelog` in your profile to `"keep_a_changelog"` or `"conventional_changelog"` to generate a `CHANGELOG.md` in the delivered repository.
 
 **Post-Delivery Debug Workflow**
-The debug loop is restructured: `delivered_repo_path` is tracked in `pipeline_state.json`, the triage agent receives the delivered repo path directly, the debug commit uses a fixed format regardless of `vcs.commit_style`, and the lessons learned document is updated as part of the debug session.
+See "When Things Go Wrong: The Two Fix Ladders" and
+"Workspace and Delivered Repository" below.
 
 **Test Scenarios in README**
 When `testing.readme_test_scenarios` is set in the profile, the README includes a section describing the test suite's coverage approach.
@@ -153,7 +154,7 @@ The launcher verifies all prerequisites, creates the
 project directory structure, writes the initial
 configuration, and launches Claude Code with SVP active.
 
-### Workspace and Delivered Repository
+## Workspace and Delivered Repository
 
 SVP maintains two separate directories for your project:
 
@@ -589,7 +590,7 @@ can.
 
 SVP itself was built by SVP. The lessons learned document
 (`docs/references/svp_2_1_lessons_learned.md` in the
-delivered repository) catalogs 50 bugs discovered across
+delivered repository) catalogs 51 bugs discovered across
 five build generations — from SVP 1.0 through SVP 2.1.
 Nearly every one traces back to something the stakeholder
 spec didn't say clearly enough. The checklist below is
@@ -768,7 +769,7 @@ invariant.
 > invariant is a build failure, not a warning."
 
 These eight questions are not exhaustive, but they cover
-the patterns that produced 50 bugs across five build
+the patterns that produced 51 bugs across five build
 generations of SVP. The lessons learned document in the
 delivered repository contains the full catalog with root
 causes, patterns, and prevention rules. Bug 50 in
@@ -825,7 +826,7 @@ svp-repo/
 The SVP test suite covers:
 
 - **Unit tests** (`tests/unit_N/`): One test module per pipeline unit, covering the unit's behavioral contracts.
-- **Regression tests** (`tests/regressions/`): Carry-forward tests for all 47 catalogued bugs. Each file targets a specific bug scenario.
+- **Regression tests** (`tests/regressions/`): Carry-forward tests for all 51 catalogued bugs. Each file targets a specific bug scenario.
 - **Integration tests** (`tests/integration/`): Cross-unit tests covering toolchain resolution, profile flow, blueprint checker preference validation, quality gate execution, and write authorization.
 
 Run the full test suite from the repository root:
@@ -841,7 +842,7 @@ conda run -n svp2_1 pytest tests/ -v
 - **SVP 1.2** — Bug fixes and hardening. Fixed gate status string vocabulary (Bug 1) and hook permission reset after debug session entry (Bug 2).
 - **SVP 1.2.1** — Further bug fixes and robustness improvements.
 - **SVP 2.0** — Project Profile (`project_profile.json`) for delivery preferences. Pipeline Toolchain Abstraction (`toolchain.json`). Profile-driven Stage 5 delivery. Delivery compliance scan. `/svp:redo` profile revision support.
-- **SVP 2.1** — Pipeline Quality Gates (A, B, C). Delivered quality configuration. Changelog support. Blueprint prose/contracts split. Stub sentinel. Proactive lessons learned integration. Universal two-branch routing invariant. 47 bug fixes across all pipeline stages.
+- **SVP 2.1** — Pipeline Quality Gates (A, B, C). Delivered quality configuration. Changelog support. Blueprint prose/contracts split. Stub sentinel. Proactive lessons learned integration. Universal two-branch routing invariant. 51 bug fixes across all pipeline stages.
 
 ## License
 
