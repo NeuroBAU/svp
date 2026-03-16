@@ -260,26 +260,6 @@ away completed work and rebuilding from scratch. But for
 the class of project that needs it, there is no
 alternative — you cannot test your way out of a spec gap.
 
-### How to Choose
-
-The question is not "where does the bug come from?" (it
-comes from the spec) but "is fixing the spec worth the
-cost?"
-
-For a small data analysis tool, a spec gap that causes one
-wrong function is cheaper to patch at the unit level than
-to rebuild the entire project. You fix the unit, write a
-regression test, accept the imperfect spec, and ship.
-
-For a system with 24 interdependent units, a spec gap that
-says "compute the budget" without specifying which model
-context windows to use will produce wrong implementations
-in every unit that touches context budgets. Fixing each
-unit individually is more expensive than fixing the spec
-once and rebuilding. The discipline is: every bug is an
-opportunity to ask "what should the spec have said to
-prevent this entire class of bug?"
-
 ## Example Project
 
 SVP includes a complete Game of Life example in `examples/game-of-life/` with a stakeholder spec, blueprint, and project context.
