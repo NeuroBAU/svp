@@ -24,7 +24,7 @@ import pytest
 # Unit 1: Configuration, Profile, Toolchain
 # -----------------------------------------------------------
 try:
-    from src.unit_1.stub import (
+    from svp_config import (
         get_profile_section,
         get_quality_gate_operations,
         get_quality_packages,
@@ -44,7 +44,7 @@ except ImportError:
 # Unit 2: Pipeline State
 # -----------------------------------------------------------
 try:
-    from src.unit_2.stub import (
+    from pipeline_state import (
         QUALITY_GATE_SUB_STAGES,
         REDO_PROFILE_SUB_STAGES,
         PipelineState,
@@ -63,7 +63,7 @@ except ImportError:
 # Unit 3: State Transitions
 # -----------------------------------------------------------
 try:
-    from src.unit_3.stub import (
+    from state_transitions import (
         TransitionError,
         advance_fix_ladder,
         advance_quality_gate_to_retry,
@@ -83,7 +83,7 @@ except ImportError:
 # Unit 9: Preparation Script
 # -----------------------------------------------------------
 try:
-    from src.unit_9.stub import (
+    from prepare_task import (
         load_full_profile,
         load_profile_sections,
     )
@@ -97,7 +97,7 @@ except ImportError:
 # Unit 10: Routing and Dispatch
 # -----------------------------------------------------------
 try:
-    from src.unit_10.stub import (
+    from routing import (
         AGENT_STATUS_LINES,
         GATE_RESPONSES,
         dispatch_command_status,
@@ -115,7 +115,7 @@ except ImportError:
 # Unit 12: Hook Configurations / Write Authorization
 # -----------------------------------------------------------
 try:
-    from src.unit_12.stub import check_write_authorization
+    from hooks import check_write_authorization
 except ImportError:
     pytest.skip(
         "Unit 12 not available",
@@ -126,7 +126,7 @@ except ImportError:
 # Unit 23: Compliance Scan
 # -----------------------------------------------------------
 try:
-    from src.unit_23.stub import run_compliance_scan
+    from compliance_scan import run_compliance_scan
 except ImportError:
     pytest.skip(
         "Unit 23 not available",
@@ -1333,7 +1333,7 @@ class TestQualityPackageInstallation:
     def test_quality_packages_distinct_from_framework(self, tmp_project):
         """Quality packages differ from framework pkgs."""
         toolchain = load_toolchain(tmp_project)
-        from src.unit_1.stub import (
+        from svp_config import (
             get_framework_packages,
         )
 

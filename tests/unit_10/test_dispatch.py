@@ -23,7 +23,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.unit_10.stub import (
+from routing import (
     AGENT_STATUS_LINES,
     GATE_RESPONSES,
     dispatch_agent_status,

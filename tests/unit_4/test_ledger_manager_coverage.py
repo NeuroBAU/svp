@@ -24,7 +24,7 @@ class TestCheckLedgerCapacityWarning:
     def test_low_capacity_warning_is_none(self, tmp_path):
         """Well-under-capacity ledger returns None
         as second tuple element."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             check_ledger_capacity,
@@ -43,7 +43,7 @@ class TestCheckLedgerCapacityWarning:
     def test_near_capacity_warning_is_str(self, tmp_path):
         """Near-capacity ledger returns a non-empty
         warning string."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             check_ledger_capacity,
@@ -74,7 +74,7 @@ class TestCompactLedgerPlainContent:
     def test_plain_content_preserved(self, tmp_path):
         """Non-tagged entry content is not modified
         by compaction."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             compact_ledger,
@@ -107,7 +107,7 @@ class TestCompactLedgerMixed:
     def test_mixed_entries_handled(self, tmp_path):
         """Compaction with tagged-long, tagged-short,
         HINT, and plain entries in one ledger."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             compact_ledger,
@@ -174,7 +174,7 @@ class TestCompactLedgerReturnValue:
     ):
         """Return value > 0 when entries are
         compacted."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             compact_ledger,
@@ -198,7 +198,7 @@ class TestCompactLedgerReturnValue:
     ):
         """Return value is 0 when no entries need
         compaction."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             compact_ledger,
@@ -233,7 +233,7 @@ class TestAppendEntryAtomicity:
     ):
         """File contains valid JSON after each
         successive append."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
         )
@@ -266,7 +266,7 @@ class TestWriteHintEntryMetadata:
         self, tmp_path
     ):
         """gate_id is findable in the hint entry."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             read_ledger,
             write_hint_entry,
         )
@@ -296,7 +296,7 @@ class TestWriteHintEntryMetadata:
         self, tmp_path
     ):
         """stage is findable in the hint entry."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             read_ledger,
             write_hint_entry,
         )
@@ -326,7 +326,7 @@ class TestWriteHintEntryMetadata:
         self, tmp_path
     ):
         """decision is findable in the hint entry."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             read_ledger,
             write_hint_entry,
         )

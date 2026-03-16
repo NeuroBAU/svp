@@ -40,7 +40,7 @@ import pytest
 
 def _make_state(**overrides):
     """Build a synthetic PipelineState with sensible defaults."""
-    from src.unit_2.stub import PipelineState
+    from pipeline_state import PipelineState
 
     defaults = {
         "stage": "3",
@@ -68,7 +68,7 @@ def _make_state(**overrides):
 
 def _make_debug_session(**overrides):
     """Build a synthetic DebugSession."""
-    from src.unit_2.stub import DebugSession
+    from pipeline_state import DebugSession
 
     defaults = {
         "bug_id": 1,
@@ -91,18 +91,18 @@ def _make_debug_session(**overrides):
 
 class TestTransitionError:
     def test_is_exception(self):
-        from src.unit_3.stub import TransitionError
+        from state_transitions import TransitionError
 
         assert issubclass(TransitionError, Exception)
 
     def test_can_be_raised(self):
-        from src.unit_3.stub import TransitionError
+        from state_transitions import TransitionError
 
         with pytest.raises(TransitionError):
             raise TransitionError("precondition failed")
 
     def test_message_preserved(self):
-        from src.unit_3.stub import TransitionError
+        from state_transitions import TransitionError
 
         err = TransitionError("bad transition")
         assert str(err) == "bad transition"
@@ -115,14 +115,14 @@ class TestTransitionError:
 
 class TestAdvanceStage:
     def test_returns_new_state(self, tmp_path):
-        from src.unit_3.stub import advance_stage
+        from state_transitions import advance_stage
 
         state = _make_state(stage="0")
         result = advance_stage(state, tmp_path)
         assert result is not state
 
     def test_does_not_mutate_input(self, tmp_path):
-        from src.unit_3.stub import advance_stage
+        from state_transitions import advance_stage
 
         state = _make_state(stage="0")
         original_stage = state.stage
@@ -130,35 +130,35 @@ class TestAdvanceStage:
         assert state.stage == original_stage
 
     def test_advances_from_0_to_1(self, tmp_path):
-        from src.unit_3.stub import advance_stage
+        from state_transitions import advance_stage
 
         state = _make_state(stage="0")
         result = advance_stage(state, tmp_path)
         assert result.stage == "1"
 
     def test_advances_from_1_to_2(self, tmp_path):
-        from src.unit_3.stub import advance_stage
+        from state_transitions import advance_stage
 
         state = _make_state(stage="1")
         result = advance_stage(state, tmp_path)
         assert result.stage == "2"
 
     def test_advances_from_2_to_pre_stage_3(self, tmp_path):
-        from src.unit_3.stub import advance_stage
+        from state_transitions import advance_stage
 
         state = _make_state(stage="2")
         result = advance_stage(state, tmp_path)
         assert result.stage == "pre_stage_3"
 
     def test_advances_from_pre_stage_3_to_3(self, tmp_path):
-        from src.unit_3.stub import advance_stage
+        from state_transitions import advance_stage
 
         state = _make_state(stage="pre_stage_3")
         result = advance_stage(state, tmp_path)
         assert result.stage == "3"
 
     def test_advances_from_4_to_5(self, tmp_path):
-        from src.unit_3.stub import advance_stage
+        from state_transitions import advance_stage
 
         state = _make_state(stage="4")
         result = advance_stage(state, tmp_path)
@@ -172,21 +172,21 @@ class TestAdvanceStage:
 
 class TestAdvanceSubStage:
     def test_returns_new_state(self, tmp_path):
-        from src.unit_3.stub import advance_sub_stage
+        from state_transitions import advance_sub_stage
 
         state = _make_state(stage="3", sub_stage="test_generation")
         result = advance_sub_stage(state, "red_run", tmp_path)
         assert result is not state
 
     def test_sets_sub_stage(self, tmp_path):
-        from src.unit_3.stub import advance_sub_stage
+        from state_transitions import advance_sub_stage
 
         state = _make_state(stage="3", sub_stage="test_generation")
         result = advance_sub_stage(state, "red_run", tmp_path)
         assert result.sub_stage == "red_run"
 
     def test_does_not_mutate_input(self, tmp_path):
-        from src.unit_3.stub import advance_sub_stage
+        from state_transitions import advance_sub_stage
 
         state = _make_state(stage="3", sub_stage="test_generation")
         advance_sub_stage(state, "red_run", tmp_path)
@@ -200,14 +200,14 @@ class TestAdvanceSubStage:
 
 class TestCompleteUnit:
     def test_returns_new_state(self, tmp_path):
-        from src.unit_3.stub import complete_unit
+        from state_transitions import complete_unit
 
         state = _make_state(current_unit=1, total_units=5)
         result = complete_unit(state, 1, tmp_path)
         assert result is not state
 
     def test_does_not_mutate_input(self, tmp_path):
-        from src.unit_3.stub import complete_unit
+        from state_transitions import complete_unit
 
         state = _make_state(current_unit=1, total_units=5)
         original_unit = state.current_unit
@@ -215,7 +215,7 @@ class TestCompleteUnit:
         assert state.current_unit == original_unit
 
     def test_updates_verified_units(self, tmp_path):
-        from src.unit_3.stub import complete_unit
+        from state_transitions import complete_unit
 
         state = _make_state(
             current_unit=1,
@@ -227,7 +227,7 @@ class TestCompleteUnit:
         assert 1 in unit_nums
 
     def test_resets_sub_stage_to_none(self, tmp_path):
-        from src.unit_3.stub import complete_unit
+        from state_transitions import complete_unit
 
         state = _make_state(
             current_unit=1,
@@ -238,7 +238,7 @@ class TestCompleteUnit:
         assert result.sub_stage is None
 
     def test_resets_fix_ladder_position(self, tmp_path):
-        from src.unit_3.stub import complete_unit
+        from state_transitions import complete_unit
 
         state = _make_state(
             current_unit=1,
@@ -249,7 +249,7 @@ class TestCompleteUnit:
         assert result.fix_ladder_position is None
 
     def test_resets_red_run_retries(self, tmp_path):
-        from src.unit_3.stub import complete_unit
+        from state_transitions import complete_unit
 
         state = _make_state(
             current_unit=1,
@@ -260,14 +260,14 @@ class TestCompleteUnit:
         assert result.red_run_retries == 0
 
     def test_advances_current_unit(self, tmp_path):
-        from src.unit_3.stub import complete_unit
+        from state_transitions import complete_unit
 
         state = _make_state(current_unit=1, total_units=5)
         result = complete_unit(state, 1, tmp_path)
         assert result.current_unit == 2
 
     def test_advances_stage_when_last_unit(self, tmp_path):
-        from src.unit_3.stub import complete_unit
+        from state_transitions import complete_unit
 
         state = _make_state(current_unit=5, total_units=5)
         result = complete_unit(state, 5, tmp_path)
@@ -281,56 +281,56 @@ class TestCompleteUnit:
 
 class TestAdvanceFixLadder:
     def test_returns_new_state(self):
-        from src.unit_3.stub import advance_fix_ladder
+        from state_transitions import advance_fix_ladder
 
         state = _make_state(fix_ladder_position=None)
         result = advance_fix_ladder(state, "fresh_test")
         assert result is not state
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import advance_fix_ladder
+        from state_transitions import advance_fix_ladder
 
         state = _make_state(fix_ladder_position=None)
         advance_fix_ladder(state, "fresh_test")
         assert state.fix_ladder_position is None
 
     def test_none_to_fresh_test(self):
-        from src.unit_3.stub import advance_fix_ladder
+        from state_transitions import advance_fix_ladder
 
         state = _make_state(fix_ladder_position=None)
         result = advance_fix_ladder(state, "fresh_test")
         assert result.fix_ladder_position == "fresh_test"
 
     def test_fresh_test_to_hint_test(self):
-        from src.unit_3.stub import advance_fix_ladder
+        from state_transitions import advance_fix_ladder
 
         state = _make_state(fix_ladder_position="fresh_test")
         result = advance_fix_ladder(state, "hint_test")
         assert result.fix_ladder_position == "hint_test"
 
     def test_hint_test_to_fresh_impl(self):
-        from src.unit_3.stub import advance_fix_ladder
+        from state_transitions import advance_fix_ladder
 
         state = _make_state(fix_ladder_position="hint_test")
         result = advance_fix_ladder(state, "fresh_impl")
         assert result.fix_ladder_position == "fresh_impl"
 
     def test_fresh_impl_to_diagnostic(self):
-        from src.unit_3.stub import advance_fix_ladder
+        from state_transitions import advance_fix_ladder
 
         state = _make_state(fix_ladder_position="fresh_impl")
         result = advance_fix_ladder(state, "diagnostic")
         assert result.fix_ladder_position == "diagnostic"
 
     def test_diagnostic_to_diagnostic_impl(self):
-        from src.unit_3.stub import advance_fix_ladder
+        from state_transitions import advance_fix_ladder
 
         state = _make_state(fix_ladder_position="diagnostic")
         result = advance_fix_ladder(state, "diagnostic_impl")
         assert result.fix_ladder_position == "diagnostic_impl"
 
     def test_invalid_transition_raises(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             TransitionError,
             advance_fix_ladder,
         )
@@ -340,7 +340,7 @@ class TestAdvanceFixLadder:
             advance_fix_ladder(state, "diagnostic")
 
     def test_skip_ladder_raises(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             TransitionError,
             advance_fix_ladder,
         )
@@ -350,7 +350,7 @@ class TestAdvanceFixLadder:
             advance_fix_ladder(state, "diagnostic_impl")
 
     def test_backward_transition_raises(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             TransitionError,
             advance_fix_ladder,
         )
@@ -367,21 +367,21 @@ class TestAdvanceFixLadder:
 
 class TestResetFixLadder:
     def test_returns_new_state(self):
-        from src.unit_3.stub import reset_fix_ladder
+        from state_transitions import reset_fix_ladder
 
         state = _make_state(fix_ladder_position="fresh_test")
         result = reset_fix_ladder(state)
         assert result is not state
 
     def test_resets_to_none(self):
-        from src.unit_3.stub import reset_fix_ladder
+        from state_transitions import reset_fix_ladder
 
         state = _make_state(fix_ladder_position="diagnostic")
         result = reset_fix_ladder(state)
         assert result.fix_ladder_position is None
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import reset_fix_ladder
+        from state_transitions import reset_fix_ladder
 
         state = _make_state(fix_ladder_position="fresh_test")
         reset_fix_ladder(state)
@@ -395,7 +395,7 @@ class TestResetFixLadder:
 
 class TestIncrementRedRunRetries:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             increment_red_run_retries,
         )
 
@@ -404,7 +404,7 @@ class TestIncrementRedRunRetries:
         assert result is not state
 
     def test_increments_by_one(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             increment_red_run_retries,
         )
 
@@ -413,7 +413,7 @@ class TestIncrementRedRunRetries:
         assert result.red_run_retries == 3
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             increment_red_run_retries,
         )
 
@@ -424,7 +424,7 @@ class TestIncrementRedRunRetries:
 
 class TestResetRedRunRetries:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             reset_red_run_retries,
         )
 
@@ -433,7 +433,7 @@ class TestResetRedRunRetries:
         assert result is not state
 
     def test_resets_to_zero(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             reset_red_run_retries,
         )
 
@@ -442,7 +442,7 @@ class TestResetRedRunRetries:
         assert result.red_run_retries == 0
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             reset_red_run_retries,
         )
 
@@ -458,7 +458,7 @@ class TestResetRedRunRetries:
 
 class TestIncrementAlignmentIteration:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             increment_alignment_iteration,
         )
 
@@ -467,7 +467,7 @@ class TestIncrementAlignmentIteration:
         assert result is not state
 
     def test_increments_by_one(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             increment_alignment_iteration,
         )
 
@@ -476,7 +476,7 @@ class TestIncrementAlignmentIteration:
         assert result.alignment_iteration == 2
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             increment_alignment_iteration,
         )
 
@@ -487,7 +487,7 @@ class TestIncrementAlignmentIteration:
 
 class TestResetAlignmentIteration:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             reset_alignment_iteration,
         )
 
@@ -496,7 +496,7 @@ class TestResetAlignmentIteration:
         assert result is not state
 
     def test_resets_to_zero(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             reset_alignment_iteration,
         )
 
@@ -505,7 +505,7 @@ class TestResetAlignmentIteration:
         assert result.alignment_iteration == 0
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             reset_alignment_iteration,
         )
 
@@ -521,21 +521,21 @@ class TestResetAlignmentIteration:
 
 class TestRecordPassEnd:
     def test_returns_new_state(self):
-        from src.unit_3.stub import record_pass_end
+        from state_transitions import record_pass_end
 
         state = _make_state()
         result = record_pass_end(state, "completed")
         assert result is not state
 
     def test_appends_to_pass_history(self):
-        from src.unit_3.stub import record_pass_end
+        from state_transitions import record_pass_end
 
         state = _make_state(pass_history=[])
         result = record_pass_end(state, "all units verified")
         assert len(result.pass_history) == 1
 
     def test_reason_recorded(self):
-        from src.unit_3.stub import record_pass_end
+        from state_transitions import record_pass_end
 
         state = _make_state(pass_history=[])
         result = record_pass_end(state, "all units verified")
@@ -543,14 +543,14 @@ class TestRecordPassEnd:
         assert entry.get("reason") == ("all units verified")
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import record_pass_end
+        from state_transitions import record_pass_end
 
         state = _make_state(pass_history=[])
         record_pass_end(state, "done")
         assert len(state.pass_history) == 0
 
     def test_pass_history_append_only(self):
-        from src.unit_3.stub import record_pass_end
+        from state_transitions import record_pass_end
 
         existing = [{"reason": "first", "ts": "x"}]
         state = _make_state(pass_history=existing)
@@ -566,21 +566,21 @@ class TestRecordPassEnd:
 
 class TestRollbackToUnit:
     def test_returns_new_state(self, tmp_path):
-        from src.unit_3.stub import rollback_to_unit
+        from state_transitions import rollback_to_unit
 
         state = _make_state(current_unit=3)
         result = rollback_to_unit(state, 1, tmp_path)
         assert result is not state
 
     def test_sets_current_unit(self, tmp_path):
-        from src.unit_3.stub import rollback_to_unit
+        from state_transitions import rollback_to_unit
 
         state = _make_state(current_unit=3)
         result = rollback_to_unit(state, 1, tmp_path)
         assert result.current_unit == 1
 
     def test_does_not_mutate_input(self, tmp_path):
-        from src.unit_3.stub import rollback_to_unit
+        from state_transitions import rollback_to_unit
 
         state = _make_state(current_unit=3)
         rollback_to_unit(state, 1, tmp_path)
@@ -594,21 +594,21 @@ class TestRollbackToUnit:
 
 class TestRestartFromStage:
     def test_returns_new_state(self, tmp_path):
-        from src.unit_3.stub import restart_from_stage
+        from state_transitions import restart_from_stage
 
         state = _make_state(stage="3")
         result = restart_from_stage(state, "2", "redo request", tmp_path)
         assert result is not state
 
     def test_sets_target_stage(self, tmp_path):
-        from src.unit_3.stub import restart_from_stage
+        from state_transitions import restart_from_stage
 
         state = _make_state(stage="3")
         result = restart_from_stage(state, "2", "redo request", tmp_path)
         assert result.stage == "2"
 
     def test_does_not_mutate_input(self, tmp_path):
-        from src.unit_3.stub import restart_from_stage
+        from state_transitions import restart_from_stage
 
         state = _make_state(stage="3")
         restart_from_stage(state, "2", "redo request", tmp_path)
@@ -622,7 +622,7 @@ class TestRestartFromStage:
 
 class TestVersionDocument:
     def test_returns_tuple_of_two_paths(self, tmp_path):
-        from src.unit_3.stub import version_document
+        from state_transitions import version_document
 
         doc = tmp_path / "spec.md"
         doc.write_text("content")
@@ -635,7 +635,7 @@ class TestVersionDocument:
         assert isinstance(result[1], Path)
 
     def test_raises_file_not_found(self, tmp_path):
-        from src.unit_3.stub import version_document
+        from state_transitions import version_document
 
         doc = tmp_path / "nonexistent.md"
         history = tmp_path / "history"
@@ -651,7 +651,7 @@ class TestVersionDocument:
 
 class TestEnterDebugSession:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             enter_debug_session,
         )
 
@@ -660,7 +660,7 @@ class TestEnterDebugSession:
         assert result is not state
 
     def test_sets_debug_session(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             enter_debug_session,
         )
 
@@ -669,7 +669,7 @@ class TestEnterDebugSession:
         assert result.debug_session is not None
 
     def test_debug_description(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             enter_debug_session,
         )
 
@@ -678,7 +678,7 @@ class TestEnterDebugSession:
         assert result.debug_session.description == "button does not work"
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             enter_debug_session,
         )
 
@@ -689,7 +689,7 @@ class TestEnterDebugSession:
 
 class TestAuthorizeDebugSession:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             authorize_debug_session,
         )
 
@@ -699,7 +699,7 @@ class TestAuthorizeDebugSession:
         assert result is not state
 
     def test_sets_authorized_true(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             authorize_debug_session,
         )
 
@@ -709,7 +709,7 @@ class TestAuthorizeDebugSession:
         assert result.debug_session.authorized is True
 
     def test_raises_without_session(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             TransitionError,
             authorize_debug_session,
         )
@@ -721,7 +721,7 @@ class TestAuthorizeDebugSession:
 
 class TestCompleteDebugSession:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             complete_debug_session,
         )
 
@@ -731,7 +731,7 @@ class TestCompleteDebugSession:
         assert result is not state
 
     def test_clears_debug_session(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             complete_debug_session,
         )
 
@@ -741,7 +741,7 @@ class TestCompleteDebugSession:
         assert result.debug_session is None
 
     def test_appends_to_debug_history(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             complete_debug_session,
         )
 
@@ -751,7 +751,7 @@ class TestCompleteDebugSession:
         assert len(result.debug_history) == 1
 
     def test_raises_without_session(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             TransitionError,
             complete_debug_session,
         )
@@ -763,7 +763,7 @@ class TestCompleteDebugSession:
 
 class TestAbandonDebugSession:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             abandon_debug_session,
         )
 
@@ -773,7 +773,7 @@ class TestAbandonDebugSession:
         assert result is not state
 
     def test_clears_debug_session(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             abandon_debug_session,
         )
 
@@ -783,7 +783,7 @@ class TestAbandonDebugSession:
         assert result.debug_session is None
 
     def test_raises_without_session(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             TransitionError,
             abandon_debug_session,
         )
@@ -795,7 +795,7 @@ class TestAbandonDebugSession:
 
 class TestUpdateDebugPhase:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             update_debug_phase,
         )
 
@@ -805,7 +805,7 @@ class TestUpdateDebugPhase:
         assert result is not state
 
     def test_sets_phase(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             update_debug_phase,
         )
 
@@ -815,7 +815,7 @@ class TestUpdateDebugPhase:
         assert result.debug_session.phase == "investigation"
 
     def test_raises_without_session(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             TransitionError,
             update_debug_phase,
         )
@@ -827,7 +827,7 @@ class TestUpdateDebugPhase:
 
 class TestSetDebugClassification:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             set_debug_classification,
         )
 
@@ -837,7 +837,7 @@ class TestSetDebugClassification:
         assert result is not state
 
     def test_sets_classification(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             set_debug_classification,
         )
 
@@ -847,7 +847,7 @@ class TestSetDebugClassification:
         assert result.debug_session.classification == "cross_unit"
 
     def test_sets_affected_units(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             set_debug_classification,
         )
 
@@ -857,7 +857,7 @@ class TestSetDebugClassification:
         assert result.debug_session.affected_units == [5]
 
     def test_raises_without_session(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             TransitionError,
             set_debug_classification,
         )
@@ -874,7 +874,7 @@ class TestSetDebugClassification:
 
 class TestSetDeliveredRepoPath:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             set_delivered_repo_path,
         )
 
@@ -883,7 +883,7 @@ class TestSetDeliveredRepoPath:
         assert result is not state
 
     def test_sets_path(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             set_delivered_repo_path,
         )
 
@@ -892,7 +892,7 @@ class TestSetDeliveredRepoPath:
         assert result.delivered_repo_path == "/tmp/delivered-repo"
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             set_delivered_repo_path,
         )
 
@@ -908,7 +908,7 @@ class TestSetDeliveredRepoPath:
 
 class TestEnterQualityGate:
     def test_returns_new_state(self):
-        from src.unit_3.stub import enter_quality_gate
+        from state_transitions import enter_quality_gate
 
         state = _make_state(
             stage="3",
@@ -918,7 +918,7 @@ class TestEnterQualityGate:
         assert result is not state
 
     def test_sets_sub_stage(self):
-        from src.unit_3.stub import enter_quality_gate
+        from state_transitions import enter_quality_gate
 
         state = _make_state(
             stage="3",
@@ -928,7 +928,7 @@ class TestEnterQualityGate:
         assert result.sub_stage == "quality_gate_a"
 
     def test_quality_gate_b(self):
-        from src.unit_3.stub import enter_quality_gate
+        from state_transitions import enter_quality_gate
 
         state = _make_state(
             stage="3",
@@ -938,7 +938,7 @@ class TestEnterQualityGate:
         assert result.sub_stage == "quality_gate_b"
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import enter_quality_gate
+        from state_transitions import enter_quality_gate
 
         state = _make_state(
             stage="3",
@@ -950,7 +950,7 @@ class TestEnterQualityGate:
 
 class TestAdvanceFromQualityGate:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             advance_from_quality_gate,
         )
 
@@ -962,7 +962,7 @@ class TestAdvanceFromQualityGate:
         assert result is not state
 
     def test_gate_a_to_red_run(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             advance_from_quality_gate,
         )
 
@@ -974,7 +974,7 @@ class TestAdvanceFromQualityGate:
         assert result.sub_stage == "red_run"
 
     def test_gate_b_to_green_run(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             advance_from_quality_gate,
         )
 
@@ -986,7 +986,7 @@ class TestAdvanceFromQualityGate:
         assert result.sub_stage == "green_run"
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             advance_from_quality_gate,
         )
 
@@ -1000,7 +1000,7 @@ class TestAdvanceFromQualityGate:
 
 class TestEnterQualityGateRetry:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             enter_quality_gate_retry,
         )
 
@@ -1012,7 +1012,7 @@ class TestEnterQualityGateRetry:
         assert result is not state
 
     def test_sets_retry_sub_stage_a(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             enter_quality_gate_retry,
         )
 
@@ -1024,7 +1024,7 @@ class TestEnterQualityGateRetry:
         assert result.sub_stage == "quality_gate_a_retry"
 
     def test_sets_retry_sub_stage_b(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             enter_quality_gate_retry,
         )
 
@@ -1036,7 +1036,7 @@ class TestEnterQualityGateRetry:
         assert result.sub_stage == "quality_gate_b_retry"
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             enter_quality_gate_retry,
         )
 
@@ -1050,7 +1050,7 @@ class TestEnterQualityGateRetry:
 
 class TestFailQualityGateToLadder:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             fail_quality_gate_to_ladder,
         )
 
@@ -1062,7 +1062,7 @@ class TestFailQualityGateToLadder:
         assert result is not state
 
     def test_gate_a_failure_enters_test_ladder(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             fail_quality_gate_to_ladder,
         )
 
@@ -1074,7 +1074,7 @@ class TestFailQualityGateToLadder:
         assert result.fix_ladder_position == "fresh_test"
 
     def test_gate_b_failure_enters_impl_ladder(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             fail_quality_gate_to_ladder,
         )
 
@@ -1086,7 +1086,7 @@ class TestFailQualityGateToLadder:
         assert result.fix_ladder_position == "fresh_impl"
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             fail_quality_gate_to_ladder,
         )
 
@@ -1106,7 +1106,7 @@ class TestFailQualityGateToLadder:
 
 class TestEnterRedoProfileRevision:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             enter_redo_profile_revision,
         )
 
@@ -1115,7 +1115,7 @@ class TestEnterRedoProfileRevision:
         assert result is not state
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             enter_redo_profile_revision,
         )
 
@@ -1127,7 +1127,7 @@ class TestEnterRedoProfileRevision:
 
 class TestCompleteRedoProfileRevision:
     def test_returns_new_state(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             complete_redo_profile_revision,
         )
 
@@ -1136,7 +1136,7 @@ class TestCompleteRedoProfileRevision:
         assert result is not state
 
     def test_does_not_mutate_input(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             complete_redo_profile_revision,
         )
 
@@ -1152,7 +1152,7 @@ class TestCompleteRedoProfileRevision:
 
 class TestUpdateStateFromStatus:
     def test_returns_new_state(self, tmp_path):
-        from src.unit_3.stub import (
+        from state_transitions import (
             update_state_from_status,
         )
 
@@ -1172,7 +1172,7 @@ class TestUpdateStateFromStatus:
         assert result is not state
 
     def test_does_not_mutate_input(self, tmp_path):
-        from src.unit_3.stub import (
+        from state_transitions import (
             update_state_from_status,
         )
 
@@ -1203,7 +1203,7 @@ class TestImmutabilityInvariant:
     and do not mutate the input."""
 
     def test_advance_stage_immutable(self, tmp_path):
-        from src.unit_3.stub import advance_stage
+        from state_transitions import advance_stage
 
         state = _make_state(stage="0")
         old_dict = state.to_dict()
@@ -1211,7 +1211,7 @@ class TestImmutabilityInvariant:
         assert state.to_dict() == old_dict
 
     def test_advance_sub_stage_immutable(self, tmp_path):
-        from src.unit_3.stub import advance_sub_stage
+        from state_transitions import advance_sub_stage
 
         state = _make_state(
             stage="3",
@@ -1222,7 +1222,7 @@ class TestImmutabilityInvariant:
         assert state.to_dict() == old_dict
 
     def test_complete_unit_immutable(self, tmp_path):
-        from src.unit_3.stub import complete_unit
+        from state_transitions import complete_unit
 
         state = _make_state(current_unit=1, total_units=5)
         old_dict = state.to_dict()
@@ -1230,7 +1230,7 @@ class TestImmutabilityInvariant:
         assert state.to_dict() == old_dict
 
     def test_advance_fix_ladder_immutable(self):
-        from src.unit_3.stub import advance_fix_ladder
+        from state_transitions import advance_fix_ladder
 
         state = _make_state(fix_ladder_position=None)
         old_dict = state.to_dict()
@@ -1238,7 +1238,7 @@ class TestImmutabilityInvariant:
         assert state.to_dict() == old_dict
 
     def test_enter_debug_session_immutable(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             enter_debug_session,
         )
 
@@ -1248,7 +1248,7 @@ class TestImmutabilityInvariant:
         assert state.to_dict() == old_dict
 
     def test_record_pass_end_immutable(self):
-        from src.unit_3.stub import record_pass_end
+        from state_transitions import record_pass_end
 
         state = _make_state(pass_history=[])
         old_dict = state.to_dict()
@@ -1256,7 +1256,7 @@ class TestImmutabilityInvariant:
         assert state.to_dict() == old_dict
 
     def test_set_delivered_repo_path_immutable(self):
-        from src.unit_3.stub import (
+        from state_transitions import (
             set_delivered_repo_path,
         )
 

@@ -287,6 +287,35 @@ def _safe_load_reference_summaries(project_root: Path) -> Optional[str]:
         return None
 
 
+def get_blueprint_dir(project_root: Path) -> Path:
+    """Return the blueprint directory path."""
+    return project_root / "blueprint"
+
+
+def load_lessons_learned_for_unit(project_root: Path, unit_number: int) -> str:
+    """Load lessons learned entries relevant to a specific unit.
+
+    Filters the lessons learned document to include only entries
+    tagged for the given unit or its dependencies.
+    Returns empty string when no lessons are found.
+    """
+    lessons_path = project_root / "lessons_learned.md"
+    if not lessons_path.exists():
+        return ""
+    content = lessons_path.read_text(encoding="utf-8")
+    # Return all content -- fine-grained filtering delegated to callers
+    # when dependency info is available
+    lines = content.splitlines()
+    filtered: List[str] = []
+    tag = f"[unit_{unit_number}]"
+    for line in lines:
+        if tag.lower() in line.lower():
+            filtered.append(line)
+    if not filtered:
+        return ""
+    return "\n".join(filtered)
+
+
 def _get_unit_context(project_root: Path, unit_number: int) -> str:
     """Get unit context via Unit 5 blueprint extractor."""
     try:

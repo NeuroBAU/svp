@@ -13,7 +13,7 @@ Synthetic data assumptions:
   clean, COMMAND_FAILED if residuals.
 """
 
-from src.unit_10.stub import (
+from routing import (
     run_quality_gate,
     run_quality_gate_main,
 )

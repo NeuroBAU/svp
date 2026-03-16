@@ -20,6 +20,7 @@ import socket
 # Constants
 # ---------------------------------------------------------------------------
 
+PROFILE_FILE: str = "project_profile.json"
 RESTART_SIGNAL_FILE: str = ".svp/restart_signal"
 STATE_FILE: str = "pipeline_state.json"
 CONFIG_FILE: str = "svp_config.json"

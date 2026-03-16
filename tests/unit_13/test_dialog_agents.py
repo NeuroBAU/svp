@@ -6,7 +6,7 @@ Markdown content strings for setup_agent,
 stakeholder_dialog_agent, and blueprint_author_agent.
 """
 
-from src.unit_13.stub import (
+from dialog_agents import (
     BLUEPRINT_AUTHOR_AGENT_FRONTMATTER,
     BLUEPRINT_AUTHOR_AGENT_MD_CONTENT,
     BLUEPRINT_AUTHOR_STATUS,

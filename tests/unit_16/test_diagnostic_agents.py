@@ -6,7 +6,7 @@ Verifies frontmatter, status lists, and MD content for
 diagnostic_agent and redo_agent.
 """
 
-from src.unit_16.stub import (
+from diagnostic_agents import (
     DIAGNOSTIC_AGENT_FRONTMATTER,
     DIAGNOSTIC_AGENT_MD_CONTENT,
     DIAGNOSTIC_AGENT_STATUS,

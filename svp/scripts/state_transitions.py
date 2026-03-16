@@ -812,6 +812,42 @@ def quality_gate_fail_to_ladder(state: PipelineState) -> PipelineState:
             return new_state
 
 
+def enter_quality_gate_retry(
+    state: PipelineState,
+    retry_sub_stage: str,
+) -> PipelineState:
+    """Enter quality gate retry with an explicit target sub-stage."""
+    new_state = _clone_state(state)
+    new_state.sub_stage = retry_sub_stage
+    new_state.last_action = f"Entered quality gate retry: {retry_sub_stage}"
+    return new_state
+
+
+def advance_from_quality_gate(
+    state: PipelineState,
+    target_sub_stage: str,
+) -> PipelineState:
+    """Advance from quality gate to a target sub-stage."""
+    new_state = _clone_state(state)
+    new_state.sub_stage = target_sub_stage
+    new_state.last_action = f"Advanced from quality gate to {target_sub_stage}"
+    return new_state
+
+
+def fail_quality_gate_to_ladder(
+    state: PipelineState,
+    new_position: str,
+) -> PipelineState:
+    """Handle quality gate failure with an explicit ladder position."""
+    new_state = _clone_state(state)
+    new_state.fix_ladder_position = new_position
+    new_state.sub_stage = None
+    new_state.last_action = (
+        f"Quality gate failed, entered fix ladder at {new_position}"
+    )
+    return new_state
+
+
 # --- Delivered repo path (NEW IN 2.1) ---
 
 def set_delivered_repo_path(state: PipelineState, repo_path: str) -> PipelineState:

@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from src.unit_24.stub import (
+from svp_launcher import (
     CLAUDE_MD_FILE,
     CONFIG_FILE,
     MARKERS_DIR,

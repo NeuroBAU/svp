@@ -26,7 +26,7 @@ class TestLedgerEntryInit:
 
     def test_init_required_fields(self):
         """Construct with role and content only."""
-        from src.unit_4.ledger_manager import LedgerEntry
+        from ledger_manager import LedgerEntry
 
         entry = LedgerEntry(role="user", content="hi")
         assert entry.role == "user"
@@ -34,7 +34,7 @@ class TestLedgerEntryInit:
 
     def test_init_with_timestamp(self):
         """Explicit timestamp is stored."""
-        from src.unit_4.ledger_manager import LedgerEntry
+        from ledger_manager import LedgerEntry
 
         ts = "2026-03-15T12:00:00"
         entry = LedgerEntry(role="assistant", content="ok", timestamp=ts)
@@ -42,7 +42,7 @@ class TestLedgerEntryInit:
 
     def test_init_default_timestamp(self):
         """Omitted timestamp gets auto-populated."""
-        from src.unit_4.ledger_manager import LedgerEntry
+        from ledger_manager import LedgerEntry
 
         entry = LedgerEntry(role="user", content="x")
         assert entry.timestamp is not None
@@ -51,14 +51,14 @@ class TestLedgerEntryInit:
 
     def test_init_metadata_none(self):
         """Metadata defaults to None."""
-        from src.unit_4.ledger_manager import LedgerEntry
+        from ledger_manager import LedgerEntry
 
         entry = LedgerEntry(role="user", content="x")
         assert entry.metadata is None
 
     def test_init_metadata_dict(self):
         """Metadata stores provided dict."""
-        from src.unit_4.ledger_manager import LedgerEntry
+        from ledger_manager import LedgerEntry
 
         meta = {"key": "value"}
         entry = LedgerEntry(role="user", content="x", metadata=meta)
@@ -70,7 +70,7 @@ class TestLedgerEntryToDict:
 
     def test_to_dict_keys(self):
         """to_dict returns dict with expected keys."""
-        from src.unit_4.ledger_manager import LedgerEntry
+        from ledger_manager import LedgerEntry
 
         entry = LedgerEntry(role="user", content="hello")
         d = entry.to_dict()
@@ -81,7 +81,7 @@ class TestLedgerEntryToDict:
 
     def test_to_dict_values(self):
         """to_dict preserves field values."""
-        from src.unit_4.ledger_manager import LedgerEntry
+        from ledger_manager import LedgerEntry
 
         ts = "2026-01-01T00:00:00"
         entry = LedgerEntry(
@@ -102,7 +102,7 @@ class TestLedgerEntryFromDict:
 
     def test_from_dict_roundtrip(self):
         """from_dict(to_dict()) reproduces original."""
-        from src.unit_4.ledger_manager import LedgerEntry
+        from ledger_manager import LedgerEntry
 
         original = LedgerEntry(
             role="user",
@@ -118,7 +118,7 @@ class TestLedgerEntryFromDict:
 
     def test_from_dict_minimal(self):
         """from_dict works with minimal dict."""
-        from src.unit_4.ledger_manager import LedgerEntry
+        from ledger_manager import LedgerEntry
 
         data = {
             "role": "user",
@@ -140,7 +140,7 @@ class TestAppendEntry:
 
     def test_creates_file_if_not_exists(self, tmp_path):
         """Contract: creates file if not exists."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
         )
@@ -153,7 +153,7 @@ class TestAppendEntry:
 
     def test_appends_to_existing(self, tmp_path):
         """Append adds entry to existing ledger."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             read_ledger,
@@ -171,7 +171,7 @@ class TestAppendEntry:
 
     def test_append_preserves_existing(self, tmp_path):
         """Existing entries remain after append."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             read_ledger,
@@ -199,7 +199,7 @@ class TestReadLedger:
 
     def test_nonexistent_returns_empty(self, tmp_path):
         """Contract: empty list for missing file."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             read_ledger,
         )
 
@@ -208,7 +208,7 @@ class TestReadLedger:
 
     def test_empty_file_returns_empty(self, tmp_path):
         """Contract: empty list for empty file."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             read_ledger,
         )
 
@@ -219,7 +219,7 @@ class TestReadLedger:
 
     def test_reads_entries(self, tmp_path):
         """Reads back written entries."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             read_ledger,
@@ -237,7 +237,7 @@ class TestReadLedger:
 
     def test_returns_ledger_entry_instances(self, tmp_path):
         """Each item is a LedgerEntry."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             read_ledger,
@@ -262,7 +262,7 @@ class TestClearLedger:
 
     def test_clears_existing_ledger(self, tmp_path):
         """After clear, read returns empty."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             clear_ledger,
@@ -279,7 +279,7 @@ class TestClearLedger:
 
     def test_clear_nonexistent_no_error(self, tmp_path):
         """Clearing missing file does not raise."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             clear_ledger,
         )
 
@@ -296,7 +296,7 @@ class TestRenameLedger:
 
     def test_rename_returns_new_path(self, tmp_path):
         """Returns the new Path after rename."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             rename_ledger,
@@ -314,7 +314,7 @@ class TestRenameLedger:
 
     def test_rename_removes_old(self, tmp_path):
         """Old path no longer exists after rename."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             rename_ledger,
@@ -330,7 +330,7 @@ class TestRenameLedger:
 
     def test_rename_preserves_content(self, tmp_path):
         """Content is preserved after rename."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             read_ledger,
@@ -358,7 +358,7 @@ class TestGetLedgerSizeChars:
 
     def test_returns_int(self, tmp_path):
         """Returns an integer."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             get_ledger_size_chars,
@@ -375,7 +375,7 @@ class TestGetLedgerSizeChars:
 
     def test_size_increases_with_content(self, tmp_path):
         """More content means larger size."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             get_ledger_size_chars,
@@ -405,7 +405,7 @@ class TestCheckLedgerCapacity:
 
     def test_returns_tuple(self, tmp_path):
         """Returns (float, Optional[str])."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             check_ledger_capacity,
@@ -424,7 +424,7 @@ class TestCheckLedgerCapacity:
 
     def test_small_ledger_low_ratio(self, tmp_path):
         """Small ledger has low capacity ratio."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             check_ledger_capacity,
@@ -440,7 +440,7 @@ class TestCheckLedgerCapacity:
 
     def test_near_capacity_warning(self, tmp_path):
         """Near-capacity ledger may produce warning."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             check_ledger_capacity,
@@ -466,7 +466,7 @@ class TestCompactLedger:
 
     def test_returns_int(self, tmp_path):
         """Returns count of compacted entries."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             compact_ledger,
@@ -483,7 +483,7 @@ class TestCompactLedger:
     def test_long_tagged_body_deleted(self, tmp_path):
         """Contract: tagged lines above threshold
         have body deleted."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             compact_ledger,
@@ -507,7 +507,7 @@ class TestCompactLedger:
     def test_short_tagged_preserved(self, tmp_path):
         """Contract: tagged lines at or below threshold
         are preserved."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             compact_ledger,
@@ -528,7 +528,7 @@ class TestCompactLedger:
     def test_hint_always_preserved(self, tmp_path):
         """Contract: [HINT] entries always preserved
         verbatim."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             compact_ledger,
@@ -548,7 +548,7 @@ class TestCompactLedger:
 
     def test_default_threshold_200(self, tmp_path):
         """Default character_threshold is 200."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             LedgerEntry,
             append_entry,
             compact_ledger,
@@ -578,7 +578,7 @@ class TestWriteHintEntry:
 
     def test_writes_hint_to_ledger(self, tmp_path):
         """Creates a hint entry in the ledger."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             read_ledger,
             write_hint_entry,
         )
@@ -597,7 +597,7 @@ class TestWriteHintEntry:
 
     def test_hint_contains_content(self, tmp_path):
         """Hint content is findable in entry."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             read_ledger,
             write_hint_entry,
         )
@@ -617,7 +617,7 @@ class TestWriteHintEntry:
 
     def test_hint_has_hint_tag(self, tmp_path):
         """Written hint entry uses [HINT] tag."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             read_ledger,
             write_hint_entry,
         )
@@ -637,7 +637,7 @@ class TestWriteHintEntry:
 
     def test_hint_unit_number_none(self, tmp_path):
         """unit_number=None is valid."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             write_hint_entry,
         )
 
@@ -662,7 +662,7 @@ class TestExtractTaggedLines:
 
     def test_returns_list_of_tuples(self):
         """Returns List[Tuple[str, str]]."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             extract_tagged_lines,
         )
 
@@ -674,7 +674,7 @@ class TestExtractTaggedLines:
 
     def test_extracts_tag_and_body(self):
         """Parses tag and body from tagged line."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             extract_tagged_lines,
         )
 
@@ -686,7 +686,7 @@ class TestExtractTaggedLines:
 
     def test_multiple_tagged_lines(self):
         """Parses multiple tagged lines."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             extract_tagged_lines,
         )
 
@@ -696,7 +696,7 @@ class TestExtractTaggedLines:
 
     def test_no_tagged_lines(self):
         """No tags returns empty list."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             extract_tagged_lines,
         )
 
@@ -705,7 +705,7 @@ class TestExtractTaggedLines:
 
     def test_hint_tag_extracted(self):
         """[HINT] lines are extractable."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             extract_tagged_lines,
         )
 
@@ -716,7 +716,7 @@ class TestExtractTaggedLines:
 
     def test_empty_string(self):
         """Empty input returns empty list."""
-        from src.unit_4.ledger_manager import (
+        from ledger_manager import (
             extract_tagged_lines,
         )
 

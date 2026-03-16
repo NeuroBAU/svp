@@ -5,7 +5,7 @@ Verifies frontmatter, status lists, and MD content for
 bug_triage_agent and repair_agent.
 """
 
-from src.unit_19.stub import (
+from debug_agents import (
     BUG_TRIAGE_AGENT_MD_CONTENT,
     BUG_TRIAGE_FRONTMATTER,
     BUG_TRIAGE_STATUS,

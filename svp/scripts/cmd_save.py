@@ -365,6 +365,66 @@ def remove_conda_env(env_name: str) -> bool:
     return True
 
 
+# ===========================================================================
+# cmd_*_main entry points (Unit 11 public API)
+# ===========================================================================
+
+
+def cmd_save_main(project_root: Path) -> None:
+    """Entry point for /save command."""
+    if not project_root.is_dir():
+        raise RuntimeError(f"Project root not found: {project_root}")
+    msg = save_project(project_root)
+    print(msg)
+
+
+def cmd_quit_main(project_root: Path) -> None:
+    """Entry point for /quit command: save then exit."""
+    if not project_root.is_dir():
+        raise RuntimeError(f"Project root not found: {project_root}")
+    msg = quit_project(project_root)
+    print(msg)
+    raise SystemExit(0)
+
+
+def cmd_status_main(project_root: Path) -> None:
+    """Entry point for /status command."""
+    if not project_root.is_dir():
+        raise RuntimeError(f"Project root not found: {project_root}")
+    print(get_status(project_root))
+
+
+def cmd_clean_main(project_root: Path) -> None:
+    """Entry point for /clean command.
+
+    Checks Stage 5 completion and presents clean options.
+    """
+    if not project_root.is_dir():
+        raise RuntimeError("Cannot clean: workspace not found")
+    state_path = project_root / "pipeline_state.json"
+    if not state_path.exists():
+        print("Cannot clean: no pipeline state found.")
+        return
+    try:
+        state_data = json.loads(state_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        print("Cannot clean: failed to read pipeline state.")
+        return
+    if state_data.get("stage") != "5":
+        stage = state_data.get("stage", "unknown")
+        print(
+            f"Cannot clean: Stage 5 not complete "
+            f"(currently at stage {stage})."
+        )
+        return
+    print("Workspace cleanup options:")
+    print("  1. archive - Zip and remove workspace")
+    print("  2. delete  - Remove workspace")
+    print("  3. keep    - Keep workspace, remove env")
+    print()
+    print("Use: cmd_clean --mode <archive|delete|keep>")
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="SVP Save Command")

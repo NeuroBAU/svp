@@ -9,7 +9,7 @@ functions.
 
 import json
 
-from src.unit_23.stub import (
+from compliance_scan import (
     MARKETPLACE_JSON,
     MARKETPLACE_JSON_CONTENT,
     PLUGIN_JSON,

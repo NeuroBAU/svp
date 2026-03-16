@@ -6,7 +6,7 @@ reference_indexing_agent, integration_test_author,
 and git_repo_agent.
 """
 
-from src.unit_18.stub import (
+from utility_agents import (
     GIT_REPO_AGENT_FRONTMATTER,
     GIT_REPO_AGENT_MD_CONTENT,
     GIT_REPO_AGENT_STATUS,

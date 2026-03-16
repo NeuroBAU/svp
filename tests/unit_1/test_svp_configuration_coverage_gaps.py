@@ -32,13 +32,13 @@ import pytest
 
 class TestDiscoverBlueprintFiles:
     def test_raises_file_not_found_when_directory_missing(self, tmp_path):
-        from src.unit_1.stub import discover_blueprint_files
+        from svp_config import discover_blueprint_files
 
         with pytest.raises(FileNotFoundError, match="not found"):
             discover_blueprint_files(tmp_path)
 
     def test_raises_file_not_found_when_no_md_files(self, tmp_path):
-        from src.unit_1.stub import discover_blueprint_files
+        from svp_config import discover_blueprint_files
 
         blueprint_dir = tmp_path / "blueprint"
         blueprint_dir.mkdir()
@@ -49,7 +49,7 @@ class TestDiscoverBlueprintFiles:
             discover_blueprint_files(tmp_path)
 
     def test_returns_sorted_list_of_paths(self, tmp_path):
-        from src.unit_1.stub import discover_blueprint_files
+        from svp_config import discover_blueprint_files
 
         blueprint_dir = tmp_path / "blueprint"
         blueprint_dir.mkdir()
@@ -66,7 +66,7 @@ class TestDiscoverBlueprintFiles:
     def test_returns_path_objects(self, tmp_path):
         from pathlib import Path
 
-        from src.unit_1.stub import discover_blueprint_files
+        from svp_config import discover_blueprint_files
 
         blueprint_dir = tmp_path / "blueprint"
         blueprint_dir.mkdir()
@@ -77,7 +77,7 @@ class TestDiscoverBlueprintFiles:
         assert all(isinstance(p, Path) for p in result)
 
     def test_handles_single_file(self, tmp_path):
-        from src.unit_1.stub import discover_blueprint_files
+        from svp_config import discover_blueprint_files
 
         blueprint_dir = tmp_path / "blueprint"
         blueprint_dir.mkdir()
@@ -89,7 +89,7 @@ class TestDiscoverBlueprintFiles:
         assert result[0].name == "blueprint.md"
 
     def test_handles_multiple_files(self, tmp_path):
-        from src.unit_1.stub import discover_blueprint_files
+        from svp_config import discover_blueprint_files
 
         blueprint_dir = tmp_path / "blueprint"
         blueprint_dir.mkdir()
@@ -101,7 +101,7 @@ class TestDiscoverBlueprintFiles:
         assert len(result) == 2
 
     def test_ignores_non_md_files(self, tmp_path):
-        from src.unit_1.stub import discover_blueprint_files
+        from svp_config import discover_blueprint_files
 
         blueprint_dir = tmp_path / "blueprint"
         blueprint_dir.mkdir()
@@ -117,7 +117,7 @@ class TestDiscoverBlueprintFiles:
 
 class TestLoadBlueprintContent:
     def test_loads_single_file_content(self, tmp_path):
-        from src.unit_1.stub import load_blueprint_content
+        from svp_config import load_blueprint_content
 
         blueprint_dir = tmp_path / "blueprint"
         blueprint_dir.mkdir()
@@ -129,7 +129,7 @@ class TestLoadBlueprintContent:
         assert "Content here." in result
 
     def test_concatenates_multiple_files_with_separator(self, tmp_path):
-        from src.unit_1.stub import load_blueprint_content
+        from svp_config import load_blueprint_content
 
         blueprint_dir = tmp_path / "blueprint"
         blueprint_dir.mkdir()
@@ -143,13 +143,13 @@ class TestLoadBlueprintContent:
         assert "\n\n---\n\n" in result
 
     def test_raises_file_not_found_when_directory_missing(self, tmp_path):
-        from src.unit_1.stub import load_blueprint_content
+        from svp_config import load_blueprint_content
 
         with pytest.raises(FileNotFoundError):
             load_blueprint_content(tmp_path)
 
     def test_raises_file_not_found_when_no_md_files(self, tmp_path):
-        from src.unit_1.stub import load_blueprint_content
+        from svp_config import load_blueprint_content
 
         blueprint_dir = tmp_path / "blueprint"
         blueprint_dir.mkdir()
@@ -158,7 +158,7 @@ class TestLoadBlueprintContent:
             load_blueprint_content(tmp_path)
 
     def test_files_are_ordered_alphabetically(self, tmp_path):
-        from src.unit_1.stub import load_blueprint_content
+        from svp_config import load_blueprint_content
 
         blueprint_dir = tmp_path / "blueprint"
         blueprint_dir.mkdir()
@@ -179,14 +179,14 @@ class TestLoadBlueprintContent:
 
 class TestValidateConfigInvariants:
     def test_rejects_missing_iteration_limit(self):
-        from src.unit_1.stub import DEFAULT_CONFIG, validate_config
+        from svp_config import DEFAULT_CONFIG, validate_config
 
         config = {k: v for k, v in DEFAULT_CONFIG.items() if k != "iteration_limit"}
         errors = validate_config(config)
         assert any("iteration_limit" in e for e in errors)
 
     def test_rejects_iteration_limit_less_than_one(self):
-        from src.unit_1.stub import DEFAULT_CONFIG, validate_config
+        from svp_config import DEFAULT_CONFIG, validate_config
 
         config = DEFAULT_CONFIG.copy()
         config["iteration_limit"] = 0
@@ -194,7 +194,7 @@ class TestValidateConfigInvariants:
         assert any("iteration_limit" in e for e in errors)
 
     def test_rejects_negative_iteration_limit(self):
-        from src.unit_1.stub import DEFAULT_CONFIG, validate_config
+        from svp_config import DEFAULT_CONFIG, validate_config
 
         config = DEFAULT_CONFIG.copy()
         config["iteration_limit"] = -5
@@ -202,14 +202,14 @@ class TestValidateConfigInvariants:
         assert any("iteration_limit" in e for e in errors)
 
     def test_rejects_missing_models(self):
-        from src.unit_1.stub import DEFAULT_CONFIG, validate_config
+        from svp_config import DEFAULT_CONFIG, validate_config
 
         config = {k: v for k, v in DEFAULT_CONFIG.items() if k != "models"}
         errors = validate_config(config)
         assert any("models" in e for e in errors)
 
     def test_rejects_models_without_default_key(self):
-        from src.unit_1.stub import DEFAULT_CONFIG, validate_config
+        from svp_config import DEFAULT_CONFIG, validate_config
 
         config = DEFAULT_CONFIG.copy()
         config["models"] = {"test_agent": "claude-opus-4-6"}
@@ -217,7 +217,7 @@ class TestValidateConfigInvariants:
         assert any("default" in e for e in errors)
 
     def test_rejects_context_budget_threshold_zero(self):
-        from src.unit_1.stub import DEFAULT_CONFIG, validate_config
+        from svp_config import DEFAULT_CONFIG, validate_config
 
         config = DEFAULT_CONFIG.copy()
         config["context_budget_threshold"] = 0
@@ -225,7 +225,7 @@ class TestValidateConfigInvariants:
         assert any("context_budget_threshold" in e for e in errors)
 
     def test_rejects_context_budget_threshold_over_100(self):
-        from src.unit_1.stub import DEFAULT_CONFIG, validate_config
+        from svp_config import DEFAULT_CONFIG, validate_config
 
         config = DEFAULT_CONFIG.copy()
         config["context_budget_threshold"] = 101
@@ -233,7 +233,7 @@ class TestValidateConfigInvariants:
         assert any("context_budget_threshold" in e for e in errors)
 
     def test_accepts_context_budget_threshold_in_range(self):
-        from src.unit_1.stub import DEFAULT_CONFIG, validate_config
+        from svp_config import DEFAULT_CONFIG, validate_config
 
         config = DEFAULT_CONFIG.copy()
         config["context_budget_threshold"] = 50
@@ -241,7 +241,7 @@ class TestValidateConfigInvariants:
         assert not any("context_budget_threshold" in e for e in errors)
 
     def test_rejects_negative_compaction_threshold(self):
-        from src.unit_1.stub import DEFAULT_CONFIG, validate_config
+        from svp_config import DEFAULT_CONFIG, validate_config
 
         config = DEFAULT_CONFIG.copy()
         config["compaction_character_threshold"] = -1
@@ -249,7 +249,7 @@ class TestValidateConfigInvariants:
         assert any("compaction_character_threshold" in e for e in errors)
 
     def test_rejects_non_boolean_skip_permissions(self):
-        from src.unit_1.stub import DEFAULT_CONFIG, validate_config
+        from svp_config import DEFAULT_CONFIG, validate_config
 
         config = DEFAULT_CONFIG.copy()
         config["skip_permissions"] = "yes"
@@ -264,7 +264,7 @@ class TestValidateConfigInvariants:
 
 class TestGetEffectiveContextBudgetDetails:
     def test_computes_from_smallest_model_window_minus_overhead(self):
-        from src.unit_1.stub import (
+        from svp_config import (
             _CONTEXT_OVERHEAD,
             _MODEL_CONTEXT_WINDOWS,
             get_effective_context_budget,
@@ -282,7 +282,7 @@ class TestGetEffectiveContextBudgetDetails:
         assert result == expected_window - _CONTEXT_OVERHEAD
 
     def test_picks_smallest_window_with_mixed_models(self):
-        from src.unit_1.stub import (
+        from svp_config import (
             _CONTEXT_OVERHEAD,
             get_effective_context_budget,
         )
@@ -300,7 +300,7 @@ class TestGetEffectiveContextBudgetDetails:
         assert result == 200000 - _CONTEXT_OVERHEAD
 
     def test_override_takes_precedence_over_computation(self):
-        from src.unit_1.stub import get_effective_context_budget
+        from svp_config import get_effective_context_budget
 
         config = {
             "context_budget_override": 42000,
@@ -319,7 +319,7 @@ class TestGetEffectiveContextBudgetDetails:
 
 class TestConfigNoCaching:
     def test_config_changes_on_disk_take_effect_on_next_load(self, tmp_path):
-        from src.unit_1.stub import load_config
+        from svp_config import load_config
 
         config_v1 = {"iteration_limit": 5}
         (tmp_path / "svp_config.json").write_text(json.dumps(config_v1))
@@ -339,7 +339,7 @@ class TestConfigNoCaching:
 
 class TestLoadProfileDeepMerge:
     def test_deep_merge_fills_missing_nested_keys(self, tmp_path):
-        from src.unit_1.stub import DEFAULT_PROFILE, load_profile
+        from svp_config import DEFAULT_PROFILE, load_profile
 
         partial = {
             "pipeline_toolchain": "python_conda_pytest",
@@ -360,7 +360,7 @@ class TestLoadProfileDeepMerge:
         assert result["delivery"]["entry_points"] == DEFAULT_PROFILE["delivery"]["entry_points"]
 
     def test_deep_merge_fills_entire_missing_sections(self, tmp_path):
-        from src.unit_1.stub import DEFAULT_PROFILE, load_profile
+        from svp_config import DEFAULT_PROFILE, load_profile
 
         partial = {
             "pipeline_toolchain": "python_conda_pytest",
@@ -386,7 +386,7 @@ class TestLoadProfileDeepMerge:
 
 class TestDetectProfileContradictionsSpecific:
     def test_detects_env_recommendation_vs_pipeline_environment_conflict(self):
-        from src.unit_1.stub import DEFAULT_PROFILE, detect_profile_contradictions
+        from svp_config import DEFAULT_PROFILE, detect_profile_contradictions
 
         profile = copy.deepcopy(DEFAULT_PROFILE)
         profile["delivery"]["environment_recommendation"] = "venv"
@@ -398,7 +398,7 @@ class TestDetectProfileContradictionsSpecific:
         assert any("environment_recommendation" in c for c in result)
 
     def test_no_contradiction_when_env_recommendation_is_none(self):
-        from src.unit_1.stub import DEFAULT_PROFILE, detect_profile_contradictions
+        from svp_config import DEFAULT_PROFILE, detect_profile_contradictions
 
         profile = copy.deepcopy(DEFAULT_PROFILE)
         profile["delivery"]["environment_recommendation"] = "none"
@@ -412,7 +412,7 @@ class TestDetectProfileContradictionsSpecific:
         assert len(env_contradictions) == 0
 
     def test_no_contradiction_when_env_matches_pipeline(self):
-        from src.unit_1.stub import DEFAULT_PROFILE, detect_profile_contradictions
+        from svp_config import DEFAULT_PROFILE, detect_profile_contradictions
 
         profile = copy.deepcopy(DEFAULT_PROFILE)
         profile["delivery"]["environment_recommendation"] = "conda"
@@ -426,7 +426,7 @@ class TestDetectProfileContradictionsSpecific:
         assert len(env_contradictions) == 0
 
     def test_detects_linter_none_vs_pipeline_tools_ruff(self):
-        from src.unit_1.stub import DEFAULT_PROFILE, detect_profile_contradictions
+        from svp_config import DEFAULT_PROFILE, detect_profile_contradictions
 
         profile = copy.deepcopy(DEFAULT_PROFILE)
         profile["quality"]["linter"] = "none"
@@ -438,7 +438,7 @@ class TestDetectProfileContradictionsSpecific:
         assert any("linter" in c for c in result)
 
     def test_detects_type_checker_none_vs_pipeline_tools_mypy(self):
-        from src.unit_1.stub import DEFAULT_PROFILE, detect_profile_contradictions
+        from svp_config import DEFAULT_PROFILE, detect_profile_contradictions
 
         profile = copy.deepcopy(DEFAULT_PROFILE)
         profile["quality"]["type_checker"] = "none"
@@ -457,49 +457,49 @@ class TestDetectProfileContradictionsSpecific:
 
 class TestValidateProfileRequiredSections:
     def test_rejects_missing_delivery_section(self):
-        from src.unit_1.stub import DEFAULT_PROFILE, validate_profile
+        from svp_config import DEFAULT_PROFILE, validate_profile
 
         profile = {k: v for k, v in DEFAULT_PROFILE.items() if k != "delivery"}
         errors = validate_profile(profile)
         assert any("delivery" in e.lower() for e in errors)
 
     def test_rejects_missing_vcs_section(self):
-        from src.unit_1.stub import DEFAULT_PROFILE, validate_profile
+        from svp_config import DEFAULT_PROFILE, validate_profile
 
         profile = {k: v for k, v in DEFAULT_PROFILE.items() if k != "vcs"}
         errors = validate_profile(profile)
         assert any("vcs" in e.lower() for e in errors)
 
     def test_rejects_missing_readme_section(self):
-        from src.unit_1.stub import DEFAULT_PROFILE, validate_profile
+        from svp_config import DEFAULT_PROFILE, validate_profile
 
         profile = {k: v for k, v in DEFAULT_PROFILE.items() if k != "readme"}
         errors = validate_profile(profile)
         assert any("readme" in e.lower() for e in errors)
 
     def test_rejects_missing_testing_section(self):
-        from src.unit_1.stub import DEFAULT_PROFILE, validate_profile
+        from svp_config import DEFAULT_PROFILE, validate_profile
 
         profile = {k: v for k, v in DEFAULT_PROFILE.items() if k != "testing"}
         errors = validate_profile(profile)
         assert any("testing" in e.lower() for e in errors)
 
     def test_rejects_missing_license_section(self):
-        from src.unit_1.stub import DEFAULT_PROFILE, validate_profile
+        from svp_config import DEFAULT_PROFILE, validate_profile
 
         profile = {k: v for k, v in DEFAULT_PROFILE.items() if k != "license"}
         errors = validate_profile(profile)
         assert any("license" in e.lower() for e in errors)
 
     def test_rejects_missing_quality_section(self):
-        from src.unit_1.stub import DEFAULT_PROFILE, validate_profile
+        from svp_config import DEFAULT_PROFILE, validate_profile
 
         profile = {k: v for k, v in DEFAULT_PROFILE.items() if k != "quality"}
         errors = validate_profile(profile)
         assert any("quality" in e.lower() for e in errors)
 
     def test_rejects_missing_fixed_section(self):
-        from src.unit_1.stub import DEFAULT_PROFILE, validate_profile
+        from svp_config import DEFAULT_PROFILE, validate_profile
 
         profile = {k: v for k, v in DEFAULT_PROFILE.items() if k != "fixed"}
         errors = validate_profile(profile)
@@ -513,7 +513,7 @@ class TestValidateProfileRequiredSections:
 
 class TestGetQualityGateOperations:
     def test_raises_value_error_for_unknown_gate(self):
-        from src.unit_1.stub import get_gate_operations
+        from svp_config import get_gate_operations
 
         from tests.unit_1.test_svp_configuration import MINIMAL_VALID_TOOLCHAIN
 
@@ -521,7 +521,7 @@ class TestGetQualityGateOperations:
             get_gate_operations(MINIMAL_VALID_TOOLCHAIN, "gate_z")
 
     def test_alias_get_quality_gate_operations_works(self):
-        from src.unit_1.stub import get_quality_gate_operations
+        from svp_config import get_quality_gate_operations
 
         from tests.unit_1.test_svp_configuration import MINIMAL_VALID_TOOLCHAIN
 
@@ -530,7 +530,7 @@ class TestGetQualityGateOperations:
         assert len(result) > 0
 
     def test_alias_is_same_function(self):
-        from src.unit_1.stub import get_gate_operations, get_quality_gate_operations
+        from svp_config import get_gate_operations, get_quality_gate_operations
 
         assert get_quality_gate_operations is get_gate_operations
 
@@ -542,7 +542,7 @@ class TestGetQualityGateOperations:
 
 class TestResolveCommandEdgeCases:
     def test_raises_value_error_for_nonexistent_operation(self):
-        from src.unit_1.stub import resolve_command
+        from svp_config import resolve_command
 
         from tests.unit_1.test_svp_configuration import MINIMAL_VALID_TOOLCHAIN
 
@@ -550,7 +550,7 @@ class TestResolveCommandEdgeCases:
             resolve_command(MINIMAL_VALID_TOOLCHAIN, "nonexistent.path", {})
 
     def test_raises_value_error_when_operation_is_not_string(self):
-        from src.unit_1.stub import resolve_command
+        from svp_config import resolve_command
 
         from tests.unit_1.test_svp_configuration import MINIMAL_VALID_TOOLCHAIN
 
@@ -558,7 +558,7 @@ class TestResolveCommandEdgeCases:
             resolve_command(MINIMAL_VALID_TOOLCHAIN, "testing", {})
 
     def test_resolved_command_contains_no_braces(self):
-        from src.unit_1.stub import resolve_command
+        from svp_config import resolve_command
 
         from tests.unit_1.test_svp_configuration import MINIMAL_VALID_TOOLCHAIN
 
@@ -571,7 +571,7 @@ class TestResolveCommandEdgeCases:
         assert "}" not in result
 
     def test_resolved_command_is_a_string(self):
-        from src.unit_1.stub import resolve_command
+        from svp_config import resolve_command
 
         from tests.unit_1.test_svp_configuration import MINIMAL_VALID_TOOLCHAIN
 
@@ -590,7 +590,7 @@ class TestResolveCommandEdgeCases:
 
 class TestValidateToolchainPlaceholders:
     def test_detects_unrecognized_placeholder_in_template(self):
-        from src.unit_1.stub import validate_toolchain
+        from svp_config import validate_toolchain
 
         toolchain_with_bad_placeholder = {
             "environment": {
@@ -623,25 +623,25 @@ class TestValidateToolchainPlaceholders:
 
 class TestDeriveEnvNameInvariants:
     def test_result_contains_no_spaces(self):
-        from src.unit_1.stub import derive_env_name
+        from svp_config import derive_env_name
 
         result = derive_env_name("My Cool Project Name")
         assert " " not in result
 
     def test_result_contains_no_hyphens(self):
-        from src.unit_1.stub import derive_env_name
+        from svp_config import derive_env_name
 
         result = derive_env_name("my-cool-project-name")
         assert "-" not in result
 
     def test_result_is_lowercase(self):
-        from src.unit_1.stub import derive_env_name
+        from svp_config import derive_env_name
 
         result = derive_env_name("MyPROJECT")
         assert result == result.lower()
 
     def test_canonical_derivation_formula(self):
-        from src.unit_1.stub import derive_env_name
+        from svp_config import derive_env_name
 
         name = "My Cool-Project"
         expected = name.lower().replace(" ", "_").replace("-", "_")
@@ -657,7 +657,7 @@ class TestDefaultProfileKeyPaths:
     """Verify every key path in DEFAULT_PROFILE matches the canonical schema."""
 
     def test_top_level_keys(self):
-        from src.unit_1.stub import DEFAULT_PROFILE
+        from svp_config import DEFAULT_PROFILE
 
         expected_top_level = {
             "pipeline_toolchain",
@@ -674,7 +674,7 @@ class TestDefaultProfileKeyPaths:
         assert set(DEFAULT_PROFILE.keys()) == expected_top_level
 
     def test_delivery_keys(self):
-        from src.unit_1.stub import DEFAULT_PROFILE
+        from svp_config import DEFAULT_PROFILE
 
         expected = {
             "environment_recommendation",
@@ -685,7 +685,7 @@ class TestDefaultProfileKeyPaths:
         assert set(DEFAULT_PROFILE["delivery"].keys()) == expected
 
     def test_vcs_keys(self):
-        from src.unit_1.stub import DEFAULT_PROFILE
+        from svp_config import DEFAULT_PROFILE
 
         expected = {
             "commit_style",
@@ -699,7 +699,7 @@ class TestDefaultProfileKeyPaths:
         assert set(DEFAULT_PROFILE["vcs"].keys()) == expected
 
     def test_readme_keys(self):
-        from src.unit_1.stub import DEFAULT_PROFILE
+        from svp_config import DEFAULT_PROFILE
 
         expected = {
             "audience",
@@ -718,7 +718,7 @@ class TestDefaultProfileKeyPaths:
         assert set(DEFAULT_PROFILE["readme"].keys()) == expected
 
     def test_testing_keys(self):
-        from src.unit_1.stub import DEFAULT_PROFILE
+        from svp_config import DEFAULT_PROFILE
 
         expected = {
             "coverage_target",
@@ -728,7 +728,7 @@ class TestDefaultProfileKeyPaths:
         assert set(DEFAULT_PROFILE["testing"].keys()) == expected
 
     def test_license_keys(self):
-        from src.unit_1.stub import DEFAULT_PROFILE
+        from svp_config import DEFAULT_PROFILE
 
         expected = {
             "type",
@@ -742,13 +742,13 @@ class TestDefaultProfileKeyPaths:
         assert set(DEFAULT_PROFILE["license"].keys()) == expected
 
     def test_license_additional_metadata_keys(self):
-        from src.unit_1.stub import DEFAULT_PROFILE
+        from svp_config import DEFAULT_PROFILE
 
         expected = {"citation", "funding", "acknowledgments"}
         assert set(DEFAULT_PROFILE["license"]["additional_metadata"].keys()) == expected
 
     def test_quality_keys(self):
-        from src.unit_1.stub import DEFAULT_PROFILE
+        from svp_config import DEFAULT_PROFILE
 
         expected = {
             "linter",
@@ -760,7 +760,7 @@ class TestDefaultProfileKeyPaths:
         assert set(DEFAULT_PROFILE["quality"].keys()) == expected
 
     def test_fixed_keys(self):
-        from src.unit_1.stub import DEFAULT_PROFILE
+        from svp_config import DEFAULT_PROFILE
 
         expected = {
             "language",
@@ -781,25 +781,25 @@ class TestDefaultProfileKeyPaths:
 
 class TestValidatePythonVersionAdditional:
     def test_less_than_constraint(self):
-        from src.unit_1.stub import validate_python_version
+        from svp_config import validate_python_version
 
         assert validate_python_version("3.10", "<3.11") is True
         assert validate_python_version("3.11", "<3.11") is False
 
     def test_equality_constraint(self):
-        from src.unit_1.stub import validate_python_version
+        from svp_config import validate_python_version
 
         assert validate_python_version("3.11", "==3.11") is True
         assert validate_python_version("3.12", "==3.11") is False
 
     def test_less_than_or_equal_constraint(self):
-        from src.unit_1.stub import validate_python_version
+        from svp_config import validate_python_version
 
         assert validate_python_version("3.11", "<=3.11") is True
         assert validate_python_version("3.12", "<=3.11") is False
 
     def test_not_equal_constraint(self):
-        from src.unit_1.stub import validate_python_version
+        from svp_config import validate_python_version
 
         assert validate_python_version("3.10", "!=3.11") is True
         assert validate_python_version("3.11", "!=3.11") is False
@@ -812,7 +812,7 @@ class TestValidatePythonVersionAdditional:
 
 class TestWriteDefaultConfigAdditional:
     def test_written_content_is_parseable_json(self, tmp_path):
-        from src.unit_1.stub import write_default_config
+        from svp_config import write_default_config
 
         result_path = write_default_config(tmp_path)
         content = result_path.read_text()
@@ -820,7 +820,7 @@ class TestWriteDefaultConfigAdditional:
         assert isinstance(parsed, dict)
 
     def test_written_file_uses_artifact_filename(self, tmp_path):
-        from src.unit_1.stub import ARTIFACT_FILENAMES, write_default_config
+        from svp_config import ARTIFACT_FILENAMES, write_default_config
 
         result_path = write_default_config(tmp_path)
         assert result_path.name == ARTIFACT_FILENAMES["svp_config"]
@@ -833,31 +833,31 @@ class TestWriteDefaultConfigAdditional:
 
 class TestLoadConfigPostConditions:
     def test_result_is_dict(self, tmp_path):
-        from src.unit_1.stub import load_config
+        from svp_config import load_config
 
         result = load_config(tmp_path)
         assert isinstance(result, dict)
 
     def test_result_contains_iteration_limit(self, tmp_path):
-        from src.unit_1.stub import load_config
+        from svp_config import load_config
 
         result = load_config(tmp_path)
         assert "iteration_limit" in result
 
     def test_result_contains_models(self, tmp_path):
-        from src.unit_1.stub import load_config
+        from svp_config import load_config
 
         result = load_config(tmp_path)
         assert "models" in result
 
     def test_result_iteration_limit_at_least_one(self, tmp_path):
-        from src.unit_1.stub import load_config
+        from svp_config import load_config
 
         result = load_config(tmp_path)
         assert result["iteration_limit"] >= 1
 
     def test_loaded_config_with_file_has_all_default_keys(self, tmp_path):
-        from src.unit_1.stub import DEFAULT_CONFIG, load_config
+        from svp_config import DEFAULT_CONFIG, load_config
 
         (tmp_path / "svp_config.json").write_text(json.dumps({"iteration_limit": 7}))
         result = load_config(tmp_path)
@@ -872,7 +872,7 @@ class TestLoadConfigPostConditions:
 
 class TestLoadProfilePostConditions:
     def test_result_contains_all_required_sections(self, tmp_path):
-        from src.unit_1.stub import DEFAULT_PROFILE, load_profile
+        from svp_config import DEFAULT_PROFILE, load_profile
 
         (tmp_path / "project_profile.json").write_text(json.dumps(DEFAULT_PROFILE))
         result = load_profile(tmp_path)
@@ -880,7 +880,7 @@ class TestLoadProfilePostConditions:
             assert section in result, f"Missing section '{section}'"
 
     def test_result_is_dict(self, tmp_path):
-        from src.unit_1.stub import DEFAULT_PROFILE, load_profile
+        from svp_config import DEFAULT_PROFILE, load_profile
 
         (tmp_path / "project_profile.json").write_text(json.dumps(DEFAULT_PROFILE))
         result = load_profile(tmp_path)
@@ -894,13 +894,13 @@ class TestLoadProfilePostConditions:
 
 class TestLoadProfileErrorMessages:
     def test_runtime_error_message_includes_resume_hint(self, tmp_path):
-        from src.unit_1.stub import load_profile
+        from svp_config import load_profile
 
         with pytest.raises(RuntimeError, match="Resume from Stage 0"):
             load_profile(tmp_path)
 
     def test_malformed_json_raises_runtime_error(self, tmp_path):
-        from src.unit_1.stub import load_profile
+        from svp_config import load_profile
 
         (tmp_path / "project_profile.json").write_text("{malformed json!!!")
         with pytest.raises(RuntimeError, match="not valid JSON"):
@@ -914,13 +914,13 @@ class TestLoadProfileErrorMessages:
 
 class TestLoadToolchainErrorMessages:
     def test_runtime_error_includes_reinstall_hint(self, tmp_path):
-        from src.unit_1.stub import load_toolchain
+        from svp_config import load_toolchain
 
         with pytest.raises(RuntimeError, match="Re-run svp new"):
             load_toolchain(tmp_path)
 
     def test_malformed_json_raises_runtime_error(self, tmp_path):
-        from src.unit_1.stub import load_toolchain
+        from svp_config import load_toolchain
 
         (tmp_path / "toolchain.json").write_text("{bad json content")
         with pytest.raises(RuntimeError, match="not valid JSON"):

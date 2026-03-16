@@ -12,6 +12,9 @@ STAGES: List[str] = ["0", "1", "2", "pre_stage_3", "3", "4", "5"]
 
 SUB_STAGES_STAGE_0: List[str] = ["hook_activation", "project_context", "project_profile"]
 
+# Stage 1 sub-stages: spec authoring cycle
+STAGE_1_SUB_STAGES: List[Optional[str]] = [None]
+
 # Stage 2 sub-stages (Bug 23 fix -- NEW IN 2.1)
 # blueprint_dialog: blueprint authoring and review cycle (default)
 # alignment_check: blueprint checker verifying spec-blueprint alignment
@@ -30,6 +33,17 @@ STAGE_3_SUB_STAGES: List[Optional[str]] = [
     "green_run",             # tests running against implementation (expect pass)
     "coverage_review",       # coverage review agent checking gaps
     "unit_completion",       # unit verified, about to advance
+]
+
+# Stage 4 sub-stages: integration testing phase
+STAGE_4_SUB_STAGES: List[Optional[str]] = [None]
+
+# Stage 5 sub-stages: repo assembly phase
+STAGE_5_SUB_STAGES: List[Optional[str]] = [
+    None,
+    "repo_test",
+    "compliance_scan",
+    "repo_complete",
 ]
 
 # Quality gate sub-stages (subset of STAGE_3_SUB_STAGES, NEW IN 2.1)

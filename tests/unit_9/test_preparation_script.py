@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_9.stub import (
+from prepare_task import (
     ALL_GATE_IDS,
     KNOWN_AGENT_TYPES,
     build_task_prompt_content,

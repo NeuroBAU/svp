@@ -6,7 +6,7 @@ stakeholder_reviewer, blueprint_checker, and
 blueprint_reviewer agents.
 """
 
-from src.unit_14.stub import (
+from review_agents import (
     BLUEPRINT_CHECKER_FRONTMATTER,
     BLUEPRINT_CHECKER_MD_CONTENT,
     BLUEPRINT_CHECKER_STATUS,

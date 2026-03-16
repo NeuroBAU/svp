@@ -30,7 +30,7 @@ import pytest
 
 class TestValidateFixLadderPosition:
     def test_invalid_fix_ladder_position_reported(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -62,7 +62,7 @@ class TestValidateFixLadderPosition:
         )
 
     def test_valid_fix_ladder_position_none(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -91,7 +91,7 @@ class TestValidateFixLadderPosition:
         assert len(errors) == 0
 
     def test_valid_fix_ladder_position_fresh_test(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -120,7 +120,7 @@ class TestValidateFixLadderPosition:
         assert len(errors) == 0
 
     def test_valid_fix_ladder_position_diagnostic(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -149,7 +149,7 @@ class TestValidateFixLadderPosition:
         assert len(errors) == 0
 
     def test_all_fix_ladder_positions_valid(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             FIX_LADDER_POSITIONS,
             PipelineState,
             validate_state,
@@ -217,7 +217,7 @@ class TestLoadStateValidationError:
         }
         state_file.write_text(json.dumps(data))
 
-        from src.unit_2.stub import load_state
+        from pipeline_state import load_state
 
         with pytest.raises(ValueError):
             load_state(tmp_path)
@@ -248,7 +248,7 @@ class TestLoadStateValidationError:
         }
         state_file.write_text(json.dumps(data))
 
-        from src.unit_2.stub import load_state
+        from pipeline_state import load_state
 
         with pytest.raises(ValueError):
             load_state(tmp_path)
@@ -261,7 +261,7 @@ class TestLoadStateValidationError:
 
 class TestGetStageDisplaySubStage:
     def test_display_includes_sub_stage_in_parens(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             get_stage_display,
         )
@@ -290,7 +290,7 @@ class TestGetStageDisplaySubStage:
         assert "(hook_activation)" in result
 
     def test_display_no_sub_stage_no_parens(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             get_stage_display,
         )
@@ -321,7 +321,7 @@ class TestGetStageDisplaySubStage:
 
 class TestGetStageDisplayFixLadder:
     def test_display_includes_fix_ladder_position(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             get_stage_display,
         )
@@ -351,7 +351,7 @@ class TestGetStageDisplayFixLadder:
         assert "fresh_impl" in result
 
     def test_display_no_fix_ladder_when_none(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             get_stage_display,
         )
@@ -382,7 +382,7 @@ class TestGetStageDisplayFixLadder:
 
 class TestGetStageDisplayUnitOnly:
     def test_display_unit_without_total(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             get_stage_display,
         )
@@ -421,7 +421,7 @@ class TestRecoverStateMarkersCorrect:
     def test_recover_with_complete_json_markers(
         self, tmp_path
     ):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             recover_state_from_markers,
         )
 
@@ -441,7 +441,7 @@ class TestRecoverStateMarkersCorrect:
     def test_recover_multiple_markers_uses_max_unit(
         self, tmp_path
     ):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             recover_state_from_markers,
         )
 
@@ -464,7 +464,7 @@ class TestRecoverStateMarkersCorrect:
     ):
         """When .svp directory does not exist, returns
         None."""
-        from src.unit_2.stub import (
+        from pipeline_state import (
             recover_state_from_markers,
         )
 
@@ -476,7 +476,7 @@ class TestRecoverStateMarkersCorrect:
     ):
         """When .svp exists but markers dir does not,
         and no pipeline_state.json, returns None."""
-        from src.unit_2.stub import (
+        from pipeline_state import (
             recover_state_from_markers,
         )
 
@@ -489,7 +489,7 @@ class TestRecoverStateMarkersCorrect:
     def test_recover_malformed_marker_skipped(
         self, tmp_path
     ):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             recover_state_from_markers,
         )
 
@@ -513,7 +513,7 @@ class TestRecoverStateMarkersCorrect:
     ):
         """When .svp exists but no markers, and a valid
         pipeline_state.json exists, load it."""
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             recover_state_from_markers,
             save_state,
@@ -536,7 +536,7 @@ class TestRecoverStateMarkersCorrect:
 
 class TestPipelineStateDebugSessionDict:
     def test_init_converts_dict_to_debug_session(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             DebugSession,
             PipelineState,
         )
@@ -587,7 +587,7 @@ class TestPipelineStateDebugSessionDict:
 
 class TestValidatePreStage3:
     def test_pre_stage_3_none_sub_stage_valid(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -616,7 +616,7 @@ class TestValidatePreStage3:
         assert len(errors) == 0
 
     def test_pre_stage_3_invalid_sub_stage(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -647,7 +647,7 @@ class TestValidatePreStage3:
     def test_pre_stage_3_redo_sub_stage_valid(self):
         """Redo profile sub-stages valid for any stage
         including pre_stage_3."""
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -684,7 +684,7 @@ class TestValidatePreStage3:
 class TestValidateStage0NoneSubStage:
     def test_stage_0_none_sub_stage_valid(self):
         """Stage 0 allows None sub_stage (initial entry)."""
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -722,7 +722,7 @@ class TestValidateMultipleErrors:
     def test_multiple_validation_errors_reported(self):
         """When both counter and fix_ladder are invalid,
         both errors should be reported."""
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -758,7 +758,7 @@ class TestValidateMultipleErrors:
 
 class TestDebugSessionDefaults:
     def test_debug_session_default_values(self):
-        from src.unit_2.stub import DebugSession
+        from pipeline_state import DebugSession
 
         ds = DebugSession()
         assert ds.bug_id == 0
@@ -782,7 +782,7 @@ class TestSaveStateNoTempFiles:
     def test_no_temp_files_after_save(self, tmp_path):
         """After save_state, no .pipeline_state_*.tmp
         files should remain."""
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             save_state,
         )
@@ -798,7 +798,7 @@ class TestSaveStateNoTempFiles:
         self, tmp_path
     ):
         """Written JSON file should end with newline."""
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             save_state,
         )

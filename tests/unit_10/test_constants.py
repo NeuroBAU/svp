@@ -8,7 +8,7 @@ Synthetic data assumptions:
 - COMMAND_STATUS_PATTERNS contains exactly 5 patterns.
 """
 
-from src.unit_10.stub import (
+from routing import (
     AGENT_STATUS_LINES,
     COMMAND_STATUS_PATTERNS,
     CROSS_AGENT_STATUS_LINES,
@@ -109,7 +109,7 @@ class TestGateResponses:
     def test_gate_id_consistency_with_unit_9(self):
         """GATE_RESPONSES keys must be identical to
         ALL_GATE_IDS from Unit 9."""
-        from src.unit_9.stub import ALL_GATE_IDS
+        from prepare_task import ALL_GATE_IDS
 
         gate_response_keys = set(GATE_RESPONSES.keys())
         all_gate_ids_set = set(ALL_GATE_IDS)

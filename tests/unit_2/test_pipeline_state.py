@@ -34,12 +34,12 @@ import pytest
 
 class TestStagesConstant:
     def test_stages_is_list(self):
-        from src.unit_2.stub import STAGES
+        from pipeline_state import STAGES
 
         assert isinstance(STAGES, list)
 
     def test_stages_values(self):
-        from src.unit_2.stub import STAGES
+        from pipeline_state import STAGES
 
         expected = [
             "0",
@@ -53,14 +53,14 @@ class TestStagesConstant:
         assert STAGES == expected
 
     def test_stages_length(self):
-        from src.unit_2.stub import STAGES
+        from pipeline_state import STAGES
 
         assert len(STAGES) == 7
 
 
 class TestSubStagesStage0:
     def test_sub_stages_stage_0_values(self):
-        from src.unit_2.stub import SUB_STAGES_STAGE_0
+        from pipeline_state import SUB_STAGES_STAGE_0
 
         expected = [
             "hook_activation",
@@ -70,19 +70,19 @@ class TestSubStagesStage0:
         assert SUB_STAGES_STAGE_0 == expected
 
     def test_sub_stages_stage_0_no_none(self):
-        from src.unit_2.stub import SUB_STAGES_STAGE_0
+        from pipeline_state import SUB_STAGES_STAGE_0
 
         assert None not in SUB_STAGES_STAGE_0
 
 
 class TestStage1SubStages:
     def test_stage_1_sub_stages_values(self):
-        from src.unit_2.stub import STAGE_1_SUB_STAGES
+        from pipeline_state import STAGE_1_SUB_STAGES
 
         assert STAGE_1_SUB_STAGES == [None]
 
     def test_stage_1_sub_stages_only_none(self):
-        from src.unit_2.stub import STAGE_1_SUB_STAGES
+        from pipeline_state import STAGE_1_SUB_STAGES
 
         assert len(STAGE_1_SUB_STAGES) == 1
         assert STAGE_1_SUB_STAGES[0] is None
@@ -90,7 +90,7 @@ class TestStage1SubStages:
 
 class TestStage2SubStages:
     def test_stage_2_sub_stages_values(self):
-        from src.unit_2.stub import STAGE_2_SUB_STAGES
+        from pipeline_state import STAGE_2_SUB_STAGES
 
         expected = [
             None,
@@ -102,7 +102,7 @@ class TestStage2SubStages:
 
 class TestStage3SubStages:
     def test_stage_3_sub_stages_values(self):
-        from src.unit_2.stub import STAGE_3_SUB_STAGES
+        from pipeline_state import STAGE_3_SUB_STAGES
 
         expected = [
             None,
@@ -121,21 +121,21 @@ class TestStage3SubStages:
         assert STAGE_3_SUB_STAGES == expected
 
     def test_stage_3_sub_stages_length(self):
-        from src.unit_2.stub import STAGE_3_SUB_STAGES
+        from pipeline_state import STAGE_3_SUB_STAGES
 
         assert len(STAGE_3_SUB_STAGES) == 12
 
 
 class TestStage4SubStages:
     def test_stage_4_sub_stages_values(self):
-        from src.unit_2.stub import STAGE_4_SUB_STAGES
+        from pipeline_state import STAGE_4_SUB_STAGES
 
         assert STAGE_4_SUB_STAGES == [None]
 
 
 class TestStage5SubStages:
     def test_stage_5_sub_stages_values(self):
-        from src.unit_2.stub import STAGE_5_SUB_STAGES
+        from pipeline_state import STAGE_5_SUB_STAGES
 
         expected = [
             None,
@@ -148,7 +148,7 @@ class TestStage5SubStages:
 
 class TestQualityGateSubStages:
     def test_quality_gate_sub_stages_values(self):
-        from src.unit_2.stub import QUALITY_GATE_SUB_STAGES
+        from pipeline_state import QUALITY_GATE_SUB_STAGES
 
         expected = [
             "quality_gate_a",
@@ -159,7 +159,7 @@ class TestQualityGateSubStages:
         assert QUALITY_GATE_SUB_STAGES == expected
 
     def test_quality_gate_sub_stages_all_present(self):
-        from src.unit_2.stub import QUALITY_GATE_SUB_STAGES
+        from pipeline_state import QUALITY_GATE_SUB_STAGES
 
         for s in [
             "quality_gate_a",
@@ -170,14 +170,14 @@ class TestQualityGateSubStages:
             assert s in QUALITY_GATE_SUB_STAGES
 
     def test_quality_gate_sub_stages_no_none(self):
-        from src.unit_2.stub import QUALITY_GATE_SUB_STAGES
+        from pipeline_state import QUALITY_GATE_SUB_STAGES
 
         assert None not in QUALITY_GATE_SUB_STAGES
 
 
 class TestRedoProfileSubStages:
     def test_redo_profile_sub_stages_values(self):
-        from src.unit_2.stub import REDO_PROFILE_SUB_STAGES
+        from pipeline_state import REDO_PROFILE_SUB_STAGES
 
         expected = [
             "redo_profile_delivery",
@@ -188,7 +188,7 @@ class TestRedoProfileSubStages:
 
 class TestFixLadderPositions:
     def test_fix_ladder_positions_values(self):
-        from src.unit_2.stub import FIX_LADDER_POSITIONS
+        from pipeline_state import FIX_LADDER_POSITIONS
 
         expected = [
             None,
@@ -201,7 +201,7 @@ class TestFixLadderPositions:
         assert FIX_LADDER_POSITIONS == expected
 
     def test_fix_ladder_positions_starts_with_none(self):
-        from src.unit_2.stub import FIX_LADDER_POSITIONS
+        from pipeline_state import FIX_LADDER_POSITIONS
 
         assert FIX_LADDER_POSITIONS[0] is None
 
@@ -213,7 +213,7 @@ class TestFixLadderPositions:
 
 class TestDebugSessionInit:
     def test_debug_session_creation_with_kwargs(self):
-        from src.unit_2.stub import DebugSession
+        from pipeline_state import DebugSession
 
         ds = DebugSession(
             bug_id=1,
@@ -233,7 +233,7 @@ class TestDebugSessionInit:
         assert ds.authorized is False
 
     def test_debug_session_classification_nullable(self):
-        from src.unit_2.stub import DebugSession
+        from pipeline_state import DebugSession
 
         ds = DebugSession(
             bug_id=1,
@@ -250,7 +250,7 @@ class TestDebugSessionInit:
         assert ds.classification is None
 
     def test_debug_session_classification_string(self):
-        from src.unit_2.stub import DebugSession
+        from pipeline_state import DebugSession
 
         ds = DebugSession(
             bug_id=1,
@@ -267,7 +267,7 @@ class TestDebugSessionInit:
         assert ds.classification == "logic_error"
 
     def test_debug_session_affected_units_list(self):
-        from src.unit_2.stub import DebugSession
+        from pipeline_state import DebugSession
 
         ds = DebugSession(
             bug_id=1,
@@ -286,7 +286,7 @@ class TestDebugSessionInit:
 
 class TestDebugSessionToDict:
     def test_to_dict_returns_dict(self):
-        from src.unit_2.stub import DebugSession
+        from pipeline_state import DebugSession
 
         ds = DebugSession(
             bug_id=1,
@@ -304,7 +304,7 @@ class TestDebugSessionToDict:
         assert isinstance(result, dict)
 
     def test_to_dict_contains_all_fields(self):
-        from src.unit_2.stub import DebugSession
+        from pipeline_state import DebugSession
 
         ds = DebugSession(
             bug_id=1,
@@ -334,7 +334,7 @@ class TestDebugSessionToDict:
         assert set(result.keys()) == expected_keys
 
     def test_to_dict_values_match(self):
-        from src.unit_2.stub import DebugSession
+        from pipeline_state import DebugSession
 
         ds = DebugSession(
             bug_id=42,
@@ -363,7 +363,7 @@ class TestDebugSessionToDict:
 
 class TestDebugSessionFromDict:
     def test_from_dict_roundtrip(self):
-        from src.unit_2.stub import DebugSession
+        from pipeline_state import DebugSession
 
         original = DebugSession(
             bug_id=1,
@@ -387,7 +387,7 @@ class TestDebugSessionFromDict:
         assert restored.authorized == original.authorized
 
     def test_from_dict_preserves_all_fields(self):
-        from src.unit_2.stub import DebugSession
+        from pipeline_state import DebugSession
 
         data = {
             "bug_id": 5,
@@ -415,7 +415,7 @@ class TestDebugSessionFromDict:
 
 class TestPipelineStateInit:
     def test_pipeline_state_creation(self):
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         ps = PipelineState(
             stage="0",
@@ -443,7 +443,7 @@ class TestPipelineStateInit:
         assert ps.total_units is None
 
     def test_pipeline_state_all_fields_accessible(self):
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         ps = PipelineState(
             stage="3",
@@ -475,7 +475,7 @@ class TestPipelineStateInit:
         assert ps.last_action == "test"
 
     def test_pipeline_state_with_debug_session(self):
-        from src.unit_2.stub import DebugSession, PipelineState
+        from pipeline_state import DebugSession, PipelineState
 
         ds = DebugSession(
             bug_id=1,
@@ -513,7 +513,7 @@ class TestPipelineStateInit:
         assert ps.debug_session.bug_id == 1
 
     def test_pipeline_state_delivered_repo_path(self):
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         ps = PipelineState(
             stage="5",
@@ -540,7 +540,7 @@ class TestPipelineStateInit:
 
 class TestPipelineStateToDict:
     def test_to_dict_returns_dict(self):
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         ps = PipelineState(
             stage="0",
@@ -566,7 +566,7 @@ class TestPipelineStateToDict:
         assert isinstance(result, dict)
 
     def test_to_dict_contains_all_fields(self):
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         ps = PipelineState(
             stage="0",
@@ -612,7 +612,7 @@ class TestPipelineStateToDict:
         assert set(result.keys()) == expected_keys
 
     def test_to_dict_serializes_debug_session(self):
-        from src.unit_2.stub import DebugSession, PipelineState
+        from pipeline_state import DebugSession, PipelineState
 
         ds = DebugSession(
             bug_id=1,
@@ -651,7 +651,7 @@ class TestPipelineStateToDict:
         assert result["debug_session"]["bug_id"] == 1
 
     def test_to_dict_none_debug_session(self):
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         ps = PipelineState(
             stage="0",
@@ -679,7 +679,7 @@ class TestPipelineStateToDict:
 
 class TestPipelineStateFromDict:
     def test_from_dict_roundtrip(self):
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         ps = PipelineState(
             stage="3",
@@ -709,7 +709,7 @@ class TestPipelineStateFromDict:
         assert restored.red_run_retries == ps.red_run_retries
 
     def test_from_dict_with_debug_session(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             DebugSession,
             PipelineState,
         )
@@ -752,7 +752,7 @@ class TestPipelineStateFromDict:
         assert restored.debug_session.bug_id == 1
 
     def test_from_dict_with_redo_triggered_from(self):
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         data = {
             "stage": "2",
@@ -778,7 +778,7 @@ class TestPipelineStateFromDict:
         assert ps.redo_triggered_from == {"stage": "2"}
 
     def test_from_dict_with_delivered_repo_path(self):
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         data = {
             "stage": "5",
@@ -804,7 +804,7 @@ class TestPipelineStateFromDict:
         assert ps.delivered_repo_path == "/tmp/repo"
 
     def test_from_dict_missing_fields_filled_defaults(self):
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         minimal_data = {
             "stage": "0",
@@ -826,7 +826,7 @@ class TestPipelineStateFromDict:
 
 class TestCreateInitialState:
     def test_returns_pipeline_state(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             create_initial_state,
         )
@@ -835,105 +835,105 @@ class TestCreateInitialState:
         assert isinstance(result, PipelineState)
 
     def test_initial_stage_is_0(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert result.stage == "0"
 
     def test_initial_sub_stage_is_hook_activation(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert result.sub_stage == "hook_activation"
 
     def test_initial_red_run_retries_zero(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert result.red_run_retries == 0
 
     def test_initial_alignment_iteration_zero(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert result.alignment_iteration == 0
 
     def test_initial_verified_units_empty(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert len(result.verified_units) == 0
 
     def test_initial_pass_history_empty(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert len(result.pass_history) == 0
 
     def test_initial_debug_session_none(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert result.debug_session is None
 
     def test_initial_debug_history_empty(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert result.debug_history == []
 
     def test_initial_redo_triggered_from_none(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert result.redo_triggered_from is None
 
     def test_initial_delivered_repo_path_none(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert result.delivered_repo_path is None
 
     def test_initial_project_name_set(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("my-project")
         assert result.project_name == "my-project"
 
     def test_initial_fix_ladder_position_none(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert result.fix_ladder_position is None
 
     def test_initial_current_unit_none(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert result.current_unit is None
 
     def test_initial_total_units_none(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert result.total_units is None
 
     def test_initial_state_has_created_at(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert isinstance(result.created_at, str)
         assert len(result.created_at) > 0
 
     def test_initial_state_has_updated_at(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         result = create_initial_state("test-project")
         assert isinstance(result.updated_at, str)
         assert len(result.updated_at) > 0
 
     def test_initial_stage_in_stages(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             STAGES,
             create_initial_state,
         )
@@ -949,7 +949,7 @@ class TestCreateInitialState:
 
 class TestSaveState:
     def test_save_creates_file(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             save_state,
         )
@@ -960,7 +960,7 @@ class TestSaveState:
         assert state_file.exists()
 
     def test_save_creates_valid_json(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             save_state,
         )
@@ -972,7 +972,7 @@ class TestSaveState:
         assert isinstance(data, dict)
 
     def test_save_updates_updated_at(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             save_state,
         )
@@ -987,7 +987,7 @@ class TestSaveState:
 
     def test_save_atomic_write(self, tmp_path):
         """Save uses atomic write (temp file + rename)."""
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             save_state,
         )
@@ -1002,7 +1002,7 @@ class TestSaveState:
         assert data["stage"] == "0"
 
     def test_save_overwrites_existing(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             save_state,
         )
@@ -1020,7 +1020,7 @@ class TestSaveState:
 
 class TestLoadState:
     def test_load_returns_pipeline_state(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             create_initial_state,
             load_state,
@@ -1033,7 +1033,7 @@ class TestLoadState:
         assert isinstance(result, PipelineState)
 
     def test_load_preserves_stage(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             load_state,
             save_state,
@@ -1045,7 +1045,7 @@ class TestLoadState:
         assert result.stage == "0"
 
     def test_load_preserves_project_name(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             load_state,
             save_state,
@@ -1057,7 +1057,7 @@ class TestLoadState:
         assert result.project_name == "my-project"
 
     def test_load_deserializes_debug_session(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             DebugSession,
             PipelineState,
             load_state,
@@ -1102,7 +1102,7 @@ class TestLoadState:
         assert result.debug_session.bug_id == 7
 
     def test_load_deserializes_redo_triggered_from(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             load_state,
             save_state,
@@ -1133,7 +1133,7 @@ class TestLoadState:
         assert result.redo_triggered_from == {"stage": "2"}
 
     def test_load_deserializes_delivered_repo_path(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             load_state,
             save_state,
@@ -1178,7 +1178,7 @@ class TestLoadState:
         }
         state_file.write_text(json.dumps(minimal))
 
-        from src.unit_2.stub import load_state
+        from pipeline_state import load_state
 
         result = load_state(tmp_path)
         assert result.debug_session is None
@@ -1194,7 +1194,7 @@ class TestLoadState:
 
 class TestLoadStateErrors:
     def test_load_file_not_found(self, tmp_path):
-        from src.unit_2.stub import load_state
+        from pipeline_state import load_state
 
         with pytest.raises(FileNotFoundError):
             load_state(tmp_path)
@@ -1203,7 +1203,7 @@ class TestLoadStateErrors:
         state_file = tmp_path / "pipeline_state.json"
         state_file.write_text("{invalid json content")
 
-        from src.unit_2.stub import load_state
+        from pipeline_state import load_state
 
         with pytest.raises(json.JSONDecodeError):
             load_state(tmp_path)
@@ -1216,7 +1216,7 @@ class TestLoadStateErrors:
 
 class TestValidateState:
     def test_valid_initial_state_no_errors(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             validate_state,
         )
@@ -1227,7 +1227,7 @@ class TestValidateState:
         assert len(errors) == 0
 
     def test_invalid_stage_reported(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1256,7 +1256,7 @@ class TestValidateState:
         assert len(errors) > 0
 
     def test_invalid_sub_stage_for_stage_0(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1285,7 +1285,7 @@ class TestValidateState:
         assert len(errors) > 0
 
     def test_valid_sub_stage_for_stage_0(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1314,7 +1314,7 @@ class TestValidateState:
         assert len(errors) == 0
 
     def test_valid_sub_stage_for_stage_1_none(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1343,7 +1343,7 @@ class TestValidateState:
         assert len(errors) == 0
 
     def test_invalid_sub_stage_for_stage_1(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1372,7 +1372,7 @@ class TestValidateState:
         assert len(errors) > 0
 
     def test_valid_sub_stage_for_stage_2(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1401,7 +1401,7 @@ class TestValidateState:
         assert len(errors) == 0
 
     def test_valid_sub_stage_for_stage_3(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1430,7 +1430,7 @@ class TestValidateState:
         assert len(errors) == 0
 
     def test_invalid_sub_stage_for_stage_3(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1459,7 +1459,7 @@ class TestValidateState:
         assert len(errors) > 0
 
     def test_valid_sub_stage_for_stage_4(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1488,7 +1488,7 @@ class TestValidateState:
         assert len(errors) == 0
 
     def test_valid_sub_stage_for_stage_5(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1517,7 +1517,7 @@ class TestValidateState:
         assert len(errors) == 0
 
     def test_negative_red_run_retries_reported(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1546,7 +1546,7 @@ class TestValidateState:
         assert len(errors) > 0
 
     def test_negative_alignment_iteration_reported(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1576,7 +1576,7 @@ class TestValidateState:
 
     def test_redo_profile_sub_stage_valid_any_stage(self):
         """Redo profile sub-stages are valid for any stage."""
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1605,7 +1605,7 @@ class TestValidateState:
         assert len(errors) == 0
 
     def test_redo_profile_delivery_valid_any_stage(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1634,7 +1634,7 @@ class TestValidateState:
         assert len(errors) == 0
 
     def test_delivered_repo_path_none_valid(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             validate_state,
         )
@@ -1644,7 +1644,7 @@ class TestValidateState:
         assert len(errors) == 0
 
     def test_delivered_repo_path_nonempty_string_valid(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1673,7 +1673,7 @@ class TestValidateState:
         assert len(errors) == 0
 
     def test_delivered_repo_path_empty_string_invalid(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             validate_state,
         )
@@ -1702,7 +1702,7 @@ class TestValidateState:
         assert len(errors) > 0
 
     def test_validate_returns_list(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             validate_state,
         )
@@ -1712,7 +1712,7 @@ class TestValidateState:
         assert isinstance(result, list)
 
     def test_quality_gate_sub_stages_valid_for_stage_3(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             QUALITY_GATE_SUB_STAGES,
             PipelineState,
             validate_state,
@@ -1752,7 +1752,7 @@ class TestValidateState:
 
 class TestRecoverStateFromMarkers:
     def test_returns_none_when_no_markers(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             recover_state_from_markers,
         )
 
@@ -1763,7 +1763,7 @@ class TestRecoverStateFromMarkers:
         assert result is None or hasattr(result, "stage")
 
     def test_returns_pipeline_state_with_markers(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             recover_state_from_markers,
         )
 
@@ -1786,7 +1786,7 @@ class TestRecoverStateFromMarkers:
 
 class TestGetStageDisplay:
     def test_returns_string(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             get_stage_display,
         )
@@ -1796,7 +1796,7 @@ class TestGetStageDisplay:
         assert isinstance(result, str)
 
     def test_display_includes_stage(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             get_stage_display,
         )
@@ -1806,7 +1806,7 @@ class TestGetStageDisplay:
         assert "Stage" in result or "stage" in result.lower()
 
     def test_display_for_stage_3_with_unit(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             get_stage_display,
         )
@@ -1838,7 +1838,7 @@ class TestGetStageDisplay:
         assert "11" in result
 
     def test_display_for_initial_state(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             get_stage_display,
         )
@@ -1855,7 +1855,7 @@ class TestGetStageDisplay:
 
 class TestUpdatedAtTimestamp:
     def test_save_sets_updated_at(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             load_state,
             save_state,
@@ -1870,7 +1870,7 @@ class TestUpdatedAtTimestamp:
     def test_save_updates_timestamp_each_call(self, tmp_path):
         import time
 
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             load_state,
             save_state,
@@ -1899,19 +1899,19 @@ class TestUpdatedAtTimestamp:
 
 class TestAppendOnlyHistory:
     def test_pass_history_is_list(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         state = create_initial_state("test")
         assert isinstance(state.pass_history, list)
 
     def test_debug_history_is_list(self):
-        from src.unit_2.stub import create_initial_state
+        from pipeline_state import create_initial_state
 
         state = create_initial_state("test")
         assert isinstance(state.debug_history, list)
 
     def test_pass_history_preserved_through_roundtrip(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             load_state,
             save_state,
@@ -1945,7 +1945,7 @@ class TestAppendOnlyHistory:
         assert loaded.pass_history[0]["pass"] == 1
 
     def test_debug_history_preserved_through_roundtrip(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             PipelineState,
             load_state,
             save_state,
@@ -1986,7 +1986,7 @@ class TestAppendOnlyHistory:
 
 class TestCrossConstantConsistency:
     def test_quality_gate_sub_stages_in_stage_3(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             QUALITY_GATE_SUB_STAGES,
             STAGE_3_SUB_STAGES,
         )
@@ -2000,14 +2000,14 @@ class TestCrossConstantConsistency:
         """Redo profile sub-stages are valid for any stage,
         so they should not necessarily be in stage-specific
         lists but must be accepted by validate_state."""
-        from src.unit_2.stub import REDO_PROFILE_SUB_STAGES
+        from pipeline_state import REDO_PROFILE_SUB_STAGES
 
         assert len(REDO_PROFILE_SUB_STAGES) == 2
         assert "redo_profile_delivery" in REDO_PROFILE_SUB_STAGES
         assert "redo_profile_blueprint" in REDO_PROFILE_SUB_STAGES
 
     def test_all_stage_sub_stage_lists_exist(self):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             STAGE_1_SUB_STAGES,
             STAGE_2_SUB_STAGES,
             STAGE_3_SUB_STAGES,
@@ -2032,7 +2032,7 @@ class TestCrossConstantConsistency:
 class TestProjectRootInvariant:
     def test_load_state_requires_directory(self, tmp_path):
         """project_root must be a directory."""
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             save_state,
         )
@@ -2040,13 +2040,13 @@ class TestProjectRootInvariant:
         state = create_initial_state("test")
         save_state(state, tmp_path)
         # tmp_path is a valid directory -- should work
-        from src.unit_2.stub import load_state
+        from pipeline_state import load_state
 
         result = load_state(tmp_path)
         assert result.stage == "0"
 
     def test_save_state_to_valid_directory(self, tmp_path):
-        from src.unit_2.stub import (
+        from pipeline_state import (
             create_initial_state,
             save_state,
         )

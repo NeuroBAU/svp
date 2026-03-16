@@ -19,7 +19,7 @@ Synthetic data generation assumptions:
 
 import pytest
 
-from src.unit_8.stub import (
+from hint_prompt_assembler import (
     assemble_hint_prompt,
     get_agent_type_framing,
     get_ladder_position_framing,

@@ -6,7 +6,7 @@ test_agent, implementation_agent, and
 coverage_review_agent.
 """
 
-from src.unit_15.stub import (
+from construction_agents import (
     COVERAGE_REVIEW_AGENT_MD_CONTENT,
     COVERAGE_REVIEW_FRONTMATTER,
     COVERAGE_REVIEW_STATUS,

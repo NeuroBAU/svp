@@ -5,7 +5,7 @@ Verifies frontmatter, status lists, and MD content for
 help_agent and hint_agent.
 """
 
-from src.unit_17.stub import (
+from support_agents import (
     HELP_AGENT_FRONTMATTER,
     HELP_AGENT_MD_CONTENT,
     HELP_AGENT_STATUS,

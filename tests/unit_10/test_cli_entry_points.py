@@ -17,7 +17,7 @@ Synthetic data assumptions:
 
 import inspect
 
-from src.unit_10.stub import (
+from routing import (
     read_last_status,
     run_quality_gate_main,
     run_tests_main,

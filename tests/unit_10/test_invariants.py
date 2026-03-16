@@ -20,7 +20,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.unit_10.stub import (
+from routing import (
     AGENT_STATUS_LINES,
     GATE_RESPONSES,
     route,
@@ -31,18 +31,18 @@ class TestGateIdConsistencyInvariant:
     def test_gate_responses_matches_unit_9(self):
         """Section 3.6 invariant 2: GATE_RESPONSES
         keys must be identical to ALL_GATE_IDS."""
-        from src.unit_9.stub import ALL_GATE_IDS
+        from prepare_task import ALL_GATE_IDS
 
         assert set(GATE_RESPONSES.keys()) == set(ALL_GATE_IDS)
 
     def test_no_extra_gates_in_responses(self):
-        from src.unit_9.stub import ALL_GATE_IDS
+        from prepare_task import ALL_GATE_IDS
 
         extra = set(GATE_RESPONSES.keys()) - set(ALL_GATE_IDS)
         assert extra == set(), f"Extra gates in GATE_RESPONSES: {extra}"
 
     def test_no_missing_gates_in_responses(self):
-        from src.unit_9.stub import ALL_GATE_IDS
+        from prepare_task import ALL_GATE_IDS
 
         missing = set(ALL_GATE_IDS) - set(GATE_RESPONSES.keys())
         assert missing == set(), f"Missing gates: {missing}"

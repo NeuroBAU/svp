@@ -8,7 +8,7 @@ constants, and all content string constants.
 import json
 from pathlib import Path
 
-from src.unit_22.stub import (
+from project_templates import (
     CLAUDE_MD_PY_CONTENT,
     DEFAULT_CONFIG_TEMPLATE,
     GOL_BLUEPRINT_CONTRACTS_CONTENT,

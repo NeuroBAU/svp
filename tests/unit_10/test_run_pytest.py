@@ -12,7 +12,7 @@ Synthetic data assumptions:
   collection_error_indicators.
 """
 
-from src.unit_10.stub import (
+from routing import (
     _is_collection_error,
     run_pytest,
 )

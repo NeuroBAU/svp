@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_11.stub import (
+from cmd_save import (
     cmd_clean_main,
     cmd_quit_main,
     cmd_save_main,

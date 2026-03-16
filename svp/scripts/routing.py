@@ -107,6 +107,14 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
 # Cross-agent status (any agent receiving a hint)
 CROSS_AGENT_STATUS: str = "HINT_BLUEPRINT_CONFLICT"
 
+# Alias: GATE_RESPONSES mirrors GATE_VOCABULARY (same data, backward-compatible name)
+GATE_RESPONSES: Dict[str, List[str]] = GATE_VOCABULARY
+
+# Alias: CROSS_AGENT_STATUS_LINES maps status string to gate_id
+CROSS_AGENT_STATUS_LINES: Dict[str, str] = {
+    "HINT_BLUEPRINT_CONFLICT": "gate_hint_conflict",
+}
+
 # Command result status line patterns
 COMMAND_STATUS_PATTERNS: List[str] = [
     "TESTS_PASSED",    # "TESTS_PASSED: N passed"
@@ -148,6 +156,15 @@ def _read_last_status(project_root: Path) -> Optional[str]:
         if content:
             return content
     return None
+
+
+# Public alias: read_last_status exposes _read_last_status as a public function
+def read_last_status(project_root: Path) -> str:
+    """Read and return content of last_status.txt (public alias)."""
+    status_file = project_root / ".svp" / "last_status.txt"
+    if not status_file.exists():
+        return ""
+    return status_file.read_text(encoding="utf-8").strip()
 
 
 # --- Command generation helpers ---

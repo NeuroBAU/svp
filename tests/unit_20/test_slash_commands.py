@@ -6,7 +6,7 @@ PROHIBITED_SCRIPTS, and all 9 command MD content
 strings.
 """
 
-from src.unit_20.stub import (
+from slash_commands import (
     BUG_MD_CONTENT,
     CLEAN_MD_CONTENT,
     COMMAND_FILES,

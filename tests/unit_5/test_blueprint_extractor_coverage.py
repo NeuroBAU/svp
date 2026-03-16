@@ -189,7 +189,7 @@ class TestUpstreamContractKeys:
         self, multi_unit_file
     ):
         """Returned dict contains 'unit_number' key."""
-        from src.unit_5.stub import (
+        from blueprint_extractor import (
             extract_upstream_contracts,
         )
 
@@ -203,7 +203,7 @@ class TestUpstreamContractKeys:
         self, multi_unit_file
     ):
         """Returned dict contains 'unit_name' key."""
-        from src.unit_5.stub import (
+        from blueprint_extractor import (
             extract_upstream_contracts,
         )
 
@@ -216,7 +216,7 @@ class TestUpstreamContractKeys:
         self, multi_unit_file
     ):
         """Returned dict contains 'signatures' key."""
-        from src.unit_5.stub import (
+        from blueprint_extractor import (
             extract_upstream_contracts,
         )
 
@@ -229,7 +229,7 @@ class TestUpstreamContractKeys:
         self, multi_unit_file
     ):
         """unit_number value matches upstream unit."""
-        from src.unit_5.stub import (
+        from blueprint_extractor import (
             extract_upstream_contracts,
         )
 
@@ -242,7 +242,7 @@ class TestUpstreamContractKeys:
         self, multi_unit_file
     ):
         """unit_name value matches upstream unit name."""
-        from src.unit_5.stub import (
+        from blueprint_extractor import (
             extract_upstream_contracts,
         )
 
@@ -255,7 +255,7 @@ class TestUpstreamContractKeys:
         self, multi_unit_file
     ):
         """signatures value has upstream signatures."""
-        from src.unit_5.stub import (
+        from blueprint_extractor import (
             extract_upstream_contracts,
         )
 
@@ -277,7 +277,7 @@ class TestTwoFileIsolation:
         self, prose_file, contracts_file
     ):
         """Tier 1 description sourced from prose."""
-        from src.unit_5.stub import extract_unit
+        from blueprint_extractor import extract_unit
 
         result = extract_unit(
             prose_file,
@@ -292,7 +292,7 @@ class TestTwoFileIsolation:
         self, prose_file, contracts_file
     ):
         """Tier 2 signatures sourced from contracts."""
-        from src.unit_5.stub import extract_unit
+        from blueprint_extractor import extract_unit
 
         result = extract_unit(
             prose_file,
@@ -305,7 +305,7 @@ class TestTwoFileIsolation:
         self, prose_file, contracts_file
     ):
         """Tier 3 behavioral contracts from contracts."""
-        from src.unit_5.stub import extract_unit
+        from blueprint_extractor import extract_unit
 
         result = extract_unit(
             prose_file,
@@ -320,7 +320,7 @@ class TestTwoFileIsolation:
         self, prose_file, contracts_file
     ):
         """Prose file alone has no signatures."""
-        from src.unit_5.stub import parse_blueprint
+        from blueprint_extractor import parse_blueprint
 
         result = parse_blueprint(prose_file)
         unit1 = [
@@ -332,7 +332,7 @@ class TestTwoFileIsolation:
         self, prose_file, contracts_file
     ):
         """parse_blueprint with contracts_path merges."""
-        from src.unit_5.stub import parse_blueprint
+        from blueprint_extractor import parse_blueprint
 
         result = parse_blueprint(
             prose_file,
@@ -357,56 +357,56 @@ class TestUnitDefinitionDefaults:
 
     def test_default_unit_number(self):
         """Default unit_number is 0."""
-        from src.unit_5.stub import UnitDefinition
+        from blueprint_extractor import UnitDefinition
 
         ud = UnitDefinition()
         assert ud.unit_number == 0
 
     def test_default_unit_name(self):
         """Default unit_name is empty string."""
-        from src.unit_5.stub import UnitDefinition
+        from blueprint_extractor import UnitDefinition
 
         ud = UnitDefinition()
         assert ud.unit_name == ""
 
     def test_default_description(self):
         """Default description is empty string."""
-        from src.unit_5.stub import UnitDefinition
+        from blueprint_extractor import UnitDefinition
 
         ud = UnitDefinition()
         assert ud.description == ""
 
     def test_default_signatures(self):
         """Default signatures is empty string."""
-        from src.unit_5.stub import UnitDefinition
+        from blueprint_extractor import UnitDefinition
 
         ud = UnitDefinition()
         assert ud.signatures == ""
 
     def test_default_dependencies(self):
         """Default dependencies is empty list."""
-        from src.unit_5.stub import UnitDefinition
+        from blueprint_extractor import UnitDefinition
 
         ud = UnitDefinition()
         assert ud.dependencies == []
 
     def test_default_behavioral_contracts(self):
         """Default behavioral_contracts is empty."""
-        from src.unit_5.stub import UnitDefinition
+        from blueprint_extractor import UnitDefinition
 
         ud = UnitDefinition()
         assert ud.behavioral_contracts == ""
 
     def test_default_invariants(self):
         """Default invariants is empty string."""
-        from src.unit_5.stub import UnitDefinition
+        from blueprint_extractor import UnitDefinition
 
         ud = UnitDefinition()
         assert ud.invariants == ""
 
     def test_default_error_conditions(self):
         """Default error_conditions is empty string."""
-        from src.unit_5.stub import UnitDefinition
+        from blueprint_extractor import UnitDefinition
 
         ud = UnitDefinition()
         assert ud.error_conditions == ""
@@ -424,7 +424,7 @@ class TestBuildUnitContextBehavioral:
         self, multi_unit_file
     ):
         """Output includes behavioral contracts."""
-        from src.unit_5.stub import build_unit_context
+        from blueprint_extractor import build_unit_context
 
         result = build_unit_context(
             multi_unit_file, 1
@@ -436,7 +436,7 @@ class TestBuildUnitContextBehavioral:
         self, multi_unit_file
     ):
         """Output includes Tier 3 heading."""
-        from src.unit_5.stub import build_unit_context
+        from blueprint_extractor import build_unit_context
 
         result = build_unit_context(
             multi_unit_file, 1
@@ -447,7 +447,7 @@ class TestBuildUnitContextBehavioral:
         self, multi_unit_file
     ):
         """Dependent unit context has upstream."""
-        from src.unit_5.stub import build_unit_context
+        from blueprint_extractor import build_unit_context
 
         result = build_unit_context(
             multi_unit_file, 2
@@ -459,7 +459,7 @@ class TestBuildUnitContextBehavioral:
         self, multi_unit_file
     ):
         """Upstream section includes dep signatures."""
-        from src.unit_5.stub import build_unit_context
+        from blueprint_extractor import build_unit_context
 
         result = build_unit_context(
             multi_unit_file, 2
@@ -470,7 +470,7 @@ class TestBuildUnitContextBehavioral:
         self, multi_unit_file
     ):
         """include_tier1=False excludes upstream desc."""
-        from src.unit_5.stub import build_unit_context
+        from blueprint_extractor import build_unit_context
 
         result = build_unit_context(
             multi_unit_file,
@@ -483,7 +483,7 @@ class TestBuildUnitContextBehavioral:
         self, multi_unit_file
     ):
         """include_tier1=True includes upstream desc."""
-        from src.unit_5.stub import build_unit_context
+        from blueprint_extractor import build_unit_context
 
         result = build_unit_context(
             multi_unit_file,
@@ -496,7 +496,7 @@ class TestBuildUnitContextBehavioral:
         self, prose_file, contracts_file
     ):
         """build_unit_context with two-file mode."""
-        from src.unit_5.stub import build_unit_context
+        from blueprint_extractor import build_unit_context
 
         result = build_unit_context(
             prose_file,
@@ -519,7 +519,7 @@ class TestTier3HeadingPatterns:
         self, tmp_path
     ):
         """Recognizes Tier 3 -- Behavioral Contracts."""
-        from src.unit_5.stub import parse_blueprint
+        from blueprint_extractor import parse_blueprint
 
         content = textwrap.dedent("""\
             ## Unit 1: Heading Test
@@ -558,7 +558,7 @@ class TestTier3HeadingPatterns:
         self, tmp_path
     ):
         """Recognizes Tier 3 -- Dependencies heading."""
-        from src.unit_5.stub import parse_blueprint
+        from blueprint_extractor import parse_blueprint
 
         content = textwrap.dedent("""\
             ## Unit 1: Dep Heading
@@ -603,7 +603,7 @@ class TestExtractUnitContractsPath:
         self, prose_file, contracts_file
     ):
         """extract_unit merges via contracts_path."""
-        from src.unit_5.stub import (
+        from blueprint_extractor import (
             UnitDefinition,
             extract_unit,
         )
@@ -624,7 +624,7 @@ class TestExtractUnitContractsPath:
         self, multi_unit_file
     ):
         """extract_unit without contracts_path works."""
-        from src.unit_5.stub import extract_unit
+        from blueprint_extractor import extract_unit
 
         result = extract_unit(multi_unit_file, 1)
         assert result.unit_number == 1

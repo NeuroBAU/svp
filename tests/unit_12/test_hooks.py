@@ -16,7 +16,7 @@ and Python hook-logic functions. The stub exposes:
 
 import json
 
-from src.unit_12.stub import (
+from hooks import (
     HOOKS_JSON_CONTENT,
     HOOKS_JSON_SCHEMA,
     NON_SVP_PROTECTION_SH_CONTENT,

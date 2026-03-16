@@ -760,3 +760,34 @@ def derive_env_name(project_name: str) -> str:
     Rule: project_name.lower().replace(" ", "_").replace("-", "_")
     """
     return project_name.lower().replace(" ", "_").replace("-", "_")
+
+
+# Alias: _CONTEXT_OVERHEAD is the backward-compatible name for _CONTEXT_BUDGET_OVERHEAD
+_CONTEXT_OVERHEAD: int = _CONTEXT_BUDGET_OVERHEAD
+
+# Alias: get_gate_operations is the backward-compatible name for get_quality_gate_operations
+get_gate_operations = get_quality_gate_operations
+
+
+def discover_blueprint_files(project_root: Path) -> List[Path]:
+    """Discover all .md files in the blueprint directory, sorted by name."""
+    blueprint_dir = project_root / "blueprint"
+    if not blueprint_dir.is_dir():
+        raise FileNotFoundError(
+            f"Blueprint directory not found: {blueprint_dir}"
+        )
+    md_files = sorted(blueprint_dir.glob("*.md"))
+    if not md_files:
+        raise FileNotFoundError(
+            f"No .md files found in blueprint directory: {blueprint_dir}"
+        )
+    return md_files
+
+
+def load_blueprint_content(project_root: Path) -> str:
+    """Load and concatenate all blueprint .md files."""
+    files = discover_blueprint_files(project_root)
+    contents = []
+    for f in files:
+        contents.append(f.read_text(encoding="utf-8"))
+    return "\n\n---\n\n".join(contents)

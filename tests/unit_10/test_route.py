@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.unit_10.stub import route
+from routing import route
 
 
 def _make_state(

@@ -31,7 +31,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.unit_7.stub import (
+from dependency_extractor import (
     classify_import,
     create_conda_environment,
     create_project_directories,

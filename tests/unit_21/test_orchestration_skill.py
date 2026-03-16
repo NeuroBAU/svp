@@ -5,7 +5,7 @@ Verifies SKILL_MD_CONTENT string constant contains
 the required structural elements.
 """
 
-from src.unit_21.stub import SKILL_MD_CONTENT
+from orchestration_skill import SKILL_MD_CONTENT
 
 
 class TestSkillMdContent:
