@@ -475,7 +475,10 @@ it applies to any spec you write.
 Carry these questions in your head during the Socratic
 dialog. The agent will ask you about your domain. These
 questions help you answer with the precision the pipeline
-needs.
+needs. Each question below explains why it matters, gives
+a concrete example from SVP's own build history, and ends
+with a prompt fragment — exact language you can pass to
+the agent during the dialog or paste into your spec draft.
 
 **1. Have I listed every valid value?**
 
@@ -492,6 +495,12 @@ described in prose but never enumerated. The
 implementation agents guessed, and guessed differently
 from each other.
 
+> **Prompt:** "The valid values for [field] are:
+> [value1], [value2], [value3]. Any other value is
+> invalid and must be rejected with an error message
+> that includes the invalid value and the list of valid
+> options."
+
 **2. Have I said what happens when things go wrong?**
 
 For every operation in your spec, ask: what if the input
@@ -502,6 +511,13 @@ gracefully." An LLM interpreting "handles errors
 gracefully" might return a default, raise an exception,
 print a warning, or silently continue. Each is graceful.
 Only one is what you meant.
+
+> **Prompt:** "When [input] is missing, the system
+> raises [ErrorType] with a message that includes
+> [specific detail]. When [input] is malformed, the
+> system raises [ErrorType] with a message that includes
+> [specific detail]. The system never silently returns a
+> default for invalid input."
 
 **3. Have I stated every side effect?**
 
@@ -517,6 +533,12 @@ said "preserves rolled-back code in a backup directory
 before deletion," the blueprint would have contracted it,
 the tests would have verified it, and no audit would have
 been needed.
+
+> **Prompt:** "Before [destructive operation], the
+> system preserves [what] in [where]. After [operation],
+> [what files/directories] exist at [what paths]. The
+> operation also [sets permissions / creates directories
+> / writes markers] as a side effect."
 
 **4. Have I specified every value the system uses?**
 
@@ -537,6 +559,12 @@ overhead constants, fallback defaults, placeholder sets.
 A fresh rebuild from those contracts would have produced
 different (wrong) values.
 
+> **Prompt:** "The system uses the following constants:
+> [name] = [value] ([why this value]). When computing
+> [result], the inputs are [source1] and [source2], the
+> formula is [explicit computation], and the fallback
+> when [condition] is [fallback value]."
+
 **5. Have I described the behavior, not the mechanism?**
 
 Your spec should say what the system does, not how it
@@ -550,6 +578,13 @@ on its own. The boundary: if changing the internal
 approach would cause a test to fail, it is behavior and
 belongs in the spec. If changing it would produce the
 same outputs, it is mechanism and does not.
+
+> **Prompt:** "When loading [data], missing fields are
+> filled from the default values. Nested structures are
+> merged recursively — a missing sub-field gets the
+> default without overwriting sibling fields that are
+> present. The implementation may use any approach to
+> achieve this behavior."
 
 **6. Have I applied every rule universally?**
 
@@ -566,6 +601,13 @@ that found five more units with the same gap). Each time,
 the fix for one instance should have been applied
 universally from the start.
 
+> **Prompt:** "This rule applies to every [unit /
+> function / component] in the system that [condition],
+> not just the one where the issue was discovered. A
+> structural test must verify compliance across all
+> instances. The affected [units/functions] as of this
+> version are: [exhaustive list]."
+
 **7. Have I made every requirement testable?**
 
 Before you write a requirement, ask: "How would I verify
@@ -576,6 +618,11 @@ at the code and see if it seems right," the requirement
 is not testable — rewrite it until it is. Every sentence
 in your spec will become a test. If you cannot imagine
 the test, the sentence is too vague.
+
+> **Prompt:** "Given [specific input], the system
+> produces [specific output]. Given [edge case input],
+> the system [specific behavior]. This can be verified
+> by [what a test would check]."
 
 **8. Have I distinguished what must always be true from
 what happens once?**
@@ -590,6 +637,12 @@ do not exist yet. When you find a rule that applies to
 more than one unit, promote it from a contract to an
 invariant.
 
+> **Prompt:** "Invariant: [rule]. This applies to every
+> [unit / function / component] in the system without
+> exception. A structural test must verify that all
+> current and future instances comply. Violation of this
+> invariant is a build failure, not a warning."
+
 These eight questions are not exhaustive, but they cover
 the patterns that produced 50 bugs across five build
 generations of SVP. The lessons learned document in the
@@ -599,7 +652,7 @@ particular demonstrates why this checklist matters: an
 audit of the delivered system found 16 functions where
 the contracts were technically correct but too vague to
 reproduce — the implementations worked by luck, not by
-specification. The checklist above, applied consistently
+specification. The prompts above, used consistently
 during the Socratic dialog, would have prevented every
 one of them.
 
