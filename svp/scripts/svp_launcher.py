@@ -171,10 +171,6 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
     args = parser.parse_args(argv)
 
-    # Default to 'resume' if no subcommand given
-    if args.command is None:
-        args.command = "resume"
-
     return args
 
 
@@ -769,10 +765,8 @@ def run_session_loop(project_root: Path, plugin_dir: Path) -> int:
 # ---------------------------------------------------------------------------
 
 def detect_existing_project(directory: Path) -> bool:
-    """Return True if both pipeline_state.json and .svp/ exist in the directory."""
-    state_exists = (directory / STATE_FILE).is_file()
-    svp_dir_exists = (directory / SVP_DIR).is_dir()
-    return state_exists and svp_dir_exists
+    """Return True if pipeline_state.json exists in the directory."""
+    return (directory / STATE_FILE).is_file()
 
 
 def resume_project(project_root: Path, plugin_dir: Path) -> int:

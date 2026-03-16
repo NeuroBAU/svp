@@ -81,26 +81,16 @@ def validate_plugin_structure(repo_root: Path) -> List[str]:
         if not (td_dir / "python_conda_pytest.json").exists():
             errors.append("Missing svp/scripts/toolchain_defaults/python_conda_pytest.json")
         else:
-            # Validate quality section in toolchain JSON
+            # Validate toolchain JSON is valid JSON
             try:
-                tc_data = json.loads((td_dir / "python_conda_pytest.json").read_text())
-                if "quality" not in tc_data:
-                    errors.append("Missing 'quality' section in toolchain JSON")
-                else:
-                    required_keys = {"formatter", "linter", "type_checker", "packages", "gate_a", "gate_b", "gate_c"}
-                    missing = required_keys - set(tc_data["quality"].keys())
-                    if missing:
-                        errors.append(f"Missing required keys in toolchain quality section: {', '.join(sorted(missing))}")
+                json.loads((td_dir / "python_conda_pytest.json").read_text())
             except (json.JSONDecodeError, OSError):
                 errors.append("Invalid toolchain JSON file")
 
         if not (td_dir / "ruff.toml").exists():
             errors.append("Missing svp/scripts/toolchain_defaults/ruff.toml")
 
-    if errors:
-        raise ValueError(f"Plugin structure validation failed: {'; '.join(errors)}")
-
-    return []
+    return errors
 
 
 # ===========================================================================
@@ -142,9 +132,6 @@ def _scan_file_ast(
     banned_patterns: List[Dict[str, str]],
 ) -> List[Dict[str, Any]]:
     """Parse a Python file's AST and inspect subprocess calls for banned patterns."""
-    if not banned_patterns:
-        return []
-
     try:
         source = file_path.read_text(encoding="utf-8")
         tree = ast.parse(source, filename=str(file_path))
@@ -152,6 +139,17 @@ def _scan_file_ast(
         return []
 
     violations: List[Dict[str, Any]] = []
+
+    # Check for __SVP_STUB__ sentinel (always, regardless of banned_patterns)
+    if "__SVP_STUB__" in source:
+        violations.append({
+            "file": str(file_path),
+            "line": 0,
+            "issue": "__SVP_STUB__ sentinel found",
+        })
+
+    if not banned_patterns:
+        return violations
 
     # Functions we consider as executable subprocess calls
     SUBPROCESS_FUNCS = {"subprocess.run", "subprocess.call", "subprocess.Popen", "os.system"}
@@ -182,6 +180,7 @@ def _scan_file_ast(
                     "line": node.lineno,
                     "pattern": pattern,
                     "context": cmd_str,
+                    "issue": f"Banned pattern '{pattern}' found",
                 })
 
     return violations

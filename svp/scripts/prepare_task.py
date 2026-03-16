@@ -19,16 +19,17 @@ try:
     from svp_config import ARTIFACT_FILENAMES, load_profile
 except ImportError:
     # Fallback if svp_config is not on the path yet
-    ARTIFACT_FILENAMES: Dict[str, str] = {
+    ARTIFACT_FILENAMES = {
         "stakeholder_spec": "stakeholder_spec.md",
-        "blueprint": "blueprint.md",
+        "blueprint_prose": "blueprint_prose.md",
+        "blueprint_contracts": "blueprint_contracts.md",
         "project_context": "project_context.md",
         "project_profile": "project_profile.json",
         "pipeline_state": "pipeline_state.json",
         "svp_config": "svp_config.json",
         "toolchain": "toolchain.json",
         "ruff_config": "ruff.toml",
-        "docs_dir": "docs",
+        "lessons_learned": "svp_2_1_lessons_learned.md",
     }
     load_profile = None  # type: ignore[assignment]
 
@@ -92,6 +93,7 @@ ALL_GATE_IDS = [
     "gate_6_3_repair_exhausted",
     "gate_6_4_non_reproducible",
     "gate_6_5_debug_commit",
+    "gate_hint_conflict",
 ]
 
 
@@ -102,46 +104,76 @@ ALL_GATE_IDS = [
 def load_stakeholder_spec(project_root: Path) -> str:
     """Load the stakeholder specification document.
 
-    Bug 22 fix: uses ARTIFACT_FILENAMES from Unit 1.
+    Returns empty string if file does not exist.
     """
-    path = project_root / "specs" / ARTIFACT_FILENAMES["stakeholder_spec"]
-    if not path.exists():
-        raise FileNotFoundError(f"Required document not found: {path}")
-    return path.read_text(encoding="utf-8")
+    fname = ARTIFACT_FILENAMES["stakeholder_spec"]
+    candidates = [
+        project_root / fname,
+        project_root / "specs" / fname,
+    ]
+    for path in candidates:
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+    return ""
 
 
 def load_blueprint(project_root: Path) -> str:
     """Load the blueprint document.
 
-    Bug 22 fix: uses ARTIFACT_FILENAMES from Unit 1.
+    Returns empty string if neither blueprint file exists.
+    Tries blueprint_prose.md, then blueprint_contracts.md.
     """
-    path = project_root / "blueprint" / ARTIFACT_FILENAMES["blueprint"]
-    if not path.exists():
-        raise FileNotFoundError(f"Required document not found: {path}")
-    return path.read_text(encoding="utf-8")
+    # Try blueprint_prose first
+    prose_path = project_root / "blueprint" / ARTIFACT_FILENAMES.get("blueprint_prose", "blueprint_prose.md")
+    if prose_path.exists():
+        return prose_path.read_text(encoding="utf-8")
+    # Try blueprint_contracts
+    contracts_path = project_root / "blueprint" / ARTIFACT_FILENAMES.get("blueprint_contracts", "blueprint_contracts.md")
+    if contracts_path.exists():
+        return contracts_path.read_text(encoding="utf-8")
+    return ""
 
 
 def load_reference_summaries(project_root: Path) -> str:
-    """Load reference summaries."""
+    """Load reference summaries.
+
+    Returns empty string if file does not exist.
+    """
     path = project_root / "references" / "summaries.md"
     if not path.exists():
-        raise FileNotFoundError(f"Required document not found: {path}")
+        return ""
     return path.read_text(encoding="utf-8")
 
 
 def load_project_context(project_root: Path) -> str:
-    """Load project context document."""
+    """Load project context document.
+
+    Returns empty string if file does not exist.
+    """
     path = project_root / ARTIFACT_FILENAMES.get("project_context", "project_context.md")
     if not path.exists():
-        raise FileNotFoundError(f"Required document not found: {path}")
+        return ""
     return path.read_text(encoding="utf-8")
 
 
 def load_ledger_content(project_root: Path, ledger_name: str) -> str:
-    """Load ledger content by name."""
-    path = project_root / "ledgers" / f"{ledger_name}.jsonl"
+    """Load ledger content by name.
+
+    Accepts ledger name with or without extension.
+    Returns empty string if file does not exist.
+    """
+    # If ledger_name already has an extension, use as-is
+    if "." in ledger_name:
+        path = project_root / "ledgers" / ledger_name
+    else:
+        # Try .json first, then .jsonl, then no extension
+        path = project_root / "ledgers" / f"{ledger_name}.json"
+        if not path.exists():
+            path = project_root / "ledgers" / f"{ledger_name}.jsonl"
+        if not path.exists():
+            path = project_root / "ledgers" / ledger_name
     if not path.exists():
-        raise FileNotFoundError(f"Required document not found: {path}")
+        return ""
     return path.read_text(encoding="utf-8")
 
 
@@ -368,7 +400,9 @@ def _assemble_sections_for_agent(
             sections["revision_mode"] = f"Revision mode: {revision_mode}"
 
     elif agent_type == "blueprint_author":
-        sections["stakeholder_spec"] = load_stakeholder_spec(project_root)
+        spec = load_stakeholder_spec(project_root)
+        if spec:
+            sections["stakeholder_spec"] = spec
         refs = _safe_load_reference_summaries(project_root)
         if refs:
             sections["reference_summaries"] = refs
@@ -385,8 +419,12 @@ def _assemble_sections_for_agent(
             sections["profile_sections"] = profile_sections
 
     elif agent_type == "blueprint_checker":
-        sections["stakeholder_spec"] = load_stakeholder_spec(project_root)
-        sections["blueprint"] = load_blueprint(project_root)
+        spec = load_stakeholder_spec(project_root)
+        if spec:
+            sections["stakeholder_spec"] = spec
+        bp = load_blueprint(project_root)
+        if bp:
+            sections["blueprint"] = bp
         refs = _safe_load_reference_summaries(project_root)
         if refs:
             sections["reference_summaries"] = refs
@@ -627,10 +665,6 @@ def prepare_agent_task(
     # Validate agent type
     if agent_type not in KNOWN_AGENT_TYPES:
         raise ValueError(f"Unknown agent type: {agent_type}")
-
-    # Validate unit number requirement
-    if agent_type in UNIT_REQUIRING_AGENTS and unit_number is None:
-        raise ValueError(f"Unit number required for agent type {agent_type}")
 
     # Assemble sections
     sections = _assemble_sections_for_agent(
@@ -981,6 +1015,23 @@ def prepare_gate_prompt(
         parts.append("- **APPROVE**: Accept the debug commit.")
         parts.append("- **REJECT**: Reject the debug commit.")
 
+    elif gate_id == "gate_hint_conflict":
+        parts.append("# Gate: Hint Blueprint Conflict")
+        parts.append("")
+        parts.append("A conflict was detected between the hint and the blueprint.")
+        parts.append("Decide which is correct.")
+        parts.append("")
+        parts.append("## Response Options")
+        parts.append("")
+        parts.append("- **BLUEPRINT CORRECT**: The blueprint is correct; discard the hint.")
+        parts.append("- **HINT CORRECT**: The hint is correct; update the blueprint.")
+
+    else:
+        # Generic fallback for any gate ID not explicitly handled
+        parts.append(f"# Gate: {gate_id}")
+        parts.append("")
+        parts.append("Please review and respond with the appropriate option.")
+
     # Add extra context
     if extra_context:
         parts.append("")
@@ -1020,6 +1071,7 @@ def main() -> None:
     parser.add_argument("--unit", type=int, default=None, help="Unit number")
     parser.add_argument("--ladder", type=str, default=None, help="Ladder position")
     parser.add_argument("--revision-mode", type=str, default=None, help="Revision mode")
+    parser.add_argument("--quality-report", type=str, default=None, help="Quality report path or gate name")
     parser.add_argument("--output", type=str, default=None, help="Override output path")
 
     args = parser.parse_args()

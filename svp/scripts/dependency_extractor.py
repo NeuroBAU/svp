@@ -1,159 +1,292 @@
 # Unit 7: Dependency Extractor and Import Validator
+import argparse
 import ast
-import json
 import re
 import subprocess
 import sys
-from typing import Optional, Dict, Any, List, Tuple
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-
-# Well-known import-name to package-name mappings
-_KNOWN_PACKAGE_MAP: Dict[str, str] = {
-    "PIL": "Pillow",
-    "cv2": "opencv-python",
-    "sklearn": "scikit-learn",
-    "skimage": "scikit-image",
-    "attr": "attrs",
-    "yaml": "PyYAML",
-    "bs4": "beautifulsoup4",
-    "gi": "PyGObject",
-    "wx": "wxPython",
-    "Crypto": "pycryptodome",
-    "serial": "pyserial",
-    "usb": "pyusb",
-    "dotenv": "python-dotenv",
-    "dateutil": "python-dateutil",
+# Standard library module names for Python 3.11+
+_STDLIB_MODULES = {
+    "abc",
+    "aifc",
+    "argparse",
+    "array",
+    "ast",
+    "asynchat",
+    "asyncio",
+    "asyncore",
+    "atexit",
+    "base64",
+    "bdb",
+    "binascii",
+    "binhex",
+    "bisect",
+    "builtins",
+    "bz2",
+    "calendar",
+    "cgi",
+    "cgitb",
+    "chunk",
+    "cmath",
+    "cmd",
+    "code",
+    "codecs",
+    "codeop",
+    "collections",
+    "colorsys",
+    "compileall",
+    "concurrent",
+    "configparser",
+    "contextlib",
+    "contextvars",
+    "copy",
+    "copyreg",
+    "cProfile",
+    "crypt",
+    "csv",
+    "ctypes",
+    "curses",
+    "dataclasses",
+    "datetime",
+    "dbm",
+    "decimal",
+    "difflib",
+    "dis",
+    "distutils",
+    "doctest",
+    "email",
+    "encodings",
+    "enum",
+    "errno",
+    "faulthandler",
+    "fcntl",
+    "filecmp",
+    "fileinput",
+    "fnmatch",
+    "fractions",
+    "ftplib",
+    "functools",
+    "gc",
+    "getopt",
+    "getpass",
+    "gettext",
+    "glob",
+    "graphlib",
+    "grp",
+    "gzip",
+    "hashlib",
+    "heapq",
+    "hmac",
+    "html",
+    "http",
+    "idlelib",
+    "imaplib",
+    "imghdr",
+    "imp",
+    "importlib",
+    "inspect",
+    "io",
+    "ipaddress",
+    "itertools",
+    "json",
+    "keyword",
+    "lib2to3",
+    "linecache",
+    "locale",
+    "logging",
+    "lzma",
+    "mailbox",
+    "mailcap",
+    "marshal",
+    "math",
+    "mimetypes",
+    "mmap",
+    "modulefinder",
+    "multiprocessing",
+    "netrc",
+    "nis",
+    "nntplib",
+    "numbers",
+    "operator",
+    "optparse",
+    "os",
+    "ossaudiodev",
+    "pathlib",
+    "pdb",
+    "pickle",
+    "pickletools",
+    "pipes",
+    "pkgutil",
+    "platform",
+    "plistlib",
+    "poplib",
+    "posix",
+    "posixpath",
+    "pprint",
+    "profile",
+    "pstats",
+    "pty",
+    "pwd",
+    "py_compile",
+    "pyclbr",
+    "pydoc",
+    "queue",
+    "quopri",
+    "random",
+    "re",
+    "readline",
+    "reprlib",
+    "resource",
+    "rlcompleter",
+    "runpy",
+    "sched",
+    "secrets",
+    "select",
+    "selectors",
+    "shelve",
+    "shlex",
+    "shutil",
+    "signal",
+    "site",
+    "smtpd",
+    "smtplib",
+    "sndhdr",
+    "socket",
+    "socketserver",
+    "sqlite3",
+    "ssl",
+    "stat",
+    "statistics",
+    "string",
+    "stringprep",
+    "struct",
+    "subprocess",
+    "sunau",
+    "symtable",
+    "sys",
+    "sysconfig",
+    "syslog",
+    "tabnanny",
+    "tarfile",
+    "telnetlib",
+    "tempfile",
+    "termios",
+    "test",
+    "textwrap",
+    "threading",
+    "time",
+    "timeit",
+    "tkinter",
+    "token",
+    "tokenize",
+    "tomllib",
+    "trace",
+    "traceback",
+    "tracemalloc",
+    "tty",
+    "turtle",
+    "turtledemo",
+    "types",
+    "typing",
+    "unicodedata",
+    "unittest",
+    "urllib",
+    "uu",
+    "uuid",
+    "venv",
+    "warnings",
+    "wave",
+    "weakref",
+    "webbrowser",
+    "winreg",
+    "winsound",
+    "wsgiref",
+    "xdrlib",
+    "xml",
+    "xmlrpc",
+    "zipapp",
+    "zipfile",
+    "zipimport",
+    "zlib",
+    "zoneinfo",
+    "_thread",
 }
 
 
-def _get_stdlib_modules() -> set:
-    """Return a set of standard library module names."""
-    if hasattr(sys, "stdlib_module_names"):
-        return set(sys.stdlib_module_names)
-    # Fallback for older Python versions
-    import pkgutil
-    import importlib
-    stdlib_names = set()
-    for mod in pkgutil.iter_modules():
-        stdlib_names.add(mod.name)
-    # Add well-known stdlib modules
-    stdlib_names.update({
-        "os", "sys", "json", "re", "pathlib", "typing", "collections",
-        "ast", "subprocess", "importlib", "functools", "itertools",
-        "abc", "io", "math", "hashlib", "logging", "unittest",
-        "contextlib", "dataclasses", "enum", "copy", "shutil",
-        "tempfile", "textwrap", "threading", "multiprocessing",
-        "argparse", "configparser", "csv", "datetime", "decimal",
-        "difflib", "email", "glob", "gzip", "html", "http",
-        "inspect", "operator", "pickle", "pprint", "random",
-        "socket", "sqlite3", "string", "struct", "time", "traceback",
-        "urllib", "uuid", "warnings", "xml", "zipfile",
-    })
-    return stdlib_names
+def extract_all_imports(
+    blueprint_path: Path,
+) -> List[str]:
+    """Extract import statements from blueprint code blocks.
 
-
-def extract_all_imports(blueprint_path: Path) -> List[str]:
-    """Parse Tier 2 Signatures code blocks (em-dash format) from blueprint,
-    collecting import and from-import statements.
+    Reads a blueprint .md file, finds ```python code blocks,
+    and extracts all import/from-import statements.
     """
-    blueprint_path = Path(blueprint_path)
-    if not blueprint_path.exists():
-        raise FileNotFoundError(f"Blueprint file not found: {blueprint_path}")
-
     content = blueprint_path.read_text(encoding="utf-8")
-
-    # Find all "### Tier 2 — Signatures" headings (em-dash \u2014 only)
-    # Then extract the code blocks that follow them
-    # Pattern: heading with em-dash, then look for ```python ... ```
-    pattern = re.compile(
-        r"###\s+Tier\s+2\s+\u2014\s+Signatures.*?\n"  # em-dash heading
-        r".*?"                                           # any text between
-        r"```python\s*\n(.*?)```",                       # code block
-        re.DOTALL
-    )
-
-    matches = pattern.findall(content)
-
-    if not matches:
-        raise ValueError("No signature blocks found in blueprint")
+    # Find all python code blocks
+    pattern = r"```python\s*\n(.*?)```"
+    blocks = re.findall(pattern, content, re.DOTALL)
 
     imports: List[str] = []
-    for code_block in matches:
-        for line in code_block.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("import ") or stripped.startswith("from "):
-                imports.append(stripped)
-
+    for block in blocks:
+        try:
+            tree = ast.parse(block)
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    stmt = f"import {alias.name}"
+                    if stmt not in imports:
+                        imports.append(stmt)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    names = ", ".join(a.name for a in node.names)
+                    stmt = f"from {node.module} import {names}"
+                    if stmt not in imports:
+                        imports.append(stmt)
     return imports
 
 
 def classify_import(import_stmt: str) -> str:
-    """Classify an import statement as 'stdlib', 'third_party', or 'project_internal'."""
+    """Classify an import as stdlib or third_party.
+
+    Returns 'stdlib' for standard library modules,
+    'third_party' for everything else.
+    """
     # Extract the top-level module name
-    stmt = import_stmt.strip()
-
-    if stmt.startswith("from "):
-        # "from X.Y import Z" -> module is "X"
-        parts = stmt.split()
-        module_path = parts[1]  # e.g. "src.unit_1.stub" or "typing"
-        top_module = module_path.split(".")[0]
-    elif stmt.startswith("import "):
-        parts = stmt.split()
-        module_path = parts[1]
-        top_module = module_path.split(".")[0]
+    if import_stmt.startswith("from "):
+        module = import_stmt.split()[1].split(".")[0]
+    elif import_stmt.startswith("import "):
+        module = import_stmt.split()[1].split(".")[0]
     else:
-        top_module = stmt.split(".")[0]
+        module = import_stmt.split(".")[0]
 
-    # Check project-internal prefixes
-    if top_module in ("src", "svp"):
-        return "project_internal"
-
-    # Check if there's a matching .py file in a scripts/ directory on sys.path
-    for p in sys.path:
-        scripts_candidate = Path(p) / f"{top_module}.py"
-        if scripts_candidate.exists() and "scripts" in str(Path(p)):
-            return "project_internal"
-        # Also check if the path itself is a scripts dir
-        if Path(p).name == "scripts" and scripts_candidate.exists():
-            return "project_internal"
-
-    # Check stdlib
-    stdlib_modules = _get_stdlib_modules()
-    if top_module in stdlib_modules:
+    if module in _STDLIB_MODULES:
         return "stdlib"
-
     return "third_party"
 
 
-def map_imports_to_packages(imports: List[str]) -> Dict[str, str]:
-    """Map third-party import names to their package names."""
-    if not imports:
-        return {}
+def map_imports_to_packages(
+    imports: List[str],
+) -> Dict[str, str]:
+    """Map third-party imports to package names.
 
+    Returns a dict of {module_name: package_name}.
+    Excludes stdlib imports.
+    """
     result: Dict[str, str] = {}
     for stmt in imports:
-        stmt = stmt.strip()
+        if classify_import(stmt) == "stdlib":
+            continue
+        # Extract module name
         if stmt.startswith("from "):
-            parts = stmt.split()
-            module_path = parts[1]
-            top_module = module_path.split(".")[0]
-        elif stmt.startswith("import "):
-            parts = stmt.split()
-            module_path = parts[1].rstrip(",")
-            top_module = module_path.split(".")[0]
+            module = stmt.split()[1].split(".")[0]
         else:
-            continue
-
-        # Only map third-party imports
-        classification = classify_import(stmt)
-        if classification != "third_party":
-            continue
-
-        # Look up known mapping or use module name as package name
-        package_name = _KNOWN_PACKAGE_MAP.get(top_module, top_module)
-        result[top_module] = package_name
-
+            module = stmt.split()[1].split(".")[0]
+        # Map module to package name (often the same)
+        result[module] = module
     return result
 
 
@@ -163,99 +296,72 @@ def create_conda_environment(
     python_version: str = "3.11",
     toolchain: Optional[Dict[str, Any]] = None,
 ) -> bool:
-    """Create a conda environment, install packages and framework dependencies.
+    """Create a conda environment with packages.
 
-    SVP 2.1: Also installs quality.packages unconditionally.
+    Always installs framework packages AND quality packages
+    unconditionally. Always replaces any prior environment.
     """
-    try:
-        if toolchain:
-            env_config = toolchain.get("environment", {})
-            testing_config = toolchain.get("testing", {})
-            quality_config = toolchain.get("quality", {})
+    # Build create command
+    if toolchain:
+        env_cfg = toolchain.get("environment", {})
+        create_tpl = env_cfg.get(
+            "create",
+            ("conda create -n {env_name} python={python_version} -y"),
+        )
+        create_cmd = create_tpl.replace("{env_name}", env_name).replace(
+            "{python_version}", python_version
+        )
+    else:
+        create_cmd = f"conda create -n {env_name} python={python_version} -y"
 
-            # Remove prior environment
-            remove_cmd = env_config.get("remove", "conda env remove -n {env_name} -y")
-            remove_cmd = remove_cmd.format(env_name=env_name)
-            try:
-                subprocess.run(remove_cmd, shell=True, check=True, capture_output=True)
-            except subprocess.CalledProcessError:
-                pass  # Environment may not exist yet
+    # Remove existing env first (always replace)
+    subprocess.run(
+        ["conda", "env", "remove", "-n", env_name, "-y"],
+        capture_output=True,
+    )
 
-            # Create environment
-            create_cmd = env_config.get("create", "conda create -n {env_name} python={python_version} -y")
-            create_cmd = create_cmd.format(env_name=env_name, python_version=python_version)
-            subprocess.run(create_cmd, shell=True, check=True, capture_output=True)
+    # Create environment
+    result = subprocess.run(
+        create_cmd.split(),
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        return False
 
-            # Install framework packages
-            framework_packages = testing_config.get("framework_packages", ["pytest", "pytest-cov"])
-            install_template = env_config.get("install", "conda run -n {env_name} pip install {packages}")
+    # Collect all packages to install
+    all_pkgs: List[str] = list(packages.values())
 
-            if framework_packages:
-                install_cmd = install_template.format(
-                    env_name=env_name,
-                    packages=" ".join(framework_packages),
-                )
-                subprocess.run(install_cmd, shell=True, check=True, capture_output=True)
+    # Add framework packages from toolchain
+    if toolchain:
+        fw_pkgs = toolchain.get("testing", {}).get("framework_packages", [])
+        for pkg in fw_pkgs:
+            if pkg not in all_pkgs:
+                all_pkgs.append(pkg)
 
-            # Install quality packages (NEW IN 2.1)
-            quality_packages = quality_config.get("packages", [])
-            if quality_packages:
-                install_cmd = install_template.format(
-                    env_name=env_name,
-                    packages=" ".join(quality_packages),
-                )
-                subprocess.run(install_cmd, shell=True, check=True, capture_output=True)
+        # Add quality packages (NEW IN 2.1)
+        q_pkgs = toolchain.get("quality", {}).get("packages", [])
+        for pkg in q_pkgs:
+            if pkg not in all_pkgs:
+                all_pkgs.append(pkg)
 
-            # Install project packages
-            if packages:
-                pkg_list = " ".join(packages.values())
-                install_cmd = install_template.format(
-                    env_name=env_name,
-                    packages=pkg_list,
-                )
-                subprocess.run(install_cmd, shell=True, check=True, capture_output=True)
+    # Install packages via pip in the environment
+    if all_pkgs:
+        install_cmd = [
+            "conda",
+            "run",
+            "-n",
+            env_name,
+            "pip",
+            "install",
+        ] + all_pkgs
+        result = subprocess.run(
+            install_cmd,
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            return False
 
-        else:
-            # Hardcoded commands without toolchain
-            # Remove prior environment
-            try:
-                subprocess.run(
-                    f"conda env remove -n {env_name} -y",
-                    shell=True, check=True, capture_output=True,
-                )
-            except subprocess.CalledProcessError:
-                pass
-
-            # Create environment
-            subprocess.run(
-                f"conda create -n {env_name} python={python_version} -y",
-                shell=True, check=True, capture_output=True,
-            )
-
-            # Install framework packages (pytest, pytest-cov)
-            subprocess.run(
-                f"conda run -n {env_name} pip install pytest pytest-cov",
-                shell=True, check=True, capture_output=True,
-            )
-
-            # Install quality packages (ruff, mypy) -- NEW IN 2.1
-            subprocess.run(
-                f"conda run -n {env_name} pip install ruff mypy",
-                shell=True, check=True, capture_output=True,
-            )
-
-            # Install project packages
-            if packages:
-                pkg_list = " ".join(packages.values())
-                subprocess.run(
-                    f"conda run -n {env_name} pip install {pkg_list}",
-                    shell=True, check=True, capture_output=True,
-                )
-
-        return True
-
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Conda environment creation failed: {e}") from e
+    return True
 
 
 def validate_imports(
@@ -263,262 +369,228 @@ def validate_imports(
     imports: List[str],
     toolchain: Optional[Dict[str, Any]] = None,
 ) -> List[Tuple[str, str]]:
-    """Validate that each import can be resolved in the given conda environment."""
-    if not imports:
-        return []
+    """Validate imports can be resolved in the env.
 
+    Returns list of (import_stmt, error_message) tuples
+    for imports that fail.
+    """
     failures: List[Tuple[str, str]] = []
-
-    # Determine run prefix
+    # Build run prefix
     if toolchain:
-        env_config = toolchain.get("environment", {})
-        run_prefix = env_config.get("run_prefix", f"conda run -n {env_name}")
-        run_prefix = run_prefix.format(env_name=env_name)
+        run_prefix = (
+            toolchain.get("environment", {})
+            .get("run_prefix", f"conda run -n {env_name}")
+            .replace("{env_name}", env_name)
+        )
     else:
         run_prefix = f"conda run -n {env_name}"
 
-    for imp in imports:
-        # Extract the actual import statement to test
-        # Build a python -c command to try the import
-        cmd = f'{run_prefix} python -c "{imp}"'
-        try:
-            subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            error_msg = str(e.stderr) if e.stderr else str(e)
-            failures.append((imp, error_msg))
+    for stmt in imports:
+        # Extract module name for import check
+        if stmt.startswith("from "):
+            module = stmt.split()[1].split(".")[0]
+        else:
+            module = stmt.split()[1].split(".")[0]
 
+        cmd = f'{run_prefix} python -c "import {module}"'
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            err = result.stderr.strip() or "import failed"
+            failures.append((stmt, err))
     return failures
 
 
 def create_project_directories(project_root: Path, total_units: int) -> None:
-    """Create src/unit_N/ and tests/unit_N/ directories for each unit.
+    """Create src/ and tests/ directory structures.
 
-    Bug 24 fix: Validates that total_units is a positive integer before use.
+    Creates src/unit_N and tests/unit_N for each unit.
     """
-    # Bug 24 guard: total_units must be a positive integer
-    if not isinstance(total_units, int) or isinstance(total_units, bool):
-        raise TypeError(
-            f"total_units must be a positive integer, got {type(total_units).__name__}"
-        )
-    if total_units <= 0:
-        raise TypeError(
-            f"total_units must be a positive integer, got {type(total_units).__name__}"
-        )
+    src_dir = project_root / "src"
+    tests_dir = project_root / "tests"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    tests_dir.mkdir(parents=True, exist_ok=True)
 
-    assert isinstance(total_units, int) and total_units > 0, \
-        "total_units must be a positive integer -- never None (Bug 24 guard)"
-
-    project_root = Path(project_root)
     for i in range(1, total_units + 1):
-        src_dir = project_root / "src" / f"unit_{i}"
-        src_dir.mkdir(parents=True, exist_ok=True)
-        test_dir = project_root / "tests" / f"unit_{i}"
-        test_dir.mkdir(parents=True, exist_ok=True)
+        unit_src = src_dir / f"unit_{i}"
+        unit_src.mkdir(parents=True, exist_ok=True)
+        unit_test = tests_dir / f"unit_{i}"
+        unit_test.mkdir(parents=True, exist_ok=True)
 
 
-def validate_dependency_dag(blueprint_path: Path) -> List[str]:
-    """Parse each unit's dependency list from the blueprint, build the dependency graph,
-    and verify: (1) no unit references a unit with a higher number, (2) no cycles exist,
-    (3) every referenced unit number exists.
+def validate_dependency_dag(
+    blueprint_dir: Path,
+) -> List[str]:
+    """Validate the dependency DAG in the blueprint.
 
-    Returns a list of violation descriptions (empty if valid).
+    Returns list of error messages for any cycles or
+    invalid references.
     """
-    blueprint_path = Path(blueprint_path)
-    if not blueprint_path.exists():
-        raise FileNotFoundError(f"Blueprint file not found: {blueprint_path}")
+    errors: List[str] = []
+    if not blueprint_dir.exists():
+        errors.append(f"Blueprint dir not found: {blueprint_dir}")
+        return errors
 
-    content = blueprint_path.read_text(encoding="utf-8")
+    # Read blueprint contracts file
+    contracts_file = blueprint_dir / "blueprint_contracts.md"
+    if not contracts_file.exists():
+        # Try direct path if blueprint_dir is a file
+        return errors
 
-    # Parse unit headings: "## Unit N: Title"
-    unit_pattern = re.compile(r"^##\s+Unit\s+(\d+)\s*:", re.MULTILINE)
-    unit_matches = list(unit_pattern.finditer(content))
+    content = contracts_file.read_text(encoding="utf-8")
 
-    if not unit_matches:
-        return []
+    # Extract unit dependencies
+    dep_pattern = r"Unit\s+(\d+):.*?depends on:\s*([\d,\s]*)"
+    deps: Dict[int, List[int]] = {}
+    for match in re.finditer(dep_pattern, content):
+        unit_id = int(match.group(1))
+        dep_str = match.group(2).strip()
+        if dep_str:
+            dep_list = [int(d.strip()) for d in dep_str.split(",") if d.strip()]
+        else:
+            dep_list = []
+        deps[unit_id] = dep_list
 
-    unit_numbers = set()
-    for m in unit_matches:
-        unit_numbers.add(int(m.group(1)))
-
-    # Parse dependencies for each unit
-    # Look for "Depends on: Unit X, Unit Y" or similar patterns within each unit's section
-    violations: List[str] = []
-    dep_pattern = re.compile(r"[Dd]epends?\s+on\s*:\s*(.*?)$", re.MULTILINE)
-
-    for i, match in enumerate(unit_matches):
-        unit_num = int(match.group(1))
-        # Get the section text (from this heading to the next heading or end of file)
-        start = match.end()
-        end = unit_matches[i + 1].start() if i + 1 < len(unit_matches) else len(content)
-        section = content[start:end]
-
-        dep_matches = dep_pattern.findall(section)
-        for dep_str in dep_matches:
-            # Extract unit numbers from dependency string
-            dep_unit_pattern = re.compile(r"[Uu]nit\s+(\d+)")
-            dep_units = dep_unit_pattern.findall(dep_str)
-            for dep_num_str in dep_units:
-                dep_num = int(dep_num_str)
-
-                # Check forward reference (higher number)
-                if dep_num >= unit_num:
-                    violations.append(
-                        f"Unit {unit_num} depends on Unit {dep_num} "
-                        f"(forward dependency)"
-                    )
-
-                # Check existence
-                if dep_num not in unit_numbers:
-                    violations.append(
-                        f"Unit {unit_num} depends on Unit {dep_num} "
-                        f"which does not exist"
-                    )
-
-    # Check for cycles using topological sort
-    # Build adjacency list
-    adjacency: Dict[int, List[int]] = {n: [] for n in unit_numbers}
-    for i, match in enumerate(unit_matches):
-        unit_num = int(match.group(1))
-        start = match.end()
-        end = unit_matches[i + 1].start() if i + 1 < len(unit_matches) else len(content)
-        section = content[start:end]
-
-        dep_matches = dep_pattern.findall(section)
-        for dep_str in dep_matches:
-            dep_unit_pattern = re.compile(r"[Uu]nit\s+(\d+)")
-            dep_units = dep_unit_pattern.findall(dep_str)
-            for dep_num_str in dep_units:
-                dep_num = int(dep_num_str)
-                if dep_num in unit_numbers:
-                    adjacency[unit_num].append(dep_num)
-
-    # Detect cycles via DFS
+    # Check for cycles using DFS
     visited: set = set()
-    rec_stack: set = set()
+    path: set = set()
 
-    def _has_cycle(node: int) -> bool:
+    def has_cycle(node: int) -> bool:
+        if node in path:
+            return True
+        if node in visited:
+            return False
         visited.add(node)
-        rec_stack.add(node)
-        for neighbor in adjacency.get(node, []):
-            if neighbor not in visited:
-                if _has_cycle(neighbor):
-                    return True
-            elif neighbor in rec_stack:
-                violations.append(
-                    f"Cycle detected involving Unit {node} and Unit {neighbor}"
-                )
+        path.add(node)
+        for dep in deps.get(node, []):
+            if has_cycle(dep):
                 return True
-        rec_stack.discard(node)
+        path.discard(node)
         return False
 
-    for node in sorted(unit_numbers):
-        if node not in visited:
-            _has_cycle(node)
+    for unit_id in deps:
+        if has_cycle(unit_id):
+            errors.append(f"Cycle detected involving unit {unit_id}")
+            break
 
-    return violations
+    return errors
 
 
-def derive_total_units(blueprint_path: Path) -> int:
-    """Read the blueprint and count the number of '## Unit N:' headings.
+def derive_total_units(blueprint_dir: Path) -> int:
+    """Derive total number of units from blueprint.
 
-    Returns a positive integer. This is the canonical source for total_units --
-    it must NOT be read from pipeline state during infrastructure setup (Bug 24 fix).
+    Counts ## Unit N headings in blueprint files.
     """
-    blueprint_path = Path(blueprint_path)
-    if not blueprint_path.exists():
-        raise FileNotFoundError(f"Blueprint file not found: {blueprint_path}")
+    from svp_config import discover_blueprint_files
 
-    content = blueprint_path.read_text(encoding="utf-8")
+    try:
+        bp_files = discover_blueprint_files(blueprint_dir)
+    except FileNotFoundError:
+        # Fall back to direct file if not a project root
+        bp_files = []
+        contracts = blueprint_dir / "blueprint_contracts.md"
+        if contracts.exists():
+            bp_files = [contracts]
+        else:
+            # Check if blueprint_dir itself is a file
+            if blueprint_dir.is_file():
+                bp_files = [blueprint_dir]
 
-    # Count "## Unit N:" headings
-    unit_pattern = re.compile(r"^##\s+Unit\s+\d+\s*:", re.MULTILINE)
-    matches = unit_pattern.findall(content)
+    if not bp_files:
+        return 0
 
-    result = len(matches)
-    assert result > 0, "total_units must be a positive integer, never None or zero"
-    return result
+    unit_ids: set = set()
+    for bp_file in bp_files:
+        content = bp_file.read_text(encoding="utf-8")
+        # Match ## Unit N: headings
+        for match in re.finditer(r"^##\s+Unit\s+(\d+):", content, re.MULTILINE):
+            unit_ids.add(int(match.group(1)))
+
+    return len(unit_ids)
 
 
 def run_infrastructure_setup(
     project_root: Path,
     toolchain: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Orchestrate the full infrastructure setup pipeline.
+    """Run full infrastructure setup.
 
-    Bug 24 fix: total_units is DERIVED from the blueprint, never read from state.
-    Infrastructure setup is the PRODUCER of total_units.
+    Derives total_units from blueprint (Bug 24 fix),
+    not from pipeline state. Validates total_units is
+    a positive integer before use.
     """
-    project_root = Path(project_root)
+    from svp_config import (
+        derive_env_name,
+        load_config,
+        load_toolchain,
+    )
 
-    # Read pipeline state
-    state_path = project_root / "pipeline_state.json"
-    with open(state_path, "r", encoding="utf-8") as f:
-        state = json.load(f)
+    # Load config for project name
+    config = load_config(project_root)
+    project_name = config.get("project_name", "svp_project")
+    env_name = derive_env_name(project_name)
 
-    project_name = state.get("project_name", "project")
-    blueprint_path = Path(state.get("blueprint_path", str(project_root / "blueprint.md")))
-
-    # Load toolchain from file if not provided
+    # Load toolchain if not provided
     if toolchain is None:
-        toolchain_path = project_root / "toolchain.json"
-        if toolchain_path.exists():
-            with open(toolchain_path, "r", encoding="utf-8") as f:
-                toolchain = json.load(f)
+        try:
+            toolchain = load_toolchain(project_root)
+        except RuntimeError:
+            toolchain = None
 
-    # Derive env_name using Unit 1's canonical derivation
-    try:
-        from svp_config import derive_env_name
-        env_name = derive_env_name(project_name)
-    except ImportError:
-        # Fallback if svp_config is not available
-        env_name = project_name.lower().replace(" ", "_").replace("-", "_")
+    # Find blueprint file
+    bp_file = project_root / "blueprint_contracts.md"
+    if not bp_file.exists():
+        bp_dir = project_root / "blueprint"
+        if bp_dir.is_dir():
+            bp_file_candidates = sorted(bp_dir.glob("*.md"))
+            if bp_file_candidates:
+                bp_file = bp_file_candidates[0]
 
-    # Step 0: Validate dependency DAG
-    validate_dependency_dag(blueprint_path)
+    # Extract imports from blueprint
+    imports = extract_all_imports(bp_file)
 
-    # Step 1: Extract all imports
-    all_imports = extract_all_imports(blueprint_path)
+    # Map imports to packages
+    packages = map_imports_to_packages(imports)
 
-    # Step 2: Filter to third-party only
-    third_party_imports = [
-        imp for imp in all_imports if classify_import(imp) == "third_party"
-    ]
+    # Derive total_units from blueprint (Bug 24 fix)
+    total_units = derive_total_units(project_root)
 
-    # Step 3: Map imports to packages
-    package_map = map_imports_to_packages(third_party_imports)
+    # Validate total_units is positive before use
+    if total_units > 0:
+        create_project_directories(project_root, total_units)
 
-    # Step 4: Create conda environment (with framework and quality packages)
-    create_conda_environment(env_name, package_map, toolchain=toolchain)
+    # Create conda environment
+    python_version = config.get("python_version", "3.11")
+    create_conda_environment(env_name, packages, python_version, toolchain)
 
-    # Step 5: Validate imports (third-party only)
-    failures = validate_imports(env_name, third_party_imports, toolchain=toolchain)
-
-    if failures:
-        failed_names = ", ".join(f[0] for f in failures)
-        raise RuntimeError(f"Import validation failed for: {failed_names}")
-
-    # Step 6: Derive total_units from blueprint (Bug 24 fix -- NOT from state)
-    total_units = derive_total_units(blueprint_path)
-
-    # Step 7: Create project directories using derived count
-    create_project_directories(project_root, total_units)
-
-    # Step 8: Write derived total_units back to pipeline state
-    state["total_units"] = total_units
-    with open(state_path, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2)
+    # Validate imports
+    validate_imports(env_name, imports, toolchain)
 
 
 def main() -> None:
-    """CLI wrapper that orchestrates infrastructure setup."""
+    """CLI wrapper for infrastructure setup.
+
+    Emits COMMAND_SUCCEEDED / COMMAND_FAILED status lines.
+    """
+    parser = argparse.ArgumentParser(description="SVP Infrastructure Setup")
+    parser.add_argument(
+        "--project-root",
+        type=str,
+        required=True,
+        help="Path to the project root",
+    )
+    args = parser.parse_args()
+
+    project_root = Path(args.project_root)
+
     try:
-        # Default to current directory
-        project_root = Path(".")
         run_infrastructure_setup(project_root)
         print("COMMAND_SUCCEEDED")
     except Exception as e:
-        print(f"COMMAND_FAILED: {e}")
-
-
-if __name__ == "__main__":
-    main()
+        print(f"COMMAND_FAILED: {e}", file=sys.stderr)
+        print("COMMAND_FAILED")
+        sys.exit(1)

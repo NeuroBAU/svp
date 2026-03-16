@@ -68,7 +68,7 @@ def get_status(project_root: Path) -> str:
 
     state_path = project_root / "pipeline_state.json"
     if not state_path.exists():
-        raise FileNotFoundError("Pipeline state file not found")
+        return "No pipeline state found."
 
     state_data = json.loads(state_path.read_text(encoding="utf-8"))
 

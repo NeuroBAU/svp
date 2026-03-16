@@ -1,22 +1,24 @@
 # Blueprint Extractor -- Unit 5
-# Extracts unit definitions and upstream contract signatures from the blueprint.
+# Zero dependencies: standalone parser.
+from __future__ import annotations
 
 import re
-from typing import Optional, Dict, Any, List
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 class UnitDefinition:
-    """A single unit's complete definition extracted from the blueprint."""
+    """Parsed unit definition from the blueprint."""
+
     unit_number: int
     unit_name: str
-    artifact_category: str    # e.g., "Python script", "Markdown (AGENT.md files)"
-    description: str          # Tier 1
-    signatures: str           # Tier 2 code block (raw Python)
-    invariants: str           # Tier 2 invariants code block
-    error_conditions: str     # Tier 3
-    behavioral_contracts: str # Tier 3
-    dependencies: List[int]   # upstream unit numbers
+    artifact_category: str
+    description: str
+    signatures: str
+    invariants: str
+    error_conditions: str
+    behavioral_contracts: str
+    dependencies: List[int]
 
     def __init__(self, **kwargs: Any) -> None:
         self.unit_number = kwargs.get("unit_number", 0)
@@ -30,267 +32,342 @@ class UnitDefinition:
         self.dependencies = kwargs.get("dependencies", [])
 
 
-def _extract_code_block(text: str) -> str:
-    """Extract the content of the first fenced code block in text."""
-    match = re.search(r"```[a-zA-Z]*\n(.*?)```", text, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return ""
+# ----------------------------------------------------------
+# Internal helpers
+# ----------------------------------------------------------
+
+_UNIT_HEADING_RE = re.compile(r"^##\s+Unit\s+(\d+):\s*(.+)$", re.MULTILINE)
+
+_TIER_HEADING_RE = re.compile(
+    r"^###\s+Tier\s+(\d+)\s*[-\u2014\u2013]+\s*(.*)$",
+    re.MULTILINE,
+)
+
+_ARTIFACT_RE = re.compile(
+    r"\*\*Artifact\s+category:\*\*\s*(.+)$",
+    re.MULTILINE,
+)
+
+_DEP_UNIT_RE = re.compile(r"\*\*Unit\s+(\d+)")
 
 
-def _parse_dependencies_section(text: str) -> List[int]:
-    """Parse a dependencies section to extract upstream unit numbers."""
-    # Look for patterns like "Unit N" references or "(no deps)"
-    if not text.strip() or "None" in text.split("\n")[0] or "(no deps)" in text:
-        return []
-    # Find all "Unit N" references
-    matches = re.findall(r"\*\*Unit\s+(\d+)", text)
-    return [int(m) for m in matches]
+def _resolve_content(
+    blueprint_dir: Path,
+    contracts_path: Optional[Path] = None,
+) -> str:
+    """Read blueprint content, handling both API styles.
+
+    Accepts either:
+    - A directory path (globs *.md files inside it)
+    - A file path (reads that file, plus optional
+      contracts_path)
+    """
+    if blueprint_dir.is_dir():
+        md_files = sorted(blueprint_dir.glob("*.md"))
+        if not md_files:
+            raise FileNotFoundError(
+                f"No .md files found in blueprint directory: {blueprint_dir}"
+            )
+        parts: list[str] = []
+        for p in md_files:
+            parts.append(p.read_text(encoding="utf-8"))
+        return "\n\n".join(parts)
+
+    if blueprint_dir.is_file():
+        content = blueprint_dir.read_text(encoding="utf-8")
+        if contracts_path is not None and (contracts_path.is_file()):
+            extra = contracts_path.read_text(encoding="utf-8")
+            content = content + "\n\n" + extra
+        return content
+
+    raise FileNotFoundError(f"Blueprint directory not found: {blueprint_dir}")
 
 
-def _parse_dependencies_from_graph(blueprint_text: str, unit_number: int) -> List[int]:
-    """Parse dependencies from the dependency graph section of the blueprint."""
-    # Look for the dependency graph section
-    graph_match = re.search(r"### Dependency Graph\s*\n```\n(.*?)```", blueprint_text, re.DOTALL)
-    if not graph_match:
-        return []
-    graph_text = graph_match.group(1)
-    # Find the line for this unit
-    pattern = rf"Unit\s+{unit_number}:.*?depends on:\s*([\d,\s]+)"
-    match = re.search(pattern, graph_text)
-    if match:
-        deps_str = match.group(1)
-        return [int(d.strip()) for d in deps_str.split(",") if d.strip()]
-    # Check for "(no deps)" pattern
-    pattern_no_deps = rf"Unit\s+{unit_number}:.*?\(no deps\)"
-    if re.search(pattern_no_deps, graph_text):
-        return []
-    return []
-
-
-def _split_units(blueprint_text: str) -> List[tuple]:
-    """Split blueprint text into unit sections. Returns list of (unit_number, unit_name, section_text)."""
-    # Pattern: ## Unit N: Name
-    pattern = r"^## Unit (\d+):\s*(.+)$"
-    matches = list(re.finditer(pattern, blueprint_text, re.MULTILINE))
+def _split_units(
+    content: str,
+) -> List[Dict[str, Any]]:
+    """Split combined content into per-unit sections."""
+    matches = list(_UNIT_HEADING_RE.finditer(content))
     if not matches:
+        raise ValueError("Blueprint has no parseable unit definitions")
+
+    # Merge sections for the same unit number
+    # (prose + contracts may both have ## Unit N:).
+    raw_by_num: Dict[int, Dict[str, Any]] = {}
+    order: list[int] = []
+    for i, m in enumerate(matches):
+        start = m.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
+        num = int(m.group(1))
+        name = m.group(2).strip()
+        raw = content[start:end]
+        if num in raw_by_num:
+            raw_by_num[num]["raw"] += "\n\n" + raw
+        else:
+            raw_by_num[num] = {
+                "unit_number": num,
+                "unit_name": name,
+                "raw": raw,
+            }
+            order.append(num)
+
+    return [raw_by_num[n] for n in order]
+
+
+def _extract_artifact_category(raw: str) -> str:
+    m = _ARTIFACT_RE.search(raw)
+    return m.group(1).strip() if m else ""
+
+
+def _extract_tier_sections(
+    raw: str,
+) -> Dict[str, str]:
+    """Extract content under each ### Tier heading."""
+    tier_matches = list(_TIER_HEADING_RE.finditer(raw))
+    sections: Dict[str, str] = {}
+    for i, m in enumerate(tier_matches):
+        tier_num = m.group(1)
+        label = m.group(2).strip().lower()
+        start = m.end()
+        end = len(raw)
+        if i + 1 < len(tier_matches):
+            end = tier_matches[i + 1].start()
+        # Also cap at next ## Unit heading.
+        next_unit = _UNIT_HEADING_RE.search(raw, m.end())
+        if next_unit and next_unit.start() < end:
+            end = next_unit.start()
+
+        block = raw[start:end].strip()
+        key = _tier_key(tier_num, label)
+        # Merge if key already exists (e.g. from
+        # multiple files with same tier headings).
+        if key in sections:
+            sections[key] += "\n\n" + block
+        else:
+            sections[key] = block
+    return sections
+
+
+def _tier_key(tier_num: str, label: str) -> str:
+    """Map tier number + label to field name."""
+    if tier_num == "1":
+        return "description"
+    if tier_num == "2":
+        if "invariant" in label:
+            return "invariants"
+        return "signatures"
+    # tier_num == "3"
+    if "error" in label:
+        return "error_conditions"
+    if "depend" in label:
+        return "dependencies_raw"
+    if "behav" in label or "contract" in label:
+        return "behavioral_contracts"
+    return f"tier3_{label}"
+
+
+def _parse_dependencies(raw: str) -> List[int]:
+    """Extract dependency unit numbers from raw text."""
+    dep_section = ""
+    tier_matches = list(_TIER_HEADING_RE.finditer(raw))
+    for i, m in enumerate(tier_matches):
+        label = m.group(2).strip().lower()
+        if "depend" in label:
+            start = m.end()
+            end = len(raw)
+            if i + 1 < len(tier_matches):
+                end = tier_matches[i + 1].start()
+            next_unit = _UNIT_HEADING_RE.search(raw, m.end())
+            if next_unit and next_unit.start() < end:
+                end = next_unit.start()
+            dep_section = raw[start:end].strip()
+            break
+
+    if not dep_section:
+        return []
+    # Check all lines; "None." means no deps.
+    stripped = dep_section.strip().rstrip(".")
+    if stripped.lower() == "none":
         return []
 
-    result = []
-    for i, match in enumerate(matches):
-        unit_number = int(match.group(1))
-        unit_name = match.group(2).strip()
-        start = match.start()
-        if i + 1 < len(matches):
-            end = matches[i + 1].start()
-        else:
-            end = len(blueprint_text)
-        section_text = blueprint_text[start:end]
-        result.append((unit_number, unit_name, section_text))
-    return result
+    nums = _DEP_UNIT_RE.findall(dep_section)
+    return sorted(set(int(n) for n in nums))
 
 
-def _extract_section(text: str, heading_pattern: str) -> str:
-    """Extract content under a ### heading until the next ### heading or end of text."""
-    pattern = rf"^{heading_pattern}\s*$"
-    match = re.search(pattern, text, re.MULTILINE)
-    if not match:
-        return ""
-    start = match.end()
-    # Find next ### heading or --- separator or end
-    next_heading = re.search(r"^###\s|^---\s*$", text[start:], re.MULTILINE)
-    if next_heading:
-        end = start + next_heading.start()
-    else:
-        end = len(text)
-    return text[start:end].strip()
-
-
-def _parse_unit_section(unit_number: int, unit_name: str, section_text: str,
-                        full_blueprint: str) -> UnitDefinition:
-    """Parse a unit section into a UnitDefinition."""
-    # Extract artifact_category from **Artifact category:** line
-    artifact_match = re.search(r"\*\*Artifact category:\*\*\s*(.+)", section_text)
-    artifact_category = artifact_match.group(1).strip() if artifact_match else ""
-
-    # Extract Tier 1 -- Description
-    description = _extract_section(section_text, r"### Tier 1 -- Description")
-
-    # Extract Tier 2 -- Signatures (note: em-dash)
-    signatures_section = _extract_section(section_text, r"### Tier 2 \u2014 Signatures")
-    signatures = _extract_code_block(signatures_section) if signatures_section else ""
-
-    # Extract Tier 2 -- Invariants (try em-dash first, then double-hyphen)
-    invariants_section = _extract_section(section_text, r"### Tier 2 \u2014 Invariants")
-    if not invariants_section:
-        invariants_section = _extract_section(section_text, r"### Tier 2 -- Invariants")
-    invariants = _extract_code_block(invariants_section) if invariants_section else ""
-
-    # Extract Tier 3 -- Error Conditions
-    error_conditions = _extract_section(section_text, r"### Tier 3 -- Error Conditions")
-
-    # Extract Tier 3 -- Behavioral Contracts
-    behavioral_contracts = _extract_section(section_text, r"### Tier 3 -- Behavioral Contracts")
-
-    # Extract dependencies from Tier 3 -- Dependencies section
-    deps_section = _extract_section(section_text, r"### Tier 3 -- Dependencies")
-    dependencies = _parse_dependencies_section(deps_section)
-
-    # If no dependencies found from a dedicated section, check behavioral contracts
-    # for inline "- Dependencies: [1, 2]" patterns
-    if not dependencies and behavioral_contracts:
-        dep_match = re.search(r"Dependencies:\s*\[([^\]]*)\]", behavioral_contracts)
-        if dep_match:
-            dep_str = dep_match.group(1).strip()
-            if dep_str:
-                dependencies = [int(d.strip()) for d in dep_str.split(",") if d.strip()]
-
-    # If still no dependencies, try the dependency graph
-    if not dependencies:
-        dependencies = _parse_dependencies_from_graph(full_blueprint, unit_number)
-
+def _build_unit_def(
+    unit_info: Dict[str, Any],
+) -> UnitDefinition:
+    raw = unit_info["raw"]
+    sections = _extract_tier_sections(raw)
     return UnitDefinition(
-        unit_number=unit_number,
-        unit_name=unit_name,
-        artifact_category=artifact_category,
-        description=description,
-        signatures=signatures,
-        invariants=invariants,
-        error_conditions=error_conditions,
-        behavioral_contracts=behavioral_contracts,
-        dependencies=dependencies,
+        unit_number=unit_info["unit_number"],
+        unit_name=unit_info["unit_name"],
+        artifact_category=_extract_artifact_category(raw),
+        description=sections.get("description", ""),
+        signatures=sections.get("signatures", ""),
+        invariants=sections.get("invariants", ""),
+        error_conditions=sections.get("error_conditions", ""),
+        behavioral_contracts=sections.get("behavioral_contracts", ""),
+        dependencies=_parse_dependencies(raw),
     )
 
 
-def parse_blueprint(blueprint_path: Path) -> List[UnitDefinition]:
-    """Read the full blueprint and parse all unit definitions into UnitDefinition instances."""
-    if not blueprint_path.exists():
-        raise FileNotFoundError(f"Blueprint file not found: {blueprint_path}")
+# ----------------------------------------------------------
+# Public API
+# ----------------------------------------------------------
 
-    blueprint_text = blueprint_path.read_text(encoding="utf-8")
-    unit_sections = _split_units(blueprint_text)
 
-    if not unit_sections:
-        raise ValueError("Blueprint has no parseable unit definitions")
+def parse_blueprint(
+    blueprint_dir: Path,
+    include_tier1: bool = True,
+    contracts_path: Optional[Path] = None,
+) -> List[UnitDefinition]:
+    """Parse all unit definitions from the blueprint.
 
-    result = []
-    for unit_number, unit_name, section_text in unit_sections:
-        unit_def = _parse_unit_section(unit_number, unit_name, section_text, blueprint_text)
-        result.append(unit_def)
-
-    assert len(result) > 0, "Blueprint must contain at least one unit"
-    assert all(u.unit_number > 0 for u in result), "All unit numbers must be positive"
-
+    Args:
+        blueprint_dir: Path to blueprint directory or
+            a single blueprint .md file.
+        include_tier1: Whether to include Tier 1
+            description content.
+        contracts_path: Optional path to a second .md
+            file containing Tier 2/3 content.
+    """
+    content = _resolve_content(blueprint_dir, contracts_path)
+    raw_units = _split_units(content)
+    result: List[UnitDefinition] = []
+    for info in raw_units:
+        ud = _build_unit_def(info)
+        if not include_tier1:
+            ud.description = ""
+        result.append(ud)
     return result
 
 
-def extract_unit(blueprint_path: Path, unit_number: int) -> UnitDefinition:
-    """Return a single unit's definition. Delegates to parse_blueprint internally."""
-    if not blueprint_path.exists():
-        raise FileNotFoundError(f"Blueprint file not found: {blueprint_path}")
-    if unit_number < 1:
-        raise ValueError(f"Unit {unit_number} not found in blueprint")
-
-    units = parse_blueprint(blueprint_path)
-    for unit in units:
-        if unit.unit_number == unit_number:
-            assert unit.unit_number == unit_number, "Extracted unit number must match request"
-            assert len(unit.signatures) > 0, "Unit must have non-empty signatures"
-            return unit
-
+def extract_unit(
+    blueprint_dir: Path,
+    unit_number: int,
+    include_tier1: bool = True,
+    contracts_path: Optional[Path] = None,
+) -> UnitDefinition:
+    """Extract a single unit definition."""
+    units = parse_blueprint(
+        blueprint_dir,
+        include_tier1=include_tier1,
+        contracts_path=contracts_path,
+    )
+    for u in units:
+        if u.unit_number == unit_number:
+            return u
     raise ValueError(f"Unit {unit_number} not found in blueprint")
 
 
 def extract_upstream_contracts(
-    blueprint_path: Path, unit_number: int
-) -> List[Dict[str, str]]:
-    """Return Tier 2 signatures for all units listed in the requested unit's dependencies."""
-    if not blueprint_path.exists():
-        raise FileNotFoundError(f"Blueprint file not found: {blueprint_path}")
-    if unit_number < 1:
-        raise ValueError(f"Unit {unit_number} not found in blueprint")
-
-    units = parse_blueprint(blueprint_path)
-    units_by_number = {u.unit_number: u for u in units}
-
-    if unit_number not in units_by_number:
-        raise ValueError(f"Unit {unit_number} not found in blueprint")
-
-    target_unit = units_by_number[unit_number]
-    result = []
-    for dep_number in target_unit.dependencies:
-        if dep_number in units_by_number:
-            dep_unit = units_by_number[dep_number]
-            result.append({
-                "unit_number": str(dep_number),
-                "unit_name": dep_unit.unit_name,
-                "signatures": dep_unit.signatures,
-            })
-
-    return result
+    blueprint_dir: Path,
+    unit_number: int,
+    include_tier1: bool = True,
+    contracts_path: Optional[Path] = None,
+) -> List[Dict[str, Any]]:
+    """Return Tier 2 signatures for upstream deps."""
+    target = extract_unit(
+        blueprint_dir,
+        unit_number,
+        include_tier1=True,
+        contracts_path=contracts_path,
+    )
+    all_units = parse_blueprint(
+        blueprint_dir,
+        include_tier1=include_tier1,
+        contracts_path=contracts_path,
+    )
+    unit_map = {u.unit_number: u for u in all_units}
+    contracts: List[Dict[str, Any]] = []
+    for dep_num in target.dependencies:
+        dep = unit_map.get(dep_num)
+        if dep is None:
+            continue
+        entry: Dict[str, Any] = {
+            "unit_number": str(dep.unit_number),
+            "unit_name": dep.unit_name,
+            "signatures": dep.signatures,
+        }
+        if include_tier1:
+            entry["description"] = dep.description
+        contracts.append(entry)
+    return contracts
 
 
 def build_unit_context(
-    blueprint_path: Path, unit_number: int
+    blueprint_dir: Path,
+    unit_number: int,
+    include_tier1: bool = True,
+    contracts_path: Optional[Path] = None,
 ) -> str:
-    """Produce a formatted string containing the unit's full definition followed by upstream contracts."""
-    if not blueprint_path.exists():
-        raise FileNotFoundError(f"Blueprint file not found: {blueprint_path}")
-    if unit_number < 1:
-        raise ValueError(f"Unit {unit_number} not found in blueprint")
+    """Build formatted context string for a task prompt."""
+    unit = extract_unit(
+        blueprint_dir,
+        unit_number,
+        include_tier1=True,
+        contracts_path=contracts_path,
+    )
+    upstream = extract_upstream_contracts(
+        blueprint_dir,
+        unit_number,
+        include_tier1=include_tier1,
+        contracts_path=contracts_path,
+    )
 
-    unit = extract_unit(blueprint_path, unit_number)
-    upstream = extract_upstream_contracts(blueprint_path, unit_number)
+    lines: list[str] = []
+    lines.append(f"## Unit {unit.unit_number}: {unit.unit_name}")
+    lines.append("")
+    if unit.artifact_category:
+        lines.append(f"**Artifact category:** {unit.artifact_category}")
+        lines.append("")
 
-    parts = []
-    parts.append(f"## Unit {unit.unit_number}: {unit.unit_name}")
-    parts.append("")
-
-    if unit.description:
-        parts.append("### Tier 1 -- Description")
-        parts.append("")
-        parts.append(unit.description)
-        parts.append("")
+    if include_tier1 and unit.description:
+        lines.append("### Tier 1 -- Description")
+        lines.append("")
+        lines.append(unit.description)
+        lines.append("")
 
     if unit.signatures:
-        parts.append("### Tier 2 \u2014 Signatures")
-        parts.append("")
-        parts.append("```python")
-        parts.append(unit.signatures)
-        parts.append("```")
-        parts.append("")
+        lines.append("### Tier 2 -- Signatures")
+        lines.append("")
+        lines.append(unit.signatures)
+        lines.append("")
 
     if unit.invariants:
-        parts.append("### Tier 2 \u2014 Invariants")
-        parts.append("")
-        parts.append("```python")
-        parts.append(unit.invariants)
-        parts.append("```")
-        parts.append("")
+        lines.append("### Tier 2 -- Invariants")
+        lines.append("")
+        lines.append(unit.invariants)
+        lines.append("")
 
     if unit.error_conditions:
-        parts.append("### Tier 3 -- Error Conditions")
-        parts.append("")
-        parts.append(unit.error_conditions)
-        parts.append("")
+        lines.append("### Tier 3 -- Error Conditions")
+        lines.append("")
+        lines.append(unit.error_conditions)
+        lines.append("")
 
     if unit.behavioral_contracts:
-        parts.append("### Tier 3 -- Behavioral Contracts")
-        parts.append("")
-        parts.append(unit.behavioral_contracts)
-        parts.append("")
+        lines.append("### Tier 3 -- Behavioral Contracts")
+        lines.append("")
+        lines.append(unit.behavioral_contracts)
+        lines.append("")
 
     if upstream:
-        parts.append("## Upstream Contracts")
-        parts.append("")
-        for contract in upstream:
-            parts.append(f"### Unit {contract['unit_number']}: {contract['unit_name']}")
-            parts.append("")
-            parts.append("```python")
-            parts.append(contract["signatures"])
-            parts.append("```")
-            parts.append("")
+        lines.append("## Upstream Dependencies")
+        lines.append("")
+        for dep in upstream:
+            lines.append(f"### Unit {dep['unit_number']}: {dep['unit_name']}")
+            lines.append("")
+            if include_tier1 and dep.get("description"):
+                lines.append(dep["description"])
+                lines.append("")
+            if dep.get("signatures"):
+                lines.append("#### Tier 2 -- Signatures")
+                lines.append("")
+                lines.append(dep["signatures"])
+                lines.append("")
 
-    result = "\n".join(parts)
+    result = "\n".join(lines)
     assert len(result) > 0, "Unit context must be non-empty"
     return result

@@ -280,13 +280,13 @@ class TestMapImportsToPackages:
 
 
 class TestCreateCondaEnvironment:
-    @patch("src.unit_7.stub.subprocess", create=True)
+    @patch("dependency_extractor.subprocess", create=True)
     def test_returns_bool(self, mock_sub):
         mock_sub.run.return_value = MagicMock(returncode=0)
         result = create_conda_environment("test_env", {"pytest": "pytest"})
         assert isinstance(result, bool)
 
-    @patch("src.unit_7.stub.subprocess", create=True)
+    @patch("dependency_extractor.subprocess", create=True)
     def test_accepts_python_version(self, mock_sub):
         mock_sub.run.return_value = MagicMock(returncode=0)
         result = create_conda_environment(
@@ -296,7 +296,7 @@ class TestCreateCondaEnvironment:
         )
         assert isinstance(result, bool)
 
-    @patch("src.unit_7.stub.subprocess", create=True)
+    @patch("dependency_extractor.subprocess", create=True)
     def test_accepts_toolchain_param(self, mock_sub):
         mock_sub.run.return_value = MagicMock(returncode=0)
         toolchain = {
@@ -312,7 +312,7 @@ class TestCreateCondaEnvironment:
         )
         assert isinstance(result, bool)
 
-    @patch("src.unit_7.stub.subprocess", create=True)
+    @patch("dependency_extractor.subprocess", create=True)
     def test_installs_framework_and_quality_packages(self, mock_sub):
         """Contract: always installs framework AND quality
         packages unconditionally (NEW IN 2.1)."""
@@ -338,7 +338,7 @@ class TestCreateCondaEnvironment:
         # creation attempted)
         assert mock_sub.run.called
 
-    @patch("src.unit_7.stub.subprocess", create=True)
+    @patch("dependency_extractor.subprocess", create=True)
     def test_replaces_prior_environment(self, mock_sub):
         """Contract: always replaces any prior env."""
         mock_sub.run.return_value = MagicMock(returncode=0)
@@ -352,13 +352,13 @@ class TestCreateCondaEnvironment:
 
 
 class TestValidateImports:
-    @patch("src.unit_7.stub.subprocess", create=True)
+    @patch("dependency_extractor.subprocess", create=True)
     def test_returns_list_of_tuples(self, mock_sub):
         mock_sub.run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         result = validate_imports("test_env", ["import os"])
         assert isinstance(result, list)
 
-    @patch("src.unit_7.stub.subprocess", create=True)
+    @patch("dependency_extractor.subprocess", create=True)
     def test_tuple_elements_are_strings(self, mock_sub):
         mock_sub.run.return_value = MagicMock(
             returncode=1,
@@ -373,7 +373,7 @@ class TestValidateImports:
                 assert isinstance(item[0], str)
                 assert isinstance(item[1], str)
 
-    @patch("src.unit_7.stub.subprocess", create=True)
+    @patch("dependency_extractor.subprocess", create=True)
     def test_accepts_toolchain_param(self, mock_sub):
         mock_sub.run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         toolchain = {
@@ -433,11 +433,11 @@ class TestCreateProjectDirectories:
 
 
 class TestRunInfrastructureSetup:
-    @patch("src.unit_7.stub.create_conda_environment")
-    @patch("src.unit_7.stub.validate_imports")
-    @patch("src.unit_7.stub.extract_all_imports")
-    @patch("src.unit_7.stub.create_project_directories")
-    @patch("src.unit_7.stub.map_imports_to_packages")
+    @patch("dependency_extractor.create_conda_environment")
+    @patch("dependency_extractor.validate_imports")
+    @patch("dependency_extractor.extract_all_imports")
+    @patch("dependency_extractor.create_project_directories")
+    @patch("dependency_extractor.map_imports_to_packages")
     def test_derives_total_units_from_blueprint(
         self,
         mock_map,
@@ -454,17 +454,17 @@ class TestRunInfrastructureSetup:
         mock_create.return_value = True
         mock_validate.return_value = []
 
-        with patch("src.unit_7.stub.Path", create=True):
+        with patch("dependency_extractor.Path", create=True):
             # We test indirectly: the function should
             # read the blueprint and count units, not
             # read pipeline_state.json for total_units.
             pass
 
-    @patch("src.unit_7.stub.create_conda_environment")
-    @patch("src.unit_7.stub.validate_imports")
-    @patch("src.unit_7.stub.extract_all_imports")
-    @patch("src.unit_7.stub.create_project_directories")
-    @patch("src.unit_7.stub.map_imports_to_packages")
+    @patch("dependency_extractor.create_conda_environment")
+    @patch("dependency_extractor.validate_imports")
+    @patch("dependency_extractor.extract_all_imports")
+    @patch("dependency_extractor.create_project_directories")
+    @patch("dependency_extractor.map_imports_to_packages")
     def test_accepts_toolchain_param(
         self,
         mock_map,
@@ -558,11 +558,11 @@ class TestCLIWrapper:
                 ],
             ),
             patch(
-                "src.unit_7.stub.create_conda_environment",
+                "dependency_extractor.create_conda_environment",
                 return_value=True,
             ),
             patch(
-                "src.unit_7.stub.validate_imports",
+                "dependency_extractor.validate_imports",
                 return_value=[],
             ),
         ):

@@ -6,8 +6,6 @@ import os
 import tempfile
 from datetime import datetime, timezone
 
-from svp_config import ARTIFACT_FILENAMES
-
 STAGES: List[str] = ["0", "1", "2", "pre_stage_3", "3", "4", "5"]
 
 SUB_STAGES_STAGE_0: List[str] = ["hook_activation", "project_context", "project_profile"]
@@ -23,6 +21,7 @@ STAGE_2_SUB_STAGES: List[Optional[str]] = [None, "blueprint_dialog", "alignment_
 # Stage 3 sub-stages: unit build cycle phases
 STAGE_3_SUB_STAGES: List[Optional[str]] = [
     None,                    # default: no sub-stage (unit entry)
+    "stub_generation",       # stub generation phase
     "test_generation",       # test agent is generating tests
     "quality_gate_a",        # quality gate A running on tests
     "quality_gate_a_retry",  # agent fixing quality gate A residuals
@@ -60,6 +59,21 @@ FIX_LADDER_POSITIONS: List[Optional[str]] = [
     "fresh_impl", "diagnostic", "diagnostic_impl",
 ]
 
+# Map stage to valid sub-stages for validation
+_STAGE_SUB_STAGES: Dict[str, List[Optional[str]]] = {
+    "0": [None] + SUB_STAGES_STAGE_0,  # type: ignore[list-item]
+    "1": STAGE_1_SUB_STAGES,
+    "2": STAGE_2_SUB_STAGES,
+    "pre_stage_3": [None],
+    "3": STAGE_3_SUB_STAGES,
+    "4": STAGE_4_SUB_STAGES,
+    "5": STAGE_5_SUB_STAGES,
+}
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
 
 class DebugSession:
     """Debug session state for post-delivery bug investigation."""
@@ -70,6 +84,8 @@ class DebugSession:
     regression_test_path: Optional[str]
     phase: str  # "triage_readonly", "triage", "regression_test", "stage3_reentry", "repair", "complete"
     authorized: bool  # True after AUTHORIZE DEBUG at Gate 6.0
+    triage_refinement_count: int
+    repair_retry_count: int
     created_at: str
 
     def __init__(self, **kwargs: Any) -> None:
@@ -78,9 +94,11 @@ class DebugSession:
         self.classification = kwargs.get("classification", None)
         self.affected_units = kwargs.get("affected_units", [])
         self.regression_test_path = kwargs.get("regression_test_path", None)
-        self.phase = kwargs.get("phase", "triage_readonly")
+        self.phase = kwargs.get("phase", "triage")
         self.authorized = kwargs.get("authorized", False)
-        self.created_at = kwargs.get("created_at", datetime.now(timezone.utc).isoformat())
+        self.triage_refinement_count = kwargs.get("triage_refinement_count", 0)
+        self.repair_retry_count = kwargs.get("repair_retry_count", 0)
+        self.created_at = kwargs.get("created_at", _now_iso())
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -91,21 +109,14 @@ class DebugSession:
             "regression_test_path": self.regression_test_path,
             "phase": self.phase,
             "authorized": self.authorized,
+            "triage_refinement_count": self.triage_refinement_count,
+            "repair_retry_count": self.repair_retry_count,
             "created_at": self.created_at,
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "DebugSession":
-        return cls(
-            bug_id=data.get("bug_id", 0),
-            description=data.get("description", ""),
-            classification=data.get("classification", None),
-            affected_units=data.get("affected_units", []),
-            regression_test_path=data.get("regression_test_path", None),
-            phase=data.get("phase", "triage_readonly"),
-            authorized=data.get("authorized", False),
-            created_at=data.get("created_at", ""),
-        )
+        return cls(**data)
 
 
 class PipelineState:
@@ -142,7 +153,11 @@ class PipelineState:
         self.log_references = kwargs.get("log_references", {})
         self.project_name = kwargs.get("project_name", None)
         self.last_action = kwargs.get("last_action", None)
-        self.debug_session = kwargs.get("debug_session", None)
+        ds = kwargs.get("debug_session", None)
+        if isinstance(ds, dict):
+            self.debug_session = DebugSession.from_dict(ds)
+        else:
+            self.debug_session = ds
         self.debug_history = kwargs.get("debug_history", [])
         self.redo_triggered_from = kwargs.get("redo_triggered_from", None)
         self.delivered_repo_path = kwargs.get("delivered_repo_path", None)
@@ -273,28 +288,24 @@ def save_state(state: PipelineState, project_root: Path) -> None:
         raise
 
 
-def validate_state(state: PipelineState) -> list[str]:
-    """Check structural integrity of a PipelineState. Returns list of error strings."""
+def validate_state(
+    state: PipelineState,
+) -> list[str]:
     errors: list[str] = []
 
-    # Valid stage
+    # Check valid stage
     if state.stage not in STAGES:
         errors.append(f"Invalid stage: {state.stage}")
+        return errors
 
-    # Valid sub_stage for the stage
-    if state.sub_stage is not None:
-        # Redo profile sub-stages can appear in any stage
-        if state.sub_stage in REDO_PROFILE_SUB_STAGES:
-            pass  # valid in any stage
-        elif state.stage == "0":
-            if state.sub_stage not in SUB_STAGES_STAGE_0:
-                errors.append(f"Invalid sub_stage '{state.sub_stage}' for stage 0")
-        elif state.stage == "2":
-            if state.sub_stage not in STAGE_2_SUB_STAGES:
-                errors.append(f"Invalid sub_stage '{state.sub_stage}' for stage 2")
-        elif state.stage == "3":
-            if state.sub_stage not in STAGE_3_SUB_STAGES:
-                errors.append(f"Invalid sub_stage '{state.sub_stage}' for stage 3")
+    # Check valid sub_stage for the stage
+    valid_subs = _STAGE_SUB_STAGES.get(state.stage, [None])
+    # Also allow redo profile sub-stages for any stage
+    all_valid = list(valid_subs) + list(REDO_PROFILE_SUB_STAGES)
+    if state.sub_stage not in all_valid:
+        errors.append(
+            f"Invalid sub_stage '{state.sub_stage}' for stage '{state.stage}'"
+        )
 
     # Non-negative counters
     if state.red_run_retries < 0:
@@ -302,209 +313,87 @@ def validate_state(state: PipelineState) -> list[str]:
     if state.alignment_iteration < 0:
         errors.append("alignment_iteration must be non-negative")
 
-    # fix_ladder_position must be valid
-    if state.fix_ladder_position is not None and state.fix_ladder_position not in FIX_LADDER_POSITIONS:
+    # fix_ladder_position validity
+    if (
+        state.fix_ladder_position is not None
+        and state.fix_ladder_position not in FIX_LADDER_POSITIONS
+    ):
         errors.append(f"Invalid fix_ladder_position: {state.fix_ladder_position}")
 
-    # verified_units entries must have required fields
-    for i, vu in enumerate(state.verified_units):
-        if "unit" not in vu:
-            errors.append(f"verified_units[{i}] missing 'unit' field")
-        if "timestamp" not in vu:
-            errors.append(f"verified_units[{i}] missing 'timestamp' field")
-
-    # pass_history entries must have required fields
-    for i, ph in enumerate(state.pass_history):
-        if "pass_number" not in ph:
-            errors.append(f"pass_history[{i}] missing 'pass_number' field")
-        if "reached_unit" not in ph:
-            errors.append(f"pass_history[{i}] missing 'reached_unit' field")
-        if "ended_reason" not in ph:
-            errors.append(f"pass_history[{i}] missing 'ended_reason' field")
-        if "timestamp" not in ph:
-            errors.append(f"pass_history[{i}] missing 'timestamp' field")
-
-    # debug_session must be None or a valid DebugSession with required fields
-    if state.debug_session is not None:
-        if not isinstance(state.debug_session, DebugSession):
-            errors.append("debug_session must be a DebugSession instance or None")
-        else:
-            ds = state.debug_session
-            if not ds.description:
-                errors.append("debug_session missing 'description'")
-            if ds.classification is None:
-                errors.append("debug_session missing 'classification'")
-            if not ds.affected_units:
-                errors.append("debug_session missing 'affected_units'")
-
-    # debug_history entries have required fields
-    debug_history_required = ["bug_id", "resolution"]
-    for i, dh in enumerate(state.debug_history):
-        for field in debug_history_required:
-            if field not in dh:
-                errors.append(f"debug_history[{i}] missing '{field}' field")
-
-    # redo_triggered_from validation
-    if state.redo_triggered_from is not None:
-        required_redo_keys = ["stage", "sub_stage", "current_unit", "fix_ladder_position", "red_run_retries"]
-        for key in required_redo_keys:
-            if key not in state.redo_triggered_from:
-                errors.append(f"redo_triggered_from missing '{key}' field")
-
-    # delivered_repo_path validation: None or non-empty string
+    # delivered_repo_path must be None or non-empty str
     if state.delivered_repo_path is not None:
-        if not isinstance(state.delivered_repo_path, str) or state.delivered_repo_path == "":
-            errors.append("delivered_repo_path must be None or a non-empty string")
+        if not isinstance(state.delivered_repo_path, str):
+            errors.append(
+                "delivered_repo_path must be None or str"
+            )
+        elif state.delivered_repo_path == "":
+            errors.append(
+                "delivered_repo_path must not be empty"
+            )
 
     return errors
 
 
-def recover_state_from_markers(project_root: Path) -> Optional[PipelineState]:
-    """Scan for completion markers and construct the most conservative valid state."""
-    if not project_root.is_dir():
-        raise FileNotFoundError(f"Project root not found: {project_root}")
-    markers_found = False
+def recover_state_from_markers(
+    project_root: Path,
+) -> Optional[PipelineState]:
+    """Scan for completion markers and construct
+    the most conservative valid state."""
+    # Look for verified unit markers
+    svp_dir = project_root / ".svp"
+    if not svp_dir.exists():
+        return None
 
-    # Check for spec approval marker
-    spec_approved = False
-    spec_path = project_root / "specs" / ARTIFACT_FILENAMES["stakeholder_spec"]
-    if spec_path.exists():
-        content = spec_path.read_text(encoding="utf-8")
-        if "<!-- SVP_APPROVED:" in content:
-            spec_approved = True
-            markers_found = True
-
-    # Check for blueprint approval marker
-    blueprint_approved = False
-    blueprint_path = project_root / "blueprint" / ARTIFACT_FILENAMES["blueprint"]
-    if blueprint_path.exists():
-        content = blueprint_path.read_text(encoding="utf-8")
-        if "<!-- SVP_APPROVED:" in content:
-            blueprint_approved = True
-            markers_found = True
-
-    # Check for unit verification markers
-    verified_units: List[Dict[str, Any]] = []
-    markers_dir = project_root / ".svp" / "markers"
+    verified: List[Dict[str, Any]] = []
+    markers_dir = svp_dir / "markers"
     if markers_dir.exists():
-        for item in sorted(markers_dir.iterdir()):
-            name = item.name
-            if name.startswith("unit_") and name.endswith("_verified"):
-                try:
-                    unit_num = int(name.replace("unit_", "").replace("_verified", ""))
-                    verified_units.append({
-                        "unit": unit_num,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    })
-                    markers_found = True
-                except ValueError:
-                    continue
+        for marker_file in sorted(markers_dir.glob("unit_*_complete.json")):
+            try:
+                data = json.loads(marker_file.read_text(encoding="utf-8"))
+                verified.append(data)
+            except (
+                json.JSONDecodeError,
+                OSError,
+            ):
+                continue
 
-    if not markers_found:
+    if not verified:
+        # No markers found; return initial state
+        state_file = project_root / "pipeline_state.json"
+        if state_file.exists():
+            try:
+                return load_state(project_root)
+            except (ValueError, json.JSONDecodeError):
+                pass
         return None
 
-    # Construct the most conservative valid state
-    now = datetime.now(timezone.utc).isoformat()
-
-    if verified_units:
-        # We have verified units, so we're in Stage 3
-        max_unit = max(vu["unit"] for vu in verified_units)
-        total_units = max_unit  # conservative: at least this many
-        state = PipelineState(
-            stage="3",
-            sub_stage=None,
-            current_unit=max_unit + 1,
-            total_units=total_units,
-            fix_ladder_position=None,
-            red_run_retries=0,
-            alignment_iteration=0,
-            verified_units=verified_units,
-            pass_history=[],
-            log_references={},
-            project_name=None,
-            last_action="Recovered from markers",
-            debug_session=None,
-            debug_history=[],
-            redo_triggered_from=None,
-            created_at=now,
-            updated_at=now,
-        )
-    elif blueprint_approved:
-        # Blueprint is approved, so we're at pre_stage_3
-        state = PipelineState(
-            stage="pre_stage_3",
-            sub_stage=None,
-            current_unit=None,
-            total_units=None,
-            fix_ladder_position=None,
-            red_run_retries=0,
-            alignment_iteration=0,
-            verified_units=[],
-            pass_history=[],
-            log_references={},
-            project_name=None,
-            last_action="Recovered from markers",
-            debug_session=None,
-            debug_history=[],
-            redo_triggered_from=None,
-            created_at=now,
-            updated_at=now,
-        )
-    elif spec_approved:
-        # Spec is approved, so we're at Stage 2
-        state = PipelineState(
-            stage="2",
-            sub_stage=None,
-            current_unit=None,
-            total_units=None,
-            fix_ladder_position=None,
-            red_run_retries=0,
-            alignment_iteration=0,
-            verified_units=[],
-            pass_history=[],
-            log_references={},
-            project_name=None,
-            last_action="Recovered from markers",
-            debug_session=None,
-            debug_history=[],
-            redo_triggered_from=None,
-            created_at=now,
-            updated_at=now,
-        )
-    else:
-        return None
-
+    # Construct conservative state from markers
+    max_unit = max(v.get("unit", 0) for v in verified)
+    state = PipelineState(
+        stage="3",
+        sub_stage=None,
+        current_unit=max_unit + 1,
+        verified_units=verified,
+    )
     return state
 
 
 def get_stage_display(state: PipelineState) -> str:
-    """Return a human-readable string describing the current pipeline position."""
-    stage_names: Dict[str, str] = {
-        "0": "Stage 0",
-        "1": "Stage 1",
-        "2": "Stage 2",
-        "pre_stage_3": "Pre-Stage 3",
-        "3": "Stage 3",
-        "4": "Stage 4",
-        "5": "Stage 5",
-    }
+    """Return a human-readable display of the
+    current pipeline position."""
+    parts: list[str] = []
+    parts.append(f"Stage {state.stage}")
 
-    display = stage_names.get(state.stage, f"Stage {state.stage}")
+    if state.sub_stage is not None:
+        parts.append(f"({state.sub_stage})")
 
-    if state.stage == "3" and state.current_unit is not None and state.total_units is not None:
-        display += f", Unit {state.current_unit} of {state.total_units}"
-        # Add pass number if there's pass history
-        if state.pass_history:
-            pass_number = len(state.pass_history) + 1
-            display += f" (pass {pass_number})"
-
-    if state.stage == "0" and state.sub_stage is not None:
-        display += f" ({state.sub_stage})"
-
-    if state.sub_stage in REDO_PROFILE_SUB_STAGES:
-        display += f" [{state.sub_stage}]"
+    if state.current_unit is not None:
+        unit_str = f"Unit {state.current_unit}"
+        if state.total_units is not None:
+            unit_str += f"/{state.total_units}"
+        parts.append(unit_str)
 
     if state.fix_ladder_position is not None:
-        display += f" [fix: {state.fix_ladder_position}]"
+        parts.append(f"[fix: {state.fix_ladder_position}]")
 
-    return display
+    return " ".join(parts)

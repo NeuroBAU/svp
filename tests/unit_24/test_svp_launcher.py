@@ -401,7 +401,7 @@ class TestMain:
 
     def test_returns_int(self):
         with patch(
-            "src.unit_24.stub._find_plugin_root",
+            "svp_launcher._find_plugin_root",
             return_value=None,
         ):
             result = main(["new", "testproj"])
@@ -421,8 +421,8 @@ class TestSelfContainment:
 
         source = inspect.getsource(
             __import__(
-                "src.unit_24.stub",
-                fromlist=["stub"],
+                "svp_launcher",
+                fromlist=["svp_launcher"],
             )
         )
         # Should not import from src.unit_N

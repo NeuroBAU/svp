@@ -21,14 +21,15 @@ import re
 
 ARTIFACT_FILENAMES: Dict[str, str] = {
     "stakeholder_spec": "stakeholder_spec.md",
-    "blueprint": "blueprint.md",
+    "blueprint_prose": "blueprint_prose.md",
+    "blueprint_contracts": "blueprint_contracts.md",
     "project_context": "project_context.md",
     "project_profile": "project_profile.json",
     "pipeline_state": "pipeline_state.json",
     "svp_config": "svp_config.json",
     "toolchain": "toolchain.json",
     "ruff_config": "ruff.toml",
-    "docs_dir": "docs",
+    "lessons_learned": "svp_2_1_lessons_learned.md",
 }
 
 # ===========================================================================
@@ -295,7 +296,7 @@ def load_profile(project_root: Path) -> Dict[str, Any]:
         file_profile = json.loads(raw_text)
     except json.JSONDecodeError as exc:
         raise RuntimeError(
-            f"Project profile not found at {profile_path}. "
+            f"Project profile at {profile_path} is not valid JSON. "
             "Resume from Stage 0 or run /svp:redo to create it."
         ) from exc
 
@@ -426,6 +427,7 @@ def detect_profile_contradictions(profile: Dict[str, Any]) -> list[str]:
     readme = profile.get("readme", {})
     delivery = profile.get("delivery", {})
     vcs = profile.get("vcs", {})
+    fixed = profile.get("fixed", {})
 
     # readme.depth: "minimal" with more than 5 sections or custom sections
     if readme.get("depth") == "minimal":
@@ -483,6 +485,24 @@ def detect_profile_contradictions(profile: Dict[str, Any]) -> list[str]:
                 f"(expected '{expected}')"
             )
 
+    # Check quality tool contradictions against pipeline_quality_tools
+    quality = profile.get("quality", {})
+    if isinstance(quality, dict) and isinstance(fixed, dict):
+        pipeline_tools = fixed.get("pipeline_quality_tools", "")
+        if isinstance(pipeline_tools, str):
+            if quality.get("linter") == "none" and "ruff" in pipeline_tools:
+                contradictions.append(
+                    "quality.linter is 'none' but"
+                    " fixed.pipeline_quality_tools"
+                    " includes ruff"
+                )
+            if quality.get("type_checker") == "none" and "mypy" in pipeline_tools:
+                contradictions.append(
+                    "quality.type_checker is 'none' but"
+                    " fixed.pipeline_quality_tools"
+                    " includes mypy"
+                )
+
     return contradictions
 
 
@@ -497,8 +517,8 @@ _TOOLCHAIN_REQUIRED_SECTIONS = [
 
 # Recognized placeholders in toolchain command templates
 _RECOGNIZED_PLACEHOLDERS = {
-    "env_name", "python_version", "run_prefix", "packages",
-    "test_path", "module", "files", "message", "path",
+    "env_name", "python_version", "run_prefix", "target",
+    "flags", "packages", "files", "message", "module", "test_path",
 }
 
 
@@ -523,7 +543,7 @@ def load_toolchain(project_root: Path) -> Dict[str, Any]:
         toolchain = json.loads(raw_text)
     except json.JSONDecodeError as exc:
         raise RuntimeError(
-            f"Toolchain file not found at {toolchain_path}. "
+            f"Toolchain file at {toolchain_path} is not valid JSON. "
             "Re-run svp new or reinstall the plugin."
         ) from exc
 
@@ -560,46 +580,25 @@ def validate_toolchain(toolchain: Dict[str, Any]) -> list[str]:
 
 def _check_templates_for_placeholders(toolchain: Dict[str, Any], errors: list[str]) -> None:
     """Check all command template strings for unrecognized placeholders."""
-    template_fields = []
+    _validate_templates_recursive(toolchain, errors)
 
-    # Gather all string values that might be command templates
-    if "environment" in toolchain and isinstance(toolchain["environment"], dict):
-        for key, val in toolchain["environment"].items():
-            if isinstance(val, str) and "{" in val:
-                template_fields.append((f"environment.{key}", val))
 
-    if "testing" in toolchain and isinstance(toolchain["testing"], dict):
-        for key, val in toolchain["testing"].items():
-            if isinstance(val, str) and "{" in val:
-                template_fields.append((f"testing.{key}", val))
-
-    if "packaging" in toolchain and isinstance(toolchain["packaging"], dict):
-        for key, val in toolchain["packaging"].items():
-            if isinstance(val, str) and "{" in val:
-                template_fields.append((f"packaging.{key}", val))
-
-    if "vcs" in toolchain and isinstance(toolchain["vcs"], dict):
-        vcs = toolchain["vcs"]
-        if "commands" in vcs and isinstance(vcs["commands"], dict):
-            for key, val in vcs["commands"].items():
-                if isinstance(val, str) and "{" in val:
-                    template_fields.append((f"vcs.commands.{key}", val))
-
-    if "quality" in toolchain and isinstance(toolchain["quality"], dict):
-        quality = toolchain["quality"]
-        for key, val in quality.items():
-            if isinstance(val, dict):
-                for subkey, subval in val.items():
-                    if isinstance(subval, str) and "{" in subval:
-                        template_fields.append((f"quality.{key}.{subkey}", subval))
-
-    for field_path, template in template_fields:
-        placeholders = re.findall(r"\{(\w+)\}", template)
+def _validate_templates_recursive(obj: Any, errors: list[str], path: str = "") -> None:
+    """Check command template strings for unrecognized placeholders recursively."""
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            current_path = f"{path}.{key}" if path else key
+            _validate_templates_recursive(value, errors, current_path)
+    elif isinstance(obj, str):
+        placeholders = re.findall(r"\{(\w+)\}", obj)
         for ph in placeholders:
             if ph not in _RECOGNIZED_PLACEHOLDERS:
                 errors.append(
-                    f"Unrecognized placeholder '{{{ph}}}' in {field_path}"
+                    f"Unrecognized placeholder '{{{ph}}}' in template at {path}"
                 )
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            _validate_templates_recursive(item, errors, f"{path}[{i}]")
 
 
 def resolve_command(
@@ -652,6 +651,9 @@ def resolve_command(
             f"Unresolved placeholder in command template: {{{remaining[0]}}}"
         )
 
+    # Collapse multiple spaces and strip whitespace
+    template = re.sub(r" {2,}", " ", template).strip()
+
     return template
 
 
@@ -663,7 +665,7 @@ def _get_template(toolchain: Dict[str, Any], operation: str) -> str:
         if isinstance(current, dict) and part in current:
             current = current[part]
         else:
-            raise KeyError(f"Operation '{operation}' not found in toolchain")
+            raise ValueError(f"Operation '{operation}' not found in toolchain")
     if not isinstance(current, str):
         raise ValueError(f"Operation '{operation}' does not resolve to a string template")
     return current
@@ -702,6 +704,8 @@ def get_quality_gate_operations(
     quality = toolchain.get("quality", {})
     valid_gates = {"gate_a", "gate_b", "gate_c"}
     if gate not in valid_gates:
+        raise ValueError(f"Unknown quality gate: {gate}")
+    if gate not in quality:
         raise ValueError(f"Unknown quality gate: {gate}")
     return quality.get(gate, [])
 
