@@ -103,7 +103,7 @@ claude plugin install svp@svp
 pip install -e .
 ```
 
-This builds the `svp` CLI entry point. The script is placed in pip's script directory, which may not be on your PATH. If `svp --help` does not work after installation, you need to locate the script and make it accessible.
+This builds the `svp` CLI entry point. The `svp` command is simply a wrapper that invokes `svp/scripts/svp_launcher.py` — the launcher source lives inside the plugin directory and the `pip install` step creates a CLI entry point for it via `pyproject.toml`. The script is placed in pip's script directory, which may not be on your PATH. If `svp --help` does not work after installation, you need to locate the script and make it accessible.
 
 #### macOS / Linux
 
