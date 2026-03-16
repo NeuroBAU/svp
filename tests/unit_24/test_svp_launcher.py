@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from svp_launcher import (
+from svp.scripts.svp_launcher import (
     CLAUDE_MD_FILE,
     CONFIG_FILE,
     MARKERS_DIR,
@@ -167,7 +167,39 @@ class TestParseArgs:
 
     def test_bare_mode(self):
         args = parse_args([])
-        assert args.command is None or (args.command == "")
+        assert args.command == "resume"
+
+    def test_blueprint_dir_parsing(self):
+        args = parse_args(
+            [
+                "restore",
+                "proj",
+                "--spec",
+                "s.md",
+                "--blueprint-dir",
+                "bd/",
+                "--profile",
+                "p.json",
+            ]
+        )
+        assert args.command == "restore"
+        assert hasattr(args, "blueprint_dir")
+
+    def test_profile_parsing(self):
+        args = parse_args(
+            [
+                "restore",
+                "proj",
+                "--spec",
+                "s.md",
+                "--blueprint-dir",
+                "bd/",
+                "--profile",
+                "p.json",
+            ]
+        )
+        assert args.command == "restore"
+        assert hasattr(args, "profile")
 
 
 # -------------------------------------------------------
@@ -401,7 +433,7 @@ class TestMain:
 
     def test_returns_int(self):
         with patch(
-            "svp_launcher._find_plugin_root",
+            "svp.scripts.svp_launcher._find_plugin_root",
             return_value=None,
         ):
             result = main(["new", "testproj"])
@@ -421,7 +453,7 @@ class TestSelfContainment:
 
         source = inspect.getsource(
             __import__(
-                "svp_launcher",
+                "svp.scripts.svp_launcher",
                 fromlist=["svp_launcher"],
             )
         )

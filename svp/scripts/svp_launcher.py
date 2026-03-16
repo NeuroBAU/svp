@@ -153,8 +153,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="Path to the stakeholder spec file",
     )
     restore_parser.add_argument(
-        "--blueprint", type=str, required=True,
-        help="Path to the blueprint file",
+        "--blueprint-dir", type=str, required=True,
+        help="Path to the blueprint directory",
+    )
+    restore_parser.add_argument(
+        "--profile", type=str, required=True,
+        help="Path to the project profile JSON file",
     )
     restore_parser.add_argument(
         "--context", type=str, default=None,
@@ -170,6 +174,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
 
     args = parser.parse_args(argv)
+
+    # Default to 'resume' if no subcommand given
+    if args.command is None:
+        args.command = "resume"
 
     return args
 
@@ -911,15 +919,25 @@ def _handle_restore(args: argparse.Namespace, plugin_dir: Path) -> int:
     project_name = args.project_name
     parent_dir = Path(args.parent_dir) if args.parent_dir else Path.cwd()
 
-    # Validate that required files exist
+    # Validate that required files/dirs exist
     spec_path = Path(args.spec)
-    blueprint_path = Path(args.blueprint)
+    blueprint_dir_path = Path(args.blueprint_dir)
+    profile_path = Path(args.profile)
 
     if not spec_path.is_file():
         print(f"Error: Spec file not found: {spec_path}")
         return 1
-    if not blueprint_path.is_file():
-        print(f"Error: Blueprint file not found: {blueprint_path}")
+    if not blueprint_dir_path.is_dir():
+        print(
+            f"Error: Blueprint directory not found:"
+            f" {blueprint_dir_path}"
+        )
+        return 1
+    if not profile_path.is_file():
+        print(
+            f"Error: Profile file not found:"
+            f" {profile_path}"
+        )
         return 1
 
     # Create directory structure
@@ -974,11 +992,27 @@ def _handle_restore(args: argparse.Namespace, plugin_dir: Path) -> int:
     shutil.copy2(str(spec_path), str(spec_dest))
     _print_status("Spec", True, f"Injected from {spec_path}")
 
-    # Inject blueprint
+    # Inject blueprint files from directory
     print("Injecting blueprint...")
-    blueprint_dest = project_root / "blueprint" / "blueprint.md"
-    shutil.copy2(str(blueprint_path), str(blueprint_dest))
-    _print_status("Blueprint", True, f"Injected from {blueprint_path}")
+    bp_dst = project_root / "blueprint"
+    for bp_file in blueprint_dir_path.iterdir():
+        if bp_file.is_file():
+            shutil.copy2(
+                str(bp_file), str(bp_dst / bp_file.name)
+            )
+    _print_status(
+        "Blueprint", True,
+        f"Injected from {blueprint_dir_path}",
+    )
+
+    # Inject profile
+    print("Injecting project profile...")
+    profile_dest = project_root / "project_profile.json"
+    shutil.copy2(str(profile_path), str(profile_dest))
+    _print_status(
+        "Profile", True,
+        f"Injected from {profile_path}",
+    )
 
     # Optionally inject context
     if args.context:
