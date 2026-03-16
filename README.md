@@ -201,6 +201,18 @@ into the delivered repository. This ensures the workspace
 remains the canonical source and the delivered repo stays
 in sync.
 
+Once you are satisfied with the delivered project, use
+`/svp:clean` to dispose of the workspace. It offers three
+modes: **archive** compresses the workspace into a
+timestamped zip file and deletes the directory;
+**delete** removes the workspace immediately without
+backup; **keep** removes the Conda environment but leaves
+the workspace files in place. All three modes remove the
+Conda environment created during the build. The delivered
+repository is never touched by `/svp:clean` — it is yours
+to keep regardless of what you do with the workspace.
+`/svp:clean` is only available after Stage 5 completes.
+
 ## Configuration
 
 SVP is configured through `svp_config.json` in your project root. Changes take effect on the next agent invocation — no restart required.
