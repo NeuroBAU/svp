@@ -47,6 +47,7 @@ from state_transitions import (
     quality_gate_pass,
     quality_gate_fail_to_ladder,
     set_delivered_repo_path,
+    version_document,
 )
 
 # --- Data contract: gate status string vocabulary (Bug 1 fix) ---
@@ -192,6 +193,26 @@ def _try_transition(fn, fallback_state):
         return fn()
     except TransitionError:
         return fallback_state
+
+
+
+
+def _version_spec(project_root: Path, trigger_context: str) -> None:
+    """Version the stakeholder spec before revision."""
+    spec_path = project_root / "specs" / "stakeholder_spec.md"
+    history_dir = project_root / "docs" / "history"
+    if spec_path.exists():
+        version_document(spec_path, history_dir, "Revision triggered", trigger_context)
+
+
+def _version_blueprint(project_root: Path, trigger_context: str) -> None:
+    """Version blueprint prose and contracts as an atomic pair before revision."""
+    history_dir = project_root / "docs" / "history"
+    prose_path = project_root / "blueprints" / "blueprint_prose.md"
+    contracts_path = project_root / "blueprints" / "blueprint_contracts.md"
+    for bp_path in [prose_path, contracts_path]:
+        if bp_path.exists():
+            version_document(bp_path, history_dir, "Revision triggered", trigger_context)
 
 
 # --- Helper: read last_status.txt ---
@@ -986,6 +1007,7 @@ def dispatch_gate_response(
         if response == "APPROVE":
             return _try_transition(lambda: advance_stage(state, project_root), state)
         elif response == "REVISE":
+            _version_spec(project_root, "Gate 1.1 REVISE")
             return state
         else:  # FRESH REVIEW
             return state
@@ -994,6 +1016,7 @@ def dispatch_gate_response(
         if response == "APPROVE":
             return _try_transition(lambda: advance_stage(state, project_root), state)
         elif response == "REVISE":
+            _version_spec(project_root, "Gate 1.2 REVISE")
             return state
         else:  # FRESH REVIEW
             return state
@@ -1003,6 +1026,7 @@ def dispatch_gate_response(
         if response == "APPROVE":
             return _try_transition(lambda: enter_alignment_check(state), state)
         elif response == "REVISE":
+            _version_blueprint(project_root, "Gate 2.1 REVISE")
             return state
         else:  # FRESH REVIEW
             return state
@@ -1012,12 +1036,14 @@ def dispatch_gate_response(
         if response == "APPROVE":
             return _try_transition(lambda: enter_alignment_check(state), state)
         elif response == "REVISE":
+            _version_blueprint(project_root, "Gate 2.2 REVISE")
             return state
         else:  # FRESH REVIEW
             return state
 
     elif gate_id == "gate_2_3_alignment_exhausted":
         if response == "REVISE SPEC":
+            _version_spec(project_root, "Gate 2.3 REVISE SPEC")
             return _try_transition(
                 lambda: restart_from_stage(
                     state, "1", "alignment exhausted: revise spec", project_root
@@ -1044,6 +1070,7 @@ def dispatch_gate_response(
         if response == "FIX IMPLEMENTATION":
             return state
         elif response == "FIX BLUEPRINT":
+            _version_blueprint(project_root, "Gate 3.2 FIX BLUEPRINT")
             return _try_transition(
                 lambda: restart_from_stage(
                     state, "2", "diagnostic: fix blueprint", project_root
@@ -1051,6 +1078,7 @@ def dispatch_gate_response(
                 state,
             )
         else:  # FIX SPEC
+            _version_spec(project_root, "Gate 3.2 FIX SPEC")
             return _try_transition(
                 lambda: restart_from_stage(
                     state, "1", "diagnostic: fix spec", project_root
@@ -1062,6 +1090,7 @@ def dispatch_gate_response(
         if response == "ASSEMBLY FIX":
             return state
         elif response == "FIX BLUEPRINT":
+            _version_blueprint(project_root, "Gate 4.1 FIX BLUEPRINT")
             return _try_transition(
                 lambda: restart_from_stage(
                     state, "2", "integration failure: fix blueprint", project_root
@@ -1069,6 +1098,7 @@ def dispatch_gate_response(
                 state,
             )
         else:  # FIX SPEC
+            _version_spec(project_root, "Gate 4.1 FIX SPEC")
             return _try_transition(
                 lambda: restart_from_stage(
                     state, "1", "integration failure: fix spec", project_root
@@ -1078,6 +1108,7 @@ def dispatch_gate_response(
 
     elif gate_id == "gate_4_2_assembly_exhausted":
         if response == "FIX BLUEPRINT":
+            _version_blueprint(project_root, "Gate 4.2 FIX BLUEPRINT")
             return _try_transition(
                 lambda: restart_from_stage(
                     state, "2", "assembly exhausted: fix blueprint", project_root
@@ -1085,6 +1116,7 @@ def dispatch_gate_response(
                 state,
             )
         else:  # FIX SPEC
+            _version_spec(project_root, "Gate 4.2 FIX SPEC")
             return _try_transition(
                 lambda: restart_from_stage(
                     state, "1", "assembly exhausted: fix spec", project_root
@@ -1109,6 +1141,7 @@ def dispatch_gate_response(
             new_state.last_action = "Retrying repo assembly"
             return new_state
         elif response == "FIX BLUEPRINT":
+            _version_blueprint(project_root, "Gate 5.2 FIX BLUEPRINT")
             return _try_transition(
                 lambda: restart_from_stage(
                     state, "2", "assembly exhausted: fix blueprint", project_root
@@ -1116,6 +1149,7 @@ def dispatch_gate_response(
                 state,
             )
         else:  # FIX SPEC
+            _version_spec(project_root, "Gate 5.2 FIX SPEC")
             return _try_transition(
                 lambda: restart_from_stage(
                     state, "1", "assembly exhausted: fix spec", project_root
@@ -1139,6 +1173,7 @@ def dispatch_gate_response(
         if response == "FIX UNIT":
             return state
         elif response == "FIX BLUEPRINT":
+            _version_blueprint(project_root, "Gate 6.2 FIX BLUEPRINT")
             return _try_transition(
                 lambda: restart_from_stage(
                     state, "2", "debug: fix blueprint", project_root
@@ -1146,6 +1181,7 @@ def dispatch_gate_response(
                 state,
             )
         else:  # FIX SPEC
+            _version_spec(project_root, "Gate 6.2 FIX SPEC")
             return _try_transition(
                 lambda: restart_from_stage(state, "1", "debug: fix spec", project_root),
                 state,

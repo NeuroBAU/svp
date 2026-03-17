@@ -2362,15 +2362,23 @@ On resume: routing script reads state file, main session presents context summar
 
 ---
 
-## 23. Document Version Tracking
+## 23. Document Version Tracking (CHANGED IN 2.1)
 
 Every time a document is revised:
 
-1. Current version copied to history: `stakeholder_v1.md`, `blueprint_prose_v1.md`, `blueprint_contracts_v1.md`, etc.
+1. Current version copied to history: `stakeholder_spec_v1.md`, `blueprint_prose_v1.md`, `blueprint_contracts_v1.md`, etc.
 2. Diff summary saved alongside: what changed, why, what stage triggered it, timestamp.
 3. Current working version remains `stakeholder_spec.md` / `blueprint_prose.md` / `blueprint_contracts.md`.
 
 Each review cycle resulting in a revision increments the version number. History is included in the delivered repository at `docs/history/`.
+
+**Caller.** The routing script's `dispatch_gate_response` function calls `version_document()` (from the state transition engine) at every REVISE trigger point before the revision occurs:
+
+- Gate 1.1 / 1.2 REVISE: versions `stakeholder_spec.md`.
+- Gate 2.1 / 2.2 REVISE: versions `blueprint_prose.md` and `blueprint_contracts.md` as an atomic pair.
+- Gate 2.3 REVISE SPEC: versions `stakeholder_spec.md`.
+- Gate 3.2 / 4.1 / 4.2 / 5.2 / 6.2 FIX BLUEPRINT: versions both blueprint files.
+- Gate 3.2 / 4.1 / 4.2 / 5.2 / 6.2 FIX SPEC: versions `stakeholder_spec.md`.
 
 ---
 

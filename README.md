@@ -548,7 +548,7 @@ can.
 
 SVP itself was built by SVP. The lessons learned document
 (`docs/references/svp_2_1_lessons_learned.md` in the
-delivered repository) catalogs 51 bugs discovered across
+delivered repository) catalogs 52 bugs discovered across
 five build generations — from SVP 1.0 through SVP 2.1.
 Nearly every one traces back to something the stakeholder
 spec didn't say clearly enough. The checklist below is
@@ -727,7 +727,7 @@ invariant.
 > invariant is a build failure, not a warning."
 
 These eight questions are not exhaustive, but they cover
-the patterns that produced 51 bugs across five build
+the patterns that produced 52 bugs across five build
 generations of SVP. The lessons learned document in the
 delivered repository contains the full catalog with root
 causes, patterns, and prevention rules. Bug 50 in
@@ -779,12 +779,16 @@ svp-repo/
     └── references/
 ```
 
+### Document Version Tracking
+
+Every time a document is revised through a gate decision (REVISE, FIX BLUEPRINT, or FIX SPEC), the routing script's `dispatch_gate_response` function calls `version_document()` to snapshot the current version before the revision occurs. The previous version is copied to `docs/history/` with an incrementing version number (e.g., `stakeholder_spec_v1.md`, `blueprint_prose_v2.md`), and a diff summary is saved alongside it recording the timestamp, trigger context, and what changed. The current working version remains at its canonical path (`specs/stakeholder_spec.md`, `blueprints/blueprint_prose.md`, `blueprints/blueprint_contracts.md`). Blueprint files are always versioned as an atomic pair — both prose and contracts are snapshotted together. This history is included in the delivered repository at `docs/history/`.
+
 ## Test Scenarios
 
 The SVP test suite covers:
 
 - **Unit tests** (`tests/unit_N/`): One test module per pipeline unit, covering the unit's behavioral contracts.
-- **Regression tests** (`tests/regressions/`): Carry-forward tests for all 51 catalogued bugs. Each file targets a specific bug scenario.
+- **Regression tests** (`tests/regressions/`): Carry-forward tests for all 52 catalogued bugs. Each file targets a specific bug scenario.
 - **Integration tests** (`tests/integration/`): Cross-unit tests covering toolchain resolution, profile flow, blueprint checker preference validation, quality gate execution, and write authorization.
 
 Run the full test suite from the repository root:
@@ -837,7 +841,7 @@ When `testing.readme_test_scenarios` is set in the profile, the README includes 
 - **SVP 1.2** — Bug fixes and hardening. Fixed gate status string vocabulary (Bug 1) and hook permission reset after debug session entry (Bug 2).
 - **SVP 1.2.1** — Further bug fixes and robustness improvements.
 - **SVP 2.0** — Project Profile (`project_profile.json`) for delivery preferences. Pipeline Toolchain Abstraction (`toolchain.json`). Profile-driven Stage 5 delivery. Delivery compliance scan. `/svp:redo` profile revision support.
-- **SVP 2.1** — Pipeline Quality Gates (A, B, C). Delivered quality configuration. Changelog support. Blueprint prose/contracts split. Stub sentinel. Proactive lessons learned integration. Universal two-branch routing invariant. 51 bug fixes across all pipeline stages.
+- **SVP 2.1** — Pipeline Quality Gates (A, B, C). Delivered quality configuration. Changelog support. Blueprint prose/contracts split. Stub sentinel. Proactive lessons learned integration. Universal two-branch routing invariant. 52 bug fixes across all pipeline stages. Bug 52: wired orphaned `version_document()` into routing dispatch for document version tracking.
 
 ## License
 
