@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 52 discovered post-delivery (version_document orphaned -- implemented and tested but never wired into routing).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-52)
+## Part 1: Unified Bug Catalog (Bugs 1-54)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -846,20 +846,6 @@ After a successful repair in the debug loop, the triage agent's Step 6 instructs
 
 ---
 
-### Bug 52 — version_document() orphaned: implemented and tested but never wired into routing
-
-**Caught:** Post-delivery (SVP 2.1 QC audit). **Test:** `tests/regressions/test_bug52_version_document_wiring.py`
-
-`version_document()` was fully implemented in Unit 3 (state_transitions.py) and had passing unit tests in `tests/unit_3/`, but was never imported or called by Unit 10 (routing.py). Every REVISE branch in `dispatch_gate_response` simply returned `state` unchanged with no call to `version_document()`. The result was that `docs/history/` was always empty -- document version tracking (spec Section 23) was completely non-functional in every pipeline run.
-
-**Root cause:** The implementation agent for Unit 3 implemented `version_document()` per the blueprint contract, and the test agent verified it worked. But the implementation agent for Unit 10 never added the import or the calls at the REVISE/FIX trigger points in `dispatch_gate_response`. The function existed, was tested, but had zero callers.
-
-**Pattern:** P1 (Cross-unit contract drift). Unit 3 provided a function; Unit 10's contract listed Unit 3 as a dependency but the blueprint did not explicitly specify that `dispatch_gate_response` must call `version_document()` at each REVISE trigger point. The implementation agent for Unit 10 had no instruction to wire the call.
-
-**Prevention:** (1) Blueprint contracts for caller units must explicitly list every function they are expected to call from dependency units, with the specific trigger points where calls occur. (2) An integration-level structural test should verify that every public function in dependency units is actually imported and called by at least one caller unit. (3) Spec Section 23 now documents the caller (dispatch_gate_response) and the specific trigger points.
-
----
-
 ### Bug 53 -- Orphaned functions: reset_fix_ladder, reset_alignment_iteration, record_pass_end
 
 **Caught:** Post-delivery (SVP 2.1 QC audit). **Test:** `tests/regressions/test_bug53_orphaned_functions.py`
@@ -871,6 +857,20 @@ Three functions in `state_transitions.py` were implemented, tested, and imported
 **Pattern:** P1 (Dead code from superseded design). Functions implemented per an early blueprint version survived because they had tests, but the higher-level function that subsumed their behavior was never cross-referenced to identify the redundancy.
 
 **Prevention:** (1) When a higher-level function performs the same state mutations as a lower-level function, the lower-level function should be removed or the blueprint should document why both exist. (2) Unused-import linting (ruff F401) should be enforced in CI to catch imported-but-never-called functions. (3) Periodic dead code audits should verify that every exported function has at least one non-test caller.
+
+---
+
+### Bug 54 -- Orphaned hollow function update_state_from_status
+
+**Caught:** Post-delivery (SVP 2.1 QC audit). **Test:** `tests/regressions/test_bug54_orphaned_update_state_from_status.py`
+
+`update_state_from_status` in `state_transitions.py` was the blueprint-specified "entry point called by POST commands" but its body was a hollow skeleton: it read the status file, parsed the status line, set `last_action` to an echo string, and returned state unchanged. It never dispatched to any transition function. The actual POST command entry point is `update_state_main()` in `routing.py`, which calls `dispatch_status()` directly -- completely bypassing `update_state_from_status`. The function was never called by any pipeline script, never imported by routing.py, and tested only for surface immutability.
+
+**Root cause:** Same pattern as Bug 53. The blueprint specified this function as the dispatch entry point, but `update_state_main` was later designed in `routing.py` to call `dispatch_status` directly. The hollow function survived because it had passing tests (testing only that it returned a new state without mutating the input -- trivially satisfied by a function that does nothing).
+
+**Pattern:** P1 (Dead code from superseded design). A function specified in the blueprint was never connected to the actual dispatch path. Tests verified structural properties (immutability, clone behavior) but not behavioral ones (actual dispatch).
+
+**Prevention:** (1) Tests for dispatch entry points must verify actual dispatch behavior, not just structural properties. (2) Dead code audits should verify that functions documented as "entry points" are actually called from the expected call site. (3) When a function's docstring claims it is "the entry point called by POST commands," there should be a test that verifies POST commands actually invoke it.
 
 ---
 

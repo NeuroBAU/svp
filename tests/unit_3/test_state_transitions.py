@@ -1043,55 +1043,6 @@ class TestCompleteRedoProfileRevision:
         complete_redo_profile_revision(state)
         assert state.sub_stage == "redo_profile_delivery"
 
-
-# ---------------------------------------------------------------
-# Section 17: update_state_from_status
-# ---------------------------------------------------------------
-
-
-class TestUpdateStateFromStatus:
-    def test_returns_new_state(self, tmp_path):
-        from state_transitions import (
-            update_state_from_status,
-        )
-
-        state = _make_state(
-            stage="3",
-            sub_stage="test_generation",
-        )
-        status_file = tmp_path / "last_status.txt"
-        status_file.write_text("TEST_GENERATION_COMPLETE")
-        result = update_state_from_status(
-            state,
-            status_file,
-            unit=1,
-            phase="test",
-            project_root=tmp_path,
-        )
-        assert result is not state
-
-    def test_does_not_mutate_input(self, tmp_path):
-        from state_transitions import (
-            update_state_from_status,
-        )
-
-        state = _make_state(
-            stage="3",
-            sub_stage="test_generation",
-        )
-        status_file = tmp_path / "last_status.txt"
-        status_file.write_text("TEST_GENERATION_COMPLETE")
-        original_sub = state.sub_stage
-        update_state_from_status(
-            state,
-            status_file,
-            unit=1,
-            phase="test",
-            project_root=tmp_path,
-        )
-        assert state.sub_stage == original_sub
-
-
 # ---------------------------------------------------------------
 # Section 18: Immutability invariant (all functions)
 # ---------------------------------------------------------------

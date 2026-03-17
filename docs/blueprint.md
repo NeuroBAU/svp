@@ -1028,10 +1028,6 @@ def quality_gate_fail_to_ladder(state: PipelineState) -> PipelineState: ...
 
 def set_delivered_repo_path(state: PipelineState, repo_path: str) -> PipelineState: ...
 
-def update_state_from_status(
-    state: PipelineState, status_file: Path, unit: Optional[int],
-    phase: str, project_root: Path,
-) -> PipelineState: ...
 ```
 
 ### Tier 2 — Invariants

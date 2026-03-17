@@ -637,13 +637,6 @@ def enter_redo_profile_revision(
 
 def complete_redo_profile_revision(state: PipelineState) -> PipelineState: ...
 
-def update_state_from_status(
-    state: PipelineState,
-    status_file: Path,
-    unit: Optional[int],
-    phase: str,
-    project_root: Path,
-) -> PipelineState: ...
 ```
 
 ### Tier 2 — Invariants
@@ -741,7 +734,7 @@ assert result.sub_stage in ("redo_profile_delivery", "redo_profile_blueprint"), 
 - `set_debug_classification` sets the classification and affected units on the debug session.
 - `enter_redo_profile_revision` captures the current pipeline position as a snapshot dict in `redo_triggered_from` (including `stage`, `sub_stage`, `current_unit`, `fix_ladder_position`, `red_run_retries`), then sets `sub_stage` to `"redo_profile_delivery"` or `"redo_profile_blueprint"` based on the classification.
 - `complete_redo_profile_revision` reads the `redo_triggered_from` snapshot. For `redo_profile_delivery`: restores the snapshot (stage, sub_stage, current_unit, fix_ladder_position, red_run_retries), sets `redo_triggered_from` to None. The delivery change takes effect when Stage 5 runs. For `redo_profile_blueprint`: discards the snapshot, calls `restart_from_stage` to Stage 2 with reason "profile_blueprint revision". Resets everything downstream including fix ladder, red run retries, current unit, and verified units. Sets `redo_triggered_from` to None.
-- `update_state_from_status` reads `.svp/last_status.txt`, parses the terminal status line or command result status line, and calls the appropriate transition function based on the phase parameter. This is the entry point called by POST commands.
+- **[Removed in Bug 54]** `update_state_from_status` was a hollow skeleton that never dispatched. The actual POST command entry point is `update_state_main()` in `routing.py`, which calls `dispatch_status()` directly.
 - All transition functions return a new `PipelineState` -- they do not mutate the input. The caller is responsible for saving.
 - `advance_fix_ladder` enforces the valid ladder sequence: `None -> fresh_test -> hint_test` (test ladder), `None -> fresh_impl -> diagnostic -> diagnostic_impl` (implementation ladder). Invalid transitions raise `TransitionError`. **Caller responsibility:** callers must check `state.fix_ladder_position` before calling and must pass the next valid target for the current position -- not a fixed target. A `TransitionError` from `advance_fix_ladder` indicates a logic error in the caller (attempting an invalid transition), not a transient condition to be retried or swallowed.
 

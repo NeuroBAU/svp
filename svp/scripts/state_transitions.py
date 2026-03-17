@@ -780,34 +780,3 @@ def set_delivered_repo_path(state: PipelineState, repo_path: str) -> PipelineSta
     new_state.delivered_repo_path = repo_path
     new_state.last_action = f"Set delivered repo path to {repo_path}"
     return new_state
-
-
-def update_state_from_status(
-    state: PipelineState,
-    status_file: Path,
-    unit: Optional[int],
-    phase: str,
-    project_root: Path,
-) -> PipelineState:
-    """Read the status file, parse the terminal status line, and call the
-    appropriate transition function based on the phase parameter.
-
-    This is the entry point called by POST commands.
-    """
-    if not status_file.exists():
-        # No status file, return state unchanged
-        return _clone_state(state)
-
-    status_content = status_file.read_text(encoding="utf-8").strip()
-
-    # Parse the status line (last non-empty line)
-    lines = [line.strip() for line in status_content.split("\n") if line.strip()]
-    if not lines:
-        return _clone_state(state)
-
-    status_line = lines[-1]
-
-    new_state = _clone_state(state)
-    new_state.last_action = f"Processed status: {status_line} (phase={phase})"
-
-    return new_state

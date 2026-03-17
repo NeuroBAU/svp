@@ -1600,7 +1600,14 @@ def _check_agent_type_consistency():
 
 
 def update_state_main(argv: Optional[List[str]] = None) -> None:
-    """CLI entry point for update_state script."""
+    """CLI entry point for update_state script.
+
+    This is the actual POST command entry point. It reads the status file
+    and calls dispatch_status() directly to route the terminal status line
+    to the appropriate state transition function. The previously existing
+    update_state_from_status() in state_transitions.py was a hollow skeleton
+    that never dispatched and was removed in Bug 54.
+    """
     import argparse
 
     parser = argparse.ArgumentParser(description="SVP Update State Script")

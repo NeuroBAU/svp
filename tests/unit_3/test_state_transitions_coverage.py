@@ -904,49 +904,6 @@ class TestSetDeliveredRepoPathErrors:
 
 
 # ---------------------------------------------------------------
-# update_state_from_status: edge cases
-# ---------------------------------------------------------------
-
-
-class TestUpdateStateFromStatusEdgeCases:
-    """Blueprint: update_state_from_status handles
-    missing file and empty content."""
-
-    def test_missing_file_returns_clone(self, tmp_path):
-        from state_transitions import (
-            update_state_from_status,
-        )
-
-        state = _make_state()
-        missing = tmp_path / "nonexistent.txt"
-        result = update_state_from_status(
-            state,
-            missing,
-            unit=1,
-            phase="test",
-            project_root=tmp_path,
-        )
-        assert result is not state
-
-    def test_empty_file_returns_clone(self, tmp_path):
-        from state_transitions import (
-            update_state_from_status,
-        )
-
-        state = _make_state()
-        empty = tmp_path / "empty.txt"
-        empty.write_text("")
-        result = update_state_from_status(
-            state,
-            empty,
-            unit=1,
-            phase="test",
-            project_root=tmp_path,
-        )
-        assert result is not state
-
-
-# ---------------------------------------------------------------
 # version_document: file creation behavior
 # ---------------------------------------------------------------
 
@@ -1302,24 +1259,4 @@ class TestImmutabilityAdditional:
         )
         old_dict = state.to_dict()
         complete_redo_profile_revision(state)
-        assert state.to_dict() == old_dict
-
-    def test_update_state_from_status_immutable(
-        self, tmp_path
-    ):
-        from state_transitions import (
-            update_state_from_status,
-        )
-
-        state = _make_state()
-        status = tmp_path / "status.txt"
-        status.write_text("DONE")
-        old_dict = state.to_dict()
-        update_state_from_status(
-            state,
-            status,
-            unit=1,
-            phase="test",
-            project_root=tmp_path,
-        )
         assert state.to_dict() == old_dict
