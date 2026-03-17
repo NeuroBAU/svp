@@ -327,6 +327,31 @@ Every project built by SVP 2.1 is automatically formatted, linted, and type-chec
 
 Quality tools auto-fix mechanically resolvable issues (formatting, import sorting, simple lint violations). Issues that tools cannot auto-fix are escalated to the producing agent for one re-pass. If residuals persist after the re-pass, the quality gate fails and enters the existing fix ladder. Quality gate retries are separate from the fix ladder retry budget.
 
+### 3.18 Downstream Dependency Invariant for Re-entry Paths (NEW IN 2.1 -- Bug 56 fix)
+
+For every pipeline re-entry path that modifies a unit's implementation -- including FIX UNIT (Gate 6.2), fix ladder retry, and any stage restart that targets a specific unit -- the pipeline must analyze whether downstream units remain valid. If unit N's implementation changes, all units >= N must be invalidated and rebuilt. No surgical repair of downstream artifacts. No assumption that units N+1 through M remain correct after unit N changes.
+
+This extends the Ruthless Restart principle (Section 3.1) from document-level restart to implementation-level re-entry. Section 3.1 requires that document changes trigger complete forward restart from the appropriate stage. Section 3.18 requires that implementation changes trigger complete forward rebuild from the affected unit. The reasoning is identical: downstream artifacts were generated from upstream artifacts. If an upstream artifact changes, all downstream artifacts are potentially stale.
+
+**Scope.** This invariant applies to:
+- **FIX UNIT** at Gate 6.2: calls `rollback_to_unit(N)`, which invalidates all verified units >= N and rebuilds from N forward.
+- **Fix ladder retry:** re-runs the current unit's implementation; downstream units are not yet verified, so no invalidation needed (the pipeline has not advanced past the current unit).
+- **Stage restart** (`restart_from_stage`): already destroys all downstream state by resetting to the target stage. No additional analysis needed.
+
+The spec author, when defining any new re-entry path, must explicitly state what happens to downstream units. The blueprint checker must verify that every re-entry path in the blueprint either invalidates downstream units or documents why invalidation is unnecessary.
+
+### 3.19 Contract Granularity Rules (NEW IN 2.1 -- Bug 56 fix)
+
+The contract sufficiency invariant (Section 3.16) requires that Tier 3 behavioral contracts be sufficient for deterministic reimplementation. This section strengthens that requirement with explicit granularity rules:
+
+1. **Exported function coverage.** Every function listed in a unit's Tier 2 machine-readable signatures MUST have a corresponding Tier 3 behavioral contract. A Tier 2 signature without a Tier 3 contract is a blueprint alignment failure. The contract must specify: preconditions, postconditions, side effects, error conditions, and the relationship between inputs and outputs.
+
+2. **Per-gate-option dispatch contracts.** Every gate response option in `GATE_VOCABULARY` MUST have a Tier 3 dispatch contract in the routing unit (Unit 10) specifying the exact state transition that occurs when the human selects that option. A gate option without a dispatch contract is a blueprint alignment failure. The contract must specify: which transition functions are called, in what order, with what arguments, and what the resulting state looks like.
+
+3. **Call-site verification.** Every state transition function defined in the state transitions unit (Unit 3) MUST have at least one call site in the routing unit (Unit 10) or another unit that invokes it. A function with no call site is dead code and must be removed or wired. The blueprint checker must verify that every exported function has a documented call site.
+
+**Blueprint checker requirements.** The blueprint checker (Section 8.2) MUST verify all three rules as alignment conditions during the alignment check. Violations are unconditional alignment failures, not warnings.
+
 ---
 
 ## 4. Platform Constraints
@@ -1065,6 +1090,12 @@ A fresh blueprint checker agent receives the stakeholder spec (including working
 
 The lessons learned document is accessed via its workspace-relative path `references/svp_2_1_lessons_learned.md`. The basename `svp_2_1_lessons_learned.md` is the canonical filename constant in Unit 1's `ARTIFACT_FILENAMES`; the `references/` directory prefix is the standard location for reference documents (see Section 6.6 directory structure).
 
+**Contract granularity verification (NEW IN 2.1 -- Bug 56 fix).** The blueprint checker MUST verify the following as alignment conditions (unconditional failures, not warnings):
+- Every function in Tier 2 has a Tier 3 behavioral contract (Section 3.19, rule 1).
+- Every gate response option has a per-gate-option dispatch contract in the routing unit (Section 3.19, rule 2).
+- Every state transition function has a documented call site (Section 3.19, rule 3).
+- Every re-entry path documents downstream dependency impact (Section 3.18).
+
 **Report most fundamental level.** When the checker identifies problems at multiple levels, it reports only the deepest problem. Spec problems supersede blueprint problems.
 
 Three outcomes:
@@ -1536,6 +1567,8 @@ During Stage 5 structural validation, after assembly and before the compliance s
 3. `mypy {target}` — cross-unit type check with full visibility. No `--ignore-missing-imports` — the full project is assembled so all imports should resolve.
 
 **Purpose:** Catch cross-unit interface mismatches, naming collisions, and inconsistencies not visible at the single-unit level. Gate B checks each unit with `--ignore-missing-imports`; Gate C checks the assembled whole with full type resolution.
+
+**Unused exported function detection (NEW IN 2.1 -- Bug 56 fix).** After lint and type check pass, Gate C scans the assembled codebase for exported functions (functions listed in Tier 2 signatures) that are defined but never called from any other module. This is a dead code detection check that catches functions implemented but never wired into the dispatch path (the pattern that produced Bugs 52-55). The check uses ruff's F811 rule or a custom AST-based scan -- whatever fits the existing quality tool pipeline. Functions that are only called from tests are NOT considered unused (test-only usage is valid). If unused exported functions are found, Gate C fails. Gate C failure enters the existing Stage 5 bounded fix cycle (Section 12.4).
 
 **If issues found:** They enter the existing Stage 5 bounded fix cycle (Section 12.4) as structural validation failures. Gate C findings are included as context in the next bounded fix cycle iteration — a fresh git repo agent invocation receives the quality report along with other structural validation failures. The agent is single-shot; it does not iterate internally. No new mechanism needed.
 

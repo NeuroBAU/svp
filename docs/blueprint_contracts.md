@@ -314,7 +314,7 @@ assert ARTIFACT_FILENAMES["project_context"] == "project_context.md"
 - `get_framework_packages` returns `testing.framework_packages` from the toolchain.
 - `get_quality_packages` returns `quality.packages` from the toolchain.
 - `get_collection_error_indicators` returns `testing.collection_error_indicators` from the toolchain.
-- `get_quality_gate_operations` returns the operation list for the given gate identifier (`"gate_a"`, `"gate_b"`, or `"gate_c"`) from the toolchain's `quality` section.
+- `get_quality_gate_operations` returns the operation list for the given gate identifier (`"gate_a"`, `"gate_b"`, or `"gate_c"`) from the toolchain's `quality` section. Gate C includes `"linter.unused_exports"` for dead code detection (Bug 56 fix).
 - `validate_python_version` checks whether a version string satisfies the constraint. Returns True if satisfied, False otherwise.
 - **Behavioral equivalence:** Every resolved command from the existing sections must produce identical behavior to SVP 1.2's hardcoded commands. The `quality` section is purely additive.
 
@@ -1320,8 +1320,6 @@ A regression test (`test_bug45_test_execution_dispatch.py`) must verify both adv
 
 **COMMAND/POST separation invariant (Bug 47 fix).** The `unit_completion` routing action's COMMAND field must not embed `update_state.py` calls or any other state update invocations. State updates are exclusively the responsibility of POST commands. If both COMMAND and POST invoke `update_state.py` for the same phase, the state update runs twice: the first call advances `current_unit`, and the second call raises `TransitionError` because the unit is no longer current. The COMMAND should only write the completion marker and status; the POST command handles the state transition via `update_state.py --phase unit_completion`. This invariant applies to all routing action blocks, not just `unit_completion` -- no COMMAND field may embed state update calls. A regression test (`test_bug47_unit_completion_double_dispatch.py`) must verify that the `unit_completion` routing action's COMMAND field does not contain `update_state.py` or any state update invocation, and that state updates are exclusively in the POST command.
 
-**Document versioning (Bug 52 fix).** `dispatch_gate_response` calls `version_document()` (from Unit 3) at every REVISE/FIX BLUEPRINT/FIX SPEC trigger point before the state transition. Gate 1.1/1.2 REVISE versions the spec; Gate 2.1/2.2 REVISE versions both blueprint files; Gate 2.3 REVISE SPEC versions the spec; Gates 3.2/4.1/4.2/5.2/6.2 FIX BLUEPRINT versions both blueprint files; Gates 3.2/4.1/4.2/5.2/6.2 FIX SPEC versions the spec. Helper functions `_version_spec` and `_version_blueprint` encapsulate the document paths and history directory.
-
 ### Tier 3 -- Dependencies
 
 - **Unit 1 (SVP Configuration):** `derive_env_name`, `load_config`, `load_toolchain`, `resolve_command`, `get_quality_gate_operations`, `ARTIFACT_FILENAMES`.
@@ -1779,7 +1777,7 @@ assert "src.unit_" in GIT_REPO_AGENT_MD_CONTENT or "cross-unit import" in GIT_RE
 
   **Stub sentinel validation:** After assembly, scan all Python source files for `__SVP_STUB__`. Any match is an immediate structural validation failure.
 
-  **Quality Gate C:** Runs during structural validation. `ruff format --check`, `ruff check`, `mypy` (without `--ignore-missing-imports`).
+  **Quality Gate C:** Runs during structural validation. `ruff format --check`, `ruff check`, `mypy` (without `--ignore-missing-imports`), then unused exported function detection via `ruff check --select F811` (Bug 56 fix: catches functions defined but never called, the pattern that produced Bugs 52-55).
 
   **Delivered quality configuration:** Generates quality tool config from profile `quality` section. Changelog from `vcs.changelog`. Commit style from `vcs.commit_style`. README per profile preferences with carry-forward for Mode A (Bug 30 fix).
 
@@ -1977,6 +1975,7 @@ assert '"quality"' in TOOLCHAIN_DEFAULT_JSON_CONTENT
 assert '"gate_a"' in TOOLCHAIN_DEFAULT_JSON_CONTENT
 assert '"gate_b"' in TOOLCHAIN_DEFAULT_JSON_CONTENT
 assert '"gate_c"' in TOOLCHAIN_DEFAULT_JSON_CONTENT
+assert '"unused_exports"' in TOOLCHAIN_DEFAULT_JSON_CONTENT  # Bug 56: Gate C dead code detection
 assert "line-length" in RUFF_CONFIG_TOML_CONTENT
 assert "[lint]" in RUFF_CONFIG_TOML_CONTENT
 assert '"delivered_repo_path"' in PIPELINE_STATE_INITIAL_JSON_CONTENT

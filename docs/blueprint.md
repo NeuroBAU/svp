@@ -791,13 +791,13 @@ assert ARTIFACT_FILENAMES["project_context"] == "project_context.md"
 
 **Toolchain reader (CHANGED IN 2.1):**
 - `load_toolchain` reads `toolchain.json` from `project_root`. Raises `RuntimeError` if missing or malformed. No fallback to hardcoded values.
-- `validate_toolchain` checks structural integrity: all required sections present including the `quality` section (`formatter`, `linter`, `type_checker`, `packages`, `gate_a`, `gate_b`, `gate_c`), command templates contain only recognized placeholders. Returns empty list when valid.
+- `validate_toolchain` checks structural integrity: all required sections present including the `quality` section (`formatter`, `linter`, `type_checker`, `packages`, `gate_a`, `gate_b`, `gate_c`), command templates contain only recognized placeholders, and `linter.unused_exports` key exists (Bug 56 fix). Returns empty list when valid.
 - `resolve_command` performs single-pass placeholder resolution. The recognized placeholder vocabulary is a closed set: `{env_name}`, `{python_version}`, `{run_prefix}`, `{target}`, `{flags}`, `{packages}`, `{files}`, `{message}`, `{module}`, `{test_path}`. Resolution order: first resolves `environment.run_prefix` by substituting `{env_name}` internally, then substitutes the resolved `run_prefix` value into all templates referencing `{run_prefix}`. **The canonical placeholder for file/directory paths is `{target}`, not `{path}` (Bug 33 fix).** No recursive resolution. Raises `ValueError` if any placeholder remains unresolved after substitution.
 - `resolve_run_prefix` is a convenience function: resolves `environment.run_prefix` template with the given `env_name`.
 - `get_framework_packages` returns `testing.framework_packages` from the toolchain.
 - `get_quality_packages` returns `quality.packages` from the toolchain.
 - `get_collection_error_indicators` returns `testing.collection_error_indicators` from the toolchain.
-- `get_quality_gate_operations` returns the operation list for the given gate identifier (`"gate_a"`, `"gate_b"`, or `"gate_c"`) from the toolchain's `quality` section.
+- `get_quality_gate_operations` returns the operation list for the given gate identifier (`"gate_a"`, `"gate_b"`, or `"gate_c"`) from the toolchain's `quality` section. Gate C includes `"linter.unused_exports"` for dead code detection (Bug 56 fix).
 - `validate_python_version` checks whether a version string satisfies the constraint. Returns True if satisfied, False otherwise.
 - **Behavioral equivalence:** Every resolved command from the existing sections must produce identical behavior to SVP 1.2's hardcoded commands. The `quality` section is purely additive.
 
@@ -2214,7 +2214,7 @@ assert "src.unit_" in GIT_REPO_AGENT_MD_CONTENT or "cross-unit import" in GIT_RE
 
   **Stub sentinel validation:** After assembly, scan all Python source files for `__SVP_STUB__`. Any match is an immediate structural validation failure.
 
-  **Quality Gate C:** Runs during structural validation. `ruff format --check`, `ruff check`, `mypy` (without `--ignore-missing-imports`).
+  **Quality Gate C:** Runs during structural validation. `ruff format --check`, `ruff check`, `mypy` (without `--ignore-missing-imports`), then unused exported function detection via `ruff check --select F811` (Bug 56 fix: catches functions defined but never called, the pattern that produced Bugs 52-55).
 
   **Delivered quality configuration:** Generates quality tool config from profile `quality` section. Changelog from `vcs.changelog`. Commit style from `vcs.commit_style`. README per profile preferences with carry-forward for Mode A (Bug 30 fix).
 
@@ -2412,6 +2412,7 @@ assert '"quality"' in TOOLCHAIN_DEFAULT_JSON_CONTENT
 assert '"gate_a"' in TOOLCHAIN_DEFAULT_JSON_CONTENT
 assert '"gate_b"' in TOOLCHAIN_DEFAULT_JSON_CONTENT
 assert '"gate_c"' in TOOLCHAIN_DEFAULT_JSON_CONTENT
+assert '"unused_exports"' in TOOLCHAIN_DEFAULT_JSON_CONTENT  # Bug 56: Gate C dead code detection
 assert "line-length" in RUFF_CONFIG_TOML_CONTENT
 assert "[lint]" in RUFF_CONFIG_TOML_CONTENT
 assert '"delivered_repo_path"' in PIPELINE_STATE_INITIAL_JSON_CONTENT

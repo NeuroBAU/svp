@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-55)
+## Part 1: Unified Bug Catalog (Bugs 1-56)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -889,6 +889,24 @@ Three functions in `state_transitions.py` were implemented, tested, and imported
 **Prevention:** (1) Every state transition function must have an integration test verifying it is called from the correct dispatch path. (2) Gate dispatch handlers that return `state` unchanged should be flagged as suspicious -- they likely need wiring. (3) When a function has preconditions (e.g., "Stage 3 only"), the call site must be checked for compatibility. (4) Triage agents must write structured output (`.svp/triage_result.json`) to communicate results to the pipeline, not rely on the terminal status line alone.
 
 **Changes:** (a) `state_transitions.py`: relaxed `rollback_to_unit` precondition to accept Stage 5 with active debug session, changed copytree to rmtree (delete not backup), added stage 5->3 transition. (b) `routing.py`: wired Gate 6.2 FIX UNIT to call rollback_to_unit, wired bug_triage dispatch to call set_debug_classification, added build_env fast path to repair_agent, added phase-based Stage 5 debug routing. (c) `debug_agents.py` / `unit_19/stub.py`: added structured output section for `.svp/triage_result.json`. (d) `hook_configurations.py` / `hooks.py`: authorized triage_result.json writes during triage phases.
+
+---
+
+### Bug 56 -- Spec structural gaps: downstream dependency analysis and contract granularity rules
+
+**Caught:** Post-delivery (SVP 2.1 debug session, compound analysis of Bugs 52-55). **Test:** N/A (documentation and spec-level fix; prevention is structural).
+
+Bugs 52-55 shared two root causes that were not addressed by individual bug fixes:
+
+**RC1: Missing downstream dependency analysis for re-entry paths.** The spec's FIX UNIT description (Section 12.17.4) originally stated that `verified_units` was not modified during Stage 3 re-entry. This was wrong: when unit N's implementation changes, all units >= N are potentially stale because they were generated and verified against unit N's original implementation. Bug 55 fixed FIX UNIT specifically, but the general principle was never stated: ALL re-entry paths must analyze downstream dependency impact. The spec now contains the Downstream Dependency Invariant (Section 3.18) requiring this analysis for every re-entry path.
+
+**RC2: Missing contract granularity rules.** The contract sufficiency invariant (Section 3.16, added after Bug 50) required contracts to be "sufficient for deterministic reimplementation" but did not mandate: (a) that every Tier 2 function has a Tier 3 behavioral contract, (b) that every gate response option has a per-gate-option dispatch contract, or (c) that every transition function has a documented call site. Bugs 52-55 all involved functions that were implemented but never wired into the dispatch path -- a pattern that per-gate-option dispatch contracts would have caught during blueprint alignment. The spec now contains Contract Granularity Rules (Section 3.19) mandating all three.
+
+**Additional fix: Gate C unused function detection.** Gate C (Stage 5 assembly quality check) now includes a dead code detection step (`linter.unused_exports`) that catches exported functions defined but never called. This is a machine-checkable last line of defense against the Bugs 52-55 pattern.
+
+**Pattern:** Compound P1 (Cross-unit contract drift) + new pattern P9 (Spec structural gap). The spec provided the principle (contract sufficiency) but not the granularity rules needed to operationalize it. The blueprint checker had no structural criteria to verify, so it could not catch the gap.
+
+**Prevention:** (1) Section 3.18 (Downstream Dependency Invariant) requires every re-entry path to document downstream impact. (2) Section 3.19 (Contract Granularity Rules) requires Tier 3 contracts for every Tier 2 function, per-gate-option dispatch contracts, and call-site verification. (3) Section 8.2 updated to require the blueprint checker to verify all three rules. (4) Gate C enhanced with unused function detection. (5) README checklist extended with a ninth advisory question covering these structural checks.
 
 ---
 

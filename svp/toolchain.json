@@ -1,0 +1,96 @@
+{
+  "toolchain_id": "python_conda_pytest",
+  "environment": {
+    "tool": "conda",
+    "create": "conda create -n {env_name} python={python_version} -y",
+    "run_prefix": "conda run -n {env_name}",
+    "install": "conda run -n {env_name} pip install {packages}",
+    "install_dev": "conda run -n {env_name} pip install {packages}",
+    "remove": "conda env remove -n {env_name} -y"
+  },
+  "testing": {
+    "tool": "pytest",
+    "run": "{run_prefix} python -m pytest {test_path} -v",
+    "run_coverage": "{run_prefix} python -m pytest {test_path} -v --cov={module} --cov-report=term-missing",
+    "framework_packages": [
+      "pytest",
+      "pytest-cov"
+    ],
+    "file_pattern": "test_*.py",
+    "collection_error_indicators": [
+      "ModuleNotFoundError",
+      "ImportError",
+      "SyntaxError",
+      "no tests ran",
+      "collection error",
+      "ERROR collecting"
+    ],
+    "pass_fail_pattern": "(\\d+) passed"
+  },
+  "packaging": {
+    "tool": "setuptools",
+    "manifest_file": "pyproject.toml",
+    "build_backend": "setuptools.build_meta",
+    "validate_command": "{run_prefix} pip install -e ."
+  },
+  "vcs": {
+    "tool": "git",
+    "commands": {
+      "init": "git init",
+      "add": "git add {files}",
+      "commit": "git commit -m \"{message}\"",
+      "status": "git status"
+    }
+  },
+  "language": {
+    "name": "python",
+    "extension": ".py",
+    "version_constraint": ">=3.9",
+    "signature_parser": "ast",
+    "stub_body": "raise NotImplementedError"
+  },
+  "quality": {
+    "formatter": {
+      "tool": "ruff",
+      "format": "{run_prefix} ruff format {target}",
+      "check": "{run_prefix} ruff format --check {target}"
+    },
+    "linter": {
+      "tool": "ruff",
+      "light": "{run_prefix} ruff check {target}",
+      "heavy": "{run_prefix} ruff check {target} --select ALL",
+      "check": "{run_prefix} ruff check {target}",
+      "unused_exports": "{run_prefix} ruff check {target} --select F811"
+    },
+    "type_checker": {
+      "tool": "mypy",
+      "check": "{run_prefix} mypy {target}",
+      "unit_flags": "--ignore-missing-imports --follow-imports=skip",
+      "project_flags": "--ignore-missing-imports"
+    },
+    "packages": [
+      "ruff",
+      "mypy"
+    ],
+    "gate_a": [
+      "formatter.check",
+      "linter.light"
+    ],
+    "gate_b": [
+      "formatter.check",
+      "linter.light"
+    ],
+    "gate_c": [
+      "formatter.check",
+      "linter.heavy",
+      "type_checker.check",
+      "linter.unused_exports"
+    ]
+  },
+  "file_structure": {
+    "source_dir_pattern": "src/unit_{n}",
+    "test_dir_pattern": "tests/unit_{n}",
+    "source_extension": ".py",
+    "test_extension": ".py"
+  }
+}
