@@ -548,7 +548,7 @@ can.
 
 SVP itself was built by SVP. The lessons learned document
 (`docs/references/svp_2_1_lessons_learned.md` in the
-delivered repository) catalogs 53 bugs discovered across
+delivered repository) catalogs 55 bugs discovered across
 five build generations — from SVP 1.0 through SVP 2.1.
 Nearly every one traces back to something the stakeholder
 spec didn't say clearly enough. The checklist below is
@@ -729,7 +729,7 @@ invariant.
 > invariant is a build failure, not a warning."
 
 These eight questions are not exhaustive, but they cover
-the patterns that produced 53 bugs across five build
+the patterns that produced 55 bugs across five build
 generations of SVP. The lessons learned document in the
 delivered repository contains the full catalog with root
 causes, patterns, and prevention rules. Bug 50 in
@@ -843,7 +843,7 @@ When `testing.readme_test_scenarios` is set in the profile, the README includes 
 - **SVP 1.2** — Bug fixes and hardening. Fixed gate status string vocabulary (Bug 1) and hook permission reset after debug session entry (Bug 2).
 - **SVP 1.2.1** — Further bug fixes and robustness improvements.
 - **SVP 2.0** — Project Profile (`project_profile.json`) for delivery preferences. Pipeline Toolchain Abstraction (`toolchain.json`). Profile-driven Stage 5 delivery. Delivery compliance scan. `/svp:redo` profile revision support.
-- **SVP 2.1** — Pipeline Quality Gates (A, B, C). Delivered quality configuration. Changelog support. Blueprint prose/contracts split. Stub sentinel. Proactive lessons learned integration. Universal two-branch routing invariant. 54 bug fixes across all pipeline stages. Bug 53: removed orphaned dead-code functions (`reset_fix_ladder`, `reset_alignment_iteration`, `record_pass_end`) whose behavior is handled inline by `restart_from_stage` and `complete_unit`. Bug 54: removed orphaned hollow function `update_state_from_status` from `state_transitions.py` -- its dispatch behavior was never implemented; the actual POST command entry point is `update_state_main()` in `routing.py` which calls `dispatch_status()` directly.
+- **SVP 2.1** — Pipeline Quality Gates (A, B, C). Delivered quality configuration. Changelog support. Blueprint prose/contracts split. Stub sentinel. Proactive lessons learned integration. Universal two-branch routing invariant. 55 bug fixes across all pipeline stages. Bug 52: wired `version_document()` into `dispatch_gate_response` REVISE branches -- document version tracking (spec Section 23) was completely non-functional because the function was never called. Bug 53: removed orphaned dead-code functions (`reset_fix_ladder`, `reset_alignment_iteration`, `record_pass_end`) whose behavior is handled inline by `restart_from_stage` and `complete_unit`. Bug 54: removed orphaned hollow function `update_state_from_status` from `state_transitions.py` -- its dispatch behavior was never implemented; the actual POST command entry point is `update_state_main()` in `routing.py` which calls `dispatch_status()` directly. Bug 55: wired `rollback_to_unit` into Gate 6.2 FIX UNIT dispatch -- corrected spec's incorrect "verified_units not modified" to proper invalidate-and-rebuild semantics; also fixed build_env fast path, triage result structured output, and phase-based Stage 5 debug routing.
 
 ## License
 
