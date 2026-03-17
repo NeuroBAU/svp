@@ -320,6 +320,8 @@ Updated for proactive lessons learned: when assembling the test agent's task pro
 
 Updated for gate ID consistency (Bug 41 fix): `ALL_GATE_IDS` must include every gate ID in the pipeline -- including `gate_1_1_spec_draft` and `gate_1_2_spec_post_review`. The set of gate IDs in `ALL_GATE_IDS` must be identical to the set in `GATE_RESPONSES` in Unit 10.
 
+Updated for selective blueprint loading (Bugs 60-62 fix): exports `load_blueprint_contracts_only()` and `load_blueprint_prose_only()` for per-agent selective loading per spec Section 3.16 matrix. `integration_test_author` and `git_repo_agent` use contracts-only; `help_agent` uses prose-only; `blueprint_checker`, `blueprint_reviewer`, `hint_agent`, and `bug_triage` receive both files. The internal `_get_unit_context` helper resolves the blueprint directory via `get_blueprint_dir()` (Bug 60 fix) and passes `include_tier1` through to `build_unit_context` (Bug 61 fix).
+
 ---
 
 ## Unit 10: Routing Script and Update State

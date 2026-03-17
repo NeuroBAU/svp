@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update). Bug 59 discovered post-delivery (stale blueprints/ directory, critical implementation bugs, stakeholder spec gaps).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update). Bug 59 discovered post-delivery (stale blueprints/ directory, critical implementation bugs, stakeholder spec gaps). Bug 60 discovered post-delivery (broken _get_unit_context path and stale fallback ARTIFACT_FILENAMES). Bug 61 discovered post-delivery (missing include_tier1 parameter in _get_unit_context and build_unit_context). Bug 62 discovered post-delivery (selective blueprint loading not wired per agent matrix).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-59)
+## Part 1: Unified Bug Catalog (Bugs 1-62)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58 (36 of 58 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58 (36 of 62 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -509,7 +509,7 @@ Two units must agree on something. The implementation agent misses the detail. *
 A transition function assumes a precondition or forgets a reset. **Prevention:** Exhaustive post-conditions for ALL fields. Multi-step sequence tests.
 
 ### P3 — Implicit Resolution Assumption
-**Instances:** Bugs 13, 24, 29, 33, 35.
+**Instances:** Bugs 13, 24, 29, 33, 35, 60, 61.
 A value (path, state field, configuration) is assumed to resolve correctly in a context where it does not. Bug 13: a path resolves in one context but not another. Bug 24: a state field is assumed to be set, but the current step is the producer, not a consumer. **Prevention:** Document resolution context for paths. Document producer/consumer roles for state fields. Validate values against `None` explicitly, not via `dict.get()` defaults. Test with the actual state that exists at each pipeline step.
 
 ### P4 — Framework Dependency Completeness
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50 (13 of 58 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62 (14 of 62 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -540,7 +540,7 @@ The spec provides a principle but not the granularity rules needed to operationa
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (24 of 42 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (36 of 62 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -611,7 +611,28 @@ The spec provides a principle but not the granularity rules needed to operationa
 
 | 42 | `test_bug42_pre_stage3_state_persistence.py` | Post-delivery (2.1 rebuild) |
 
-Note: Regression test file names (test_bug2 through test_bug42) use either the original post-delivery numbering or the unified catalog numbering. This document's unified Bug 1-42 numbering includes blueprint-era, post-delivery, and rebuild preparation bugs chronologically. The mapping table provides the cross-reference.
+| 43 | `test_bug43_stage2_blueprint_routing.py` | Post-delivery (debug loop) |
+| 44 | `test_bug44_null_substage_dispatch.py` | Post-delivery (debug loop) |
+| 45 | `test_bug45_test_execution_dispatch.py` | Post-delivery (debug loop) |
+| 46 | `test_bug46_coverage_dispatch.py` | Post-delivery (debug loop) |
+| 47 | `test_bug47_unit_completion_double_dispatch.py` | Post-delivery (debug loop) |
+| 48 | `test_bug48_launcher_cli_contract.py` | Post-delivery (debug loop) |
+| 49 | `test_bug49_argparse_enumeration.py` | Post-delivery (debug loop) |
+| 50 | `test_bug50_contract_sufficiency.py` | Post-delivery (debug loop) |
+| 51 | `test_bug51_debug_reassembly.py` | Post-delivery (debug loop) |
+| 52 | `test_bug52_version_document_wiring.py` | Post-delivery (debug loop) |
+| 53 | `test_bug53_orphaned_functions.py` | Post-delivery (debug loop) |
+| 54 | `test_bug54_orphaned_update_state_from_status.py` | Post-delivery (debug loop) |
+| 55 | `test_bug55_rollback_gate62_wiring.py` | Post-delivery (debug loop) |
+| 56 | (structural validation) | Post-delivery (debug loop) |
+| 57 | (structural validation) | Post-delivery (debug loop) |
+| 58 | `test_bug58_gate_5_3_unused_functions.py` | Post-delivery (debug loop) |
+| 59 | `test_bug59_blueprint_path_and_gates.py` | Post-delivery (debug loop) |
+| 60 | `test_bug60_unit_context_blueprint_path.py` | Post-delivery (debug loop) |
+| 61 | `test_bug61_include_tier1_parameter.py` | Post-delivery (debug loop) |
+| 62 | `test_bug62_selective_blueprint_loading.py` | Post-delivery (debug loop) |
+
+Note: Regression test file names (test_bug2 through test_bug62) use either the original post-delivery numbering or the unified catalog numbering. This document's unified Bug 1-62 numbering includes blueprint-era, post-delivery, and rebuild preparation bugs chronologically. The mapping table provides the cross-reference.
 
 ---
 
@@ -968,6 +989,65 @@ Multiple related issues discovered during comprehensive audit:
 **Pattern:** P9 (Accumulated drift). Multiple small mismatches accumulated across spec, blueprint, and implementation without triggering any single test failure. Each was individually minor; together they represented significant architectural inconsistency.
 
 **Prevention:** Periodic comprehensive audit comparing spec gate/status/schema definitions against implementation registries. Automated structural tests should verify bidirectional consistency between all three document layers (spec, blueprint, code).
+
+---
+
+
+### Bug 60 -- Broken _get_unit_context and Stale Fallback ARTIFACT_FILENAMES
+
+**Caught:** Post-delivery (code review). **Test:** `test_bug60_unit_context_blueprint_path.py`.
+
+Two related issues in `scripts/prepare_task.py` (Unit 9):
+
+1. **Fallback `ARTIFACT_FILENAMES` stale key:** The fallback dict still had `"blueprint": "blueprint.md"` instead of `"blueprint_dir": "blueprint"`. After Bug 59 changed Unit 1 to use `blueprint_dir`, this fallback was never updated.
+2. **`_get_unit_context` wrong path construction:** Line 317 used `project_root / "blueprint" / ARTIFACT_FILENAMES["blueprint"]` which resolved to `blueprint/blueprint.md` (a file that does not exist in the two-file split format). This caused `build_unit_context` to fail silently, returning the placeholder `"(Unit N context not available.)"` for ALL agents that use unit context (test_agent, implementation_agent, coverage_review, diagnostic_agent, redo_agent).
+
+**Impact:** All agents receiving unit context were silently getting no blueprint information, operating without knowledge of the unit they were supposed to work on.
+
+**Fix:** Changed fallback key to `"blueprint_dir": "blueprint"`. Changed `_get_unit_context` to use `project_root / ARTIFACT_FILENAMES.get("blueprint_dir", "blueprint")`, passing the directory (not a file) to `build_unit_context`.
+
+**Pattern:** P3 (Stale cross-unit reference). Bug 59 updated Unit 1 ARTIFACT_FILENAMES but did not propagate the key rename to Unit 9 prepare_task.py fallback dict and _get_unit_context.
+
+**Prevention:** When renaming keys in shared dictionaries (ARTIFACT_FILENAMES), grep all consumers in the codebase and update them atomically. Add regression tests that verify consumers can actually resolve the paths they construct.
+
+---
+
+### Bug 61 -- Missing include_tier1 Parameter in _get_unit_context and build_unit_context
+
+**Caught:** Post-delivery (code review against spec Section 3.16). **Test:** `test_bug61_include_tier1_parameter.py`.
+
+Two related issues across Unit 5 (blueprint_extractor.py) and Unit 9 (prepare_task.py):
+
+1. **`build_unit_context` (Unit 5) missing `include_tier1` parameter:** The function always included Tier 1 prose descriptions in the output. The stub correctly defined `include_tier1: bool = True`, but the deployed script never implemented it.
+2. **`_get_unit_context` (Unit 9) missing `include_tier1` parameter:** The function had no way to pass `include_tier1` through to `build_unit_context`. The test_agent and implementation_agent call sites always received full content including Tier 1 prose, wasting tokens on every invocation.
+
+**Impact:** test_agent and implementation_agent (the two most frequently called agents) received unnecessary Tier 1 prose descriptions in every task prompt, wasting context budget. This is exactly what the two-file blueprint split (spec Section 3.16) was designed to prevent.
+
+**Fix:** Added `include_tier1: bool = True` parameter to both `build_unit_context` (blueprint_extractor.py) and `_get_unit_context` (prepare_task.py). Changed test_agent and implementation_agent call sites to pass `include_tier1=False`. Left coverage_review and diagnostic_agent at default `True` since they need full context per spec.
+
+**Pattern:** P3 (Stale cross-unit reference). The stubs correctly specified the `include_tier1` parameter but the deployed implementations were never updated to match.
+
+**Prevention:** After implementing a stub, diff the stub against the deployed script to verify all parameters are wired through. Automated structural tests should verify that deployed function signatures match their stub specifications.
+
+---
+
+### Bug 62 -- Selective Blueprint Loading Not Wired Per Agent Matrix
+
+**Caught:** Post-delivery (code review against spec Section 3.16). **Test:** `test_bug62_selective_blueprint_loading.py`.
+
+Spec Section 3.16 defines a per-agent loading matrix for the two-file blueprint split. Three agents were receiving the full blueprint (prose + contracts concatenated) when they should receive only one file:
+
+1. **integration_test_author** received both files via `_safe_load_blueprint`. Spec says contracts only.
+2. **git_repo_agent** received both files via `_safe_load_blueprint`. Spec says contracts for assembly mapping.
+3. **help_agent** received both files via `_safe_load_blueprint`. Spec says prose primary.
+
+**Impact:** Agents received unnecessary content in their task prompts, wasting context budget. This defeats the purpose of the two-file blueprint split (spec Section 3.16).
+
+**Fix:** Added `load_blueprint_contracts_only()` and `load_blueprint_prose_only()` functions to both `scripts/prepare_task.py` and `src/unit_9/stub.py`. Wired integration_test_author and git_repo_agent to use contracts-only, help_agent to use prose-only. Left blueprint_checker, blueprint_reviewer, hint_agent, and bug_triage with full loading.
+
+**Pattern:** P2 (Incomplete spec implementation). The spec defined the agent matrix but the implementation used the same full loader for all agents.
+
+**Prevention:** When a spec defines a matrix of agent-specific behaviors, create a checklist and verify each agent individually. Regression tests should verify each agent receives exactly the content the spec prescribes.
 
 ---
 

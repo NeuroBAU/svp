@@ -1,9 +1,9 @@
 # SVP — Stratified Verification Pipeline
 
-## Stakeholder Specification v8.31 (SVP 2.1)
+## Stakeholder Specification v8.30 (SVP 2.1)
 
 **Date:** 2026-03-17
-**Supersedes:** v8.30 (SVP 2.1)
+**Supersedes:** v8.29 (SVP 2.1)
 **Build Tool:** SVP 2.0
 
 ---
@@ -302,21 +302,14 @@ The blueprint is split into two files that together constitute a single logical 
 
 The two files are an atomic pair. They must always be versioned together. A version of the blueprint is a version of both files simultaneously — a change to one file without a corresponding update to the other is a blueprint-level integrity failure. The blueprint author produces both files in every draft and revision. The blueprint checker receives both files and validates their internal consistency as part of the alignment check.
 
-**Who reads what (CHANGED IN 2.1 -- Bugs 60-62 fix, now implemented):**
+**Who reads what:**
 - Blueprint author agent: both files (authoring)
 - Blueprint checker agent: both files (alignment validation)
-- Blueprint reviewer agent: both files (review)
-- Test agent: `blueprint_contracts.md` only (via `build_unit_context` with `include_tier1=False`)
-- Implementation agent: `blueprint_contracts.md` only (via `build_unit_context` with `include_tier1=False`)
-- Diagnostic agent: both files (via `build_unit_context` with `include_tier1=True`)
-- Help agent: `blueprint_prose.md` primary (via `load_blueprint_prose_only`)
-- Hint agent: both files (full context for domain hints)
-- Integration test author: `blueprint_contracts.md` only (via `load_blueprint_contracts_only`)
-- Git repo agent: `blueprint_contracts.md` for assembly mapping (via `load_blueprint_contracts_only`)
-- Bug triage agent: both files (full context for diagnosis)
-- Repair agent: both files (full context for fix)
-
-**Selective loading implementation (Bugs 60-62 fix).** Unit 9 (`prepare_task.py`) exports three loader functions: `load_blueprint()` (both files concatenated), `load_blueprint_contracts_only()` (contracts file only), and `load_blueprint_prose_only()` (prose file only). Unit context assembly via `build_unit_context` (Unit 5) respects the `include_tier1` parameter to exclude Tier 1 descriptions. The `_get_unit_context` internal helper in Unit 9 passes `include_tier1` through to `build_unit_context` and resolves the blueprint directory via `get_blueprint_dir()` (which reads `ARTIFACT_FILENAMES["blueprint_dir"]` from Unit 1).
+- Test agent: `blueprint_contracts.md` only
+- Implementation agent: `blueprint_contracts.md` only
+- Diagnostic agent: `blueprint_contracts.md` primary, `blueprint_prose.md` as supplementary context
+- Help agent: `blueprint_prose.md` primary, `blueprint_contracts.md` on demand
+- Git repo agent: `blueprint_contracts.md` for assembly mapping
 
 **Context budget impact:** This split is a token reduction measure. The Tier 1 descriptions are excluded from the task prompts of the two most frequently invoked agents (test and implementation). The saving compounds across all units, passes, and retries. No information is lost to any agent that needs it.
 
@@ -885,7 +878,7 @@ The workspace is the build environment. The repo is the deliverable.
 
 The following table lists every bug in the unified catalog (Bugs 1-50) with its coverage mechanism. Dedicated regression test files are carried forward from the previous build -- copied from the SVP plugin's `tests/regressions/` directory into the project workspace during project creation. All dedicated regression test files must pass in both the workspace layout and the delivered repository layout.
 
-This table is the single authoritative reference for the dual numbering scheme. The "Filename Bug #" column shows the number used in the test filename prefix (`test_bugNN_*`). The "Unified Bug #" column shows the canonical bug number in the unified catalog (Bugs 1-62). Where these differ, it is due to historical naming (see naming collision note below).
+This table is the single authoritative reference for the dual numbering scheme. The "Filename Bug #" column shows the number used in the test filename prefix (`test_bugNN_*`). The "Unified Bug #" column shows the canonical bug number in the unified catalog (Bugs 1-50). Where these differ, it is due to historical naming (see naming collision note below).
 
 | Filename Bug # | Unified Bug # | Coverage | File / Location | What It Tests |
 |----------------|---------------|----------|----------------|---------------|
@@ -943,10 +936,6 @@ This table is the single authoritative reference for the dual numbering scheme. 
 | -- | 56 | Structural validation | Blueprint checker | Downstream dependency and contract granularity rules |
 | -- | 57 | Structural validation | Reviewer agent definitions | Baked dependency and contract checklists |
 | bug58 | 58 | Dedicated file | `test_bug58_gate_5_3_unused_functions.py` | Gate 5.3 unused_functions in GATE_VOCABULARY and dispatch |
-| bug59 | 59 | Dedicated file | `test_bug59_blueprint_path_and_gates.py` | Blueprint path resolution, gate registration, and implementation fixes |
-| bug60 | 60 | Dedicated file | `test_bug60_unit_context_blueprint_path.py` | _get_unit_context blueprint directory resolution and ARTIFACT_FILENAMES key |
-| bug61 | 61 | Dedicated file | `test_bug61_include_tier1_parameter.py` | include_tier1 parameter wiring in build_unit_context and _get_unit_context |
-| bug62 | 62 | Dedicated file | `test_bug62_selective_blueprint_loading.py` | Selective blueprint loading per agent matrix (contracts-only, prose-only) |
 
 **Naming note: collisions and deviations.** Two distinct issues exist in the filename-to-bug mapping, both due to historical naming:
 
@@ -956,7 +945,7 @@ This table is the single authoritative reference for the dual numbering scheme. 
 
 The mapping table above is authoritative for resolving both collisions and deviations.
 
-**Regression test count.** There are 44 distinct regression test file entries in the table above (39 unique filenames): 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 22 newly authored in this build. Three `test_bugNN_` filename prefixes are reused across different bugs (`test_bug17_*`, `test_bug18_*`, `test_bug19_*` -- see naming note above), but each table entry corresponds to a distinct file with a unique full filename. The 22 newly authored files are: `test_bug13_hook_schema_validation.py` (Bug 17), `test_bug22_repo_sibling_directory.py` (Bug 37), `test_bug23_stage1_spec_gate_routing.py` (Bug 41), `test_bug42_pre_stage3_state_persistence.py` (Bug 42), `test_bug43_stage2_blueprint_routing.py` (Bug 43), `test_bug44_null_substage_dispatch.py` (Bug 44), `test_bug45_test_execution_dispatch.py` (Bug 45), `test_bug46_coverage_dispatch.py` (Bug 46), `test_bug47_unit_completion_double_dispatch.py` (Bug 47), `test_bug48_launcher_cli_contract.py` (Bug 48), `test_bug49_argparse_enumeration.py` (Bug 49), `test_bug50_contract_sufficiency.py` (Bug 50), `test_bug51_debug_reassembly.py` (Bug 51), `test_bug52_version_document_wiring.py` (Bug 52), `test_bug53_orphaned_functions.py` (Bug 53), `test_bug54_orphaned_update_state_from_status.py` (Bug 54), `test_bug55_rollback_gate62_wiring.py` (Bug 55), `test_bug58_gate_5_3_unused_functions.py` (Bug 58), `test_bug59_blueprint_path_and_gates.py` (Bug 59), `test_bug60_unit_context_blueprint_path.py` (Bug 60), `test_bug61_include_tier1_parameter.py` (Bug 61), and `test_bug62_selective_blueprint_loading.py` (Bug 62). All other files are carried forward unchanged.
+**Regression test count.** There are 39 distinct regression test files (35 unique filenames in the table above): 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 13 newly authored in this build (35 total). Three `test_bugNN_` filename prefixes are reused across different bugs (`test_bug17_*`, `test_bug18_*`, `test_bug19_*` -- see naming note above), but each of the 35 table entries corresponds to a distinct file with a unique full filename. The 13 newly authored files are: `test_bug13_hook_schema_validation.py` (Bug 17, authored during build), `test_bug22_repo_sibling_directory.py` (Bug 37, authored during build), `test_bug23_stage1_spec_gate_routing.py` (Bug 41, authored during debug loop), `test_bug42_pre_stage3_state_persistence.py` (Bug 42, authored during debug loop), `test_bug43_stage2_blueprint_routing.py` (Bug 43, authored during debug loop), `test_bug44_null_substage_dispatch.py` (Bug 44, authored during debug loop), `test_bug45_test_execution_dispatch.py` (Bug 45, authored during debug loop), `test_bug46_coverage_dispatch.py` (Bug 46, authored during debug loop), `test_bug47_unit_completion_double_dispatch.py` (Bug 47, authored during debug loop), `test_bug48_launcher_cli_contract.py` (Bug 48, authored during debug loop), `test_bug49_argparse_enumeration.py` (Bug 49, authored during debug loop), `test_bug50_contract_sufficiency.py` (Bug 50, authored during debug loop), and `test_bug51_debug_reassembly.py` (Bug 51, authored during debug loop). All other files are carried forward unchanged.
 
 **New regression test naming convention.** Newly authored regression tests in this build use the unified catalog number: `test_bugNN_descriptive_suffix.py` where NN is the unified bug number. The `test_bug13_hook_schema_validation.py` file for unified Bug 17 uses a pre-unified filename prefix (`bug13`) because Bug 17 was catalogued before the unified numbering convention was established. Despite being newly authored in this build, its filename uses the old numbering for backward compatibility: the SVP 2.0 regression test inventory already allocated the `test_bug13` prefix slot, and existing tooling and documentation reference this filename. Changing it would break the established carry-forward contract. The filename is treated as a fixed historical artifact.
 
@@ -2830,46 +2819,6 @@ Gate 5.3 (`gate_5_3_unused_functions`) was defined in the spec but missing from 
 
 **Recovery:** Gate 5.3 added to `GATE_VOCABULARY` with response options `FIX SPEC` and `OVERRIDE CONTINUE`. Dispatch handler added to `dispatch_gate_response`.
 
-### 24.47 Stale blueprints/ Directory and Multiple Implementation Bugs (Post-delivery -- Bug 59)
-
-Multiple issues discovered during comprehensive audit: stale `blueprints/` (plural) directory diverging from canonical `blueprint/` (singular); `_version_blueprint` hardcoded wrong path; `advance_stage` checked non-existent file; `load_blueprint` did not handle two-file format; missing gate and status registrations; `DebugSession` missing retry counters; `version_document` lacked companion file support; `_FIX_LADDER_TRANSITIONS` had cross-branch error.
-
-**Root cause:** P1 (Cross-unit contract drift) and P7 (Spec completeness). Multiple components maintained independent assumptions about directory naming and file structure after the blueprint split.
-
-**Detection:** Regression test (`test_bug59_blueprint_path_and_gates.py`) verifies blueprint path resolution, gate registration completeness, and structural correctness.
-
-**Recovery:** Removed stale directory, fixed all path references, added missing registrations, updated state schema, and added companion file support to version_document.
-
-### 24.48 Broken _get_unit_context and Stale Fallback ARTIFACT_FILENAMES (Post-delivery -- Bug 60)
-
-`_get_unit_context` in Unit 9 constructed an invalid path (`blueprint/blueprint.md`) because the fallback `ARTIFACT_FILENAMES` dict had a stale `"blueprint"` key instead of `"blueprint_dir"`, and the path construction joined a directory name with a filename instead of passing the directory to `build_unit_context`. All agents receiving unit context silently got the placeholder "(Unit N context not available.)" instead of actual blueprint content.
-
-**Root cause:** P3 (Stale cross-unit reference). Bug 59 updated Unit 1 ARTIFACT_FILENAMES but did not propagate the key rename to Unit 9's fallback dict.
-
-**Detection:** Regression test (`test_bug60_unit_context_blueprint_path.py`) verifies `_get_unit_context` resolves the blueprint directory correctly and returns non-placeholder content.
-
-**Recovery:** Changed fallback key to `"blueprint_dir": "blueprint"`. Changed `_get_unit_context` to pass the directory (not a constructed file path) to `build_unit_context`.
-
-### 24.49 Missing include_tier1 Parameter in _get_unit_context and build_unit_context (Post-delivery -- Bug 61)
-
-`build_unit_context` (Unit 5) and `_get_unit_context` (Unit 9) lacked the `include_tier1` parameter. All agents received full Tier 1 prose descriptions, defeating the token reduction purpose of the two-file blueprint split (Section 3.16). The stubs correctly specified the parameter but the deployed implementations never implemented it.
-
-**Root cause:** P3 (Stale cross-unit reference). Deployed implementations diverged from their stub specifications.
-
-**Detection:** Regression test (`test_bug61_include_tier1_parameter.py`) verifies the `include_tier1` parameter is accepted by both functions and that `test_agent`/`implementation_agent` call sites pass `include_tier1=False`.
-
-**Recovery:** Added `include_tier1: bool = True` parameter to both functions. Wired `test_agent` and `implementation_agent` call sites to pass `False`.
-
-### 24.50 Selective Blueprint Loading Not Wired Per Agent Matrix (Post-delivery -- Bug 62)
-
-Three agents (`integration_test_author`, `git_repo_agent`, `help_agent`) received full blueprint content when the Section 3.16 matrix prescribed selective loading. No `load_blueprint_contracts_only` or `load_blueprint_prose_only` functions existed.
-
-**Root cause:** P7 (Spec completeness — incomplete implementation). The spec defined the agent matrix but the implementation used the same full loader for all agents.
-
-**Detection:** Regression test (`test_bug62_selective_blueprint_loading.py`) verifies each agent receives exactly the content prescribed by the Section 3.16 matrix.
-
-**Recovery:** Added `load_blueprint_contracts_only()` and `load_blueprint_prose_only()` to Unit 9. Wired `integration_test_author` and `git_repo_agent` to contracts-only, `help_agent` to prose-only.
-
 ---
 
 ## 25. Test Data
@@ -2974,7 +2923,7 @@ The profile says how the delivered project should look. The toolchain file says 
 
 **Unit 7:** Install `quality.packages` during infrastructure setup **(NEW IN 2.1)**. Replace hardcoded commands with toolchain reader calls **(CHANGED IN 2.0)**. Per the CLI argument enumeration invariant (Bug 49 fix), the blueprint Tier 2 must enumerate `main()`'s argparse arguments: `--project-root`.
 
-**Unit 9 (CHANGED IN 2.1):** Include quality report in agent re-pass task prompts **(NEW IN 2.1)**. Extract profile sections for agent task prompts **(CHANGED IN 2.0)**. Reference shared filename constants for all artifact paths — no hardcoded filenames (Bug 22 fix) **(NEW IN 2.1)**. Task prompt assembly for test agent and implementation agent invocations must pass `include_tier1=False` to `build_unit_context`. Task prompt assembly for diagnostic agent, help agent, and blueprint checker invocations must pass `include_tier1=True`. Add lessons learned filtering for test agent task prompt assembly. Filtering logic: match on unit number and/or pattern classification. Output appended under a dedicated heading. No LLM involvement in filtering — pure text matching and extraction. `ALL_GATE_IDS` must include every gate ID in the pipeline — the complete set of 22 gate IDs enumerated in Section 18.4: `gate_0_1_hook_activation`, `gate_0_2_context_approval`, `gate_0_3_profile_approval`, `gate_0_3r_profile_revision`, `gate_1_1_spec_draft`, `gate_1_2_spec_post_review`, `gate_2_1_blueprint_approval`, `gate_2_2_blueprint_post_review`, `gate_2_3_alignment_exhausted`, `gate_3_1_test_validation`, `gate_3_2_diagnostic_decision`, `gate_4_1_integration_failure`, `gate_4_2_assembly_exhausted`, `gate_5_1_repo_test`, `gate_5_2_assembly_exhausted`, `gate_6_0_debug_permission`, `gate_6_1_regression_test`, `gate_6_2_debug_classification`, `gate_6_3_repair_exhausted`, `gate_6_4_non_reproducible`, `gate_6_5_debug_commit`, `gate_hint_conflict` (Bug 41 fix for Stage 1 gates, Bug 43 fix for remaining gaps). The gate ID consistency invariant (Section 3.6) requires that `ALL_GATE_IDS` is synchronized with `GATE_RESPONSES`/`GATE_VOCABULARY` in Unit 10 — every gate ID must appear in both, with no orphans in either direction **(Post-delivery fix, expanded by Bug 43)**. Per the CLI argument enumeration invariant (Bug 49 fix), the blueprint Tier 2 must enumerate `main()`'s argparse arguments: `--project-root`, `--agent`, `--gate`, `--unit`, `--output`, `--ladder`, `--revision-mode`, `--quality-report`. **Selective blueprint loading (Bugs 60-62 fix):** Unit 9 must export `load_blueprint_contracts_only()` and `load_blueprint_prose_only()` as Tier 2 functions. Per the Section 3.16 agent loading matrix: `integration_test_author` and `git_repo_agent` use `load_blueprint_contracts_only()`; `help_agent` uses `load_blueprint_prose_only()`; `blueprint_checker`, `blueprint_reviewer`, `hint_agent`, and `bug_triage` use `load_blueprint()` (both files). The internal helper `_get_unit_context` must accept `include_tier1: bool` and pass it through to `build_unit_context` (Unit 5). Blueprint directory resolution uses `get_blueprint_dir()` which reads `ARTIFACT_FILENAMES["blueprint_dir"]` from Unit 1 (Bug 60 fix) **(Post-delivery fix)**.
+**Unit 9 (CHANGED IN 2.1):** Include quality report in agent re-pass task prompts **(NEW IN 2.1)**. Extract profile sections for agent task prompts **(CHANGED IN 2.0)**. Reference shared filename constants for all artifact paths — no hardcoded filenames (Bug 22 fix) **(NEW IN 2.1)**. Task prompt assembly for test agent and implementation agent invocations must pass `include_tier1=False` to `build_unit_context`. Task prompt assembly for diagnostic agent, help agent, and blueprint checker invocations must pass `include_tier1=True`. Add lessons learned filtering for test agent task prompt assembly. Filtering logic: match on unit number and/or pattern classification. Output appended under a dedicated heading. No LLM involvement in filtering — pure text matching and extraction. `ALL_GATE_IDS` must include every gate ID in the pipeline — the complete set of 22 gate IDs enumerated in Section 18.4: `gate_0_1_hook_activation`, `gate_0_2_context_approval`, `gate_0_3_profile_approval`, `gate_0_3r_profile_revision`, `gate_1_1_spec_draft`, `gate_1_2_spec_post_review`, `gate_2_1_blueprint_approval`, `gate_2_2_blueprint_post_review`, `gate_2_3_alignment_exhausted`, `gate_3_1_test_validation`, `gate_3_2_diagnostic_decision`, `gate_4_1_integration_failure`, `gate_4_2_assembly_exhausted`, `gate_5_1_repo_test`, `gate_5_2_assembly_exhausted`, `gate_6_0_debug_permission`, `gate_6_1_regression_test`, `gate_6_2_debug_classification`, `gate_6_3_repair_exhausted`, `gate_6_4_non_reproducible`, `gate_6_5_debug_commit`, `gate_hint_conflict` (Bug 41 fix for Stage 1 gates, Bug 43 fix for remaining gaps). The gate ID consistency invariant (Section 3.6) requires that `ALL_GATE_IDS` is synchronized with `GATE_RESPONSES`/`GATE_VOCABULARY` in Unit 10 — every gate ID must appear in both, with no orphans in either direction **(Post-delivery fix, expanded by Bug 43)**. Per the CLI argument enumeration invariant (Bug 49 fix), the blueprint Tier 2 must enumerate `main()`'s argparse arguments: `--project-root`, `--agent`, `--gate`, `--unit`, `--output`, `--ladder`, `--revision-mode`, `--quality-report`.
 
 **Unit 10 (HEAVIEST CHANGE):** Add quality gate routing paths and command execution **(NEW IN 2.1)**. Gate composition read from toolchain **(NEW IN 2.1)**. Replace hardcoded commands with toolchain reader calls **(CHANGED IN 2.0)**. Implement the two-branch routing invariant (Section 3.6) for **every** sub-stage with an agent-to-gate transition in a single implementation pass — not incrementally as bugs are discovered (Bug 43 fix): `route()` must check `last_status.txt` to distinguish "agent not yet done" from "agent done, present gate." This applies to Stage 0 (`project_context`, `project_profile`), Stage 1 (`stakeholder_spec_authoring` — Bug 41 fix: Stage 1 routing must check for `SPEC_DRAFT_COMPLETE`/`SPEC_REVISION_COMPLETE` before presenting Gate 1.1), Stage 2 (`blueprint_dialog`, `alignment_check`), Stage 4 (integration test author), Stage 5 (git repo agent), redo profile sub-stages (`redo_profile_delivery`, `redo_profile_blueprint`), and all post-delivery debug loop agent-to-gate transitions (triage to Gate 6.2/6.4, repair to Gate 6.3, test agent to Gate 6.1). The invariant is a structural requirement — not a per-stage fix list (Bug 21 generalized fix, Bug 43 universal compliance requirement, see Section 3.6) **(CHANGED IN 2.1, expanded by Bug 43)**. `GATE_RESPONSES`/`GATE_VOCABULARY` must include entries for every gate ID in the pipeline, and the set of gate IDs must be identical to `ALL_GATE_IDS` in Unit 9 (gate ID consistency invariant, Section 3.6 — Bug 41 fix, expanded by Bug 43) **(Post-delivery fix)**. Wire alignment check into Stage 2 routing: after Gate 2.1 APPROVE, route to `alignment_check` sub-stage and invoke blueprint checker; on `ALIGNMENT_CONFIRMED`, present Gate 2.2; on Gate 2.2 APPROVE, advance to Pre-Stage-3; dispatch on checker failure outcome (Bug 23 fix, see Section 8.2) **(NEW IN 2.1)**. Any `route()` branch that performs an in-memory state transition (via `complete_*` or `advance_*`) and then recursively routes must persist state to disk via `save_state()` before returning the action block — specifically, the Gate 2.2 APPROVE transition to `pre_stage_3` must be saved before the Pre-Stage-3/reference-indexing action block is returned (Bug 42 fix, route-level state persistence invariant, Section 3.6) **(Post-delivery fix)**. Add explicit routing branches for all core Stage 3 sub-stages (`stub_generation`, `test_generation`, `red_run`, `implementation`, `green_run`, `coverage_review`, `unit_completion`): `route()` must emit the correct action type (invoke_agent or run_command) for each sub-stage (Bug 25 fix, see Section 24.20) **(NEW IN 2.1)**. Add full Stage 5 sub-stage routing: `route()` must invoke git_repo_agent at `sub_stage=None`, present `gate_5_1_repo_test` at `repo_test`, run compliance scan at `compliance_scan`, and return `pipeline_complete` at `repo_complete`; all dispatch functions must perform proper state transitions (Bug 26 fix, see Section 24.21) **(Post-delivery fix)**. **Dispatch completeness for Stage 3 (Bugs 44-47 fix):** `dispatch_agent_status` for `test_agent` must handle `sub_stage=None` the same as `sub_stage="test_generation"` (Bug 44). `dispatch_command_status` for `test_execution` must advance `sub_stage` from `red_run` to `implementation` on `TESTS_FAILED` and from `green_run` to `coverage_review` on `TESTS_PASSED` — no-op returns are invalid (Bug 45). `dispatch_agent_status` for `coverage_review` must advance `sub_stage` to `unit_completion` on `COVERAGE_COMPLETE` (Bug 46). The `unit_completion` routing action's COMMAND must not embed `update_state.py` calls — state updates are exclusively in POST (Bug 47). See exhaustive dispatch invariants in Section 3.6 and COMMAND/POST separation in Key Constraints **(Post-delivery fix)**. Per the CLI argument enumeration invariant (Bug 49 fix), the blueprint Tier 2 must enumerate argparse arguments for `update_state_main` (`--project-root`, `--gate-id`, `--unit`, `--phase`), `run_tests_main` (positional `test_path`, `--env-name`, `--project-root`, `--test-path`), and `run_quality_gate_main` (positional `gate_id`, `--gate`, `--target`, `--env-name`, `--project-root`). **Debug loop reassembly (Bug 51 fix):** `dispatch_agent_status` for `repair_agent` must trigger Stage 5 reassembly on `REPAIR_COMPLETE` during an active debug session — set `stage="5"`, `sub_stage=None`. Debug session remains active. `REPAIR_FAILED` and `REPAIR_RECLASSIFY` retain existing behavior **(Post-delivery fix)**.
 

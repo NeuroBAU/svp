@@ -993,8 +993,6 @@ def prepare_gate_prompt(project_root: Path, gate_id: str,
 
 def load_stakeholder_spec(project_root: Path) -> str: ...
 def load_blueprint(project_root: Path) -> str: ...
-def load_blueprint_contracts_only(project_root: Path) -> str: ...  # Bug 62
-def load_blueprint_prose_only(project_root: Path) -> str: ...  # Bug 62
 def load_reference_summaries(project_root: Path) -> str: ...
 def load_project_context(project_root: Path) -> str: ...
 def load_ledger_content(project_root: Path, ledger_name: str) -> str: ...
@@ -1044,7 +1042,6 @@ assert result.stat().st_size > 0
 ### Tier 3 -- Behavioral Contracts
 
 - `prepare_agent_task` assembles the task prompt file for the given agent type. **Blueprint directory discovery:** uses `get_blueprint_dir` to obtain the blueprint directory path, then passes it to `build_unit_context` (Unit 5). Passes `include_tier1=False` for `test_agent` and `implementation_agent`; passes `include_tier1=True` for all other agents.
-- **Selective blueprint loading (Bug 62 fix):** `load_blueprint_contracts_only` returns only `blueprint_contracts.md` content. `load_blueprint_prose_only` returns only `blueprint_prose.md` content. Both return empty string if the respective file does not exist. Per spec Section 3.16 agent matrix: `integration_test_author` and `git_repo_agent` use contracts-only; `help_agent` uses prose-only; `blueprint_checker`, `blueprint_reviewer`, `hint_agent`, and `bug_triage` receive both files.
 - `load_blueprint` uses `load_blueprint_content` from Unit 1 (which internally calls `discover_blueprint_files`) to load all blueprint files from the blueprint directory. No hardcoded blueprint filenames.
 - `get_blueprint_dir` returns `project_root / ARTIFACT_FILENAMES["blueprint_dir"]`. This is the single function that resolves the blueprint directory path from the artifact filename contract.
 - **Proactive lessons learned (NEW IN 2.1):** `load_lessons_learned_for_unit` reads the bug catalog from `svp_2_1_lessons_learned.md`, filters entries matching the current unit by unit number or pattern classification, and returns the filtered text. If no matches, returns empty string. Called during test agent task prompt assembly -- matched entries appended under heading "Historical failure patterns for this unit -- write tests that probe these behaviors."

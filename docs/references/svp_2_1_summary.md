@@ -3,7 +3,7 @@
 **Date:** 2026-03-15
 **Companion to:** Stakeholder Specification v8.29 (Document 2)
 **Pipeline role:** Reference document. Available to blueprint checker as cross-check.
-**Bug count:** 58 bugs cataloged across SVP 1.0 through SVP 2.1 (see `svp_2_1_lessons_learned.md`).
+**Bug count:** 59 bugs cataloged across SVP 1.0 through SVP 2.1 (see `svp_2_1_lessons_learned.md`).
 
 ---
 
@@ -74,6 +74,7 @@ Each line is a verifiable contract. Section numbers reference Document 2.
 - **Two-branch routing for blueprint_dialog (§8.1):** When last_status.txt contains BLUEPRINT_DRAFT_COMPLETE or BLUEPRINT_REVISION_COMPLETE, route() must emit human_gate for gate_2_1_blueprint_approval, not re-invoke the blueprint author agent. Governed by the universal two-branch routing invariant (§3.6).
 - Sub-stages: blueprint_dialog → alignment_check (Bug 23 fix). After Gate 2.1 APPROVE, routing must transition to alignment_check sub-stage and invoke blueprint checker -- not advance directly to Pre-Stage-3. On ALIGNMENT_CONFIRMED, present Gate 2.2 (the human always decides when to advance to Pre-Stage-3). On Gate 2.2 APPROVE, advance to Pre-Stage-3. On ALIGNMENT_FAILED, present appropriate gate. The Gate 2.2 APPROVE transition to Pre-Stage-3 must persist state to disk before returning the Pre-Stage-3 action block (route-level state persistence invariant, Bug 42 fix). `dispatch_agent_status` for `reference_indexing` must advance from `pre_stage_3` to stage 3 (exhaustive dispatch invariant, Bug 42 fix).
 - Blueprint author produces two files: `blueprint_prose.md` and `blueprint_contracts.md`. Both submitted at every gate. Checker receives both and validates internal consistency (no unit present in one file but absent from the other).
+- **Selective blueprint loading (Bugs 60-62 fix, now implemented):** Per Section 3.16 agent matrix, Unit 9 exports `load_blueprint_contracts_only()` and `load_blueprint_prose_only()` for per-agent loading. `test_agent` and `implementation_agent` receive contracts-only via `build_unit_context(include_tier1=False)`. `integration_test_author` and `git_repo_agent` use `load_blueprint_contracts_only()`. `help_agent` uses `load_blueprint_prose_only()`. `blueprint_checker`, `blueprint_reviewer`, `hint_agent`, and `bug_triage` receive both files. Internal `_get_unit_context` resolves blueprint directory via `get_blueprint_dir()` (Bug 60 fix) and passes `include_tier1` through (Bug 61 fix).
 - Checker receives pattern catalog from `svp_2_1_lessons_learned.md`. The preparation script extracts Part 2 of the lessons learned document verbatim and includes it in the checker's task prompt. Produces advisory risk section identifying structural features matching known failure patterns (P1-P9). Does not block approval.
 - Alignment loop: configurable iteration limit (default 3).
 

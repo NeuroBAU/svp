@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Bug 63: Documentation retrofit for Bugs 60-62. Updated stakeholder spec (v8.31): Section 3.16 agent loading matrix now reflects implementation status with selective loading functions; Section 6.8 regression test table extended through Bug 62; Section 24 failure modes added for Bugs 59-62; Section 30 Unit 9 guidance documents selective loading exports. Blueprint prose updated with selective loading description. Lessons learned catalog range updated to Bugs 1-62, pattern instance counts corrected, regression test mapping extended through Bug 62. Summary document updated to 63 bugs, selective loading described as implemented.
+- Bug 62: Added `load_blueprint_contracts_only()` and `load_blueprint_prose_only()` to Unit 9. Wired `integration_test_author` and `git_repo_agent` to contracts-only, `help_agent` to prose-only per spec Section 3.16 matrix.
+- Bug 61: Added `include_tier1` parameter to `build_unit_context` (Unit 5) and `_get_unit_context` (Unit 9). Test agent and implementation agent now pass `include_tier1=False`.
+- Bug 60: Fixed `_get_unit_context` blueprint directory resolution. Changed fallback ARTIFACT_FILENAMES key from `"blueprint"` to `"blueprint_dir"`. Fixed path construction to pass directory to `build_unit_context`.
 - Bug 59: Removed stale `blueprints/` (plural) directory. Fixed `_version_blueprint` path, `advance_stage` blueprint check, `load_blueprint` two-file loading. Added `gate_hint_conflict` to GATE_VOCABULARY/ALL_GATE_IDS. Added `REGRESSION_TEST_COMPLETE` to test_agent status. Added `triage_refinement_count`/`repair_retry_count` to DebugSession. Added `companion_paths` to `version_document`. Fixed `_FIX_LADDER_TRANSITIONS` cross-branch error. Removed undocumented `investigation` debug phase. Stakeholder spec gaps: Section 24 failure modes for Bugs 52-58, regression test table through Bug 58, P1-P9 references.
 
 ## [2.1.0] - 2026-03-16
