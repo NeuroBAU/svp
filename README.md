@@ -609,13 +609,15 @@ deletes something, sets permissions, or modifies anything
 outside its own return value — say so. "Validates the
 input" has no side effects. "Validates the input and
 writes a log entry" does. In SVP's build, Bug 50 found
-that `rollback_to_unit` created backup copies in
-`logs/rollback/` before deleting code — a critical side
-effect that the spec never mentioned. If the spec had
-said "preserves rolled-back code in a backup directory
-before deletion," the blueprint would have contracted it,
-the tests would have verified it, and no audit would have
-been needed.
+that `rollback_to_unit` had undocumented side effects
+(copying files to a backup directory before deletion) —
+a critical behavior that the spec never mentioned. Bug 55
+later corrected this: rollback now deletes files outright
+(agents regenerate from scratch), and the spec was updated
+to document the full rollback-and-rebuild semantics. If
+the spec had originally documented the exact side effects,
+the blueprint would have contracted them, the tests would
+have verified them, and no audit would have been needed.
 
 > **Prompt:** "Before [destructive operation], the
 > system preserves [what] in [where]. After [operation],

@@ -401,7 +401,7 @@ Note: Both redo profile sub-stages are governed by the two-branch routing invari
   Step 1: Prompt human for directions (Socratic triage)
   Step 2: Investigate (three-hypothesis discipline)
   Step 3: Fix workspace → reassemble to delivered repo
-    ├── [Gate 6.2: FIX UNIT] → Stage 3 re-entry (set stage:3, current_unit:N, sub_stage:"implementation", fix_ladder_position:null, red_run_retries:0; verified_units unchanged)
+    ├── [Gate 6.2: FIX UNIT] → rollback_to_unit(N): invalidate verified_units >= N, delete src/tests, set stage:3, current_unit:N, sub_stage:None, fix_ladder_position:null, red_run_retries:0; rebuild from unit N forward
     ├── [Gate 6.2: FIX BLUEPRINT] → targeted revision, restart
     └── [Gate 6.2: FIX SPEC] → spec revision, restart
   Step 4: Evaluate spec/blueprint for latent gaps

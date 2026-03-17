@@ -652,8 +652,9 @@ assert (project_root / f".svp/markers/unit_{unit_number}_verified").exists() is 
 assert state.stage in ("0", "1", "2", "pre_stage_3", "3", "4"), \
     "Cannot advance past Stage 5"
 
-# Pre-conditions for rollback_to_unit
-assert state.stage == "3", "Rollback only applies during Stage 3"
+# Pre-conditions for rollback_to_unit (Bug 55: accepts Stage 5 with active debug session)
+assert state.stage in ("3", "5"), "Rollback applies during Stage 3 or Stage 5 with active debug session"
+assert state.stage != "5" or state.debug_session is not None, "Stage 5 rollback requires active debug session"
 assert unit_number >= 1, "Unit number must be positive"
 assert unit_number <= (state.current_unit or 0), "Cannot roll back to a future unit"
 
@@ -723,7 +724,7 @@ assert result.sub_stage in ("redo_profile_delivery", "redo_profile_blueprint"), 
   - **Stage 3 to Stage 4:** All units must be verified -- all marker files in `.svp/markers/` must exist, and the `verified_units` list must be complete (length equals `total_units`).
   - **Stage 4 to Stage 5:** Integration tests must pass (assembly complete).
 - `complete_unit` writes a marker file to `.svp/markers/unit_N_verified` with `VERIFIED: {timestamp}`, updates the `verified_units` list, resets fix ladder, red run retries, and `sub_stage` to `None`, and advances `current_unit`. Resetting `sub_stage` is critical: without it, the next unit inherits the prior unit's `"unit_completion"` sub_stage and routing immediately re-completes the new unit without building it. When `current_unit` exceeds `total_units`, advances stage to "4".
-- `rollback_to_unit` invalidates all units from the given unit forward: removes their marker files, removes them from `verified_units`, moves their generated code and tests to `logs/rollback/`, and sets `current_unit` to the given unit number.
+- `rollback_to_unit` invalidates all units from the given unit forward: removes their marker files, removes them from `verified_units`, deletes their generated code and test directories (no backup copy), and sets `current_unit` to the given unit number. When called from Stage 5 with an active debug session, transitions `stage` to `"3"` and `sub_stage` to `None`. (Bug 55 correction: files are deleted, not copied to `logs/rollback/`.)
 - `restart_from_stage` records the current pass in `pass_history` (how far it reached, why it ended), resets stage-specific counters, and sets the state to the target stage.
 - `version_document` copies the current document to `history/{name}_v{N}.md`, writes a diff summary to `history/{name}_v{N}_diff.md` containing what changed, why, what stage triggered it, and a timestamp. Returns the paths of both created files.
 - `enter_debug_session` creates a new `DebugSession` with `authorized: False`, `phase: "triage_readonly"`, assigns a sequential `bug_id`, and sets it on the state.

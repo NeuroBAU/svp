@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-54)
+## Part 1: Unified Bug Catalog (Bugs 1-55)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -871,6 +871,24 @@ Three functions in `state_transitions.py` were implemented, tested, and imported
 **Pattern:** P1 (Dead code from superseded design). A function specified in the blueprint was never connected to the actual dispatch path. Tests verified structural properties (immutability, clone behavior) but not behavioral ones (actual dispatch).
 
 **Prevention:** (1) Tests for dispatch entry points must verify actual dispatch behavior, not just structural properties. (2) Dead code audits should verify that functions documented as "entry points" are actually called from the expected call site. (3) When a function's docstring claims it is "the entry point called by POST commands," there should be a test that verifies POST commands actually invoke it.
+
+---
+
+### Bug 55 -- rollback_to_unit never called, Gate 6.2 FIX UNIT is a no-op
+
+**Caught:** Post-delivery (SVP 2.1 debug loop testing). **Test:** `tests/regressions/test_bug55_rollback_gate62_wiring.py`
+
+`rollback_to_unit` and `set_debug_classification` were implemented in `state_transitions.py` but never wired into the dispatch paths in `routing.py`. Gate 6.2 FIX UNIT returned state unchanged (`return state`). The bug_triage agent dispatch also returned state unchanged, discarding the triage classification and affected_units. Additionally, `rollback_to_unit` had a precondition requiring Stage 3, but Gate 6.2 fires during Stage 5. The function also copied invalidated files to `logs/rollback/` instead of deleting them, which would cause stale code to persist.
+
+**Root cause:** P1 (Cross-unit contract drift). The functions were specified in the blueprint and implemented in Unit 3 (state_transitions), but the dispatch logic in Unit 10 (routing) was never updated to call them. The triage agent (Unit 19) had no mechanism to communicate affected_units back to the pipeline.
+
+**Pattern:** P1 (Cross-unit contract drift). Functions implemented but never called from their intended call sites. The gap between "function exists" and "function is wired into the dispatch path" went undetected because tests only verified the function in isolation, not its integration into the pipeline.
+
+**Spec/blueprint corrected:** The spec (Section 12.17.4) originally stated that FIX UNIT sets `sub_stage: "implementation"` and `verified_units` is not modified. This was wrong. The correct behavior is `rollback_to_unit(N)` which invalidates verified_units >= N, deletes source/test files, sets stage="3", sub_stage=None, and rebuilds from unit N forward. The blueprint (Unit 3 contracts, Unit 10 routing) and reference blueprint were updated to match.
+
+**Prevention:** (1) Every state transition function must have an integration test verifying it is called from the correct dispatch path. (2) Gate dispatch handlers that return `state` unchanged should be flagged as suspicious -- they likely need wiring. (3) When a function has preconditions (e.g., "Stage 3 only"), the call site must be checked for compatibility. (4) Triage agents must write structured output (`.svp/triage_result.json`) to communicate results to the pipeline, not rely on the terminal status line alone.
+
+**Changes:** (a) `state_transitions.py`: relaxed `rollback_to_unit` precondition to accept Stage 5 with active debug session, changed copytree to rmtree (delete not backup), added stage 5->3 transition. (b) `routing.py`: wired Gate 6.2 FIX UNIT to call rollback_to_unit, wired bug_triage dispatch to call set_debug_classification, added build_env fast path to repair_agent, added phase-based Stage 5 debug routing. (c) `debug_agents.py` / `unit_19/stub.py`: added structured output section for `.svp/triage_result.json`. (d) `hook_configurations.py` / `hooks.py`: authorized triage_result.json writes during triage phases.
 
 ---
 
