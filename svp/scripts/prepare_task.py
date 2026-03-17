@@ -137,6 +137,31 @@ def load_blueprint(project_root: Path) -> str:
     return "\n\n---\n\n".join(parts)
 
 
+
+def load_blueprint_contracts_only(project_root: Path) -> str:
+    """Load only blueprint_contracts.md.
+
+    Bug 62 fix: selective loading per spec Section 3.16 agent matrix.
+    """
+    blueprint_dir = project_root / ARTIFACT_FILENAMES.get("blueprint_dir", "blueprint")
+    contracts_path = blueprint_dir / "blueprint_contracts.md"
+    if contracts_path.exists():
+        return contracts_path.read_text(encoding="utf-8")
+    return ""
+
+
+def load_blueprint_prose_only(project_root: Path) -> str:
+    """Load only blueprint_prose.md.
+
+    Bug 62 fix: selective loading per spec Section 3.16 agent matrix.
+    """
+    blueprint_dir = project_root / ARTIFACT_FILENAMES.get("blueprint_dir", "blueprint")
+    prose_path = blueprint_dir / "blueprint_prose.md"
+    if prose_path.exists():
+        return prose_path.read_text(encoding="utf-8")
+    return ""
+
+
 def load_reference_summaries(project_root: Path) -> str:
     """Load reference summaries."""
     path = project_root / "references" / "summaries.md"
@@ -484,18 +509,20 @@ def _assemble_sections_for_agent(
         spec = _safe_load_spec(project_root)
         if spec:
             sections["stakeholder_spec"] = spec
-        bp = _safe_load_blueprint(project_root)
-        if bp:
-            sections["contract_signatures"] = bp
+        # Bug 62: contracts-only per spec Section 3.16
+        contracts = load_blueprint_contracts_only(project_root)
+        if contracts:
+            sections["contract_signatures"] = contracts
 
     elif agent_type == "git_repo_agent":
         # All verified artifacts, reference documents
         spec = _safe_load_spec(project_root)
         if spec:
             sections["stakeholder_spec"] = spec
-        bp = _safe_load_blueprint(project_root)
-        if bp:
-            sections["blueprint"] = bp
+        # Bug 62: contracts-only per spec Section 3.16
+        contracts = load_blueprint_contracts_only(project_root)
+        if contracts:
+            sections["blueprint"] = contracts
         refs = _safe_load_reference_summaries(project_root)
         if refs:
             sections["reference_summaries"] = refs
@@ -531,9 +558,10 @@ def _assemble_sections_for_agent(
         spec = _safe_load_spec(project_root)
         if spec:
             sections["stakeholder_spec"] = spec
-        bp = _safe_load_blueprint(project_root)
-        if bp:
-            sections["blueprint"] = bp
+        # Bug 62: prose-only per spec Section 3.16
+        prose = load_blueprint_prose_only(project_root)
+        if prose:
+            sections["blueprint"] = prose
         # Gate invocation mode
         if gate_id:
             sections["gate_flag"] = f"Gate invocation mode: {gate_id}"
