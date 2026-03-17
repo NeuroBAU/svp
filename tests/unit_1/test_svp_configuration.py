@@ -26,8 +26,7 @@ class TestArtifactFilenames:
 
         expected_keys = {
             "stakeholder_spec",
-            "blueprint_prose",
-            "blueprint_contracts",
+            "blueprint_dir",
             "project_context",
             "project_profile",
             "toolchain",
@@ -51,15 +50,10 @@ class TestArtifactFilenames:
 
         assert ARTIFACT_FILENAMES["stakeholder_spec"] == "stakeholder_spec.md"
 
-    def test_artifact_filenames_blueprint_prose(self):
+    def test_artifact_filenames_blueprint_dir(self):
         from svp_config import ARTIFACT_FILENAMES
 
-        assert ARTIFACT_FILENAMES["blueprint_prose"] == "blueprint_prose.md"
-
-    def test_artifact_filenames_blueprint_contracts(self):
-        from svp_config import ARTIFACT_FILENAMES
-
-        assert ARTIFACT_FILENAMES["blueprint_contracts"] == "blueprint_contracts.md"
+        assert ARTIFACT_FILENAMES["blueprint_dir"] == "blueprint"
 
     def test_artifact_filenames_project_profile(self):
         from svp_config import ARTIFACT_FILENAMES

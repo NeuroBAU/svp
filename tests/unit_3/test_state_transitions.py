@@ -308,12 +308,15 @@ class TestAdvanceFixLadder:
         result = advance_fix_ladder(state, "hint_test")
         assert result.fix_ladder_position == "hint_test"
 
-    def test_hint_test_to_fresh_impl(self):
-        from state_transitions import advance_fix_ladder
+    def test_hint_test_to_fresh_impl_raises(self):
+        from state_transitions import (
+            TransitionError,
+            advance_fix_ladder,
+        )
 
         state = _make_state(fix_ladder_position="hint_test")
-        result = advance_fix_ladder(state, "fresh_impl")
-        assert result.fix_ladder_position == "fresh_impl"
+        with pytest.raises(TransitionError):
+            advance_fix_ladder(state, "fresh_impl")
 
     def test_fresh_impl_to_diagnostic(self):
         from state_transitions import advance_fix_ladder
@@ -700,7 +703,7 @@ class TestUpdateDebugPhase:
 
         ds = _make_debug_session(phase="triage")
         state = _make_state(debug_session=ds)
-        result = update_debug_phase(state, "investigation")
+        result = update_debug_phase(state, "regression_test")
         assert result is not state
 
     def test_sets_phase(self):
@@ -710,8 +713,8 @@ class TestUpdateDebugPhase:
 
         ds = _make_debug_session(phase="triage")
         state = _make_state(debug_session=ds)
-        result = update_debug_phase(state, "investigation")
-        assert result.debug_session.phase == "investigation"
+        result = update_debug_phase(state, "regression_test")
+        assert result.debug_session.phase == "regression_test"
 
     def test_raises_without_session(self):
         from state_transitions import (

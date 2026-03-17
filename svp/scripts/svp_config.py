@@ -21,8 +21,7 @@ import re
 
 ARTIFACT_FILENAMES: Dict[str, str] = {
     "stakeholder_spec": "stakeholder_spec.md",
-    "blueprint_prose": "blueprint_prose.md",
-    "blueprint_contracts": "blueprint_contracts.md",
+    "blueprint_dir": "blueprint",
     "project_context": "project_context.md",
     "project_profile": "project_profile.json",
     "pipeline_state": "pipeline_state.json",

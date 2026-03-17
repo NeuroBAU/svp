@@ -594,11 +594,11 @@ class TestUpdateDebugPhaseValidation:
         ds = _make_debug_session(phase="triage")
         state = _make_state(debug_session=ds)
         result = update_debug_phase(
-            state, "investigation"
+            state, "regression_test"
         )
         assert (
             result.debug_session.phase
-            == "investigation"
+            == "regression_test"
         )
 
     def test_invalid_transition_raises(self):
@@ -1156,7 +1156,7 @@ class TestImmutabilityAdditional:
         ds = _make_debug_session(phase="triage")
         state = _make_state(debug_session=ds)
         old_dict = state.to_dict()
-        update_debug_phase(state, "investigation")
+        update_debug_phase(state, "regression_test")
         assert state.to_dict() == old_dict
 
     def test_set_debug_classification_immutable(

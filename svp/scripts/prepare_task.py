@@ -979,6 +979,19 @@ def prepare_gate_prompt(
         parts.append("- **FIX BLUEPRINT**: The problem is in the blueprint.")
         parts.append("- **FIX SPEC**: The problem is in the stakeholder spec.")
 
+    elif gate_id == "gate_5_3_unused_functions":
+        parts.append("# Gate 5.3: Unused Functions")
+        parts.append("")
+        parts.append(
+            "The delivered repository contains unused functions."
+            " Decide whether to fix the spec or override and continue."
+        )
+        parts.append("")
+        parts.append("## Response Options")
+        parts.append("")
+        parts.append("- **FIX SPEC**: The problem is in the stakeholder spec.")
+        parts.append("- **OVERRIDE CONTINUE**: Accept unused functions and continue.")
+
     elif gate_id == "gate_6_0_debug_permission":
         parts.append("# Gate 6.0: Debug Permission")
         parts.append("")
