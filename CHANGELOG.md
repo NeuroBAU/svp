@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Bug 64: Fixed 11 unit test failures from stale assertions after Bugs 59-62 code changes. Added `gate_5_3_unused_functions` to `ALL_GATE_IDS` in Unit 9 and `prepare_gate_prompt` handler. Updated ARTIFACT_FILENAMES tests for `blueprint_dir`. Fixed fix ladder and debug phase transition test assertions. Updated gate count from 22 to 23.
 - Bug 63: Documentation retrofit for Bugs 60-62. Updated stakeholder spec (v8.31): Section 3.16 agent loading matrix now reflects implementation status with selective loading functions; Section 6.8 regression test table extended through Bug 62; Section 24 failure modes added for Bugs 59-62; Section 30 Unit 9 guidance documents selective loading exports. Blueprint prose updated with selective loading description. Lessons learned catalog range updated to Bugs 1-62, pattern instance counts corrected, regression test mapping extended through Bug 62. Summary document updated to 63 bugs, selective loading described as implemented.
 - Bug 62: Added `load_blueprint_contracts_only()` and `load_blueprint_prose_only()` to Unit 9. Wired `integration_test_author` and `git_repo_agent` to contracts-only, `help_agent` to prose-only per spec Section 3.16 matrix.
 - Bug 61: Added `include_tier1` parameter to `build_unit_context` (Unit 5) and `_get_unit_context` (Unit 9). Test agent and implementation agent now pass `include_tier1=False`.

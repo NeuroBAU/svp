@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update). Bug 59 discovered post-delivery (stale blueprints/ directory, critical implementation bugs, stakeholder spec gaps). Bug 60 discovered post-delivery (broken _get_unit_context path and stale fallback ARTIFACT_FILENAMES). Bug 61 discovered post-delivery (missing include_tier1 parameter in _get_unit_context and build_unit_context). Bug 62 discovered post-delivery (selective blueprint loading not wired per agent matrix).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update). Bug 59 discovered post-delivery (stale blueprints/ directory, critical implementation bugs, stakeholder spec gaps). Bug 60 discovered post-delivery (broken _get_unit_context path and stale fallback ARTIFACT_FILENAMES). Bug 61 discovered post-delivery (missing include_tier1 parameter in _get_unit_context and build_unit_context). Bug 62 discovered post-delivery (selective blueprint loading not wired per agent matrix). Bug 63 discovered post-delivery (documentation retrofit for Bugs 60-62). Bug 64 discovered post-delivery (11 unit test failures from stale assertions after Bugs 59-62 code changes).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-62)
+## Part 1: Unified Bug Catalog (Bugs 1-64)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58 (36 of 62 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64 (37 of 64 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62 (14 of 62 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62 (14 of 64 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -540,7 +540,7 @@ The spec provides a principle but not the granularity rules needed to operationa
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (36 of 62 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (37 of 64 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -631,8 +631,10 @@ The spec provides a principle but not the granularity rules needed to operationa
 | 60 | `test_bug60_unit_context_blueprint_path.py` | Post-delivery (debug loop) |
 | 61 | `test_bug61_include_tier1_parameter.py` | Post-delivery (debug loop) |
 | 62 | `test_bug62_selective_blueprint_loading.py` | Post-delivery (debug loop) |
+| 63 | (no dedicated regression test file -- documentation only) | Post-delivery (debug loop) |
+| 64 | (existing unit tests: invariant tests in unit_10, unit tests in unit_1/unit_3) | Post-delivery (debug loop) |
 
-Note: Regression test file names (test_bug2 through test_bug62) use either the original post-delivery numbering or the unified catalog numbering. This document's unified Bug 1-62 numbering includes blueprint-era, post-delivery, and rebuild preparation bugs chronologically. The mapping table provides the cross-reference.
+Note: Regression test file names (test_bug2 through test_bug62) use either the original post-delivery numbering or the unified catalog numbering. This document's unified Bug 1-64 numbering includes blueprint-era, post-delivery, and rebuild preparation bugs chronologically. The mapping table provides the cross-reference.
 
 ---
 
@@ -1048,6 +1050,40 @@ Spec Section 3.16 defines a per-agent loading matrix for the two-file blueprint 
 **Pattern:** P2 (Incomplete spec implementation). The spec defined the agent matrix but the implementation used the same full loader for all agents.
 
 **Prevention:** When a spec defines a matrix of agent-specific behaviors, create a checklist and verify each agent individually. Regression tests should verify each agent receives exactly the content the spec prescribes.
+
+### Bug 63 -- Documentation Retrofit for Bugs 60-62
+
+**Caught:** Post-delivery (documentation review). **Test:** (no dedicated regression test file -- documentation only).
+
+Bugs 60-62 made code changes (blueprint path fix, include_tier1 parameter, selective blueprint loading) but did not update the stakeholder spec, blueprint, lessons learned, summary, CHANGELOG, or README to reflect those changes.
+
+**Impact:** Documentation was out of sync with code. Stakeholder spec Section 3.16 did not reflect the implemented selective loading functions. Regression test table stopped at Bug 59. Lessons learned catalog range was stale.
+
+**Fix:** Updated stakeholder spec (v8.31), blueprint prose, lessons learned (catalog range, pattern counts, regression test mapping), summary document, CHANGELOG, and README.
+
+**Pattern:** (Documentation maintenance -- no code pattern).
+
+**Prevention:** Every code-change bug must include a documentation update pass as part of the fix. The debug commit checklist should include "docs updated" verification.
+
+---
+
+### Bug 64 -- 11 Unit Test Failures from Stale Assertions After Bugs 59-62
+
+**Caught:** Post-delivery (test suite run). **Test:** (existing unit tests -- no dedicated regression test file needed).
+
+After Bugs 59-62 correctly updated source code (ARTIFACT_FILENAMES keys, fix ladder transitions, debug phase transitions, gate IDs), 11 unit tests still asserted the old behavior:
+- 3 tests in unit_1 expected `blueprint_prose`/`blueprint_contracts` keys instead of `blueprint_dir`
+- 3 tests in unit_10 detected that `gate_5_3_unused_functions` was in GATE_RESPONSES but missing from ALL_GATE_IDS
+- 1 test in unit_3 expected `hint_test -> fresh_impl` transition (removed -- hint_test is now terminal)
+- 4 tests in unit_3 expected `triage -> investigation` debug phase transition (replaced by `triage -> regression_test`)
+
+**Impact:** 11 test failures in the workspace test suite. The cross-unit gate ID mismatch (unit_9 ALL_GATE_IDS vs unit_10 GATE_RESPONSES) would cause runtime failures if gate_5_3 were triggered.
+
+**Fix:** Added `gate_5_3_unused_functions` to ALL_GATE_IDS in unit_9 and added prepare_gate_prompt handler. Updated unit_1 tests for blueprint_dir. Updated unit_3 tests for current fix ladder and debug phase transitions. Updated unit_9 tests for new gate count (23).
+
+**Pattern:** P1 (Cross-Unit Contract Drift). The gate_5_3 ID was added to unit_10's GATE_RESPONSES but not to unit_9's ALL_GATE_IDS.
+
+**Prevention:** When adding a new gate to any module, verify it exists in ALL registries (ALL_GATE_IDS, GATE_RESPONSES, GATE_VOCABULARY, prepare_gate_prompt handler). Structural invariant tests catch this -- they were working correctly by failing.
 
 ---
 

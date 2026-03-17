@@ -885,7 +885,7 @@ The workspace is the build environment. The repo is the deliverable.
 
 The following table lists every bug in the unified catalog (Bugs 1-50) with its coverage mechanism. Dedicated regression test files are carried forward from the previous build -- copied from the SVP plugin's `tests/regressions/` directory into the project workspace during project creation. All dedicated regression test files must pass in both the workspace layout and the delivered repository layout.
 
-This table is the single authoritative reference for the dual numbering scheme. The "Filename Bug #" column shows the number used in the test filename prefix (`test_bugNN_*`). The "Unified Bug #" column shows the canonical bug number in the unified catalog (Bugs 1-62). Where these differ, it is due to historical naming (see naming collision note below).
+This table is the single authoritative reference for the dual numbering scheme. The "Filename Bug #" column shows the number used in the test filename prefix (`test_bugNN_*`). The "Unified Bug #" column shows the canonical bug number in the unified catalog (Bugs 1-64). Where these differ, it is due to historical naming (see naming collision note below).
 
 | Filename Bug # | Unified Bug # | Coverage | File / Location | What It Tests |
 |----------------|---------------|----------|----------------|---------------|
