@@ -1,9 +1,9 @@
 # SVP — Stratified Verification Pipeline
 
-## Stakeholder Specification v8.30 (SVP 2.1)
+## Stakeholder Specification v8.29 (SVP 2.1)
 
-**Date:** 2026-03-17
-**Supersedes:** v8.29 (SVP 2.1)
+**Date:** 2026-03-15
+**Supersedes:** v8.27 (SVP 2.1)
 **Build Tool:** SVP 2.0
 
 ---
@@ -215,7 +215,7 @@ This is a structural invariant, not a per-stage fix. The complete list of sub-st
 - **Redo profile sub-stages, `redo_profile_blueprint`:** check for `PROFILE_COMPLETE` before presenting Gate 0.3r (`gate_0_3r_profile_revision`) (Section 13, `/svp:redo`).
 - **Stage 3, diagnostic escalation (triggered by `fix_ladder_position: "diagnostic"`):** check for `DIAGNOSIS_COMPLETE` before presenting Gate 3.2 (`gate_3_2_diagnostic_decision`) (Section 10.11). Diagnostic escalation is not keyed on a named sub-stage value; it is triggered when the fix ladder position reaches `"diagnostic"` (see Section 10.10, ladder progression: `None -> fresh_impl -> diagnostic -> diagnostic_impl -> exhausted`). The sub-stage remains at `"green_run"` or `"implementation"` during the fix ladder; `route()` must check `fix_ladder_position` to determine whether the diagnostic agent should be invoked. When the diagnostic agent completes with `DIAGNOSIS_COMPLETE: implementation`, `DIAGNOSIS_COMPLETE: blueprint`, or `DIAGNOSIS_COMPLETE: spec`, the routing script must present Gate 3.2 for the human to confirm the fix direction, not re-invoke the diagnostic agent.
 
-**Gates not governed by the two-branch invariant.** Nine gate IDs from Section 18.4 are intentionally absent from the exhaustive list above: `gate_0_1_hook_activation` (Gate 0.1 is presented unconditionally at session start, not after an agent completion), `gate_6_5_debug_commit` (Gate 6.5 is presented after a deterministic commit preparation step, not after an agent completion), `gate_hint_conflict` (Gate H.1 is presented by the hint system when a conflict is detected, not as part of an agent-to-gate routing transition; it IS present in `GATE_VOCABULARY` and `ALL_GATE_IDS` because it has defined response options, but it is exempt from the two-branch routing pattern), `gate_2_3_alignment_exhausted` (Gate 2.3 is presented when the alignment iteration counter is exhausted after an `ALIGNMENT_FAILED` result -- the counter-based dispatch is deterministic and handled within `dispatch_agent_status`, not as a separate routing branch requiring a `last_status.txt` two-branch check), `gate_3_1_test_validation` (Gate 3.1 is presented after a deterministic test run command completes, not after an agent completion), `gate_4_1_integration_failure` (Gate 4.1 is presented after integration tests fail via a deterministic test command, not after an agent completion -- see Section 11.2.1 three-state dispatch), `gate_4_2_assembly_exhausted` (Gate 4.2 is presented when the assembly fix ladder retry counter is exhausted, not after an agent completion), `gate_5_2_assembly_exhausted` (Gate 5.2 is presented when Stage 5 assembly retries are exhausted, not after an agent completion), and `gate_6_0_debug_permission` (Gate 6.0 is presented when a `/svp:bug` command is issued, not after an agent completion -- it is an entry gate for the debug loop). These gates do not follow the agent-completion/gate-presentation pattern and therefore do not require a two-branch `last_status.txt` check in `route()`.
+**Gates not governed by the two-branch invariant.** Nine gate IDs from Section 18.4 are intentionally absent from the exhaustive list above: `gate_0_1_hook_activation` (Gate 0.1 is presented unconditionally at session start, not after an agent completion), `gate_6_5_debug_commit` (Gate 6.5 is presented after a deterministic commit preparation step, not after an agent completion), `gate_hint_conflict` (Gate H.1 is presented by the hint system when a conflict is detected, not as part of an agent-to-gate routing transition), `gate_2_3_alignment_exhausted` (Gate 2.3 is presented when the alignment iteration counter is exhausted after an `ALIGNMENT_FAILED` result -- the counter-based dispatch is deterministic and handled within `dispatch_agent_status`, not as a separate routing branch requiring a `last_status.txt` two-branch check), `gate_3_1_test_validation` (Gate 3.1 is presented after a deterministic test run command completes, not after an agent completion), `gate_4_1_integration_failure` (Gate 4.1 is presented after integration tests fail via a deterministic test command, not after an agent completion -- see Section 11.2.1 three-state dispatch), `gate_4_2_assembly_exhausted` (Gate 4.2 is presented when the assembly fix ladder retry counter is exhausted, not after an agent completion), `gate_5_2_assembly_exhausted` (Gate 5.2 is presented when Stage 5 assembly retries are exhausted, not after an agent completion), and `gate_6_0_debug_permission` (Gate 6.0 is presented when a `/svp:bug` command is issued, not after an agent completion -- it is an entry gate for the debug loop). These gates do not follow the agent-completion/gate-presentation pattern and therefore do not require a two-branch `last_status.txt` check in `route()`.
 
 **Command-presenting entries** — the "done" branch emits a `run_command` action (a deterministic tool invocation, not a human gate):
 
@@ -928,14 +928,6 @@ This table is the single authoritative reference for the dual numbering scheme. 
 | bug48 | 48 | Dedicated file | `test_bug48_launcher_cli_contract.py` | Launcher CLI contract: bare svp default, --blueprint-dir, --profile |
 | bug49 | 49 | Dedicated file | `test_bug49_argparse_enumeration.py` | CLI argument enumeration for Units 6, 7, 9, 10, 23 |
 | bug50 | 50 | Dedicated file | `test_bug50_contract_sufficiency.py` | Contract sufficiency for Units 1, 3, 6, 10, 24 |
-| bug51 | 51 | Dedicated file | `test_bug51_debug_reassembly.py` | Debug loop reassembly after repair completion |
-| bug52 | 52 | Dedicated file | `test_bug52_version_document_wiring.py` | version_document wired at every REVISE/FIX gate |
-| bug53 | 53 | Dedicated file | `test_bug53_orphaned_functions.py` | Orphaned functions without call sites |
-| bug54 | 54 | Dedicated file | `test_bug54_orphaned_update_state_from_status.py` | Orphaned hollow function update_state_from_status |
-| -- | 55 | Structural validation | Gate 6.2 FIX UNIT dispatch | rollback_to_unit and set_debug_classification wiring |
-| -- | 56 | Structural validation | Blueprint checker | Downstream dependency and contract granularity rules |
-| -- | 57 | Structural validation | Reviewer agent definitions | Baked dependency and contract checklists |
-| bug58 | 58 | Dedicated file | `test_bug58_gate_5_3_unused_functions.py` | Gate 5.3 unused_functions in GATE_VOCABULARY and dispatch |
 
 **Naming note: collisions and deviations.** Two distinct issues exist in the filename-to-bug mapping, both due to historical naming:
 
@@ -945,7 +937,7 @@ This table is the single authoritative reference for the dual numbering scheme. 
 
 The mapping table above is authoritative for resolving both collisions and deviations.
 
-**Regression test count.** There are 39 distinct regression test files (35 unique filenames in the table above): 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 13 newly authored in this build (35 total). Three `test_bugNN_` filename prefixes are reused across different bugs (`test_bug17_*`, `test_bug18_*`, `test_bug19_*` -- see naming note above), but each of the 35 table entries corresponds to a distinct file with a unique full filename. The 13 newly authored files are: `test_bug13_hook_schema_validation.py` (Bug 17, authored during build), `test_bug22_repo_sibling_directory.py` (Bug 37, authored during build), `test_bug23_stage1_spec_gate_routing.py` (Bug 41, authored during debug loop), `test_bug42_pre_stage3_state_persistence.py` (Bug 42, authored during debug loop), `test_bug43_stage2_blueprint_routing.py` (Bug 43, authored during debug loop), `test_bug44_null_substage_dispatch.py` (Bug 44, authored during debug loop), `test_bug45_test_execution_dispatch.py` (Bug 45, authored during debug loop), `test_bug46_coverage_dispatch.py` (Bug 46, authored during debug loop), `test_bug47_unit_completion_double_dispatch.py` (Bug 47, authored during debug loop), `test_bug48_launcher_cli_contract.py` (Bug 48, authored during debug loop), `test_bug49_argparse_enumeration.py` (Bug 49, authored during debug loop), `test_bug50_contract_sufficiency.py` (Bug 50, authored during debug loop), and `test_bug51_debug_reassembly.py` (Bug 51, authored during debug loop). All other files are carried forward unchanged.
+**Regression test count.** There are 35 distinct regression test files (35 unique filenames in the table above): 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 13 newly authored in this build (35 total). Three `test_bugNN_` filename prefixes are reused across different bugs (`test_bug17_*`, `test_bug18_*`, `test_bug19_*` -- see naming note above), but each of the 35 table entries corresponds to a distinct file with a unique full filename. The 13 newly authored files are: `test_bug13_hook_schema_validation.py` (Bug 17, authored during build), `test_bug22_repo_sibling_directory.py` (Bug 37, authored during build), `test_bug23_stage1_spec_gate_routing.py` (Bug 41, authored during debug loop), `test_bug42_pre_stage3_state_persistence.py` (Bug 42, authored during debug loop), `test_bug43_stage2_blueprint_routing.py` (Bug 43, authored during debug loop), `test_bug44_null_substage_dispatch.py` (Bug 44, authored during debug loop), `test_bug45_test_execution_dispatch.py` (Bug 45, authored during debug loop), `test_bug46_coverage_dispatch.py` (Bug 46, authored during debug loop), `test_bug47_unit_completion_double_dispatch.py` (Bug 47, authored during debug loop), `test_bug48_launcher_cli_contract.py` (Bug 48, authored during debug loop), `test_bug49_argparse_enumeration.py` (Bug 49, authored during debug loop), `test_bug50_contract_sufficiency.py` (Bug 50, authored during debug loop), and `test_bug51_debug_reassembly.py` (Bug 51, authored during debug loop). All other files are carried forward unchanged.
 
 **New regression test naming convention.** Newly authored regression tests in this build use the unified catalog number: `test_bugNN_descriptive_suffix.py` where NN is the unified bug number. The `test_bug13_hook_schema_validation.py` file for unified Bug 17 uses a pre-unified filename prefix (`bug13`) because Bug 17 was catalogued before the unified numbering convention was established. Despite being newly authored in this build, its filename uses the old numbering for backward compatibility: the SVP 2.0 regression test inventory already allocated the `test_bug13` prefix slot, and existing tooling and documentation reference this filename. Changing it would break the established carry-forward contract. The filename is treated as a fixed historical artifact.
 
@@ -1104,7 +1096,7 @@ A fresh blueprint checker agent receives the stakeholder spec (including working
 
 **Profile preference validation (Layer 2) (CHANGED IN 2.0, CHANGED IN 2.1).** The checker verifies that every profile preference — including documentation, metadata, commit style, delivery packaging, and quality tool configuration — is reflected as an explicit contract in at least one unit. A profile that says "conda, no bare pip" with no unit mentioning conda usage is an alignment failure. A profile that says "comprehensive README for developers" with no unit specifying audience and depth is also an alignment failure. A profile with `quality.linter: "ruff"` with no unit contracting ruff configuration generation is an alignment failure **(NEW IN 2.1)**.
 
-**Pattern catalog validation (NEW IN 2.1).** The blueprint checker receives the pattern catalog section (Part 2) of the lessons learned document (`svp_2_1_lessons_learned.md`) as an additional input. The preparation script extracts Part 2 of the lessons learned document verbatim and includes it in the checker's task prompt. The checker cross-references the structural characteristics of the new blueprint against each known failure pattern (P1-P9 and any extensions). For each pattern, the checker asks: does this blueprint have structural features that have historically produced this pattern? A positive finding is reported as a blueprint risk (not an unconditional failure) with a specific description of the structural feature and the historical pattern it resembles. The human reviews these risks at Gate 2.2. This is advisory — it does not block blueprint approval — but it must be surfaced.
+**Pattern catalog validation (NEW IN 2.1).** The blueprint checker receives the pattern catalog section (Part 2) of the lessons learned document (`svp_2_1_lessons_learned.md`) as an additional input. The preparation script extracts Part 2 of the lessons learned document verbatim and includes it in the checker's task prompt. The checker cross-references the structural characteristics of the new blueprint against each known failure pattern (P1-P8 and any extensions). For each pattern, the checker asks: does this blueprint have structural features that have historically produced this pattern? A positive finding is reported as a blueprint risk (not an unconditional failure) with a specific description of the structural feature and the historical pattern it resembles. The human reviews these risks at Gate 2.2. This is advisory — it does not block blueprint approval — but it must be surfaced.
 
 The lessons learned document is accessed via its workspace-relative path `references/svp_2_1_lessons_learned.md`. The basename `svp_2_1_lessons_learned.md` is the canonical filename constant in Unit 1's `ARTIFACT_FILENAMES`; the `references/` directory prefix is the standard location for reference documents (see Section 6.6 directory structure).
 
@@ -1798,7 +1790,7 @@ Each of these transitions must have an explicit `last_status.txt` check in `rout
 
 **Step 3 — Apply the confirmed fix.** After the human confirms the classification at Gate 6.2, the fix is applied in the workspace first, where the agent has unit structure, blueprint context, and pipeline machinery. The fix type follows the confirmed classification:
 
-- **FIX UNIT (single-unit code fix):** Contract correct, implementation wrong for this case. The pipeline calls `rollback_to_unit(state, N)` where N is the lowest affected unit from the triage classification. This invalidates all verified units >= N (removes them from `verified_units`), deletes source and test files for units >= N, sets `stage: "3"`, `current_unit: N`, `sub_stage: None`, `fix_ladder_position: null`, `red_run_retries: 0`. The pipeline then rebuilds from unit N forward through all remaining units (test generation + implementation for each). Quality Gates A and B run normally during re-entry. The `debug_session` object tracks re-entry (phase transitions to `"stage3_reentry"`). Steps 4-7 follow.
+- **FIX UNIT (single-unit code fix):** Contract correct, implementation wrong for this case. The pipeline calls `rollback_to_unit(state, N)` where N is the lowest affected unit from the triage classification. This invalidates all verified units >= N (removes them from `verified_units`), deletes source and test files for units >= N, sets `stage: "3"`, `current_unit: N`, `sub_stage: None`, `fix_ladder_position: null`, `red_run_retries: 0`. The pipeline then rebuilds from unit N forward through all remaining units (test generation + implementation for each). Quality Gates A and B run normally during re-entry. The `debug_session` object tracks re-entry (phase transitions to `"stage3_reentry"`). Steps 4-7 follow. (Bug 55 correction: the original spec incorrectly stated that `verified_units` was not modified. The correct behavior is full rollback and rebuild.)
 - **FIX BLUEPRINT (cross-unit contract problem):** Blueprint problem. Targeted blueprint revision, ruthless forward restart. Regression test preserved. Steps 4-7 do not apply — the pipeline restarts from Stage 2 (complete pipeline re-entry).
 - **FIX SPEC:** Spec-level gap. Targeted spec revision, then restart from Stage 2. Steps 4-7 do not apply — the pipeline restarts from Stage 1 revision (complete pipeline re-entry).
 
@@ -1808,7 +1800,7 @@ After the workspace fix passes all existing tests (unit, regression, and integra
 
 **Step 5 — Write regression tests.** Test agent writes a failing regression test to `tests/regressions/test_bugNN_descriptive_suffix.py` (where NN is the unified bug catalog number and the suffix describes the bug scenario; see Section 6.8 for the naming convention). Must fail against the pre-fix implementation. Must pass against the post-fix implementation. Human reviews at Gate 6.1 (`gate_6_1_regression_test`): **TEST CORRECT** or **TEST WRONG**.
 
-**Step 6 — Update lessons learned document.** The agent appends a new entry to the lessons learned document (Document 4) following the established catalog format: bug number, how caught, test file reference, description, root cause pattern classification (P1-P9 or new pattern with definition), and prevention rule. If the bug reveals a new pattern not covered by P1-P8, the agent defines the pattern and adds it to the pattern catalog. The agent also updates the regression test file mapping table.
+**Step 6 — Update lessons learned document.** The agent appends a new entry to the lessons learned document (Document 4) following the established catalog format: bug number, how caught, test file reference, description, root cause pattern classification (P1-P8 or new pattern with definition), and prevention rule. If the bug reveals a new pattern not covered by P1-P8, the agent defines the pattern and adds it to the pattern catalog. The agent also updates the regression test file mapping table.
 
 **Step 7 — Commit and push (human permission required).** The agent prepares a commit with a detailed, fixed-format debug commit message (see Section 12.17.11) and presents it to the human for approval. Gate 6.5 (`gate_6_5_debug_commit`) response options: **COMMIT APPROVED** or **COMMIT REJECTED**. On approval, the agent commits and pushes. On rejection, the human may edit the commit message or abort.
 
@@ -2152,11 +2144,11 @@ Complete vocabulary:
 
 **Bug Triage Agent:** `TRIAGE_COMPLETE: build_env`, `TRIAGE_COMPLETE: single_unit`, `TRIAGE_COMPLETE: cross_unit`, `TRIAGE_NEEDS_REFINEMENT`, `TRIAGE_NON_REPRODUCIBLE`.
 
-**`TRIAGE_NEEDS_REFINEMENT` routing (NEW IN 2.1). `triage_refinement_count` is an `int` field (default 0) on `DebugSession`.** When the triage agent emits `TRIAGE_NEEDS_REFINEMENT`, the routing script re-invokes the triage agent with refinement context appended to its task prompt (the previous triage output and the reason refinement was needed). This is a same-agent re-invocation, not a gate presentation -- the human is not involved at this point. The re-invocation is bounded: a `triage_refinement_count` counter in `debug_session` tracks attempts (default limit 2). If the limit is reached, the routing script presents Gate 6.4 (`gate_6_4_non_reproducible`) with an explanation that triage could not converge. Because this status triggers re-invocation rather than gate presentation, it is not governed by the two-branch invariant (Section 3.6).
+**`TRIAGE_NEEDS_REFINEMENT` routing (NEW IN 2.1).** When the triage agent emits `TRIAGE_NEEDS_REFINEMENT`, the routing script re-invokes the triage agent with refinement context appended to its task prompt (the previous triage output and the reason refinement was needed). This is a same-agent re-invocation, not a gate presentation -- the human is not involved at this point. The re-invocation is bounded: a `triage_refinement_count` counter in `debug_session` tracks attempts (default limit 2). If the limit is reached, the routing script presents Gate 6.4 (`gate_6_4_non_reproducible`) with an explanation that triage could not converge. Because this status triggers re-invocation rather than gate presentation, it is not governed by the two-branch invariant (Section 3.6).
 
 **Repair Agent:** `REPAIR_COMPLETE`, `REPAIR_FAILED`, `REPAIR_RECLASSIFY`.
 
-**`REPAIR_FAILED` routing (NEW IN 2.1). `repair_retry_count` is an `int` field (default 0) on `DebugSession`.** When the repair agent emits `REPAIR_FAILED`, the routing script increments a `repair_retry_count` counter in `debug_session` (default limit 3). If retries remain, the routing script re-invokes the repair agent with the previous failure output appended to its task prompt. If the retry limit is exhausted, the routing script presents Gate 6.3 (`gate_6_3_repair_exhausted`) for the human to decide: **RETRY REPAIR**, **RECLASSIFY BUG**, or **ABANDON DEBUG**. The re-invocation branch (retries remaining) is not governed by the two-branch invariant because it does not present a gate -- it is a same-agent retry loop. The exhaustion branch (present Gate 6.3) is already covered by the two-branch invariant entry for the repair agent (Section 3.6), since `REPAIR_FAILED` with exhausted retries results in the same Gate 6.3 presentation as `REPAIR_COMPLETE` and `REPAIR_RECLASSIFY`.
+**`REPAIR_FAILED` routing (NEW IN 2.1).** When the repair agent emits `REPAIR_FAILED`, the routing script increments a `repair_retry_count` counter in `debug_session` (default limit 3). If retries remain, the routing script re-invokes the repair agent with the previous failure output appended to its task prompt. If the retry limit is exhausted, the routing script presents Gate 6.3 (`gate_6_3_repair_exhausted`) for the human to decide: **RETRY REPAIR**, **RECLASSIFY BUG**, or **ABANDON DEBUG**. The re-invocation branch (retries remaining) is not governed by the two-branch invariant because it does not present a gate -- it is a same-agent retry loop. The exhaustion branch (present Gate 6.3) is already covered by the two-branch invariant entry for the repair agent (Section 3.6), since `REPAIR_FAILED` with exhausted retries results in the same Gate 6.3 presentation as `REPAIR_COMPLETE` and `REPAIR_RECLASSIFY`.
 
 **Reference Indexing Agent:** `INDEXING_COMPLETE`.
 
@@ -2221,7 +2213,7 @@ Between sessions: workspace read-only (`chmod -R a-w`). On session start: write 
 `PreToolUse` hooks validate every write against current pipeline state.
 
 **Two-tier path authorization:**
-- **Infrastructure paths** (`.svp/`, `pipeline_state.json`, `ledgers/`, `logs/`, `.svp/triage_result.json`): always writable.
+- **Infrastructure paths** (`.svp/`, `pipeline_state.json`, `ledgers/`, `logs/`): always writable.
 - **Project artifact paths** (`src/`, `tests/`, `specs/`, `blueprint/`, `references/`, `projectname-repo/`): state-gated. Writable only when authorized by the current pipeline state.
 
 **Profile and toolchain paths (CHANGED IN 2.0, CHANGED IN 2.1):**
@@ -2436,7 +2428,7 @@ Each review cycle resulting in a revision increments the version number. History
 - Gate 2.1 / 2.2 REVISE: versions `blueprint_prose.md` and `blueprint_contracts.md` as an atomic pair.
 - Gate 2.3 REVISE SPEC: versions `stakeholder_spec.md`.
 - Gate 3.2 / 4.1 / 4.2 / 5.2 / 6.2 FIX BLUEPRINT: versions both blueprint files.
-- Gate 3.2 / 4.1 / 4.2 / 5.2 / 5.3 / 6.2 FIX SPEC: versions `stakeholder_spec.md`.
+- Gate 3.2 / 4.1 / 4.2 / 5.2 / 6.2 FIX SPEC: versions `stakeholder_spec.md`.
 
 ---
 
@@ -2749,76 +2741,6 @@ After a successful repair in the debug loop, the triage agent's Step 6 instructs
 
 **Recovery:** (1) `dispatch_agent_status` for `repair_agent` updated: on `REPAIR_COMPLETE` during an active debug session (`state.debug_session is not None`), set `stage="5"`, `sub_stage=None` to trigger git_repo_agent reassembly. Debug session remains active during reassembly. (2) Regression test added. (3) Lessons learned updated.
 
-### 24.40 version_document Not Wired at Every REVISE/FIX Gate (Post-delivery -- Bug 52)
-
-Before Bug 52, several REVISE and FIX gate responses in `dispatch_gate_response` called `restart_from_stage` without first calling `version_document` to archive the current document. This meant document history was incomplete -- some revisions had no archived prior version.
-
-**Root cause:** The document versioning contract (Section 23) lists all trigger points, but the implementation only wired `version_document` at a subset. P1 (Cross-unit contract drift) between the spec's trigger list and the dispatch implementation.
-
-**Detection:** A regression test (`test_bug52_version_document_wiring.py`) verifies that every REVISE/FIX gate path calls `version_document` before `restart_from_stage`.
-
-**Recovery:** All missing `version_document` / `_version_spec` / `_version_blueprint` calls added to `dispatch_gate_response` at every REVISE/FIX trigger point listed in Section 23.
-
-### 24.41 Orphaned Functions Without Call Sites (Post-delivery -- Bug 53)
-
-Functions existed in the codebase with no callers -- dead code that passed all tests because no test exercised the orphaned path.
-
-**Root cause:** P5 (Orphaned code). Functions were defined in contracts but never wired into any dispatch or routing path.
-
-**Detection:** A regression test (`test_bug53_orphaned_functions.py`) scans for exported functions without call sites.
-
-**Recovery:** Orphaned functions removed or wired into their intended call sites.
-
-### 24.42 Orphaned Hollow Function update_state_from_status (Post-delivery -- Bug 54)
-
-`update_state_from_status` existed as a hollow stub with no implementation, no callers, and no tests. It duplicated the role of `dispatch_agent_status` and `dispatch_command_status`.
-
-**Root cause:** P5 (Orphaned code). A function was specified in the blueprint but never connected to the pipeline flow.
-
-**Detection:** A regression test (`test_bug54_orphaned_update_state_from_status.py`) verifies the function does not exist or has been properly removed.
-
-**Recovery:** Function removed from the codebase.
-
-### 24.43 rollback_to_unit and set_debug_classification Never Wired Into Dispatch (Post-delivery -- Bug 55)
-
-Gate 6.2 FIX UNIT response existed in `GATE_VOCABULARY` but `dispatch_gate_response` did not call `rollback_to_unit` or `set_debug_classification`. The debug loop could not execute the FIX UNIT path.
-
-**Root cause:** P1 (Cross-unit contract drift). The gate vocabulary defined the response option, but the dispatch handler was missing the state transition calls.
-
-**Detection:** Structural validation of `dispatch_gate_response` against `GATE_VOCABULARY` response options.
-
-**Recovery:** `dispatch_gate_response` for `gate_6_2_debug_classification` FIX UNIT now calls `set_debug_classification` and `rollback_to_unit`. Phase-based debug routing added.
-
-### 24.44 Spec Structural Gaps: Downstream Dependency and Contract Granularity (Post-delivery -- Bug 56)
-
-The spec lacked explicit rules for downstream dependency invalidation during re-entry paths and for contract granularity requirements. This allowed blueprints that were structurally correct but operationally incomplete.
-
-**Root cause:** P7 (Spec omission). The spec described what happens but not what must be verified.
-
-**Detection:** Structural review during blueprint checker operation.
-
-**Recovery:** Added Section 3.18 (Downstream Dependency Invariant) and Section 3.19 (Contract Granularity Rules) to the spec. Blueprint checker updated to verify these rules.
-
-### 24.45 Review Enforcement: Baked Dependency and Contract Checklists (Post-delivery -- Bug 57)
-
-Reviewer agent definitions lacked concrete checklists for verifying downstream dependencies and contract completeness, relying on general instructions that were insufficient to catch systematic omissions.
-
-**Root cause:** P8 (Agent instruction insufficiency). Agent definitions described goals but not verification steps.
-
-**Detection:** Structural review of reviewer agent output quality.
-
-**Recovery:** Added Section 3.20 (Review Enforcement). Mandatory checklists baked into stakeholder reviewer, blueprint checker, and blueprint reviewer agent definitions.
-
-### 24.46 Gate 5.3 Missing From GATE_VOCABULARY and Dispatch (Post-delivery -- Bug 58)
-
-Gate 5.3 (`gate_5_3_unused_functions`) was defined in the spec but missing from `GATE_VOCABULARY` in routing.py and had no dispatch handler. The compliance scan could detect unused functions but could not present the gate to the human.
-
-**Root cause:** P1 (Cross-unit contract drift). The spec defined the gate, but the routing implementation omitted it.
-
-**Detection:** A regression test (`test_bug58_gate_5_3_unused_functions.py`) verifies Gate 5.3 is in `GATE_VOCABULARY` and has a dispatch handler.
-
-**Recovery:** Gate 5.3 added to `GATE_VOCABULARY` with response options `FIX SPEC` and `OVERRIDE CONTINUE`. Dispatch handler added to `dispatch_gate_response`.
-
 ---
 
 ## 25. Test Data
@@ -2933,7 +2855,7 @@ The profile says how the delivered project should look. The toolchain file says 
 
 **Unit 13 (setup agent):** Expand dialog for Area 5 (quality preferences) **(NEW IN 2.1)**, changelog question in Area 1 **(NEW IN 2.1)**. Profile dialog and Gate 0.3. Targeted revision mode **(CHANGED IN 2.0)**. The setup agent's system prompt must include the complete `project_profile.json` schema with exact canonical field names (Section 6.4) so that the agent's JSON output uses the same section and field names as `DEFAULT_PROFILE` in Unit 1 **(NEW IN 2.1)**.
 
-**Unit 14 (blueprint checker) (CHANGED IN 2.1):** Add quality profile preference validation (Layer 2) **(NEW IN 2.1)**. Blueprint checker receives the pattern catalog section of `svp_2_1_lessons_learned.md` as an additional input. Checker produces a risk section in its output identifying structural features matching known failure patterns (P1-P9+). Advisory only — does not block approval.
+**Unit 14 (blueprint checker) (CHANGED IN 2.1):** Add quality profile preference validation (Layer 2) **(NEW IN 2.1)**. Blueprint checker receives the pattern catalog section of `svp_2_1_lessons_learned.md` as an additional input. Checker produces a risk section in its output identifying structural features matching known failure patterns (P1-P8+). Advisory only — does not block approval.
 
 **Unit 15 (test/impl agents):** Add quality awareness to agent prompts **(NEW IN 2.1)**.
 

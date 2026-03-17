@@ -1,7 +1,9 @@
 """Regression tests for Bug 52: version_document() not wired into dispatch_gate_response.
 
 Verifies that version_document() is actually called during REVISE gate dispatches,
-creating history files in docs/history/.
+creating history files in the appropriate history directories.
+
+Bug 59 update: blueprint history goes to blueprint/history/ (not docs/history/).
 """
 
 import sys
@@ -50,11 +52,13 @@ def project_root(tmp_path):
     specs_dir.mkdir()
     (specs_dir / "stakeholder_spec.md").write_text("# Spec v1\nOriginal content")
 
-    blueprints_dir = tmp_path / "blueprints"
-    blueprints_dir.mkdir()
-    (blueprints_dir / "blueprint_prose.md").write_text("# Blueprint Prose v1")
-    (blueprints_dir / "blueprint_contracts.md").write_text("# Blueprint Contracts v1")
+    # Bug 59 fix: use blueprint/ (singular), not blueprints/ (plural)
+    blueprint_dir = tmp_path / "blueprint"
+    blueprint_dir.mkdir()
+    (blueprint_dir / "blueprint_prose.md").write_text("# Blueprint Prose v1")
+    (blueprint_dir / "blueprint_contracts.md").write_text("# Blueprint Contracts v1")
 
+    # Spec history goes to docs/history/
     history_dir = tmp_path / "docs" / "history"
     history_dir.mkdir(parents=True)
 
@@ -118,7 +122,8 @@ class TestGate21BlueprintRevise:
     def test_revise_versions_both_blueprint_files(self, project_root):
         state = _make_state(stage="2")
         dispatch_gate_response(state, "gate_2_1_blueprint_approval", "REVISE", project_root)
-        history_dir = project_root / "docs" / "history"
+        # Bug 59: blueprint history goes to blueprint/history/
+        history_dir = project_root / "blueprint" / "history"
         prose = list(history_dir.glob("blueprint_prose_v*.md"))
         contracts = list(history_dir.glob("blueprint_contracts_v*.md"))
         assert len(prose) >= 1, "REVISE should version blueprint_prose.md"
@@ -131,7 +136,8 @@ class TestGate22BlueprintRevise:
     def test_revise_versions_both_blueprint_files(self, project_root):
         state = _make_state(stage="2")
         dispatch_gate_response(state, "gate_2_2_blueprint_post_review", "REVISE", project_root)
-        history_dir = project_root / "docs" / "history"
+        # Bug 59: blueprint history goes to blueprint/history/
+        history_dir = project_root / "blueprint" / "history"
         prose = list(history_dir.glob("blueprint_prose_v*.md"))
         contracts = list(history_dir.glob("blueprint_contracts_v*.md"))
         assert len(prose) >= 1
@@ -155,7 +161,8 @@ class TestGate32FixBlueprint:
     def test_fix_blueprint_versions_blueprint(self, project_root):
         state = _make_state(stage="3")
         dispatch_gate_response(state, "gate_3_2_diagnostic_decision", "FIX BLUEPRINT", project_root)
-        history_dir = project_root / "docs" / "history"
+        # Bug 59: blueprint history goes to blueprint/history/
+        history_dir = project_root / "blueprint" / "history"
         prose = list(history_dir.glob("blueprint_prose_v*.md"))
         assert len(prose) >= 1
 
@@ -173,7 +180,8 @@ class TestGate41FixBlueprint:
     def test_fix_blueprint_versions_blueprint(self, project_root):
         state = _make_state(stage="4")
         dispatch_gate_response(state, "gate_4_1_integration_failure", "FIX BLUEPRINT", project_root)
-        history_dir = project_root / "docs" / "history"
+        # Bug 59: blueprint history goes to blueprint/history/
+        history_dir = project_root / "blueprint" / "history"
         prose = list(history_dir.glob("blueprint_prose_v*.md"))
         assert len(prose) >= 1
 
@@ -192,7 +200,8 @@ class TestGate62FixBlueprint:
         state = _make_state(stage="6", sub_stage="debug_triage")
         state.debug_session = MagicMock()
         dispatch_gate_response(state, "gate_6_2_debug_classification", "FIX BLUEPRINT", project_root)
-        history_dir = project_root / "docs" / "history"
+        # Bug 59: blueprint history goes to blueprint/history/
+        history_dir = project_root / "blueprint" / "history"
         prose = list(history_dir.glob("blueprint_prose_v*.md"))
         assert len(prose) >= 1
 

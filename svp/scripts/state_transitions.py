@@ -5,6 +5,9 @@ unit completion, fix ladder progression, pass history recording, unit-level
 rollback, document versioning, debug session lifecycle, redo-triggered
 profile revision lifecycle, Stage 2 alignment check transitions (Bug 23 fix),
 quality gate state transitions, and delivered repo path recording.
+
+Bug 55 fix: rollback_to_unit accepts Stage 5 with active debug session,
+deletes (not copies) invalidated source/test files, transitions to Stage 3.
 """
 
 import copy
@@ -26,7 +29,7 @@ _STAGE_SEQUENCE = ["0", "1", "2", "pre_stage_3", "3", "4", "5"]
 _FIX_LADDER_TRANSITIONS: Dict[Optional[str], List[str]] = {
     None: ["fresh_test", "fresh_impl"],
     "fresh_test": ["hint_test"],
-    "hint_test": ["fresh_impl"],
+    "hint_test": [],
     "fresh_impl": ["diagnostic"],
     "diagnostic": ["diagnostic_impl"],
     "diagnostic_impl": [],
@@ -35,7 +38,7 @@ _FIX_LADDER_TRANSITIONS: Dict[Optional[str], List[str]] = {
 # Valid debug phase transitions
 _DEBUG_PHASE_TRANSITIONS: Dict[str, List[str]] = {
     "triage_readonly": ["triage"],
-    "triage": ["regression_test", "stage3_reentry", "investigation"],
+    "triage": ["regression_test", "stage3_reentry"],
     "regression_test": ["stage3_reentry", "repair"],
     "stage3_reentry": ["repair", "complete"],
     "repair": ["complete"],
@@ -54,14 +57,6 @@ _QUALITY_GATE_PASS_TARGET: Dict[str, str] = {
 _QUALITY_GATE_RETRY_TO_LADDER_BRANCH: Dict[str, str] = {
     "quality_gate_a_retry": "fresh_test",
     "quality_gate_b_retry": "fresh_impl",
-}
-
-# Classification normalization map
-_REDO_CLASSIFICATION_MAP: Dict[str, str] = {
-    "delivery": "redo_profile_delivery",
-    "blueprint": "redo_profile_blueprint",
-    "profile_delivery": "redo_profile_delivery",
-    "profile_blueprint": "redo_profile_blueprint",
 }
 
 
@@ -87,6 +82,58 @@ def advance_stage(state: PipelineState, project_root: Path) -> PipelineState:
             f"Cannot advance from stage {state.stage}: preconditions not met"
             f" -- cannot advance past Stage 5"
         )
+
+    # Validate exit criteria for each stage transition
+    if state.stage == "0":
+        # Stage 0 to Stage 1: project_profile.json must exist
+        profile_path = project_root / "project_profile.json"
+        if not profile_path.exists():
+            raise TransitionError(
+                f"Cannot advance from stage 0: preconditions not met"
+                f" -- project_profile.json must exist in the project root"
+            )
+
+    elif state.stage == "1":
+        # Stage 1 to Stage 2: specs/stakeholder_spec.md must exist
+        stakeholder_path = project_root / "specs" / "stakeholder_spec.md"
+        if not stakeholder_path.exists():
+            raise TransitionError(
+                f"Cannot advance from stage 1: preconditions not met"
+                f" -- specs/stakeholder_spec.md must exist"
+            )
+
+    elif state.stage == "2":
+        # Stage 2 to Pre-Stage-3 (Bug 23 fix):
+        # alignment_check sub-stage must be active AND blueprint must exist
+        if state.sub_stage != "alignment_check":
+            raise TransitionError(
+                f"Cannot advance from stage 2: preconditions not met"
+                f" -- sub_stage must be alignment_check"
+            )
+        prose_path = project_root / "blueprint" / "blueprint_prose.md"
+        contracts_path = project_root / "blueprint" / "blueprint_contracts.md"
+        if not prose_path.exists() or not contracts_path.exists():
+            raise TransitionError(
+                f"Cannot advance from stage 2: preconditions not met"
+                f" -- blueprint/blueprint_prose.md and blueprint/blueprint_contracts.md must exist"
+            )
+
+    elif state.stage == "3":
+        # Stage 3 to Stage 4: All units must be verified
+        if state.total_units is not None:
+            verified_unit_numbers = {vu["unit"] for vu in state.verified_units}
+            expected = set(range(1, state.total_units + 1))
+            if verified_unit_numbers != expected:
+                missing = expected - verified_unit_numbers
+                raise TransitionError(
+                    f"Cannot advance from stage 3: preconditions not met"
+                    f" -- not all units verified, missing: {sorted(missing)}"
+                )
+        if state.total_units is not None and len(state.verified_units) != state.total_units:
+            raise TransitionError(
+                f"Cannot advance from stage 3: preconditions not met"
+                f" -- verified_units count does not match total_units"
+            )
 
     current_idx = _STAGE_SEQUENCE.index(state.stage)
     next_stage = _STAGE_SEQUENCE[current_idx + 1]
@@ -307,14 +354,12 @@ def restart_from_stage(state: PipelineState, target_stage: str, reason: str, pro
     # Record the current pass ending
     pass_number = len(new_state.pass_history) + 1
     reached_unit = state.current_unit or 0
-    new_state.pass_history = list(new_state.pass_history) + [
-        {
-            "pass_number": pass_number,
-            "reached_unit": reached_unit,
-            "reason": reason,
-            "timestamp": now,
-        }
-    ]
+    new_state.pass_history = list(new_state.pass_history) + [{
+        "pass_number": pass_number,
+        "reached_unit": reached_unit,
+        "ended_reason": reason,
+        "timestamp": now,
+    }]
 
     # Reset stage-specific counters
     new_state.fix_ladder_position = None
@@ -338,12 +383,16 @@ def restart_from_stage(state: PipelineState, target_stage: str, reason: str, pro
 
 
 def version_document(
-    doc_path: Path, history_dir: Path, diff_summary: str, trigger_context: str
+    doc_path: Path, history_dir: Path, diff_summary: str, trigger_context: str,
+    companion_paths: Optional[List[Path]] = None,
 ) -> Tuple[Path, Path]:
     """Version a document by copying it to history and writing a diff summary.
 
     Copies the current document to history/{name}_v{N}.md, writes diff summary
     to history/{name}_v{N}_diff.md. Returns paths of both created files.
+
+    When companion_paths is not None and non-empty, all companion files are
+    versioned atomically with the same version number.
     """
     if not doc_path.exists():
         raise FileNotFoundError(f"Document to version not found: {doc_path}")
@@ -375,6 +424,16 @@ def version_document(
         f"{diff_summary}\n"
     )
     diff_file.write_text(diff_content, encoding="utf-8")
+
+    # Version companion files atomically with the same version number
+    if companion_paths:
+        for comp_path in companion_paths:
+            if not comp_path.exists() or comp_path == doc_path:
+                continue
+            comp_stem = comp_path.stem
+            comp_suffix = comp_path.suffix or ".md"
+            comp_ver = history_dir / f"{comp_stem}_v{version}{comp_suffix}"
+            shutil.copy2(comp_path, comp_ver)
 
     # Post-conditions
     assert versioned_copy.exists(), "Versioned copy must exist in history dir"
@@ -507,16 +566,14 @@ def enter_redo_profile_revision(
 ) -> PipelineState:
     """Enter a redo-triggered profile revision.
 
-    Accepts classification values: 'delivery',
-    'blueprint', 'profile_delivery', or
-    'profile_blueprint'.
+    Captures the current pipeline position as a snapshot, then sets sub_stage
+    to the appropriate redo profile revision type.
     """
-    sub_stage_target = _REDO_CLASSIFICATION_MAP.get(classification)
-    if sub_stage_target is None:
+    # Pre-conditions
+    if classification not in ("profile_delivery", "profile_blueprint"):
         raise TransitionError(
-            "Cannot enter redo profile revision:"
-            " invalid classification"
-            f" {classification}"
+            f"Cannot enter redo profile revision: classification must be "
+            f"profile_delivery or profile_blueprint, got {classification}"
         )
 
     current_sub = getattr(state, "sub_stage", None)
@@ -528,7 +585,7 @@ def enter_redo_profile_revision(
     new_state = _clone_state(state)
 
     # Capture snapshot of current pipeline position
-    snapshot: Dict[str, Any] = {
+    snapshot = {
         "stage": state.stage,
         "sub_stage": state.sub_stage,
         "current_unit": state.current_unit,
@@ -536,8 +593,20 @@ def enter_redo_profile_revision(
         "red_run_retries": state.red_run_retries,
     }
     new_state.redo_triggered_from = snapshot
-    new_state.sub_stage = sub_stage_target
+
+    # Set sub_stage based on classification
+    if classification == "profile_delivery":
+        new_state.sub_stage = "redo_profile_delivery"
+    else:
+        new_state.sub_stage = "redo_profile_blueprint"
+
     new_state.last_action = f"Entered redo profile revision ({classification})"
+
+    # Post-conditions
+    assert new_state.redo_triggered_from is not None, "Redo snapshot must be captured"
+    assert new_state.sub_stage in ("redo_profile_delivery", "redo_profile_blueprint"), \
+        "Sub-stage must be set to redo profile revision type"
+
     return new_state
 
 
@@ -555,18 +624,19 @@ def complete_redo_profile_revision(state: PipelineState) -> PipelineState:
         )
 
     redo_snapshot = getattr(state, "redo_triggered_from", None)
+    if redo_snapshot is None:
+        raise TransitionError(
+            "Cannot complete redo profile revision: redo snapshot must exist"
+        )
 
     if current_sub == "redo_profile_delivery":
-        # Restore the snapshot if available
+        # Restore the snapshot
         new_state = _clone_state(state)
-        if redo_snapshot is not None:
-            new_state.stage = redo_snapshot["stage"]
-            new_state.sub_stage = redo_snapshot.get("sub_stage")
-            new_state.current_unit = redo_snapshot.get("current_unit")
-            new_state.fix_ladder_position = redo_snapshot.get("fix_ladder_position")
-            new_state.red_run_retries = redo_snapshot.get("red_run_retries", 0)
-        else:
-            new_state.sub_stage = None
+        new_state.stage = redo_snapshot["stage"]
+        new_state.sub_stage = redo_snapshot.get("sub_stage")
+        new_state.current_unit = redo_snapshot.get("current_unit")
+        new_state.fix_ladder_position = redo_snapshot.get("fix_ladder_position")
+        new_state.red_run_retries = redo_snapshot.get("red_run_retries", 0)
         new_state.redo_triggered_from = None
         new_state.last_action = "Completed redo profile revision (delivery): restored snapshot"
         return new_state
@@ -579,14 +649,12 @@ def complete_redo_profile_revision(state: PipelineState) -> PipelineState:
         # Record the current pass ending
         pass_number = len(new_state.pass_history) + 1
         reached_unit = state.current_unit or 0
-        new_state.pass_history = list(new_state.pass_history) + [
-            {
-                "pass_number": pass_number,
-                "reached_unit": reached_unit,
-                "reason": "profile_blueprint revision",
-                "timestamp": now,
-            }
-        ]
+        new_state.pass_history = list(new_state.pass_history) + [{
+            "pass_number": pass_number,
+            "reached_unit": reached_unit,
+            "ended_reason": "profile_blueprint revision",
+            "timestamp": now,
+        }]
 
         # Reset everything downstream
         new_state.stage = "2"
@@ -734,47 +802,12 @@ def quality_gate_fail_to_ladder(state: PipelineState) -> PipelineState:
             return new_state
 
 
-def enter_quality_gate_retry(
-    state: PipelineState,
-    retry_sub_stage: str,
-) -> PipelineState:
-    """Enter quality gate retry with an explicit target sub-stage."""
-    new_state = _clone_state(state)
-    new_state.sub_stage = retry_sub_stage
-    new_state.last_action = f"Entered quality gate retry: {retry_sub_stage}"
-    return new_state
-
-
-def advance_from_quality_gate(
-    state: PipelineState,
-    target_sub_stage: str,
-) -> PipelineState:
-    """Advance from quality gate to a target sub-stage."""
-    new_state = _clone_state(state)
-    new_state.sub_stage = target_sub_stage
-    new_state.last_action = f"Advanced from quality gate to {target_sub_stage}"
-    return new_state
-
-
-def fail_quality_gate_to_ladder(
-    state: PipelineState,
-    new_position: str,
-) -> PipelineState:
-    """Handle quality gate failure with an explicit ladder position."""
-    new_state = _clone_state(state)
-    new_state.fix_ladder_position = new_position
-    new_state.sub_stage = None
-    new_state.last_action = (
-        f"Quality gate failed, entered fix ladder at {new_position}"
-    )
-    return new_state
-
-
 # --- Delivered repo path (NEW IN 2.1) ---
 
 def set_delivered_repo_path(state: PipelineState, repo_path: str) -> PipelineState:
-    """Record the absolute path to the delivered
-    repository."""
+    """Record the absolute path to the delivered repository. Only valid during Stage 5."""
+    if state.stage != "5":
+        raise TransitionError("Cannot set delivered repo path: not at Stage 5")
     if not repo_path.strip():
         raise TransitionError("Cannot set delivered repo path: path must be non-empty")
 

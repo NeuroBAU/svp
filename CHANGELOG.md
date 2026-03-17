@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Bug 59: Removed stale `blueprints/` (plural) directory. Fixed `_version_blueprint` path, `advance_stage` blueprint check, `load_blueprint` two-file loading. Added `gate_hint_conflict` to GATE_VOCABULARY/ALL_GATE_IDS. Added `REGRESSION_TEST_COMPLETE` to test_agent status. Added `triage_refinement_count`/`repair_retry_count` to DebugSession. Added `companion_paths` to `version_document`. Fixed `_FIX_LADDER_TRANSITIONS` cross-branch error. Removed undocumented `investigation` debug phase. Stakeholder spec gaps: Section 24 failure modes for Bugs 52-58, regression test table through Bug 58, P1-P9 references.
+
 ## [2.1.0] - 2026-03-16
 
 ### Added

@@ -19,17 +19,16 @@ try:
     from svp_config import ARTIFACT_FILENAMES, load_profile
 except ImportError:
     # Fallback if svp_config is not on the path yet
-    ARTIFACT_FILENAMES = {
+    ARTIFACT_FILENAMES: Dict[str, str] = {
         "stakeholder_spec": "stakeholder_spec.md",
-        "blueprint_prose": "blueprint_prose.md",
-        "blueprint_contracts": "blueprint_contracts.md",
+        "blueprint": "blueprint.md",
         "project_context": "project_context.md",
         "project_profile": "project_profile.json",
         "pipeline_state": "pipeline_state.json",
         "svp_config": "svp_config.json",
         "toolchain": "toolchain.json",
         "ruff_config": "ruff.toml",
-        "lessons_learned": "svp_2_1_lessons_learned.md",
+        "docs_dir": "docs",
     }
     load_profile = None  # type: ignore[assignment]
 
@@ -102,79 +101,65 @@ ALL_GATE_IDS = [
 # Document loaders
 # ---------------------------------------------------------------------------
 
+
 def load_stakeholder_spec(project_root: Path) -> str:
     """Load the stakeholder specification document.
 
-    Returns empty string if file does not exist.
+    Bug 22 fix: uses ARTIFACT_FILENAMES from Unit 1.
     """
-    fname = ARTIFACT_FILENAMES["stakeholder_spec"]
-    candidates = [
-        project_root / fname,
-        project_root / "specs" / fname,
-    ]
-    for path in candidates:
-        if path.exists():
-            return path.read_text(encoding="utf-8")
-    return ""
+    path = project_root / "specs" / ARTIFACT_FILENAMES["stakeholder_spec"]
+    if not path.exists():
+        raise FileNotFoundError(f"Required document not found: {path}")
+    return path.read_text(encoding="utf-8")
 
 
 def load_blueprint(project_root: Path) -> str:
-    """Load the blueprint document.
+    """Load the blueprint document (both prose and contracts files).
 
-    Returns empty string if neither blueprint file exists.
-    Tries blueprint_prose.md, then blueprint_contracts.md.
+    Bug 59 fix: loads blueprint_prose.md and blueprint_contracts.md from
+    the blueprint/ directory instead of the old single-file blueprint.md.
     """
-    # Try blueprint_prose first
-    prose_path = project_root / "blueprint" / ARTIFACT_FILENAMES.get("blueprint_prose", "blueprint_prose.md")
-    if prose_path.exists():
-        return prose_path.read_text(encoding="utf-8")
-    # Try blueprint_contracts
-    contracts_path = project_root / "blueprint" / ARTIFACT_FILENAMES.get("blueprint_contracts", "blueprint_contracts.md")
-    if contracts_path.exists():
-        return contracts_path.read_text(encoding="utf-8")
-    return ""
+    blueprint_dir = project_root / "blueprint"
+    prose_path = blueprint_dir / "blueprint_prose.md"
+    contracts_path = blueprint_dir / "blueprint_contracts.md"
+    parts = []
+    for path in [prose_path, contracts_path]:
+        if path.exists():
+            parts.append(path.read_text(encoding="utf-8"))
+    if not parts:
+        # Fallback: try old single-file format
+        old_path = blueprint_dir / "blueprint.md"
+        if old_path.exists():
+            return old_path.read_text(encoding="utf-8")
+        raise FileNotFoundError(
+            f"Required blueprint documents not found in {blueprint_dir}"
+        )
+    return "\n\n---\n\n".join(parts)
 
 
 def load_reference_summaries(project_root: Path) -> str:
-    """Load reference summaries.
-
-    Returns empty string if file does not exist.
-    """
+    """Load reference summaries."""
     path = project_root / "references" / "summaries.md"
     if not path.exists():
-        return ""
+        raise FileNotFoundError(f"Required document not found: {path}")
     return path.read_text(encoding="utf-8")
 
 
 def load_project_context(project_root: Path) -> str:
-    """Load project context document.
-
-    Returns empty string if file does not exist.
-    """
-    path = project_root / ARTIFACT_FILENAMES.get("project_context", "project_context.md")
+    """Load project context document."""
+    path = project_root / ARTIFACT_FILENAMES.get(
+        "project_context", "project_context.md"
+    )
     if not path.exists():
-        return ""
+        raise FileNotFoundError(f"Required document not found: {path}")
     return path.read_text(encoding="utf-8")
 
 
 def load_ledger_content(project_root: Path, ledger_name: str) -> str:
-    """Load ledger content by name.
-
-    Accepts ledger name with or without extension.
-    Returns empty string if file does not exist.
-    """
-    # If ledger_name already has an extension, use as-is
-    if "." in ledger_name:
-        path = project_root / "ledgers" / ledger_name
-    else:
-        # Try .json first, then .jsonl, then no extension
-        path = project_root / "ledgers" / f"{ledger_name}.json"
-        if not path.exists():
-            path = project_root / "ledgers" / f"{ledger_name}.jsonl"
-        if not path.exists():
-            path = project_root / "ledgers" / ledger_name
+    """Load ledger content by name."""
+    path = project_root / "ledgers" / f"{ledger_name}.jsonl"
     if not path.exists():
-        return ""
+        raise FileNotFoundError(f"Required document not found: {path}")
     return path.read_text(encoding="utf-8")
 
 
@@ -205,6 +190,7 @@ def load_profile_sections(project_root: Path, sections: List[str]) -> str:
 
     try:
         from svp_config import load_profile as _load_profile
+
         profile = _load_profile(project_root)
     except (RuntimeError, FileNotFoundError, Exception):
         return "(Profile not yet available.)"
@@ -229,6 +215,7 @@ def load_full_profile(project_root: Path) -> str:
     """Load the entire project profile as a formatted string."""
     try:
         from svp_config import load_profile as _load_profile
+
         profile = _load_profile(project_root)
     except (RuntimeError, FileNotFoundError, Exception):
         return "(Profile not yet available.)"
@@ -252,6 +239,7 @@ def load_full_profile(project_root: Path) -> str:
 # ---------------------------------------------------------------------------
 # Task prompt content builder
 # ---------------------------------------------------------------------------
+
 
 def build_task_prompt_content(
     agent_type: str,
@@ -279,6 +267,7 @@ def build_task_prompt_content(
 # ---------------------------------------------------------------------------
 # Agent-specific section assembly
 # ---------------------------------------------------------------------------
+
 
 def _safe_load_project_context(project_root: Path) -> Optional[str]:
     """Load project context if it exists, return None otherwise."""
@@ -320,39 +309,11 @@ def _safe_load_reference_summaries(project_root: Path) -> Optional[str]:
         return None
 
 
-def get_blueprint_dir(project_root: Path) -> Path:
-    """Return the blueprint directory path."""
-    return project_root / "blueprint"
-
-
-def load_lessons_learned_for_unit(project_root: Path, unit_number: int) -> str:
-    """Load lessons learned entries relevant to a specific unit.
-
-    Filters the lessons learned document to include only entries
-    tagged for the given unit or its dependencies.
-    Returns empty string when no lessons are found.
-    """
-    lessons_path = project_root / "lessons_learned.md"
-    if not lessons_path.exists():
-        return ""
-    content = lessons_path.read_text(encoding="utf-8")
-    # Return all content -- fine-grained filtering delegated to callers
-    # when dependency info is available
-    lines = content.splitlines()
-    filtered: List[str] = []
-    tag = f"[unit_{unit_number}]"
-    for line in lines:
-        if tag.lower() in line.lower():
-            filtered.append(line)
-    if not filtered:
-        return ""
-    return "\n".join(filtered)
-
-
 def _get_unit_context(project_root: Path, unit_number: int) -> str:
     """Get unit context via Unit 5 blueprint extractor."""
     try:
         from blueprint_extractor import build_unit_context
+
         bp_path = project_root / "blueprint" / ARTIFACT_FILENAMES["blueprint"]
         return build_unit_context(bp_path, unit_number)
     except Exception:
@@ -401,9 +362,7 @@ def _assemble_sections_for_agent(
             sections["revision_mode"] = f"Revision mode: {revision_mode}"
 
     elif agent_type == "blueprint_author":
-        spec = load_stakeholder_spec(project_root)
-        if spec:
-            sections["stakeholder_spec"] = spec
+        sections["stakeholder_spec"] = load_stakeholder_spec(project_root)
         refs = _safe_load_reference_summaries(project_root)
         if refs:
             sections["reference_summaries"] = refs
@@ -415,17 +374,15 @@ def _assemble_sections_for_agent(
         if checker_path.exists():
             sections["checker_feedback"] = checker_path.read_text(encoding="utf-8")
         # Profile sections: readme, vcs, delivery, quality (CHANGED IN 2.1 -- adds quality)
-        profile_sections = load_profile_sections(project_root, ["readme", "vcs", "delivery", "quality"])
+        profile_sections = load_profile_sections(
+            project_root, ["readme", "vcs", "delivery", "quality"]
+        )
         if profile_sections:
             sections["profile_sections"] = profile_sections
 
     elif agent_type == "blueprint_checker":
-        spec = load_stakeholder_spec(project_root)
-        if spec:
-            sections["stakeholder_spec"] = spec
-        bp = load_blueprint(project_root)
-        if bp:
-            sections["blueprint"] = bp
+        sections["stakeholder_spec"] = load_stakeholder_spec(project_root)
+        sections["blueprint"] = load_blueprint(project_root)
         refs = _safe_load_reference_summaries(project_root)
         if refs:
             sections["reference_summaries"] = refs
@@ -482,7 +439,9 @@ def _assemble_sections_for_agent(
                 sections["diagnostic_guidance"] = diag_path.read_text(encoding="utf-8")
             failure_path = project_root / ".svp" / "failure_output.txt"
             if failure_path.exists():
-                sections["prior_failure_output"] = failure_path.read_text(encoding="utf-8")
+                sections["prior_failure_output"] = failure_path.read_text(
+                    encoding="utf-8"
+                )
         # NEW IN 2.1: In quality gate retry (quality_gate_b_retry): add quality report
         if ladder_position == "quality_gate_b_retry":
             qr = load_quality_report(project_root, "gate_b")
@@ -589,7 +548,9 @@ def _assemble_sections_for_agent(
 
     elif agent_type == "redo_agent":
         # Pipeline state summary, human error description
-        state_path = project_root / ARTIFACT_FILENAMES.get("pipeline_state", "pipeline_state.json")
+        state_path = project_root / ARTIFACT_FILENAMES.get(
+            "pipeline_state", "pipeline_state.json"
+        )
         if state_path.exists():
             sections["pipeline_state"] = state_path.read_text(encoding="utf-8")
         # Current unit definition (optional -- only when unit_number is provided)
@@ -618,7 +579,9 @@ def _assemble_sections_for_agent(
         if ledger:
             sections["ledger"] = ledger
         # NEW IN 2.1: Include delivered_repo_path from pipeline state
-        state_path = project_root / ARTIFACT_FILENAMES.get("pipeline_state", "pipeline_state.json")
+        state_path = project_root / ARTIFACT_FILENAMES.get(
+            "pipeline_state", "pipeline_state.json"
+        )
         if state_path.exists():
             try:
                 state_data = json.loads(state_path.read_text(encoding="utf-8"))
@@ -649,6 +612,7 @@ def _assemble_sections_for_agent(
 # Main preparation functions
 # ---------------------------------------------------------------------------
 
+
 def prepare_agent_task(
     project_root: Path,
     agent_type: str,
@@ -667,6 +631,10 @@ def prepare_agent_task(
     if agent_type not in KNOWN_AGENT_TYPES:
         raise ValueError(f"Unknown agent type: {agent_type}")
 
+    # Validate unit number requirement
+    if agent_type in UNIT_REQUIRING_AGENTS and unit_number is None:
+        raise ValueError(f"Unit number required for agent type {agent_type}")
+
     # Assemble sections
     sections = _assemble_sections_for_agent(
         project_root=project_root,
@@ -684,6 +652,7 @@ def prepare_agent_task(
     if hint_content:
         try:
             from hint_prompt_assembler import assemble_hint_prompt
+
             # Map agent_type to Unit 8's valid agent types
             agent_type_map = {
                 "test_agent": "test",
@@ -755,7 +724,9 @@ def prepare_gate_prompt(
     elif gate_id == "gate_0_3_profile_approval":
         parts.append("# Gate 0.3: Profile Approval")
         parts.append("")
-        parts.append("Review the project profile below and decide whether to approve it.")
+        parts.append(
+            "Review the project profile below and decide whether to approve it."
+        )
         parts.append("")
         # Include profile summary
         profile_str = load_full_profile(project_root)
@@ -770,7 +741,9 @@ def prepare_gate_prompt(
     elif gate_id == "gate_0_3r_profile_revision":
         parts.append("# Gate 0.3r: Profile Revision Review")
         parts.append("")
-        parts.append("Review the modified project profile below and decide whether to approve the changes.")
+        parts.append(
+            "Review the modified project profile below and decide whether to approve the changes."
+        )
         parts.append("")
         # Include modified profile summary
         profile_str = load_full_profile(project_root)
@@ -785,7 +758,9 @@ def prepare_gate_prompt(
     elif gate_id == "gate_0_2_context_approval":
         parts.append("# Gate 0.2: Context Approval")
         parts.append("")
-        parts.append("Review the project context document and decide whether to approve it.")
+        parts.append(
+            "Review the project context document and decide whether to approve it."
+        )
         parts.append("")
         parts.append("## Response Options")
         parts.append("")
@@ -796,7 +771,9 @@ def prepare_gate_prompt(
     elif gate_id == "gate_1_1_spec_draft":
         parts.append("# Gate 1.1: Spec Draft Approval")
         parts.append("")
-        parts.append("Review the stakeholder specification draft and decide whether to approve it.")
+        parts.append(
+            "Review the stakeholder specification draft and decide whether to approve it."
+        )
         parts.append("")
         # Include the spec if available
         spec = _safe_load_spec(project_root)
@@ -809,7 +786,9 @@ def prepare_gate_prompt(
         parts.append("")
         parts.append("- **APPROVE**: Accept the spec and advance to Stage 2.")
         parts.append("- **REVISE**: Request changes to the spec.")
-        parts.append("- **FRESH REVIEW**: Request a cold review by a separate reviewer agent.")
+        parts.append(
+            "- **FRESH REVIEW**: Request a cold review by a separate reviewer agent."
+        )
 
     elif gate_id == "gate_1_2_spec_post_review":
         parts.append("# Gate 1.2: Spec Post-Review")
@@ -836,8 +815,8 @@ def prepare_gate_prompt(
         parts.append("Review the blueprint draft and decide whether to approve it.")
         parts.append("")
         # Include both blueprint files
-        prose_path = project_root / "blueprints" / "blueprint_prose.md"
-        contracts_path = project_root / "blueprints" / "blueprint_contracts.md"
+        prose_path = project_root / "blueprint" / "blueprint_prose.md"
+        contracts_path = project_root / "blueprint" / "blueprint_contracts.md"
         if prose_path.exists():
             parts.append("## Blueprint Prose (Tier 1)")
             parts.append("")
@@ -850,19 +829,25 @@ def prepare_gate_prompt(
             parts.append("")
         parts.append("## Response Options")
         parts.append("")
-        parts.append("- **APPROVE**: Accept the blueprint and advance to alignment check.")
+        parts.append(
+            "- **APPROVE**: Accept the blueprint and advance to alignment check."
+        )
         parts.append("- **REVISE**: Request changes to the blueprint.")
-        parts.append("- **FRESH REVIEW**: Request a cold review by a separate reviewer agent.")
+        parts.append(
+            "- **FRESH REVIEW**: Request a cold review by a separate reviewer agent."
+        )
 
     elif gate_id == "gate_2_2_blueprint_post_review":
         parts.append("# Gate 2.2: Blueprint Post-Review")
         parts.append("")
-        parts.append("A fresh reviewer has examined the blueprint, or alignment has been confirmed.")
+        parts.append(
+            "A fresh reviewer has examined the blueprint, or alignment has been confirmed."
+        )
         parts.append("Review and decide how to proceed.")
         parts.append("")
         # Include both blueprint files
-        prose_path = project_root / "blueprints" / "blueprint_prose.md"
-        contracts_path = project_root / "blueprints" / "blueprint_contracts.md"
+        prose_path = project_root / "blueprint" / "blueprint_prose.md"
+        contracts_path = project_root / "blueprint" / "blueprint_contracts.md"
         if prose_path.exists():
             parts.append("## Blueprint Prose (Tier 1)")
             parts.append("")
@@ -886,7 +871,9 @@ def prepare_gate_prompt(
         parts.append("")
         parts.append("## Response Options")
         parts.append("")
-        parts.append("- **REVISE SPEC**: Revise the stakeholder spec to resolve alignment issues.")
+        parts.append(
+            "- **REVISE SPEC**: Revise the stakeholder spec to resolve alignment issues."
+        )
         parts.append("- **RESTART SPEC**: Restart the stakeholder spec from scratch.")
         parts.append("- **RETRY BLUEPRINT**: Retry the blueprint with fresh context.")
 
@@ -914,7 +901,9 @@ def prepare_gate_prompt(
     elif gate_id == "gate_5_1_repo_test":
         parts.append("# Gate 5.1: Repository Test")
         parts.append("")
-        parts.append("Run the test suite in the delivered repository and report results.")
+        parts.append(
+            "Run the test suite in the delivered repository and report results."
+        )
         parts.append("")
         parts.append("## Response Options")
         parts.append("")
@@ -924,7 +913,9 @@ def prepare_gate_prompt(
     elif gate_id == "gate_5_2_assembly_exhausted":
         parts.append("# Gate 5.2: Assembly Exhausted")
         parts.append("")
-        parts.append("The repo assembly bounded fix cycle has been exhausted (3 attempts).")
+        parts.append(
+            "The repo assembly bounded fix cycle has been exhausted (3 attempts)."
+        )
         parts.append("")
         parts.append("## Response Options")
         parts.append("")
@@ -992,7 +983,9 @@ def prepare_gate_prompt(
         parts.append("## Response Options")
         parts.append("")
         parts.append("- **RETRY REPAIR**: Retry the repair.")
-        parts.append("- **RECLASSIFY BUG**: Reclassify the bug for a different approach.")
+        parts.append(
+            "- **RECLASSIFY BUG**: Reclassify the bug for a different approach."
+        )
         parts.append("- **ABANDON DEBUG**: Abandon the debug session.")
 
     elif gate_id == "gate_6_4_non_reproducible":
@@ -1009,7 +1002,9 @@ def prepare_gate_prompt(
         # NEW IN 2.1: Gate 6.5 for debug commit
         parts.append("# Gate 6.5: Debug Commit")
         parts.append("")
-        parts.append("Review the debug commit details below and decide whether to proceed.")
+        parts.append(
+            "Review the debug commit details below and decide whether to proceed."
+        )
         parts.append("")
         parts.append("## Response Options")
         parts.append("")
@@ -1017,21 +1012,17 @@ def prepare_gate_prompt(
         parts.append("- **REJECT**: Reject the debug commit.")
 
     elif gate_id == "gate_hint_conflict":
-        parts.append("# Gate: Hint Blueprint Conflict")
+        parts.append("# Gate H.1: Hint-Blueprint Conflict")
         parts.append("")
-        parts.append("A conflict was detected between the hint and the blueprint.")
-        parts.append("Decide which is correct.")
+        parts.append(
+            "A human domain hint contradicts the blueprint contract. "
+            "Decide which is correct."
+        )
         parts.append("")
         parts.append("## Response Options")
         parts.append("")
-        parts.append("- **BLUEPRINT CORRECT**: The blueprint is correct; discard the hint.")
-        parts.append("- **HINT CORRECT**: The hint is correct; update the blueprint.")
-
-    else:
-        # Generic fallback for any gate ID not explicitly handled
-        parts.append(f"# Gate: {gate_id}")
-        parts.append("")
-        parts.append("Please review and respond with the appropriate option.")
+        parts.append("- **BLUEPRINT CORRECT**: Discard the hint.")
+        parts.append("- **HINT CORRECT**: Revise the blueprint to match the hint.")
 
     # Add extra context
     if extra_context:
@@ -1063,16 +1054,24 @@ def prepare_gate_prompt(
 # CLI entry point
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     """CLI entry point for the preparation script."""
     parser = argparse.ArgumentParser(description="SVP Preparation Script")
-    parser.add_argument("--project-root", type=str, default=".", help="Project root directory")
+    parser.add_argument(
+        "--project-root", type=str, default=".", help="Project root directory"
+    )
     parser.add_argument("--agent", type=str, default=None, help="Agent type")
     parser.add_argument("--gate", type=str, default=None, help="Gate ID")
     parser.add_argument("--unit", type=int, default=None, help="Unit number")
     parser.add_argument("--ladder", type=str, default=None, help="Ladder position")
     parser.add_argument("--revision-mode", type=str, default=None, help="Revision mode")
-    parser.add_argument("--quality-report", type=str, default=None, help="Quality report path or gate name")
+    parser.add_argument(
+        "--quality-report",
+        type=str,
+        default=None,
+        help="Quality report path or gate name",
+    )
     parser.add_argument("--output", type=str, default=None, help="Override output path")
 
     args = parser.parse_args()
@@ -1099,6 +1098,7 @@ def main() -> None:
     # If output override is specified, copy the file (unless it's already at that path)
     if args.output:
         import shutil
+
         output_path = Path(args.output)
         if output_path.resolve() != result.resolve():
             output_path.parent.mkdir(parents=True, exist_ok=True)

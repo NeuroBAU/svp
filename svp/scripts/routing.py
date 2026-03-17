@@ -9,6 +9,8 @@ Bug 41 fix (Stage 1 two-branch routing and gate registration),
 Bug 42 fix (pre-stage-3 state persistence and reference indexing advancement),
 Bug 43 fix (two-branch routing invariant for Stage 4, Stage 5, redo profile, debug loop),
 Gate 6.5 (debug commit), quality gate execution,
+Bug 55 fix (Gate 6.2 FIX UNIT wired to rollback_to_unit, set_debug_classification
+wired into bug_triage dispatch, build_env fast path, phase-based debug routing),
 Bug 58 fix (Gate 5.3 unused_functions added to GATE_VOCABULARY and dispatch).
 """
 
@@ -133,14 +135,6 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
 # Cross-agent status (any agent receiving a hint)
 CROSS_AGENT_STATUS: str = "HINT_BLUEPRINT_CONFLICT"
 
-# Alias: GATE_RESPONSES mirrors GATE_VOCABULARY (same data, backward-compatible name)
-GATE_RESPONSES: Dict[str, List[str]] = GATE_VOCABULARY
-
-# Alias: CROSS_AGENT_STATUS_LINES maps status string to gate_id
-CROSS_AGENT_STATUS_LINES: Dict[str, str] = {
-    "HINT_BLUEPRINT_CONFLICT": "gate_hint_conflict",
-}
-
 # Command result status line patterns
 COMMAND_STATUS_PATTERNS: List[str] = [
     "TESTS_PASSED",  # "TESTS_PASSED: N passed"
@@ -182,7 +176,6 @@ _KNOWN_PHASES = {
     "stub_generation",
     "unit_completion",
     "quality_gate",  # NEW IN 2.1
-    "main",  # generic phase used in tests and update_state
 }
 
 
@@ -206,9 +199,9 @@ def _version_spec(project_root: Path, trigger_context: str) -> None:
 
 def _version_blueprint(project_root: Path, trigger_context: str) -> None:
     """Version blueprint prose and contracts as an atomic pair before revision."""
-    history_dir = project_root / "docs" / "history"
-    prose_path = project_root / "blueprints" / "blueprint_prose.md"
-    contracts_path = project_root / "blueprints" / "blueprint_contracts.md"
+    history_dir = project_root / "blueprint" / "history"
+    prose_path = project_root / "blueprint" / "blueprint_prose.md"
+    contracts_path = project_root / "blueprint" / "blueprint_contracts.md"
     for bp_path in [prose_path, contracts_path]:
         if bp_path.exists():
             version_document(bp_path, history_dir, "Revision triggered", trigger_context)
@@ -227,17 +220,13 @@ def _read_last_status(project_root: Path) -> Optional[str]:
     return None
 
 
-# Public alias: read_last_status exposes _read_last_status as a public function
-def read_last_status(project_root: Path) -> str:
-    """Read and return content of last_status.txt (public alias)."""
-    status_file = project_root / ".svp" / "last_status.txt"
-    if not status_file.exists():
-        return ""
-    return status_file.read_text(encoding="utf-8").strip()
-
-
 def _read_triage_affected_units(project_root: Path) -> List[int]:
-    """Read .svp/triage_result.json and return affected_units list, or [] if missing."""
+    """Read affected_units from .svp/triage_result.json if it exists.
+
+    Bug 55: The triage agent writes this file during triage to communicate
+    which units are affected. The routing dispatch reads it when processing
+    the triage agent's terminal status line.
+    """
     result_file = project_root / ".svp" / "triage_result.json"
     if result_file.exists():
         try:
@@ -369,7 +358,7 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             last_status = _read_last_status(project_root)
             if last_status == "PROFILE_COMPLETE":
                 return {
-                    "ACTION": "GATE",
+                    "ACTION": "human_gate",
                     "GATE_ID": "gate_0_3_profile_approval",
                     "OPTIONS": GATE_VOCABULARY["gate_0_3_profile_approval"],
                     "PREPARE": _gate_prepare_cmd("gate_0_3_profile_approval"),
@@ -377,7 +366,7 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 }
             else:
                 return {
-                    "ACTION": "AGENT",
+                    "ACTION": "invoke_agent",
                     "AGENT": "setup_agent",
                     "CONTEXT": "project_profile",
                     "PREPARE": _prepare_cmd("setup_agent"),
@@ -430,13 +419,15 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             # Bug 23: two-branch pattern for alignment check
             last_status = _read_last_status(project_root)
             if last_status == "ALIGNMENT_CONFIRMED":
-                # Present gate_2_2 to confirm blueprint alignment
-                return {
-                    "ACTION": "GATE",
-                    "GATE_ID": "gate_2_2_blueprint_post_review",
-                    "PREPARE": _gate_prepare_cmd("gate_2_2_blueprint_post_review"),
-                    "POST": _post_cmd("gate", gate_id="gate_2_2_blueprint_post_review"),
-                }
+                # Call complete_alignment_check to advance to Pre-Stage-3
+                new_state = complete_alignment_check(state, project_root)
+                # Bug 42: persist pre_stage_3 state to disk before recursive routing
+                # so that the POST command (update_state.py) reads the correct stage
+                from pipeline_state import save_state
+
+                save_state(new_state, project_root)
+                # After completing alignment check, route the new state
+                return route(new_state, project_root)
             elif last_status is not None and last_status.startswith("ALIGNMENT_FAILED"):
                 # Present human gate for decision
                 return {
@@ -530,17 +521,30 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             }
 
         elif sub_stage == "quality_gate_a_retry":
-            # Re-run the quality gate after agent fix
-            return {
-                "ACTION": "run_command",
-                "COMMAND": f"python scripts/run_quality_gate.py --gate gate_a --target tests/unit_{unit}/ --project-root .",
-                "POST": _post_cmd("quality_gate", unit=unit),
-            }
+            # Two-phase: check if agent completed
+            last_status = _read_last_status(project_root)
+            if last_status == "TEST_GENERATION_COMPLETE":
+                # Agent completed, re-run the gate
+                return {
+                    "ACTION": "run_command",
+                    "COMMAND": f"python scripts/run_quality_gate.py --gate gate_a --target tests/unit_{unit}/ --project-root .",
+                    "POST": _post_cmd("quality_gate", unit=unit),
+                }
+            else:
+                # No agent status: invoke test agent to fix
+                return {
+                    "ACTION": "invoke_agent",
+                    "AGENT": "test_agent",
+                    "CONTEXT": "quality_gate_retry",
+                    "UNIT": unit,
+                    "PREPARE": _prepare_cmd("test_agent", unit=unit),
+                    "POST": _post_cmd("test_generation", unit=unit),
+                }
 
         elif sub_stage == "red_run":
             return {
-                "ACTION": "COMMAND",
-                "COMMAND": f"python scripts/run_tests.py --test-path tests/unit_{unit}/ --project-root .",
+                "ACTION": "run_command",
+                "COMMAND": f"python scripts/run_tests.py --test-path tests/unit_{unit}/ --env-name {{env_name}} --project-root .",
                 "POST": _post_cmd("test_execution", unit=unit),
             }
 
@@ -584,8 +588,8 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
 
         elif sub_stage == "green_run":
             return {
-                "ACTION": "COMMAND",
-                "COMMAND": f"python scripts/run_tests.py --test-path tests/unit_{unit}/ --project-root .",
+                "ACTION": "run_command",
+                "COMMAND": f"python scripts/run_tests.py --test-path tests/unit_{unit}/ --env-name {{env_name}} --project-root .",
                 "POST": _post_cmd("test_execution", unit=unit),
             }
 
@@ -636,15 +640,21 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
 
     # Stage 5
     if stage == "5":
-        # Bug 43/55: phase-based routing for debug loop
+        # Bug 43 + Bug 55: phase-based routing for debug loop
         if state.debug_session is not None:
+            # Bug 55: access phase safely (DebugSession object or dict)
             ds = state.debug_session
             debug_phase = ds.phase if hasattr(ds, 'phase') else ds.get('phase', 'triage')
 
+            # Bug 55: stage3_reentry phase -- returning from Stage 3 rebuild.
+            # Fall through to normal Stage 5 routing (git_repo_agent reassembly).
             if debug_phase == "stage3_reentry":
-                pass  # Fall through to normal Stage 5 routing
+                pass  # Fall through to normal Stage 5 routing below
+
+            # Triage phases: check for completion or invoke triage
             elif debug_phase in ("triage_readonly", "triage"):
                 last_status = _read_last_status(project_root)
+                # Bug 55: exact status matching for build_env fast path
                 if last_status in ("TRIAGE_COMPLETE: single_unit", "TRIAGE_COMPLETE: cross_unit"):
                     return {
                         "ACTION": "human_gate",
@@ -658,9 +668,9 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                     return {
                         "ACTION": "invoke_agent",
                         "AGENT": "repair_agent",
-                        "CONTEXT": "debug",
+                        "CONTEXT": "repair",
                         "PREPARE": _prepare_cmd("repair_agent"),
-                        "POST": _post_cmd("debug"),
+                        "POST": _post_cmd("repair"),
                     }
                 elif last_status == "TRIAGE_NON_REPRODUCIBLE":
                     return {
@@ -678,15 +688,31 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                         "PREPARE": _prepare_cmd("bug_triage"),
                         "POST": _post_cmd("debug"),
                     }
-            else:
-                # Unknown phase: invoke triage
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "bug_triage",
-                    "CONTEXT": "debug",
-                    "PREPARE": _prepare_cmd("bug_triage"),
-                    "POST": _post_cmd("debug"),
-                }
+
+            # Repair phase or other active debug phases: invoke repair agent
+            elif debug_phase == "repair":
+                last_status = _read_last_status(project_root)
+                if last_status == "REPAIR_COMPLETE":
+                    pass  # Fall through to normal Stage 5 routing (reassembly)
+                elif last_status in ("REPAIR_FAILED", "REPAIR_RECLASSIFY"):
+                    return {
+                        "ACTION": "human_gate",
+                        "GATE_ID": "gate_6_3_repair_exhausted",
+                        "OPTIONS": GATE_VOCABULARY["gate_6_3_repair_exhausted"],
+                        "PREPARE": _gate_prepare_cmd("gate_6_3_repair_exhausted"),
+                        "POST": _post_cmd("gate", gate_id="gate_6_3_repair_exhausted"),
+                    }
+                else:
+                    return {
+                        "ACTION": "invoke_agent",
+                        "AGENT": "repair_agent",
+                        "CONTEXT": "repair",
+                        "PREPARE": _prepare_cmd("repair_agent"),
+                        "POST": _post_cmd("repair"),
+                    }
+
+            # Other debug phases (regression_test, complete): fall through
+            # to normal Stage 5 routing
 
         # Bug 43: two-branch routing for repo assembly
         if sub_stage is None:
@@ -891,23 +917,12 @@ def run_quality_gate(
             report_lines.append(f"Error: {str(e)}")
             report_lines.append("")
 
-    residuals = []
-    for d in details:
-        if d.get("exit_code", 0) != 0:
-            output = d.get("stdout", "").strip()
-            if output:
-                residuals.extend([ln for ln in output.split("\n") if ln.strip()])
-            err = d.get("stderr", "").strip()
-            if err:
-                residuals.extend([ln for ln in err.split("\n") if ln.strip()])
+    status = "residuals" if has_residuals else "clean"
+    report = "\n".join(report_lines) if report_lines else ""
 
     return {
-        "clean": not has_residuals,
-        "residuals": residuals,
-        "auto_fixed": False,
-        # Keep backward-compatible keys
-        "status": "residuals" if has_residuals else "clean",
-        "report": "\n".join(report_lines) if report_lines else "",
+        "status": status,
+        "report": report,
         "details": details,
     }
 
@@ -961,20 +976,7 @@ def dispatch_status(
         "regression_test": "test_agent",
         "debug": "bug_triage",
     }
-    agent_type = phase_to_agent.get(phase)
-    if agent_type is None:
-        # Scan all agent status lines to find the matching agent
-        for at, lines in AGENT_STATUS_LINES.items():
-            for known_line in lines:
-                if status_line == known_line or status_line.startswith(
-                    known_line.split(":")[0]
-                ):
-                    agent_type = at
-                    break
-            if agent_type is not None:
-                break
-    if agent_type is None:
-        agent_type = phase  # fallback, may raise in dispatch_agent_status
+    agent_type = phase_to_agent.get(phase, phase)
     return dispatch_agent_status(
         state, agent_type, status_line, unit, phase, project_root
     )
@@ -1221,17 +1223,30 @@ def dispatch_gate_response(
 
     elif gate_id == "gate_6_2_debug_classification":
         if response == "FIX UNIT":
-            # Bug 55: wire rollback_to_unit into Gate 6.2 FIX UNIT
+            # Bug 55: Wire rollback_to_unit into Gate 6.2 FIX UNIT
             if state.debug_session is None:
                 return state  # Safety: no debug session, no-op
-            affected = state.debug_session.affected_units if hasattr(state.debug_session, 'affected_units') else (state.debug_session.get('affected_units') if isinstance(state.debug_session, dict) else [])
+            affected = state.debug_session.affected_units
             if not affected:
                 return state  # Safety: no affected units identified
             unit_number = min(affected)
-            new_state = _try_transition(lambda: set_debug_classification(state, "single_unit", affected), state)
-            new_state = _try_transition(lambda: update_debug_phase(new_state, "stage3_reentry"), new_state)
-            new_state = _try_transition(lambda: rollback_to_unit(new_state, unit_number, project_root), new_state)
-            # Clear last_status.txt to prevent stale re-trigger after rebuild
+            # Set classification on debug session (belt and suspenders)
+            new_state = _try_transition(
+                lambda: set_debug_classification(state, "single_unit", affected),
+                state,
+            )
+            # Advance debug phase to stage3_reentry
+            new_state = _try_transition(
+                lambda: update_debug_phase(new_state, "stage3_reentry"),
+                new_state,
+            )
+            # Perform rollback: invalidate units from N forward, transition to Stage 3
+            new_state = _try_transition(
+                lambda: rollback_to_unit(new_state, unit_number, project_root),
+                new_state,
+            )
+            # Clear last_status.txt to prevent stale routing when pipeline
+            # re-enters Stage 5 after the rebuild
             status_file = project_root / ".svp" / "last_status.txt"
             if status_file.exists():
                 status_file.unlink()
@@ -1273,6 +1288,20 @@ def dispatch_gate_response(
             # Allow human edit or abort
             return state
 
+    elif gate_id == "gate_hint_conflict":
+        if response == "BLUEPRINT CORRECT":
+            # Discard the hint, continue with blueprint as-is
+            return state
+        else:  # HINT CORRECT
+            # Hint overrides blueprint -- trigger document revision and restart
+            _version_blueprint(project_root, "Gate H.1 HINT CORRECT")
+            return _try_transition(
+                lambda: restart_from_stage(
+                    state, "2", "hint conflict: hint correct", project_root
+                ),
+                state,
+            )
+
     # Fallback (should not reach here)
     return state
 
@@ -1286,10 +1315,6 @@ def dispatch_agent_status(
     project_root: Path,
 ) -> PipelineState:
     """Handle agent terminal status lines."""
-    # Validate agent type
-    if agent_type not in AGENT_STATUS_LINES:
-        raise ValueError(f"Unknown agent type: {agent_type}")
-
     # Validate phase
     if phase not in _KNOWN_PHASES:
         raise ValueError(f"Unknown phase: {phase}")
@@ -1346,13 +1371,11 @@ def dispatch_agent_status(
             return state
 
     elif agent_type == "test_agent":
-        if status_line in ("TEST_GENERATION_COMPLETE", "REGRESSION_TEST_COMPLETE"):
+        if status_line == "TEST_GENERATION_COMPLETE":
             # NEW IN 2.1: enter quality_gate_a sub-stage
             # Note: sub_stage may be None (normalized to test_generation by routing)
             if state.stage == "3" and state.sub_stage in (None, "test_generation"):
-                return _try_transition(
-                    lambda: enter_quality_gate(state, "quality_gate_a"), state
-                )
+                return enter_quality_gate(state, "quality_gate_a")
             # If in quality_gate_a_retry, keep sub-stage (agent fix completed)
             return state
 
@@ -1404,12 +1427,14 @@ def dispatch_agent_status(
             return enter_redo_profile_revision(state, "profile_blueprint")
 
     elif agent_type == "bug_triage":
-        # Bug 55: wire set_debug_classification from triage result
+        # Bug 55: parse classification and read affected_units from triage result
         if status_line.startswith("TRIAGE_COMPLETE:"):
             classification = status_line.split(": ", 1)[1].strip()
             affected_units = _read_triage_affected_units(project_root)
             return _try_transition(
-                lambda: set_debug_classification(state, classification, affected_units), state)
+                lambda: set_debug_classification(state, classification, affected_units),
+                state,
+            )
         return state
 
     elif agent_type == "repair_agent":
@@ -1441,13 +1466,11 @@ def dispatch_agent_status(
 def dispatch_command_status(
     state: PipelineState,
     status_line: str,
-    unit: Optional[int] = None,
-    phase: str = "quality_gate",
-    project_root: Optional[Path] = None,
+    unit: Optional[int],
+    phase: str,
+    project_root: Path,
 ) -> PipelineState:
     """Parse command result status lines and call appropriate transitions."""
-    if project_root is None:
-        project_root = Path(".")
     # Validate phase
     if phase not in _KNOWN_PHASES:
         raise ValueError(f"Unknown phase: {phase}")
@@ -1555,16 +1578,20 @@ def run_pytest(
 
         # Check for collection errors
         if _is_collection_error(output, toolchain):
-            return "TESTS_ERROR"
+            error_summary = (
+                output.strip().split("\n")[-1] if output.strip() else "collection error"
+            )
+            return f"TESTS_ERROR: {error_summary}"
 
         if result.returncode == 0:
-            return "TESTS_PASSED"
+            # Parse pass count from output
+            return f"TESTS_PASSED: {_extract_test_summary(output)}"
         else:
-            return "TESTS_FAILED"
+            return f"TESTS_FAILED: {_extract_test_summary(output)}"
     except subprocess.TimeoutExpired:
-        return "TESTS_ERROR"
-    except Exception:
-        return "TESTS_ERROR"
+        return "TESTS_ERROR: timeout"
+    except Exception as e:
+        return f"TESTS_ERROR: {str(e)}"
 
 
 def _extract_test_summary(output: str) -> str:
@@ -1672,7 +1699,9 @@ def _check_agent_type_consistency():
         pass
 
 
-def update_state_main(argv: Optional[List[str]] = None) -> None:
+def update_state_main(
+    argv: "Optional[List[str]]" = None,
+) -> None:
     """CLI entry point for update_state script.
 
     This is the actual POST command entry point. It reads the status file
@@ -1685,13 +1714,29 @@ def update_state_main(argv: Optional[List[str]] = None) -> None:
 
     parser = argparse.ArgumentParser(description="SVP Update State Script")
     parser.add_argument(
-        "--project-root", type=str, default=".", help="Project root directory"
+        "--project-root",
+        type=str,
+        default=".",
+        help="Project root directory",
     )
     parser.add_argument(
-        "--gate-id", type=str, default=None, help="Gate ID for gate responses"
+        "--gate-id",
+        type=str,
+        default=None,
+        help="Gate ID for gate responses",
     )
-    parser.add_argument("--unit", type=int, default=None, help="Unit number")
-    parser.add_argument("--phase", type=str, default="main", help="Current phase")
+    parser.add_argument(
+        "--unit",
+        type=int,
+        default=None,
+        help="Unit number",
+    )
+    parser.add_argument(
+        "--phase",
+        type=str,
+        default="main",
+        help="Current phase",
+    )
     args = parser.parse_args(argv)
 
     project_root = Path(args.project_root).resolve()
@@ -1712,26 +1757,37 @@ def update_state_main(argv: Optional[List[str]] = None) -> None:
     save_state(new_state, project_root)
 
 
-def run_tests_main(argv: Optional[List[str]] = None) -> None:
+def run_tests_main(
+    argv: "Optional[List[str]]" = None,
+) -> None:
     """CLI entry point for run_tests script."""
     import argparse
 
     parser = argparse.ArgumentParser(description="SVP Run Tests Script")
     parser.add_argument(
-        "test_path", nargs="?", default="tests", help="Path to test file or directory"
+        "test_path",
+        nargs="?",
+        default="tests",
+        help="Path to test file or directory",
     )
     parser.add_argument(
-        "--env-name", type=str, default="default", help="Conda environment name"
+        "--env-name",
+        type=str,
+        default="default",
+        help="Conda environment name",
     )
     parser.add_argument(
-        "--project-root", type=str, default=".", help="Project root directory"
+        "--project-root",
+        type=str,
+        default=".",
+        help="Project root directory",
     )
     parser.add_argument(
         "--test-path",
         type=str,
         default=None,
         dest="test_path_flag",
-        help="Alternative to positional (cross-unit CLI contract)",
+        help=("Alternative to positional (cross-unit CLI contract)"),
     )
     args = parser.parse_args(argv)
 
@@ -1743,7 +1799,9 @@ def run_tests_main(argv: Optional[List[str]] = None) -> None:
     print(result)
 
 
-def run_quality_gate_main(argv: Optional[List[str]] = None) -> None:
+def run_quality_gate_main(
+    argv: "Optional[List[str]]" = None,
+) -> None:
     """CLI entry point for run_quality_gate script.
 
     CLI args: gate_id (positional or --gate),
@@ -1794,18 +1852,15 @@ def run_quality_gate_main(argv: Optional[List[str]] = None) -> None:
     project_root = Path(args.project_root).resolve()
     target_path = Path(args.target)
 
-    # Determine env_name from project or CLI
-    if args.env_name != "default":
-        env_name = args.env_name
-    else:
-        try:
-            from svp_config import load_config
-            from pipeline_state import load_state
+    # Determine env_name from project
+    try:
+        from svp_config import load_config
+        from pipeline_state import load_state
 
-            state = load_state(project_root)
-            env_name = state.project_name or "svp"
-        except Exception:
-            env_name = "svp"
+        state = load_state(project_root)
+        env_name = state.project_name or "svp"
+    except Exception:
+        env_name = "svp"
 
     result = run_quality_gate(gate, target_path, env_name, project_root)
 
