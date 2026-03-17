@@ -126,7 +126,7 @@ Per-unit cycle (11 steps, Bug 36 fix adds stub generation):
 - Git repo agent assembles repository with prescribed commit order.
 - Assembly mapping: workspace src/unit_N/ → blueprint file tree paths.
 - Environment name in delivered `environment.yml` and `README.md` must use canonical `derive_env_name()` from Unit 1, not independent derivation (Bug 27 fix).
-- Quality Gate C: format check + full lint + full mypy (cross-unit, no --ignore-missing-imports).
+- Quality Gate C: format check + full lint + full mypy (cross-unit, no --ignore-missing-imports). Includes unused exported function detection (`linter.unused_exports`); if unused functions are found, presents Gate 5.3 (Bug 56).
 - Structural validation includes Gate C and compliance scan.
 - Bounded fix cycle: 3 attempts, then Gate 5.2.
 - Compliance scan (Layer 3): AST-based, subprocess calls only, delivery environment rules.
@@ -212,6 +212,7 @@ Per-unit cycle (11 steps, Bug 36 fix adds stub generation):
 | 4.2 | gate_4_2_assembly_exhausted | FIX BLUEPRINT, FIX SPEC |
 | 5.1 | gate_5_1_repo_test | TESTS PASSED, TESTS FAILED |
 | 5.2 | gate_5_2_assembly_exhausted | RETRY ASSEMBLY, FIX BLUEPRINT, FIX SPEC |
+| 5.3 | gate_5_3_unused_functions | FIX SPEC, OVERRIDE CONTINUE |
 | 6.0 | gate_6_0_debug_permission | AUTHORIZE DEBUG, ABANDON DEBUG |
 | 6.1 | gate_6_1_regression_test | TEST CORRECT, TEST WRONG |
 | 6.2 | gate_6_2_debug_classification | FIX UNIT, FIX BLUEPRINT, FIX SPEC |
@@ -443,7 +444,7 @@ Note: Both redo profile sub-stages are governed by the two-branch routing invari
 - **Quality Gate:** Deterministic pre-processing step running formatting, linting, and/or type checking. Not a stage. Not a fix ladder position.
 - **Quality Gate A:** Post-test, pre-red-run. Format + light lint (E, F, I). No type check on tests.
 - **Quality Gate B:** Post-implementation, pre-green-run. Format + heavy lint + mypy --ignore-missing-imports.
-- **Quality Gate C:** Stage 5 structural validation. Format check + full lint + full mypy (cross-unit, no --ignore-missing-imports). Uses `{target}` resolved to assembled project source directory (target resolution is layout-dependent).
+- **Quality Gate C:** Stage 5 structural validation. Format check + full lint + full mypy (cross-unit, no --ignore-missing-imports). Includes unused exported function detection (`linter.unused_exports`); if unused functions are found, presents Gate 5.3 (`gate_5_3_unused_functions`) with FIX SPEC (strongly recommended) or OVERRIDE CONTINUE. Uses `{target}` resolved to assembled project source directory (target resolution is layout-dependent).
 - **Gate Composition:** Operations each gate runs, from toolchain.json gate_a/gate_b/gate_c lists. Data-driven.
 - **Auto-fix:** Deterministic in-place file modification (formatting, import sorting, simple lint). Runs before agent involvement.
 - **Quality Residual:** Issue auto-fix cannot resolve. Triggers one agent re-pass. Then fix ladder.
