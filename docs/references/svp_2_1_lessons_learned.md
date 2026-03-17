@@ -860,4 +860,18 @@ After a successful repair in the debug loop, the triage agent's Step 6 instructs
 
 ---
 
+### Bug 53 -- Orphaned functions: reset_fix_ladder, reset_alignment_iteration, record_pass_end
+
+**Caught:** Post-delivery (SVP 2.1 QC audit). **Test:** `tests/regressions/test_bug53_orphaned_functions.py`
+
+Three functions in `state_transitions.py` were implemented, tested, and imported (by `routing.py`) but never actually called by any pipeline code. Their behavior -- resetting fix_ladder_position, resetting alignment_iteration, and recording pass history -- was already performed inline by `restart_from_stage` and `complete_unit`. The functions were dead code that inflated the public API surface and created a false impression of coverage.
+
+**Root cause:** During implementation, the blueprint specified these as standalone transition functions. Later, `restart_from_stage` was designed to handle all counter resets and pass history recording as part of its atomic restart operation. The standalone functions were never removed because they had passing tests and no caller verified they were needed.
+
+**Pattern:** P1 (Dead code from superseded design). Functions implemented per an early blueprint version survived because they had tests, but the higher-level function that subsumed their behavior was never cross-referenced to identify the redundancy.
+
+**Prevention:** (1) When a higher-level function performs the same state mutations as a lower-level function, the lower-level function should be removed or the blueprint should document why both exist. (2) Unused-import linting (ruff F401) should be enforced in CI to catch imported-but-never-called functions. (3) Periodic dead code audits should verify that every exported function has at least one non-test caller.
+
+---
+
 *End of lessons learned.*

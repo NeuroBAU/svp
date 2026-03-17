@@ -274,15 +274,6 @@ class TestUnit3Immutability:
             state_transitions.advance_sub_stage(state2, "test_generation", root)
             assert state2.to_dict() == orig2, "advance_sub_stage mutated input"
 
-            # reset_fix_ladder
-            state3 = pipeline_state.PipelineState(
-                stage="3",
-                fix_ladder_position="retry",
-            )
-            orig3 = state3.to_dict()
-            state_transitions.reset_fix_ladder(state3)
-            assert state3.to_dict() == orig3, "reset_fix_ladder mutated input"
-
 
 # ======================================================= #
 # Unit 6 tests                                            #

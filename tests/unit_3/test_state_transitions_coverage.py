@@ -1150,30 +1150,6 @@ class TestImmutabilityAdditional:
         increment_alignment_iteration(state)
         assert state.to_dict() == old_dict
 
-    def test_reset_alignment_immutable(self):
-        from state_transitions import (
-            reset_alignment_iteration,
-        )
-
-        state = _make_state(
-            alignment_iteration=2,
-        )
-        old_dict = state.to_dict()
-        reset_alignment_iteration(state)
-        assert state.to_dict() == old_dict
-
-    def test_reset_fix_ladder_immutable(self):
-        from state_transitions import (
-            reset_fix_ladder,
-        )
-
-        state = _make_state(
-            fix_ladder_position="fresh_test",
-        )
-        old_dict = state.to_dict()
-        reset_fix_ladder(state)
-        assert state.to_dict() == old_dict
-
     def test_authorize_debug_immutable(self):
         from state_transitions import (
             authorize_debug_session,

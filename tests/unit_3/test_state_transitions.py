@@ -361,34 +361,6 @@ class TestAdvanceFixLadder:
 
 
 # ---------------------------------------------------------------
-# Section 6: reset_fix_ladder
-# ---------------------------------------------------------------
-
-
-class TestResetFixLadder:
-    def test_returns_new_state(self):
-        from state_transitions import reset_fix_ladder
-
-        state = _make_state(fix_ladder_position="fresh_test")
-        result = reset_fix_ladder(state)
-        assert result is not state
-
-    def test_resets_to_none(self):
-        from state_transitions import reset_fix_ladder
-
-        state = _make_state(fix_ladder_position="diagnostic")
-        result = reset_fix_ladder(state)
-        assert result.fix_ladder_position is None
-
-    def test_does_not_mutate_input(self):
-        from state_transitions import reset_fix_ladder
-
-        state = _make_state(fix_ladder_position="fresh_test")
-        reset_fix_ladder(state)
-        assert state.fix_ladder_position == "fresh_test"
-
-
-# ---------------------------------------------------------------
 # Section 7: increment/reset red_run_retries
 # ---------------------------------------------------------------
 
@@ -484,79 +456,6 @@ class TestIncrementAlignmentIteration:
         increment_alignment_iteration(state)
         assert state.alignment_iteration == 0
 
-
-class TestResetAlignmentIteration:
-    def test_returns_new_state(self):
-        from state_transitions import (
-            reset_alignment_iteration,
-        )
-
-        state = _make_state(alignment_iteration=3)
-        result = reset_alignment_iteration(state)
-        assert result is not state
-
-    def test_resets_to_zero(self):
-        from state_transitions import (
-            reset_alignment_iteration,
-        )
-
-        state = _make_state(alignment_iteration=4)
-        result = reset_alignment_iteration(state)
-        assert result.alignment_iteration == 0
-
-    def test_does_not_mutate_input(self):
-        from state_transitions import (
-            reset_alignment_iteration,
-        )
-
-        state = _make_state(alignment_iteration=2)
-        reset_alignment_iteration(state)
-        assert state.alignment_iteration == 2
-
-
-# ---------------------------------------------------------------
-# Section 9: record_pass_end
-# ---------------------------------------------------------------
-
-
-class TestRecordPassEnd:
-    def test_returns_new_state(self):
-        from state_transitions import record_pass_end
-
-        state = _make_state()
-        result = record_pass_end(state, "completed")
-        assert result is not state
-
-    def test_appends_to_pass_history(self):
-        from state_transitions import record_pass_end
-
-        state = _make_state(pass_history=[])
-        result = record_pass_end(state, "all units verified")
-        assert len(result.pass_history) == 1
-
-    def test_reason_recorded(self):
-        from state_transitions import record_pass_end
-
-        state = _make_state(pass_history=[])
-        result = record_pass_end(state, "all units verified")
-        entry = result.pass_history[0]
-        assert entry.get("reason") == ("all units verified")
-
-    def test_does_not_mutate_input(self):
-        from state_transitions import record_pass_end
-
-        state = _make_state(pass_history=[])
-        record_pass_end(state, "done")
-        assert len(state.pass_history) == 0
-
-    def test_pass_history_append_only(self):
-        from state_transitions import record_pass_end
-
-        existing = [{"reason": "first", "ts": "x"}]
-        state = _make_state(pass_history=existing)
-        result = record_pass_end(state, "second")
-        assert len(result.pass_history) == 2
-        assert result.pass_history[0]["reason"] == "first"
 
 
 # ---------------------------------------------------------------
@@ -1247,13 +1146,6 @@ class TestImmutabilityInvariant:
         enter_debug_session(state, "bug")
         assert state.to_dict() == old_dict
 
-    def test_record_pass_end_immutable(self):
-        from state_transitions import record_pass_end
-
-        state = _make_state(pass_history=[])
-        old_dict = state.to_dict()
-        record_pass_end(state, "done")
-        assert state.to_dict() == old_dict
 
     def test_set_delivered_repo_path_immutable(self):
         from state_transitions import (

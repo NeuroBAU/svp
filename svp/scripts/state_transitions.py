@@ -182,13 +182,6 @@ def advance_fix_ladder(state: PipelineState, new_position: str) -> PipelineState
     return new_state
 
 
-def reset_fix_ladder(state: PipelineState) -> PipelineState:
-    """Reset the fix ladder position to None."""
-    new_state = _clone_state(state)
-    new_state.fix_ladder_position = None
-    new_state.last_action = "Reset fix ladder"
-    return new_state
-
 
 def increment_red_run_retries(state: PipelineState) -> PipelineState:
     """Increment the red run retry counter."""
@@ -227,31 +220,6 @@ def increment_alignment_iteration(state: PipelineState) -> PipelineState:
     return new_state
 
 
-def reset_alignment_iteration(state: PipelineState) -> PipelineState:
-    """Reset the alignment iteration counter to zero."""
-    new_state = _clone_state(state)
-    new_state.alignment_iteration = 0
-    new_state.last_action = "Reset alignment_iteration"
-    return new_state
-
-
-def record_pass_end(state: PipelineState, reason: str) -> PipelineState:
-    """Record end of current pass in pass_history."""
-    now = datetime.now(timezone.utc).isoformat()
-    pass_number = len(state.pass_history) + 1
-    reached_unit = state.current_unit or 0
-
-    new_state = _clone_state(state)
-    new_state.pass_history = list(new_state.pass_history) + [
-        {
-            "pass_number": pass_number,
-            "reached_unit": reached_unit,
-            "reason": reason,
-            "timestamp": now,
-        }
-    ]
-    new_state.last_action = f"Recorded pass {pass_number} end: {reason}"
-    return new_state
 
 
 def rollback_to_unit(state: PipelineState, unit_number: int, project_root: Path) -> PipelineState:
