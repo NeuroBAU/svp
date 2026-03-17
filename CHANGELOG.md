@@ -72,7 +72,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bug 45: `dispatch_command_status` for `test_execution` advances state
 - Bug 46: `dispatch_agent_status` for `coverage_review` advances to `unit_completion`
 - Bug 47: `unit_completion` COMMAND/POST separation (no double dispatch)
+- Bug 52: Wired `version_document()` into `dispatch_gate_response` REVISE branches — document version tracking (spec Section 23) was non-functional
 - Bug 53: Removed orphaned dead-code functions (`reset_fix_ladder`, `reset_alignment_iteration`, `record_pass_end`)
+- Bug 54: Removed orphaned hollow function `update_state_from_status` — blueprint-specified entry point that was never implemented or called; `update_state_main` → `dispatch_status` is the actual dispatch path
+- Bug 55: Wired `rollback_to_unit` into Gate 6.2 FIX UNIT dispatch — corrected spec's incorrect "verified_units not modified" to invalidate-and-rebuild semantics; fixed build_env fast path; added triage_result.json structured output; added phase-based Stage 5 debug routing; changed rollback from copy-to-backup to delete
+- Bug 56: Added Downstream Dependency Invariant (Section 3.18), Contract Granularity Rules (Section 3.19), Gate C unused exported function detection, Gate 5.3 human gate for unused function findings
+- Bug 57: Baked mandatory review checklists into stakeholder reviewer, blueprint reviewer, and blueprint checker agent definitions
 
 ## [2.0.0] - 2025-12-01
 

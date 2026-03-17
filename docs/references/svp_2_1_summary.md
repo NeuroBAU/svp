@@ -466,6 +466,9 @@ Note: Both redo profile sub-stages are governed by the two-branch routing invari
 - **Stakeholder Spec:** First-tier document. Natural language requirements. Single source of truth for intent. Always clean — working notes absorbed at iteration boundaries.
 - **Blueprint:** Two paired files: `blueprint_prose.md` (Tier 1) and `blueprint_contracts.md` (Tier 2 + Tier 3). Atomic pair — versioned together, submitted together, checked together. Single source of truth for implementation structure.
 - **Unit:** Smallest independently testable code. Three tiers: description, machine-readable signatures, behavioral contracts.
+- **Tier 1 (Unit Description):** High-level prose description of a unit's purpose, responsibilities, and role in the pipeline. Lives in `blueprint_prose.md`.
+- **Tier 2 (Function Signatures):** Complete list of exported functions with their parameter names, types, return types, and default values. Defines the unit's public API surface. Lives in `blueprint_contracts.md`.
+- **Tier 3 (Behavioral Contracts):** Discrete, testable behavioral claims for each exported function — preconditions, postconditions, error conditions, state mutations, and dependencies. Must be sufficient for deterministic reimplementation by an agent reading only the Tier 2 signature and Tier 3 contract. Lives in `blueprint_contracts.md`.
 - **Machine-Readable Signatures:** Python ast-parseable signatures with type annotations and imports.
 - **Contract:** Explicit interface definition between units. Behavioral claims + type signatures.
 - **Invariant:** Condition holding before and after execution. Python assert statements in Tier 2.
