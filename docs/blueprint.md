@@ -1445,6 +1445,7 @@ ALL_GATE_IDS: List[str] = [
     "gate_3_1_test_validation", "gate_3_2_diagnostic_decision",
     "gate_4_1_integration_failure", "gate_4_2_assembly_exhausted",
     "gate_5_1_repo_test", "gate_5_2_assembly_exhausted",
+    "gate_5_3_unused_functions",
     "gate_6_0_debug_permission", "gate_6_1_regression_test",
     "gate_6_2_debug_classification", "gate_6_3_repair_exhausted",
     "gate_6_4_non_reproducible", "gate_6_5_debug_commit",
@@ -1580,6 +1581,7 @@ GATE_RESPONSES: Dict[str, List[str]] = {
     "gate_4_2_assembly_exhausted": ["FIX BLUEPRINT", "FIX SPEC"],
     "gate_5_1_repo_test": ["TESTS PASSED", "TESTS FAILED"],
     "gate_5_2_assembly_exhausted": ["RETRY ASSEMBLY", "FIX BLUEPRINT", "FIX SPEC"],
+    "gate_5_3_unused_functions": ["FIX SPEC", "OVERRIDE CONTINUE"],
     "gate_6_0_debug_permission": ["AUTHORIZE DEBUG", "ABANDON DEBUG"],
     "gate_6_1_regression_test": ["TEST CORRECT", "TEST WRONG"],
     "gate_6_2_debug_classification": ["FIX UNIT", "FIX BLUEPRINT", "FIX SPEC"],
@@ -2214,7 +2216,7 @@ assert "src.unit_" in GIT_REPO_AGENT_MD_CONTENT or "cross-unit import" in GIT_RE
 
   **Stub sentinel validation:** After assembly, scan all Python source files for `__SVP_STUB__`. Any match is an immediate structural validation failure.
 
-  **Quality Gate C:** Runs during structural validation. `ruff format --check`, `ruff check`, `mypy` (without `--ignore-missing-imports`), then unused exported function detection via `ruff check --select F811` (Bug 56 fix: catches functions defined but never called, the pattern that produced Bugs 52-55).
+  **Quality Gate C:** Runs during structural validation. `ruff format --check`, `ruff check`, `mypy` (without `--ignore-missing-imports`), then unused exported function detection via `ruff check --select F811` (Bug 56 fix). If unused exported functions are found, presents human gate `gate_5_3_unused_functions` with options FIX SPEC (strongly recommended) or OVERRIDE CONTINUE. Format/lint/type issues enter the bounded fix cycle as before.
 
   **Delivered quality configuration:** Generates quality tool config from profile `quality` section. Changelog from `vcs.changelog`. Commit style from `vcs.commit_style`. README per profile preferences with carry-forward for Mode A (Bug 30 fix).
 

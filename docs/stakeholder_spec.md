@@ -1568,9 +1568,15 @@ During Stage 5 structural validation, after assembly and before the compliance s
 
 **Purpose:** Catch cross-unit interface mismatches, naming collisions, and inconsistencies not visible at the single-unit level. Gate B checks each unit with `--ignore-missing-imports`; Gate C checks the assembled whole with full type resolution.
 
-**Unused exported function detection (NEW IN 2.1 -- Bug 56 fix).** After lint and type check pass, Gate C scans the assembled codebase for exported functions (functions listed in Tier 2 signatures) that are defined but never called from any other module. This is a dead code detection check that catches functions implemented but never wired into the dispatch path (the pattern that produced Bugs 52-55). The check uses ruff's F811 rule or a custom AST-based scan -- whatever fits the existing quality tool pipeline. Functions that are only called from tests are NOT considered unused (test-only usage is valid). If unused exported functions are found, Gate C fails. Gate C failure enters the existing Stage 5 bounded fix cycle (Section 12.4).
+**Unused exported function detection (NEW IN 2.1 -- Bug 56 fix).** After lint and type check pass, Gate C scans the assembled codebase for exported functions (functions listed in Tier 2 signatures) that are defined but never called from any other module. This is a dead code detection check that catches functions implemented but never wired into the dispatch path (the pattern that produced Bugs 52-55). The check uses ruff's F811 rule or a custom AST-based scan -- whatever fits the existing quality tool pipeline. Functions that are only called from tests are NOT considered unused (test-only usage is valid).
 
-**If issues found:** They enter the existing Stage 5 bounded fix cycle (Section 12.4) as structural validation failures. Gate C findings are included as context in the next bounded fix cycle iteration — a fresh git repo agent invocation receives the quality report along with other structural validation failures. The agent is single-shot; it does not iterate internally. No new mechanism needed.
+**If unused exported functions are found:** Gate C does NOT automatically fail or trigger a restart. Instead, the pipeline presents a human gate -- Gate 5.3 (`gate_5_3_unused_functions`) -- with the findings (which functions, where defined, no call site found). The gate **strongly recommends** the human invoke `/svp:redo` to go back and fix the spec/blueprint, since unused exported functions typically indicate a spec-level or blueprint-level gap. The human can choose:
+- **FIX SPEC** -- invoke the equivalent of `/svp:redo` to address the structural gap (strongly recommended)
+- **OVERRIDE CONTINUE** -- acknowledge the dead code and proceed with delivery; the human takes responsibility for the unused functions
+
+This is a human judgment gate, not an automatic failure. The human may have valid reasons to ship with unused functions (e.g., public API surface intended for external callers, future extension points). The pipeline surfaces the finding; the human decides.
+
+**If other issues found (format, lint, type check):** They enter the existing Stage 5 bounded fix cycle (Section 12.4) as structural validation failures. Gate C findings are included as context in the next bounded fix cycle iteration — a fresh git repo agent invocation receives the quality report along with other structural validation failures. The agent is single-shot; it does not iterate internally. No new mechanism needed.
 
 ### 12.3 Structural Validation (CHANGED IN 2.1)
 
@@ -2173,6 +2179,7 @@ Every gate response is written to `.svp/last_status.txt` as the exact string the
 | 4.2 | gate_4_2_assembly_exhausted | FIX BLUEPRINT, FIX SPEC |
 | 5.1 | gate_5_1_repo_test | TESTS PASSED, TESTS FAILED |
 | 5.2 | gate_5_2_assembly_exhausted | RETRY ASSEMBLY, FIX BLUEPRINT, FIX SPEC |
+| 5.3 | gate_5_3_unused_functions | FIX SPEC, OVERRIDE CONTINUE |
 | 6.0 | gate_6_0_debug_permission | AUTHORIZE DEBUG, ABANDON DEBUG |
 | 6.1 | gate_6_1_regression_test | TEST CORRECT, TEST WRONG |
 | 6.2 | gate_6_2_debug_classification | FIX UNIT, FIX BLUEPRINT, FIX SPEC |
