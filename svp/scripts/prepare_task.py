@@ -309,13 +309,20 @@ def _safe_load_reference_summaries(project_root: Path) -> Optional[str]:
         return None
 
 
-def _get_unit_context(project_root: Path, unit_number: int) -> str:
-    """Get unit context via Unit 5 blueprint extractor."""
+def _get_unit_context(project_root: Path, unit_number: int, include_tier1: bool = True) -> str:
+    """Get unit context via Unit 5 blueprint extractor.
+
+    Args:
+        project_root: Path to the project root.
+        unit_number: The unit number to extract context for.
+        include_tier1: If False, excludes Tier 1 prose descriptions.
+            Pass False for test_agent and implementation_agent per spec Section 3.16.
+    """
     try:
         from blueprint_extractor import build_unit_context
 
         bp_path = project_root / ARTIFACT_FILENAMES.get("blueprint_dir", "blueprint")
-        return build_unit_context(bp_path, unit_number)
+        return build_unit_context(bp_path, unit_number, include_tier1=include_tier1)
     except Exception:
         return f"(Unit {unit_number} context not available.)"
 
@@ -418,7 +425,7 @@ def _assemble_sections_for_agent(
 
     elif agent_type == "test_agent":
         if unit_number is not None:
-            sections["unit_context"] = _get_unit_context(project_root, unit_number)
+            sections["unit_context"] = _get_unit_context(project_root, unit_number, include_tier1=False)
         # testing.readable_test_names from profile
         profile_sections = load_profile_sections(project_root, ["testing"])
         if profile_sections:
@@ -431,7 +438,7 @@ def _assemble_sections_for_agent(
 
     elif agent_type == "implementation_agent":
         if unit_number is not None:
-            sections["unit_context"] = _get_unit_context(project_root, unit_number)
+            sections["unit_context"] = _get_unit_context(project_root, unit_number, include_tier1=False)
         # In fix ladder positions: add diagnostic guidance, prior failure output
         if ladder_position:
             diag_path = project_root / ".svp" / "diagnostic_guidance.md"
