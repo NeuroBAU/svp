@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update). Bug 59 discovered post-delivery (stale blueprints/ directory, critical implementation bugs, stakeholder spec gaps). Bug 60 discovered post-delivery (broken _get_unit_context path and stale fallback ARTIFACT_FILENAMES).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-58)
+## Part 1: Unified Bug Catalog (Bugs 1-60)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -944,6 +944,50 @@ Gate 5.3 (`gate_5_3_unused_functions`) was specified in the stakeholder spec (Se
 **Prevention:** (1) When adding a new gate to the spec/blueprint, a checklist must verify it is added to GATE_VOCABULARY, ALL_GATE_IDS, dispatch_gate_response, and the existing test expected sets. (2) A structural test should verify that every gate ID in the spec's gate vocabulary table appears in GATE_VOCABULARY (spec-to-code consistency, not just code-to-code).
 
 **Changes:** (a) `routing.py`: added `gate_5_3_unused_functions` to GATE_VOCABULARY, added dispatch handler (FIX SPEC restarts from Stage 1, OVERRIDE CONTINUE proceeds). (b) `prepare_task.py`: added `gate_5_3_unused_functions` to ALL_GATE_IDS. (c) `svp_2_1_summary.md`: 21 gaps fixed (triage_result.json, build_env fast path, phase-based debug routing, Downstream Dependency Invariant, Contract Granularity Rules, Review Enforcement, version_document mechanism, regression test table, Gate 5.3 in Stage 5 diagram, set_debug_classification, pattern catalog entries, glossary additions).
+
+### Bug 59 -- Stale blueprints/ Directory, Critical Implementation Bugs, and Spec Gaps
+
+**Caught:** Post-delivery (spec audit, code review). **Test:** `test_bug59_blueprint_path_and_gates.py`.
+
+Multiple related issues discovered during comprehensive audit:
+
+1. **Stale `blueprints/` directory:** A prior-iteration directory diverging architecturally from canonical `blueprint/` (singular). Removed entirely.
+2. **`_version_blueprint` hardcoded wrong path:** Used `blueprints/` instead of `blueprint/`. Fixed to use `blueprint/`.
+3. **`advance_stage` checked old single-file format:** Checked for `blueprint/blueprint.md` instead of `blueprint_prose.md` and `blueprint_contracts.md`. Fixed to use two-file format.
+4. **`load_blueprint` used old format:** Referenced `ARTIFACT_FILENAMES["blueprint"]` mapping to `"blueprint.md"`. Fixed to load both prose and contracts files.
+5. **`ALL_GATE_IDS` missing `gate_hint_conflict`:** Added. Now synchronized with `GATE_VOCABULARY`.
+6. **`AGENT_STATUS_LINES["test_agent"]` missing `REGRESSION_TEST_COMPLETE`:** Added.
+7. **`GATE_VOCABULARY` missing `gate_hint_conflict`:** Added with responses `["BLUEPRINT CORRECT", "HINT CORRECT"]`.
+8. **`ARTIFACT_FILENAMES` in Unit 1:** Replaced individual `blueprint_prose`/`blueprint_contracts` keys with `blueprint_dir: "blueprint"`.
+9. **`DebugSession` missing fields:** Added `triage_refinement_count` and `repair_retry_count` (both `int`, default 0).
+10. **`version_document` missing `companion_paths`:** Added parameter for atomic multi-file versioning.
+11. **`_FIX_LADDER_TRANSITIONS` cross-branch error:** `hint_test` incorrectly allowed transition to `fresh_impl`. Fixed to `[]`.
+12. **Undocumented `investigation` phase:** Removed from `_DEBUG_PHASE_TRANSITIONS`.
+13. **Spec gaps:** Multiple sections updated (triage_result.json, Gate 5.3 FIX SPEC trigger, DebugSession schema, regression test table, gate_hint_conflict resolution, P1-P9, Section 24 failure modes).
+
+**Pattern:** P9 (Accumulated drift). Multiple small mismatches accumulated across spec, blueprint, and implementation without triggering any single test failure. Each was individually minor; together they represented significant architectural inconsistency.
+
+**Prevention:** Periodic comprehensive audit comparing spec gate/status/schema definitions against implementation registries. Automated structural tests should verify bidirectional consistency between all three document layers (spec, blueprint, code).
+
+---
+
+
+### Bug 60 -- Broken _get_unit_context and Stale Fallback ARTIFACT_FILENAMES
+
+**Caught:** Post-delivery (code review). **Test:** `test_bug60_unit_context_blueprint_path.py`.
+
+Two related issues in `scripts/prepare_task.py` (Unit 9):
+
+1. **Fallback `ARTIFACT_FILENAMES` stale key:** The fallback dict still had `"blueprint": "blueprint.md"` instead of `"blueprint_dir": "blueprint"`. After Bug 59 changed Unit 1 to use `blueprint_dir`, this fallback was never updated.
+2. **`_get_unit_context` wrong path construction:** Line 317 used `project_root / "blueprint" / ARTIFACT_FILENAMES["blueprint"]` which resolved to `blueprint/blueprint.md` (a file that does not exist in the two-file split format). This caused `build_unit_context` to fail silently, returning the placeholder `"(Unit N context not available.)"` for ALL agents that use unit context (test_agent, implementation_agent, coverage_review, diagnostic_agent, redo_agent).
+
+**Impact:** All agents receiving unit context were silently getting no blueprint information, operating without knowledge of the unit they were supposed to work on.
+
+**Fix:** Changed fallback key to `"blueprint_dir": "blueprint"`. Changed `_get_unit_context` to use `project_root / ARTIFACT_FILENAMES.get("blueprint_dir", "blueprint")`, passing the directory (not a file) to `build_unit_context`.
+
+**Pattern:** P3 (Stale cross-unit reference). Bug 59 updated Unit 1 ARTIFACT_FILENAMES but did not propagate the key rename to Unit 9 prepare_task.py fallback dict and _get_unit_context.
+
+**Prevention:** When renaming keys in shared dictionaries (ARTIFACT_FILENAMES), grep all consumers in the codebase and update them atomically. Add regression tests that verify consumers can actually resolve the paths they construct.
 
 ---
 

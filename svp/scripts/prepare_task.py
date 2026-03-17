@@ -21,7 +21,7 @@ except ImportError:
     # Fallback if svp_config is not on the path yet
     ARTIFACT_FILENAMES: Dict[str, str] = {
         "stakeholder_spec": "stakeholder_spec.md",
-        "blueprint": "blueprint.md",
+        "blueprint_dir": "blueprint",
         "project_context": "project_context.md",
         "project_profile": "project_profile.json",
         "pipeline_state": "pipeline_state.json",
@@ -314,7 +314,7 @@ def _get_unit_context(project_root: Path, unit_number: int) -> str:
     try:
         from blueprint_extractor import build_unit_context
 
-        bp_path = project_root / "blueprint" / ARTIFACT_FILENAMES["blueprint"]
+        bp_path = project_root / ARTIFACT_FILENAMES.get("blueprint_dir", "blueprint")
         return build_unit_context(bp_path, unit_number)
     except Exception:
         return f"(Unit {unit_number} context not available.)"
