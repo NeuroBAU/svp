@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-57)
+## Part 1: Unified Bug Catalog (Bugs 1-58)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43 (25 of 43 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58 (36 of 58 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -525,12 +525,16 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43 (10 of 43 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50 (13 of 58 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
 **Instances:** Bug 31.
 A function is rewritten during a version upgrade and loses edge cases, search paths, or validation logic from the previous version. The implementation agent generates fresh code without consulting the prior implementation. **Prevention:** When a blueprint says "unchanged from vN," the blueprint must enumerate the actual contract (paths, values, validation rules) so the implementation agent cannot independently reinvent a reduced version. The prior version's implementation should be included in the task prompt for any function marked as "unchanged" or "carried forward."
+
+### P9 — Spec Structural Gap
+**Instances:** Bugs 56, 57.
+The spec provides a principle but not the granularity rules needed to operationalize it. Reviewers and checkers have no structural criteria to verify, so they cannot catch the gap. **Prevention:** Spec principles must be accompanied by enumerated verification criteria. Review agents must carry mandatory checklists derived from these criteria.
 
 ---
 
@@ -925,6 +929,21 @@ Bug 57 adds a second, complementary defense layer: mandatory review checklists b
 **Prevention:** (1) Section 3.20 (Review Enforcement) added to spec, requiring mandatory checklists in all reviewer agent definitions. (2) Stakeholder reviewer, blueprint checker, and blueprint reviewer agent definitions updated with explicit checklist items. (3) Blueprint Tier 1/Tier 3 contracts updated to reflect Bug 57 expansion. (4) Two-tier defense model documented: LLM-driven review (authoring time) + Gate C deterministic check (assembly time).
 
 **Changes:** (a) `review_agents.py` / `unit_14/stub.py`: added mandatory review checklist items to all three agent definitions. (b) `stakeholder_spec.md`: added Section 3.20 (Review Enforcement -- Baked Checklists). (c) `blueprint.md` and `blueprint_contracts.md`: updated Unit 14 descriptions and behavioral contracts.
+
+
+---
+
+### Bug 58 -- Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update
+
+**Caught:** Post-delivery (SVP 2.1 debug session, audit of routing.py against spec/blueprint). **Test:** `tests/regressions/test_bug58_gate_5_3_unused_functions.py`.
+
+Gate 5.3 (`gate_5_3_unused_functions`) was specified in the stakeholder spec (Section 12.2), both blueprint files (GATE_VOCABULARY and ALL_GATE_IDS), and the summary gate table, but was never added to routing.py's `GATE_VOCABULARY` dict or prepare_task.py's `ALL_GATE_IDS` list. The gate could not actually be presented by the pipeline. Additionally, the `dispatch_gate_response` function had no handler for the gate's two responses (FIX SPEC, OVERRIDE CONTINUE).
+
+**Pattern:** P1 (Cross-unit contract drift). The spec and blueprint defined the gate; the implementation never received it. The existing gate ID consistency test (`test_bug43`) would have caught this if the gate had been added to one of the two registries but not the other -- but since it was missing from both, the sets remained equal and the test passed.
+
+**Prevention:** (1) When adding a new gate to the spec/blueprint, a checklist must verify it is added to GATE_VOCABULARY, ALL_GATE_IDS, dispatch_gate_response, and the existing test expected sets. (2) A structural test should verify that every gate ID in the spec's gate vocabulary table appears in GATE_VOCABULARY (spec-to-code consistency, not just code-to-code).
+
+**Changes:** (a) `routing.py`: added `gate_5_3_unused_functions` to GATE_VOCABULARY, added dispatch handler (FIX SPEC restarts from Stage 1, OVERRIDE CONTINUE proceeds). (b) `prepare_task.py`: added `gate_5_3_unused_functions` to ALL_GATE_IDS. (c) `svp_2_1_summary.md`: 21 gaps fixed (triage_result.json, build_env fast path, phase-based debug routing, Downstream Dependency Invariant, Contract Granularity Rules, Review Enforcement, version_document mechanism, regression test table, Gate 5.3 in Stage 5 diagram, set_debug_classification, pattern catalog entries, glossary additions).
 
 ---
 

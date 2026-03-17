@@ -8,7 +8,8 @@ Bug 23 fix (alignment check routing), Bug 25 fix (all Stage 3 sub-stages),
 Bug 41 fix (Stage 1 two-branch routing and gate registration),
 Bug 42 fix (pre-stage-3 state persistence and reference indexing advancement),
 Bug 43 fix (two-branch routing invariant for Stage 4, Stage 5, redo profile, debug loop),
-Gate 6.5 (debug commit), and quality gate execution.
+Gate 6.5 (debug commit), quality gate execution,
+Bug 58 fix (Gate 5.3 unused_functions added to GATE_VOCABULARY and dispatch).
 """
 
 import json
@@ -69,6 +70,7 @@ GATE_VOCABULARY: Dict[str, List[str]] = {
     "gate_4_2_assembly_exhausted": ["FIX BLUEPRINT", "FIX SPEC"],
     "gate_5_1_repo_test": ["TESTS PASSED", "TESTS FAILED"],
     "gate_5_2_assembly_exhausted": ["RETRY ASSEMBLY", "FIX BLUEPRINT", "FIX SPEC"],
+    "gate_5_3_unused_functions": ["FIX SPEC", "OVERRIDE CONTINUE"],
     "gate_6_0_debug_permission": ["AUTHORIZE DEBUG", "ABANDON DEBUG"],
     "gate_6_1_regression_test": ["TEST CORRECT", "TEST WRONG"],
     "gate_6_2_debug_classification": ["FIX UNIT", "FIX BLUEPRINT", "FIX SPEC"],
@@ -1190,6 +1192,20 @@ def dispatch_gate_response(
                 ),
                 state,
             )
+
+    elif gate_id == "gate_5_3_unused_functions":
+        # Bug 58: Gate 5.3 — unused exported functions detected by Gate C
+        if response == "FIX SPEC":
+            _version_spec(project_root, "Gate 5.3 FIX SPEC (unused functions)")
+            return _try_transition(
+                lambda: restart_from_stage(
+                    state, "1", "Gate 5.3: unused functions, fix spec", project_root
+                ),
+                state,
+            )
+        else:  # OVERRIDE CONTINUE
+            state.last_action = "Gate 5.3: human overrode unused function finding, continuing"
+            return state
 
     elif gate_id == "gate_6_0_debug_permission":
         if response == "AUTHORIZE DEBUG":

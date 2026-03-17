@@ -3,6 +3,7 @@
 **Date:** 2026-03-15
 **Companion to:** Stakeholder Specification v8.29 (Document 2)
 **Pipeline role:** Reference document. Available to blueprint checker as cross-check.
+**Bug count:** 58 bugs cataloged across SVP 1.0 through SVP 2.1 (see `svp_2_1_lessons_learned.md`).
 
 ---
 
@@ -41,7 +42,11 @@ Each line is a verifiable contract. Section numbers reference Document 2.
 - **CLI argument enumeration invariant (§3.6, Bug 48 fix, STRENGTHENED Bug 49 fix):** Any blueprint Tier 2 function signature that accepts `argv` and uses `argparse` internally must enumerate every `add_argument` call (argument name, type, required/optional) in the Tier 2 invariants section. Prose-only descriptions in Tier 3 are insufficient for CLI contracts. This invariant applies to ALL units with CLI entry points: Unit 6 (`main`), Unit 7 (`main`), Unit 9 (`main`), Unit 10 (`update_state_main`, `run_tests_main`, `run_quality_gate_main`), Unit 23 (`compliance_scan_main`), Unit 24 (`parse_args`). A structural regression test (`test_bug49_argparse_enumeration.py`) verifies compliance.
 - **Contract sufficiency invariant (§3.16, Bug 50 fix):** A Tier 3 behavioral contract is sufficient if and only if an implementation agent reading ONLY the Tier 2 signature and Tier 3 contract could produce a correct implementation. If behavior depends on specific values (lookup tables, enum validation sets, magic numbers, algorithm parameters, file paths for side effects), those values must appear in Tier 2 invariants or Tier 3 contract.
 - **Contract boundary rule (§3.16, Bug 50 fix):** The blueprint MUST NOT include internal helper function signatures in Tier 2. Internal helpers (underscore-prefixed, not imported cross-unit, replaceable without affecting tests) belong in implementation, not contracts. Observable behavioral details (lookup table values, validation sets, algorithm parameters) MUST appear in Tier 3 contracts.
+- **Downstream Dependency Invariant (§3.18, Bug 56 fix):** If unit N’s implementation changes during any re-entry path (FIX UNIT, FIX BLUEPRINT, FIX SPEC), all units >= N must be invalidated and rebuilt. Units generated and verified against unit N’s original implementation are potentially stale. This applies to every re-entry path, not just FIX UNIT.
+- **Contract Granularity Rules (§3.19, Bug 56 fix):** Three mandatory rules: (1) Every Tier 2 function must have a Tier 3 behavioral contract. (2) Every gate response option must have a per-gate-option dispatch contract specifying the exact state transition and next routing action. (3) Every transition function must have a documented call site — at least one place in the codebase where it is invoked. The blueprint checker verifies all three rules.
+- **Review Enforcement — Baked Checklists (§3.20, Bug 57 fix):** Mandatory review checklists are baked directly into the agent definitions for the stakeholder reviewer, blueprint checker, and blueprint reviewer. Each checklist requires explicit verification of downstream dependency analysis, Tier 3 contract coverage, per-gate-option dispatch contracts, call-site traceability, and re-entry path invalidation. Two-tier defense model: LLM-driven review catches root causes at authoring time (Bug 57); Gate C deterministic check catches symptoms at assembly time (Bug 56).
 - **Profile canonical naming invariant (§6.4):** Schema defines exact canonical section/field names. `DEFAULT_PROFILE`, setup agent output, and all consumers must use identical names. Mismatches (e.g., `licensing` vs `license`, `readme.target_audience` vs `readme.audience`) cause silent merge conflicts in `_deep_merge`.
+- **Document versioning (§23):** Before any spec or blueprint revision (REVISE response at Gates 1.1, 1.2, 2.1, 2.2), the current document is archived to `docs/history/` via `version_document(project_root, doc_path, trigger_context)`. Archive filename includes incrementing version number and trigger context. Diff summary appended to archive. History directory created on first use. `dispatch_gate_response` calls `version_document` / `_version_spec` / `_version_blueprint` before invoking `restart_from_stage` on all REVISE/FIX branches (Bug 52 fix).
 - Profile is immutable after Gate 0.3. Changes via /svp:redo only.
 - toolchain.json is permanently read-only.
 - ruff.toml is permanently read-only.
@@ -69,7 +74,7 @@ Each line is a verifiable contract. Section numbers reference Document 2.
 - **Two-branch routing for blueprint_dialog (§8.1):** When last_status.txt contains BLUEPRINT_DRAFT_COMPLETE or BLUEPRINT_REVISION_COMPLETE, route() must emit human_gate for gate_2_1_blueprint_approval, not re-invoke the blueprint author agent. Governed by the universal two-branch routing invariant (§3.6).
 - Sub-stages: blueprint_dialog → alignment_check (Bug 23 fix). After Gate 2.1 APPROVE, routing must transition to alignment_check sub-stage and invoke blueprint checker -- not advance directly to Pre-Stage-3. On ALIGNMENT_CONFIRMED, present Gate 2.2 (the human always decides when to advance to Pre-Stage-3). On Gate 2.2 APPROVE, advance to Pre-Stage-3. On ALIGNMENT_FAILED, present appropriate gate. The Gate 2.2 APPROVE transition to Pre-Stage-3 must persist state to disk before returning the Pre-Stage-3 action block (route-level state persistence invariant, Bug 42 fix). `dispatch_agent_status` for `reference_indexing` must advance from `pre_stage_3` to stage 3 (exhaustive dispatch invariant, Bug 42 fix).
 - Blueprint author produces two files: `blueprint_prose.md` and `blueprint_contracts.md`. Both submitted at every gate. Checker receives both and validates internal consistency (no unit present in one file but absent from the other).
-- Checker receives pattern catalog from `svp_2_1_lessons_learned.md`. The preparation script extracts Part 2 of the lessons learned document verbatim and includes it in the checker's task prompt. Produces advisory risk section identifying structural features matching known failure patterns (P1-P8+). Does not block approval.
+- Checker receives pattern catalog from `svp_2_1_lessons_learned.md`. The preparation script extracts Part 2 of the lessons learned document verbatim and includes it in the checker's task prompt. Produces advisory risk section identifying structural features matching known failure patterns (P1-P9). Does not block approval.
 - Alignment loop: configurable iteration limit (default 3).
 
 ### Pre-Stage-3: Infrastructure (§9)
@@ -141,6 +146,9 @@ Per-unit cycle (11 steps, Bug 36 fix adds stub generation):
 - Pipeline artifacts excluded: toolchain.json, project_profile.json, ruff.toml (workspace root), pipeline_state.json, svp_config.json.
 - Mode A exception: plugin contains toolchain_defaults/ as blueprint-specified artifacts.
 - Debug loop (7-step workflow): prompt human → investigate (three-hypothesis) → fix workspace then reassemble repo → evaluate spec/blueprint → write regression tests → update lessons learned → commit/push (human permission gate).
+- **Triage result mechanism (Bug 55 fix):** Triage agent writes `.svp/triage_result.json` with `{affected_units: [N, ...]}`. Routing reads it via `_read_triage_affected_units()` when processing TRIAGE_COMPLETE status. `set_debug_classification(state, classification, affected_units)` records classification and affected_units on the debug session before presenting Gate 6.2.
+- **build_env fast path (Bug 55 fix):** TRIAGE_COMPLETE: build_env routes directly to repair_agent, bypassing Gate 6.2. No classification gate needed for environment issues.
+- **Phase-based Stage 5 debug routing (Bug 55 fix):** When debug_session is active, routing is governed by `debug_session.phase`: `triage_readonly` → `triage` (invoke triage agent) → `regression_test` (test agent in regression mode) → `stage3_reentry` (normal Stage 3 routing for rebuild) → `repair` (invoke repair agent) → `complete` (commit gate). Each phase has explicit routing logic in `route()`.
 - **Two-branch routing for debug loop agents (§12.17.4, Bug 43 fix):** Triage agent to Gate 6.2 (check TRIAGE_COMPLETE: single_unit or TRIAGE_COMPLETE: cross_unit -- note: TRIAGE_COMPLETE: build_env routes to fast path, not Gate 6.2), triage agent to Gate 6.4 (check TRIAGE_NON_REPRODUCIBLE), repair agent to Gate 6.3 (check REPAIR_COMPLETE/REPAIR_RECLASSIFY), test agent to Gate 6.1 (check REGRESSION_TEST_COMPLETE). All governed by the universal two-branch routing invariant (§3.6). TRIAGE_NEEDS_REFINEMENT triggers bounded re-invocation of the triage agent (not governed by two-branch invariant). REPAIR_FAILED triggers bounded retry of the repair agent, presenting Gate 6.3 when retries are exhausted (not governed by two-branch invariant for the retry branch).
 - Artifact synchronization invariant: every artifact with dual copies (workspace + delivered repo) must be kept in sync. Applies to Python source, command .md files, skill files, agent definitions, hooks, and documentation. Formal debug loop uses Stage 5 reassembly; direct fixes require manual propagation.
 - Repo collision avoidance: if `projectname-repo/` already exists (e.g., from a previous pass before `/svp:redo`), it is renamed to `projectname-repo.bak.YYYYMMDD-HHMMSS` before creating the new repo. Rename performed by preparation script, not agent. `delivered_repo_path` always points to canonical `projectname-repo/`.
@@ -181,7 +189,7 @@ Per-unit cycle (11 steps, Bug 36 fix adds stub generation):
 - project_profile.json: writable during project_profile sub-stage and redo profile sub-stages only.
 - toolchain.json: permanently read-only.
 - ruff.toml: permanently read-only.
-- Debug writes: only after AUTHORIZE DEBUG at Gate 6.0. Includes delivered repo path and lessons learned document.
+- Debug writes: only after AUTHORIZE DEBUG at Gate 6.0. Includes delivered repo path, lessons learned document, and `.svp/triage_result.json` (authorized during triage phases, Bug 55 fix).
 - Non-SVP sessions: bash tool blocked by hook.
 - Dual write-path: agent writes go through hooks; quality tool/assembly subprocess writes bypass hooks (correct by design).
 
@@ -313,6 +321,12 @@ phase, authorized, created_at}, debug_history[], redo_triggered_from{},
 delivered_repo_path, created_at, updated_at
 ```
 
+**triage_result.json (debug artifact)**
+```
+affected_units[]
+```
+Written by triage agent to `.svp/triage_result.json`. Read by routing via `_read_triage_affected_units()` during TRIAGE_COMPLETE dispatch. Authorized for write during triage phases (Bug 55 fix).
+
 **Sub-stages:** hook_activation, project_context, project_profile, blueprint_dialog, alignment_check, stub_generation (Bug 36 fix), quality_gate_a, quality_gate_b, quality_gate_a_retry, quality_gate_b_retry, redo_profile_delivery, redo_profile_blueprint, unit_completion, test_generation, red_run, implementation, green_run, coverage_review, repo_test, compliance_scan, repo_complete (Bug 26 fix), plus fix ladder positions.
 
 **Stage 1 sub-stage note:** Stage 1 uses `sub_stage: None` throughout. The two-branch routing invariant (§3.6) uses `last_status.txt` to distinguish "dialog in progress" from "draft complete, present gate" -- no named sub-stage needed. The routing must still implement the full draft-review-approve cycle: Gate 1.1 (spec draft approval) and Gate 1.2 (spec post-review) must be reachable. Gate IDs must be registered in both routing dispatch and gate preparation registries (Bug 41 fix). **Reviewer status routing:** `route()` must distinguish `REVIEW_COMPLETE` (from the spec reviewer, routes to Gate 1.2) from `SPEC_DRAFT_COMPLETE` / `SPEC_REVISION_COMPLETE` (from the dialog agent, routes to Gate 1.1).
@@ -367,6 +381,8 @@ None (invoke git_repo_agent) → [REPO_ASSEMBLY_COMPLETE] → repo_test → [Gat
                                                            repo_test → [Gate 5.1: TESTS FAILED] → None (re-invoke, retries++)
                                                            repo_test (retries >= 3) → [Gate 5.2: RETRY ASSEMBLY] → None (reset retries)
                                                            repo_test (retries >= 3) → [Gate 5.2: FIX BLUEPRINT/SPEC] → restart
+                                                           Gate C unused exports → [Gate 5.3: FIX SPEC] → restart from Stage 1
+                                                           Gate C unused exports → [Gate 5.3: OVERRIDE CONTINUE] → proceed
                                                            compliance_scan → [COMMAND_FAILED] → None (re-enter fix cycle, retries++)
 ```
 
@@ -413,6 +429,28 @@ Note: Both redo profile sub-stages are governed by the two-branch routing invari
 
 ---
 
+## Part 5b: Regression Test File Mapping
+
+| Bug | Test File | Description |
+|---|---|---|
+| 43 | `test_bug43_stage2_blueprint_routing.py` | Two-branch routing invariant, gate ID consistency |
+| 44 | `test_bug44_null_substage_dispatch.py` | Null sub_stage dispatch handling |
+| 45 | `test_bug45_test_execution_dispatch.py` | test_execution dispatch state transitions |
+| 46 | `test_bug46_coverage_dispatch.py` | Coverage review dispatch advancement |
+| 47 | `test_bug47_unit_completion_double_dispatch.py` | COMMAND/POST separation, no double dispatch |
+| 48 | `test_bug48_launcher_cli_contract.py` | Launcher CLI argument contract |
+| 49 | `test_bug49_argparse_enumeration.py` | Argparse enumeration in Tier 2 signatures |
+| 50 | `test_bug50_contract_sufficiency.py` | Contract sufficiency, rollback behavior |
+| 51 | `test_bug51_debug_reassembly.py` | Debug loop reassembly routing |
+| 52 | `test_bug52_version_document_wiring.py` | version_document wired into dispatch |
+| 53 | `test_bug53_orphaned_functions.py` | Orphaned dead-code function removal |
+| 54 | `test_bug54_orphaned_update_state_from_status.py` | Orphaned update_state_from_status removal |
+| 58 | `test_bug58_gate_5_3_unused_functions.py` | Gate 5.3 vocabulary, dispatch, routing |
+
+All regression tests live in `tests/regressions/`. Bugs 55–57 are documentation/spec fixes with no dedicated regression test files.
+
+---
+
 ## Part 6: Glossary
 
 ### Pipeline Architecture
@@ -425,6 +463,9 @@ Note: Both redo profile sub-stages are governed by the two-branch routing invari
 - **Pass History:** Record of pipeline passes through Stage 3+. Tracks reach, reason ended, timestamp.
 - **Session Boundary:** Point where launcher cycles the Claude Code session to prevent context degradation.
 - **Binary Decision Logic:** Every diagnostic failure produces: implementation problem (fix locally) or document problem (fix document, restart). No third option.
+- **Pattern Catalog:** Part 2 of `svp_2_1_lessons_learned.md`. Named failure patterns (P1–P9) with instance lists and prevention rules. Blueprint checker receives the catalog for advisory risk analysis.
+- **Pattern P9 (Spec Structural Gap):** The spec provides a principle but not the granularity rules needed to operationalize it. Reviewers and checkers have no structural criteria to verify. Introduced in Bug 56.
+- **Two-Tier Defense Model (Bugs 56–57):** (1) LLM-driven review catches root causes at authoring time via mandatory checklists baked into reviewer agent definitions. (2) Gate C deterministic check catches symptoms at assembly time via unused function detection. Together they provide defense in depth against the Bugs 52–55 pattern (functions implemented but never wired into dispatch).
 
 ### Four-Layer Orchestration
 

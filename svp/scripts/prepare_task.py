@@ -87,6 +87,7 @@ ALL_GATE_IDS = [
     "gate_4_2_assembly_exhausted",
     "gate_5_1_repo_test",
     "gate_5_2_assembly_exhausted",
+    "gate_5_3_unused_functions",
     "gate_6_0_debug_permission",
     "gate_6_1_regression_test",
     "gate_6_2_debug_classification",

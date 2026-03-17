@@ -78,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bug 55: Wired `rollback_to_unit` into Gate 6.2 FIX UNIT dispatch — corrected spec's incorrect "verified_units not modified" to invalidate-and-rebuild semantics; fixed build_env fast path; added triage_result.json structured output; added phase-based Stage 5 debug routing; changed rollback from copy-to-backup to delete
 - Bug 56: Added Downstream Dependency Invariant (Section 3.18), Contract Granularity Rules (Section 3.19), Gate C unused exported function detection, Gate 5.3 human gate for unused function findings
 - Bug 57: Baked mandatory review checklists into stakeholder reviewer, blueprint reviewer, and blueprint checker agent definitions
+- Bug 58: Added Gate 5.3 (`gate_5_3_unused_functions`) to GATE_VOCABULARY, ALL_GATE_IDS, and dispatch_gate_response; comprehensive summary document update (21 gaps)
 
 ## [2.0.0] - 2025-12-01
 

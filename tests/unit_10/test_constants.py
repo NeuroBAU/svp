@@ -87,6 +87,7 @@ class TestGateResponses:
         expected = [
             "gate_5_1_repo_test",
             "gate_5_2_assembly_exhausted",
+            "gate_5_3_unused_functions",
         ]
         for g in expected:
             assert g in GATE_RESPONSES
