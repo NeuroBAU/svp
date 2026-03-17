@@ -1573,8 +1573,8 @@ BLUEPRINT_REVIEWER_MD_CONTENT: str
 ### Tier 3 -- Behavioral Contracts
 
 - **Blueprint Checker (EXPANDED for SVP 2.1):** Receives all blueprint files discovered from the blueprint directory (via Unit 9's task prompt assembly, which uses `discover_blueprint_files` from Unit 1). Validates internal consistency: every `## Unit N:` heading found across all files must have corresponding Tier 1, Tier 2, and Tier 3 content somewhere in the discovered files. Validates alignment, DAG acyclicity, Layer 2 preference coverage (including quality preferences). **Receives pattern catalog section of `svp_2_1_lessons_learned.md` -- produces advisory risk section identifying structural features matching known failure patterns (P1-P8+). Advisory only -- does not block approval.** The checker is agnostic to the number or names of blueprint files -- it validates the combined content.
-- **Stakeholder Spec Reviewer:** Unchanged.
-- **Blueprint Reviewer:** Unchanged.
+- **Stakeholder Spec Reviewer (Bug 57 expansion):** Agent definition includes a mandatory review checklist requiring explicit verification of: downstream dependency analysis for re-entry paths, Tier 3 contract requirements for exported functions, per-gate-option dispatch contract requirements, call-site traceability for specified functions, and re-entry invalidation requirements.
+- **Blueprint Reviewer (Bug 57 expansion):** Agent definition includes a mandatory review checklist requiring explicit verification of: Tier 2/Tier 3 completeness, per-gate dispatch contracts, call-site traceability, re-entry downstream invalidation, and contract sufficiency for reimplementation.
 
 ### Tier 3 -- Dependencies
 

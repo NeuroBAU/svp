@@ -352,6 +352,16 @@ The contract sufficiency invariant (Section 3.16) requires that Tier 3 behaviora
 
 **Blueprint checker requirements.** The blueprint checker (Section 8.2) MUST verify all three rules as alignment conditions during the alignment check. Violations are unconditional alignment failures, not warnings.
 
+### 3.20 Review Enforcement — Baked Checklists (NEW IN 2.1 -- Bug 57 fix)
+
+The downstream dependency invariant (Section 3.18) and contract granularity rules (Section 3.19) are enforced through two complementary mechanisms:
+
+1. **Deterministic check at Gate C (assembly time).** Gate C's unused function detection (`linter.unused_exports`) catches the symptom -- functions defined but never called -- in assembled code. This is a machine check that runs at Stage 5. If findings exist, Gate 5.3 presents them to the human.
+
+2. **LLM-driven review checks at Gates 1.1/1.2 and 2.1/2.2 (authoring time).** The stakeholder spec reviewer, blueprint checker, and blueprint reviewer agents each have mandatory review checklists baked into their agent definitions. These checklists require the review agents to explicitly verify downstream dependency analysis, contract granularity, per-gate dispatch contracts, call-site traceability, and re-entry invalidation. The checklists are part of the agent's system prompt and run automatically during every spec review and blueprint review -- no human action required to activate them.
+
+The two mechanisms are complementary: the review checklists catch the root cause (spec/blueprint gaps) at authoring time; the Gate C check catches the symptom (dead code) at assembly time. Neither alone is sufficient. The review checklists are LLM-driven and advisory (the review agent flags issues but does not block progress mechanically); the Gate C check is deterministic and presents a human gate.
+
 ---
 
 ## 4. Platform Constraints

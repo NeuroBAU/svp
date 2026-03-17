@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-56)
+## Part 1: Unified Bug Catalog (Bugs 1-57)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -907,6 +907,24 @@ Bugs 52-55 shared two root causes that were not addressed by individual bug fixe
 **Pattern:** Compound P1 (Cross-unit contract drift) + new pattern P9 (Spec structural gap). The spec provided the principle (contract sufficiency) but not the granularity rules needed to operationalize it. The blueprint checker had no structural criteria to verify, so it could not catch the gap.
 
 **Prevention:** (1) Section 3.18 (Downstream Dependency Invariant) requires every re-entry path to document downstream impact. (2) Section 3.19 (Contract Granularity Rules) requires Tier 3 contracts for every Tier 2 function, per-gate-option dispatch contracts, and call-site verification. (3) Section 8.2 updated to require the blueprint checker to verify all three rules. (4) Gate C enhanced with unused function detection (human-gated via `gate_5_3_unused_functions`, not automatic failure). (5) README checklist extended with a ninth advisory question covering these structural checks.
+
+---
+
+### Bug 57 -- Review enforcement: baked dependency and contract checklists into reviewer agent definitions
+
+**Caught:** Post-delivery (SVP 2.1 debug session, preventive hardening after Bugs 52-56). **Test:** N/A (agent definition and spec-level fix; prevention is structural).
+
+Bugs 52-55 were all caused by functions or dispatch paths that existed in the blueprint but were never wired into the codebase. Bug 56 added structural rules (Sections 3.18-3.19) and a Gate C dead-code detection step (Gate 5.3). However, both of these are late-stage defenses: they catch symptoms at assembly time or provide rules the blueprint author might not consult. The missing piece was authoring-time enforcement -- making the LLM reviewers themselves check for the patterns that caused Bugs 52-55.
+
+Bug 57 adds a second, complementary defense layer: mandatory review checklists baked directly into the agent definitions for the stakeholder reviewer (Unit 14), blueprint checker (Unit 14), and blueprint reviewer (Unit 14). These checklists require each reviewer to explicitly verify downstream dependency analysis, Tier 3 contract coverage, per-gate-option dispatch contracts, call-site traceability, and re-entry path invalidation. Because the checklist text is part of the agent's system prompt, it cannot be forgotten or skipped.
+
+**Two-tier defense model:** (1) LLM-driven review catches root causes at authoring time (Bug 57). (2) Gate C deterministic check catches symptoms at assembly time (Bug 56). Together they provide defense in depth.
+
+**Pattern:** P9 (Spec structural gap) -- the spec required review but did not specify what reviewers must check for. The review agents had no structural checklist, so they could not systematically catch the patterns that caused Bugs 52-55.
+
+**Prevention:** (1) Section 3.20 (Review Enforcement) added to spec, requiring mandatory checklists in all reviewer agent definitions. (2) Stakeholder reviewer, blueprint checker, and blueprint reviewer agent definitions updated with explicit checklist items. (3) Blueprint Tier 1/Tier 3 contracts updated to reflect Bug 57 expansion. (4) Two-tier defense model documented: LLM-driven review (authoring time) + Gate C deterministic check (assembly time).
+
+**Changes:** (a) `review_agents.py` / `unit_14/stub.py`: added mandatory review checklist items to all three agent definitions. (b) `stakeholder_spec.md`: added Section 3.20 (Review Enforcement -- Baked Checklists). (c) `blueprint.md` and `blueprint_contracts.md`: updated Unit 14 descriptions and behavioral contracts.
 
 ---
 

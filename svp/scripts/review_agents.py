@@ -55,6 +55,22 @@ completeness, consistency, and testability.
 4. Verify constraints are clearly stated.
 5. Identify any ambiguities or contradictions.
 
+## MANDATORY REVIEW CHECKLIST (Bug 57)
+
+The following items MUST be explicitly addressed in your
+review output. Failure to check any item is a review
+deficiency.
+
+- [ ] For every re-entry path in the spec, has the
+  downstream dependency impact been analyzed?
+- [ ] Does the spec require Tier 3 behavioral contracts
+  for every exported function?
+- [ ] Does the spec require per-gate-option dispatch
+  contracts for every gate?
+- [ ] Are there any functions with no clear call site?
+- [ ] Does the spec require invalidation and rebuild
+  (not surgical repair) for implementation re-entry?
+
 ## Terminal Status Lines
 
 Your final message must end with exactly one of:
@@ -87,6 +103,11 @@ stakeholder specification for alignment.
    produce advisory risk section identifying structural
    features matching P1-P8 patterns. This does not
    block approval.
+6. Verify every Tier 2 function has a Tier 3 contract.
+7. Verify every gate option has a dispatch contract.
+8. Verify every transition function has a call site.
+9. Verify re-entry paths specify downstream impact.
+   (Items 6-9 are alignment failures, not advisory.)
 
 ## Terminal Status Lines
 
@@ -118,6 +139,14 @@ quality and completeness.
 4. Check for missing error conditions.
 5. Verify terminal status lines are defined for all
    agents.
+
+## MANDATORY REVIEW CHECKLIST (Bug 57)
+
+- [ ] Every Tier 2 function has a Tier 3 contract?
+- [ ] Every gate option has a dispatch contract?
+- [ ] Every function has a documented call site?
+- [ ] Re-entry paths specify downstream invalidation?
+- [ ] Contracts sufficient for reimplementation?
 
 ## Terminal Status Lines
 

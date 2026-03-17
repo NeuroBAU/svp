@@ -233,10 +233,10 @@ class TestUnit3Rollback:
 
             state_transitions.rollback_to_unit(state, 1, root)
 
-            backup_src = root / "logs" / "rollback" / "unit_1_src"
-            backup_tests = root / "logs" / "rollback" / "unit_1_tests"
-            assert backup_src.exists(), "Source backup missing"
-            assert backup_tests.exists(), "Test backup missing"
+            # Bug 55: rollback deletes (rmtree), does not backup (copytree).
+            # Verify the source and test dirs were removed.
+            assert not src.exists(), "Source dir should be deleted after rollback"
+            assert not tests.exists(), "Tests dir should be deleted after rollback"
 
 
 class TestUnit3Immutability:

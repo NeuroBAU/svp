@@ -548,12 +548,14 @@ can.
 
 SVP itself was built by SVP. The lessons learned document
 (`docs/references/svp_2_1_lessons_learned.md` in the
-delivered repository) catalogs 56 bugs discovered across
+delivered repository) catalogs 57 bugs discovered across
 five build generations — from SVP 1.0 through SVP 2.1.
 Nearly every one traces back to something the stakeholder
 spec didn't say clearly enough. The checklist below is
 distilled from that experience. It is not project-specific;
 it applies to any spec you write.
+
+These questions are also baked into the reviewer agent definitions as mandatory checklists (Bug 57), so even if you miss something, the pipeline's own reviewers will flag it.
 
 Carry these questions in your head during the Socratic
 dialog. The agent will ask you about your domain. These
@@ -871,7 +873,7 @@ When `testing.readme_test_scenarios` is set in the profile, the README includes 
 - **SVP 1.2** — Bug fixes and hardening. Fixed gate status string vocabulary (Bug 1) and hook permission reset after debug session entry (Bug 2).
 - **SVP 1.2.1** — Further bug fixes and robustness improvements.
 - **SVP 2.0** — Project Profile (`project_profile.json`) for delivery preferences. Pipeline Toolchain Abstraction (`toolchain.json`). Profile-driven Stage 5 delivery. Delivery compliance scan. `/svp:redo` profile revision support.
-- **SVP 2.1** — Pipeline Quality Gates (A, B, C). Delivered quality configuration. Changelog support. Blueprint prose/contracts split. Stub sentinel. Proactive lessons learned integration. Universal two-branch routing invariant. 56 bug fixes across all pipeline stages. Bug 52: wired `version_document()` into `dispatch_gate_response` REVISE branches -- document version tracking (spec Section 23) was completely non-functional because the function was never called. Bug 53: removed orphaned dead-code functions (`reset_fix_ladder`, `reset_alignment_iteration`, `record_pass_end`) whose behavior is handled inline by `restart_from_stage` and `complete_unit`. Bug 54: removed orphaned hollow function `update_state_from_status` from `state_transitions.py` -- its dispatch behavior was never implemented; the actual POST command entry point is `update_state_main()` in `routing.py` which calls `dispatch_status()` directly. Bug 55: wired `rollback_to_unit` into Gate 6.2 FIX UNIT dispatch -- corrected spec's incorrect "verified_units not modified" to proper invalidate-and-rebuild semantics; also fixed build_env fast path, triage result structured output, and phase-based Stage 5 debug routing. Bug 56: spec structural gaps -- added Downstream Dependency Invariant (Section 3.18), Contract Granularity Rules (Section 3.19), blueprint checker requirements, and Gate C unused function detection (human-gated via Gate 5.3, not automatic failure).
+- **SVP 2.1** — Pipeline Quality Gates (A, B, C). Delivered quality configuration. Changelog support. Blueprint prose/contracts split. Stub sentinel. Proactive lessons learned integration. Universal two-branch routing invariant. 57 bug fixes across all pipeline stages. Bug 52: wired `version_document()` into `dispatch_gate_response` REVISE branches -- document version tracking (spec Section 23) was completely non-functional because the function was never called. Bug 53: removed orphaned dead-code functions (`reset_fix_ladder`, `reset_alignment_iteration`, `record_pass_end`) whose behavior is handled inline by `restart_from_stage` and `complete_unit`. Bug 54: removed orphaned hollow function `update_state_from_status` from `state_transitions.py` -- its dispatch behavior was never implemented; the actual POST command entry point is `update_state_main()` in `routing.py` which calls `dispatch_status()` directly. Bug 55: wired `rollback_to_unit` into Gate 6.2 FIX UNIT dispatch -- corrected spec's incorrect "verified_units not modified" to proper invalidate-and-rebuild semantics; also fixed build_env fast path, triage result structured output, and phase-based Stage 5 debug routing. Bug 56: spec structural gaps -- added Downstream Dependency Invariant (Section 3.18), Contract Granularity Rules (Section 3.19), blueprint checker requirements, and Gate C unused function detection (human-gated via Gate 5.3, not automatic failure). Bug 57: baked mandatory dependency and contract review checklists into stakeholder reviewer, blueprint checker, and blueprint reviewer agent definitions (Section 3.20) -- two-tier defense: LLM-driven review catches root causes at authoring time, Gate C deterministic check catches symptoms at assembly time.
 
 ## License
 

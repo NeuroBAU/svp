@@ -147,14 +147,15 @@ class TestBug43TwoBranchRouting(unittest.TestCase):
         self.assertEqual(action["ACTION"], "human_gate")
         self.assertEqual(action["GATE_ID"], "gate_6_2_debug_classification")
 
-    def test_debug_triage_complete_build_env_presents_gate(self):
+    def test_debug_triage_complete_build_env_fast_path(self):
+        """Bug 55: build_env fast path bypasses Gate 6.2, goes to repair_agent."""
         state = _make_state(
             stage="5", sub_stage=None,
             debug_session={"bug_id": "test", "phase": "triage"},
         )
         action = _route_with_status(state, "TRIAGE_COMPLETE: build_env")
-        self.assertEqual(action["ACTION"], "human_gate")
-        self.assertEqual(action["GATE_ID"], "gate_6_2_debug_classification")
+        self.assertEqual(action["ACTION"], "invoke_agent")
+        self.assertIn("repair", action.get("AGENT", "").lower())
 
     def test_debug_triage_non_reproducible_presents_gate(self):
         state = _make_state(
