@@ -225,12 +225,19 @@ def increment_alignment_iteration(state: PipelineState) -> PipelineState:
 def rollback_to_unit(state: PipelineState, unit_number: int, project_root: Path) -> PipelineState:
     """Rollback to a specific unit, invalidating all units from that unit forward.
 
-    Removes marker files, removes from verified_units, moves generated code
-    and tests to logs/rollback/, and sets current_unit to the given unit number.
+    Removes marker files, removes from verified_units, deletes generated code
+    and tests, and sets current_unit to the given unit number.
+
+    Bug 55 fix: accepts Stage 5 with an active debug session (Gate 6.2
+    FIX UNIT triggers rollback from Stage 5). In that case, transitions
+    stage to "3" and sub_stage to None so the pipeline rebuilds from the
+    rollback target forward.
     """
-    # Pre-conditions
-    if state.stage != "3":
-        raise TransitionError("Rollback only applies during Stage 3")
+    # Pre-conditions: allow Stage 3 or Stage 5 with active debug session
+    if state.stage == "5" and state.debug_session is not None:
+        pass  # Debug loop re-entry from Gate 6.2: allowed
+    elif state.stage != "3":
+        raise TransitionError("Rollback only applies during Stage 3 or Stage 5 with active debug session")
     if unit_number < 1:
         raise TransitionError("Unit number must be positive")
     if unit_number > (state.current_unit or 0):
@@ -259,26 +266,16 @@ def rollback_to_unit(state: PipelineState, unit_number: int, project_root: Path)
             if m and int(m.group(1)) >= unit_number:
                 item.unlink()
 
-    # Move generated code and tests to logs/rollback/
-    rollback_dir = project_root / "logs" / "rollback"
-    rollback_dir.mkdir(parents=True, exist_ok=True)
-
+    # Delete generated code and tests for invalidated units (Bug 55: delete,
+    # not copy to logs/rollback/). Agents regenerate everything from scratch.
     for u in units_to_invalidate:
-        # Move generated source files if they exist
         src_dir = project_root / "src" / f"unit_{u}"
         if src_dir.exists():
-            dest = rollback_dir / f"unit_{u}_src"
-            if dest.exists():
-                shutil.rmtree(dest)
-            shutil.copytree(src_dir, dest)
+            shutil.rmtree(src_dir)
 
-        # Move test files if they exist
         test_dir = project_root / "tests" / f"unit_{u}"
         if test_dir.exists():
-            dest = rollback_dir / f"unit_{u}_tests"
-            if dest.exists():
-                shutil.rmtree(dest)
-            shutil.copytree(test_dir, dest)
+            shutil.rmtree(test_dir)
 
     # Remove invalidated units from verified_units
     new_state.verified_units = [
@@ -287,6 +284,11 @@ def rollback_to_unit(state: PipelineState, unit_number: int, project_root: Path)
 
     # Set current_unit to the rollback target
     new_state.current_unit = unit_number
+
+    # If called from Stage 5 debug session, transition to Stage 3
+    if state.stage == "5":
+        new_state.stage = "3"
+        new_state.sub_stage = None
 
     # Reset fix ladder and retries for the fresh start
     new_state.fix_ladder_position = None

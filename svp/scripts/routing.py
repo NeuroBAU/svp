@@ -234,6 +234,19 @@ def read_last_status(project_root: Path) -> str:
     return status_file.read_text(encoding="utf-8").strip()
 
 
+def _read_triage_affected_units(project_root: Path) -> List[int]:
+    """Read .svp/triage_result.json and return affected_units list, or [] if missing."""
+    result_file = project_root / ".svp" / "triage_result.json"
+    if result_file.exists():
+        try:
+            data = json.loads(result_file.read_text(encoding="utf-8"))
+            units = data.get("affected_units", [])
+            return [int(u) for u in units]
+        except (json.JSONDecodeError, ValueError, KeyError):
+            pass
+    return []
+
+
 # --- Command generation helpers ---
 
 
@@ -621,26 +634,50 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
 
     # Stage 5
     if stage == "5":
-        # Bug 43: two-branch routing for debug loop triage
+        # Bug 43/55: phase-based routing for debug loop
         if state.debug_session is not None:
-            last_status = _read_last_status(project_root)
-            if last_status is not None and last_status.startswith("TRIAGE_COMPLETE"):
-                return {
-                    "ACTION": "human_gate",
-                    "GATE_ID": "gate_6_2_debug_classification",
-                    "OPTIONS": GATE_VOCABULARY["gate_6_2_debug_classification"],
-                    "PREPARE": _gate_prepare_cmd("gate_6_2_debug_classification"),
-                    "POST": _post_cmd("gate", gate_id="gate_6_2_debug_classification"),
-                }
-            elif last_status == "TRIAGE_NON_REPRODUCIBLE":
-                return {
-                    "ACTION": "human_gate",
-                    "GATE_ID": "gate_6_4_non_reproducible",
-                    "OPTIONS": GATE_VOCABULARY["gate_6_4_non_reproducible"],
-                    "PREPARE": _gate_prepare_cmd("gate_6_4_non_reproducible"),
-                    "POST": _post_cmd("gate", gate_id="gate_6_4_non_reproducible"),
-                }
+            ds = state.debug_session
+            debug_phase = ds.phase if hasattr(ds, 'phase') else ds.get('phase', 'triage')
+
+            if debug_phase == "stage3_reentry":
+                pass  # Fall through to normal Stage 5 routing
+            elif debug_phase in ("triage_readonly", "triage"):
+                last_status = _read_last_status(project_root)
+                if last_status in ("TRIAGE_COMPLETE: single_unit", "TRIAGE_COMPLETE: cross_unit"):
+                    return {
+                        "ACTION": "human_gate",
+                        "GATE_ID": "gate_6_2_debug_classification",
+                        "OPTIONS": GATE_VOCABULARY["gate_6_2_debug_classification"],
+                        "PREPARE": _gate_prepare_cmd("gate_6_2_debug_classification"),
+                        "POST": _post_cmd("gate", gate_id="gate_6_2_debug_classification"),
+                    }
+                elif last_status == "TRIAGE_COMPLETE: build_env":
+                    # Bug 55: build_env fast path -- route directly to repair agent
+                    return {
+                        "ACTION": "invoke_agent",
+                        "AGENT": "repair_agent",
+                        "CONTEXT": "debug",
+                        "PREPARE": _prepare_cmd("repair_agent"),
+                        "POST": _post_cmd("debug"),
+                    }
+                elif last_status == "TRIAGE_NON_REPRODUCIBLE":
+                    return {
+                        "ACTION": "human_gate",
+                        "GATE_ID": "gate_6_4_non_reproducible",
+                        "OPTIONS": GATE_VOCABULARY["gate_6_4_non_reproducible"],
+                        "PREPARE": _gate_prepare_cmd("gate_6_4_non_reproducible"),
+                        "POST": _post_cmd("gate", gate_id="gate_6_4_non_reproducible"),
+                    }
+                else:
+                    return {
+                        "ACTION": "invoke_agent",
+                        "AGENT": "bug_triage",
+                        "CONTEXT": "debug",
+                        "PREPARE": _prepare_cmd("bug_triage"),
+                        "POST": _post_cmd("debug"),
+                    }
             else:
+                # Unknown phase: invoke triage
                 return {
                     "ACTION": "invoke_agent",
                     "AGENT": "bug_triage",
@@ -1168,7 +1205,21 @@ def dispatch_gate_response(
 
     elif gate_id == "gate_6_2_debug_classification":
         if response == "FIX UNIT":
-            return state
+            # Bug 55: wire rollback_to_unit into Gate 6.2 FIX UNIT
+            if state.debug_session is None:
+                return state  # Safety: no debug session, no-op
+            affected = state.debug_session.affected_units if hasattr(state.debug_session, 'affected_units') else (state.debug_session.get('affected_units') if isinstance(state.debug_session, dict) else [])
+            if not affected:
+                return state  # Safety: no affected units identified
+            unit_number = min(affected)
+            new_state = _try_transition(lambda: set_debug_classification(state, "single_unit", affected), state)
+            new_state = _try_transition(lambda: update_debug_phase(new_state, "stage3_reentry"), new_state)
+            new_state = _try_transition(lambda: rollback_to_unit(new_state, unit_number, project_root), new_state)
+            # Clear last_status.txt to prevent stale re-trigger after rebuild
+            status_file = project_root / ".svp" / "last_status.txt"
+            if status_file.exists():
+                status_file.unlink()
+            return new_state
         elif response == "FIX BLUEPRINT":
             _version_blueprint(project_root, "Gate 6.2 FIX BLUEPRINT")
             return _try_transition(
@@ -1337,6 +1388,12 @@ def dispatch_agent_status(
             return enter_redo_profile_revision(state, "profile_blueprint")
 
     elif agent_type == "bug_triage":
+        # Bug 55: wire set_debug_classification from triage result
+        if status_line.startswith("TRIAGE_COMPLETE:"):
+            classification = status_line.split(": ", 1)[1].strip()
+            affected_units = _read_triage_affected_units(project_root)
+            return _try_transition(
+                lambda: set_debug_classification(state, classification, affected_units), state)
         return state
 
     elif agent_type == "repair_agent":

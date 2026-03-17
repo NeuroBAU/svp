@@ -70,6 +70,26 @@ state. You start in read-only mode.
 7. Debug commits use fixed format. Gate 6.5 for
    commit approval.
 
+## Structured Output (Bug 55)
+
+Before emitting your terminal status line, write a
+JSON file to `.svp/triage_result.json` with:
+
+```json
+{
+  "classification": "single_unit",
+  "affected_units": [5],
+  "root_cause": "brief description",
+  "regression_test_spec": "brief description"
+}
+```
+
+The `classification` field must be one of: `build_env`,
+`single_unit`, `cross_unit`. The `affected_units` field
+must be a list of integer unit numbers identified as
+affected by the bug. This file is read by the pipeline
+routing to populate the debug session state.
+
 ## Terminal Status Lines
 
 Your final message must end with exactly one of:

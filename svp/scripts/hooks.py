@@ -146,6 +146,15 @@ case "$FILE_PATH" in
     ;;
 esac
 
+# Bug 55: triage_result.json writable during triage phases
+case "$FILE_PATH" in
+  .svp/triage_result.json|.svp/triage_scratch/*)
+    if [ "$DEBUG_AUTH" = "true" ]; then
+      exit 0
+    fi
+    ;;
+esac
+
 # Project artifact paths: state-gated
 case "$FILE_PATH" in
   specs/*|blueprint/*|src/*|tests/*|data/*|\
