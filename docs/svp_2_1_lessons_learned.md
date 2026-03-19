@@ -1261,7 +1261,7 @@ Built a project-agnostic structural completeness checking system that works for 
 
 **Layer 2 (Integration test author):** Added requirement to generate registry-handler alignment tests using AST analysis of registries and dispatch logic.
 
-**Layer 3 (Deterministic script):** Created `scripts/structural_check.py` -- a project-agnostic AST scanner performing four checks: (1) dict registry keys never dispatched, (2) enum values never matched, (3) exported functions never called, (4) string dispatch gaps. Only stdlib imports. Added as Stage 5 `structural_check` sub-stage between `repo_test` and `compliance_scan`.
+**Layer 3 (Deterministic script):** Created `scripts/structural_check.py` -- a project-agnostic AST scanner performing five checks: (1) dict registry keys never dispatched, (2) enum values never matched, (3) exported functions never called, (4) string dispatch gaps, (5) stub imports in test files (Bug 74). Only stdlib imports. Added as Stage 5 `structural_check` sub-stage between `repo_test` and `compliance_scan`.
 
 **Layer 4 (Triage agent):** Added Step 0 structural pre-check and Registry Diagnosis Recipe to bug triage agent. Task prompt assembly pre-computes structural check results against the delivered repo.
 

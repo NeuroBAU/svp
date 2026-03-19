@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Debug loop gates: Gate 6.0 (permission), Gate 6.1 (regression test), Gate 6.5 (commit) (Bug 69)
 - Selective blueprint loading per agent type per spec Section 3.16 (Bugs 60-62)
 - Gate C unused function detection with Gate 5.3 human gate (Bugs 56-58)
+- Gate C stub import detection in test files (Bug 74) -- 5th structural check
 
 ### Fixed
 
