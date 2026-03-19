@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update). Bug 59 discovered post-delivery (stale blueprints/ directory, critical implementation bugs, stakeholder spec gaps). Bug 60 discovered post-delivery (broken _get_unit_context path and stale fallback ARTIFACT_FILENAMES). Bug 61 discovered post-delivery (missing include_tier1 parameter in _get_unit_context and build_unit_context). Bug 62 discovered post-delivery (selective blueprint loading not wired per agent matrix). Bug 63 discovered post-delivery (documentation retrofit for Bugs 60-62). Bug 64 discovered post-delivery (11 unit test failures from stale assertions after Bugs 59-62 code changes).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update). Bug 59 discovered post-delivery (stale blueprints/ directory, critical implementation bugs, stakeholder spec gaps). Bug 60 discovered post-delivery (broken _get_unit_context path and stale fallback ARTIFACT_FILENAMES). Bug 61 discovered post-delivery (missing include_tier1 parameter in _get_unit_context and build_unit_context). Bug 62 discovered post-delivery (selective blueprint loading not wired per agent matrix). Bug 63 discovered post-delivery (documentation retrofit for Bugs 60-62). Bug 64 discovered post-delivery (11 unit test failures from stale assertions after Bugs 59-62 code changes). Bug 65 discovered post-delivery (Stage 3 error-handling infrastructure entirely unimplemented: 9 findings covering stub_generation routing, fix ladder engagement, diagnostic escalation, Gate 3.1/3.2 dispatch, coverage two-branch, red_run retries).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-64)
+## Part 1: Unified Bug Catalog (Bugs 1-65)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64 (37 of 64 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65 (38 of 65 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62 (14 of 64 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 65 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -533,14 +533,18 @@ Spec enumeration is incomplete or terminology is undefined; implementation faith
 A function is rewritten during a version upgrade and loses edge cases, search paths, or validation logic from the previous version. The implementation agent generates fresh code without consulting the prior implementation. **Prevention:** When a blueprint says "unchanged from vN," the blueprint must enumerate the actual contract (paths, values, validation rules) so the implementation agent cannot independently reinvent a reduced version. The prior version's implementation should be included in the task prompt for any function marked as "unchanged" or "carried forward."
 
 ### P9 — Spec Structural Gap
-**Instances:** Bugs 56, 57.
+**Instances:** Bugs 56, 57, 65.
 The spec provides a principle but not the granularity rules needed to operationalize it. Reviewers and checkers have no structural criteria to verify, so they cannot catch the gap. **Prevention:** Spec principles must be accompanied by enumerated verification criteria. Review agents must carry mandatory checklists derived from these criteria.
+
+### P10 — Error-Path Contract Omission (NEW — Bug 65)
+**Instances:** Bug 65.
+Happy-path transitions are contracted and tested; error paths are described in spec prose but never converted to enumerable blueprint Tier 3 contracts. The implementation agent faithfully implements the contracted happy paths and produces no-op stubs for the uncontracted error paths, resulting in infinite loops on any failure. **Prevention:** Every dispatch function's (phase, sub_stage, status) combination must have a contracted behavior -- including error cases. Per-gate-option dispatch contracts must be applied strictly. Regression tests must cover error-path dispatch completeness.
 
 ---
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (37 of 64 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (38 of 65 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -560,6 +564,8 @@ The spec provides a principle but not the granularity rules needed to operationa
 18. **Gate registrations must be consistent across all modules.** Every gate ID that appears in routing dispatch tables (`GATE_RESPONSES`) must also appear in gate preparation registries (`ALL_GATE_IDS`). Every stage's routing function must implement the two-branch pattern (check `last_status.txt` before re-invoking an agent). Structural tests must verify both invariants — a gate that exists in one registry but not the other is a silent failure that only surfaces when the gate is actually needed. The lessons learned pattern catalog (P1-P8+) represents the highest-value architectural knowledge in the SVP system. Feeding it to the blueprint checker (advisory risk assessment at Stage 2) and to the test agent (unit-specific historical failure context at Stage 3) converts reactive debugging records into proactive design guidance. The filtering must be deterministic — no LLM involvement in deciding which entries are relevant.
 
 19. **In-memory state transitions must be persisted before crossing action cycle boundaries.** When `route()` calls a state transition function and then recursively routes to produce an action block, the intermediate state exists only in memory. The POST command (`update_state.py`) loads state from disk independently. If the intermediate state is not saved to disk before the action block is returned, the POST command will operate on stale state. Every in-memory state transition in `route()` that precedes a recursive call or action block return must be followed by `save_state()`.
+
+20. **Error-path dispatch contracts must be as exhaustive as happy-path contracts.** Every (phase, sub_stage, status) combination in `dispatch_command_status` and `dispatch_agent_status` must have a contracted behavior. A `return state` for a status that requires pipeline advancement is a bug. Per-gate-option dispatch contracts must specify the exact state transition for every response option -- no-ops are valid only when the gate response genuinely does not change pipeline state. When `route()` calls a state transition function and then recursively routes to produce an action block, the intermediate state exists only in memory. The POST command (`update_state.py`) loads state from disk independently. If the intermediate state is not saved to disk before the action block is returned, the POST command will operate on stale state. Every in-memory state transition in `route()` that precedes a recursive call or action block return must be followed by `save_state()`.
 
 ---
 
@@ -633,6 +639,7 @@ The spec provides a principle but not the granularity rules needed to operationa
 | 62 | `test_bug62_selective_blueprint_loading.py` | Post-delivery (debug loop) |
 | 63 | (no dedicated regression test file -- documentation only) | Post-delivery (debug loop) |
 | 64 | (existing unit tests: invariant tests in unit_10, unit tests in unit_1/unit_3) | Post-delivery (debug loop) |
+| bug65 | 65 | `test_bug65_stage3_error_handling.py` | Post-delivery (debug loop) |
 
 Note: Regression test file names (test_bug2 through test_bug62) use either the original post-delivery numbering or the unified catalog numbering. This document's unified Bug 1-64 numbering includes blueprint-era, post-delivery, and rebuild preparation bugs chronologically. The mapping table provides the cross-reference.
 
@@ -1084,6 +1091,36 @@ After Bugs 59-62 correctly updated source code (ARTIFACT_FILENAMES keys, fix lad
 **Pattern:** P1 (Cross-Unit Contract Drift). The gate_5_3 ID was added to unit_10's GATE_RESPONSES but not to unit_9's ALL_GATE_IDS.
 
 **Prevention:** When adding a new gate to any module, verify it exists in ALL registries (ALL_GATE_IDS, GATE_RESPONSES, GATE_VOCABULARY, prepare_gate_prompt handler). Structural invariant tests catch this -- they were working correctly by failing.
+
+---
+
+### Bug 65 -- Stage 3 Error-Handling Infrastructure Entirely Unimplemented (Compound)
+
+**Caught:** Post-delivery (bug triage agent). **Test:** `test_bug65_stage3_error_handling.py`
+
+The entire Stage 3 error-handling infrastructure was dead code. Only the happy path worked (test_generation -> Gate A -> red_run -> implementation -> Gate B -> green_run -> coverage_review -> unit_completion). All failure paths, fix ladders, gates, and diagnostic escalation were unimplemented at the routing level. Nine findings:
+
+1. **F1 (stub_generation missing from routing):** `route()` treated `sub_stage is None` as `test_generation` instead of `stub_generation`. The stub generator script was never invoked.
+2. **F2 (TESTS_PASSED at red_run -> infinite loop):** When tests PASS against stubs (red_run), the spec says those tests are defective. `dispatch_command_status` had no handler for this case.
+3. **F3 (green_run failure -> infinite loop, no fix ladder):** When `TESTS_FAILED` at `green_run`, `dispatch_command_status` returned state unchanged with no fix ladder engagement.
+4. **F4 (diagnostic_agent dispatch is bare no-op):** `dispatch_agent_status` for `diagnostic_agent` was `return state` with no parsing of DIAGNOSIS_COMPLETE classification.
+5. **F5 (coverage_review missing two-branch check):** `route()` always re-invoked the coverage_review agent without checking `last_status.txt`.
+6. **F6 (fix_ladder_position never checked in route()):** `route()` at `implementation` sub_stage always invoked implementation_agent, ignoring `fix_ladder_position`.
+7. **F7 (Gate 3.1 dispatch handlers are no-ops):** Both `TEST CORRECT` and `TEST WRONG` for `gate_3_1_test_validation` returned state unchanged.
+8. **F9 (stub_generation not in dispatch_command_status):** No handler for `stub_generation` phase in `dispatch_command_status`.
+9. **F10 (red_run_retries never incremented):** `increment_red_run_retries` was never called when tests passed at red_run.
+
+**Impact:** Every Stage 3 failure path was broken. Any unit that experienced a test failure, fix ladder escalation, diagnostic escalation, or defective test detection would loop infinitely.
+
+**Fix:** Implemented all 9 findings in routing.py (workspace and delivered repo). Updated unit_10 stub.py to mirror. Updated test_bug46 and test_bug50 for new coverage_review dispatch behavior. 24 new regression tests cover all failure paths.
+
+**Pattern:** Compound P7 + P9 + P1. P7 (Spec Completeness): the spec described error paths in prose (Sections 10.4, 10.9, 10.10, 10.11) but the blueprint Tier 3 contracts covered only happy-path transitions. P9 (Spec Structural Gap): error-path dispatch was described in prose but never appeared as enumerable contracts. P1 (Cross-Unit Contract Drift): the routing script and state_transitions had matching function signatures but no wiring.
+
+**Prevention:** (1) Exhaustive dispatch_command_status tables for ALL (phase, sub_stage, status) combinations -- silence is not a valid contract outcome. (2) Per-gate-option dispatch contracts applied strictly: every gate response option must produce a distinct state transition. (3) Regression tests for error-path dispatch completeness: every reachable (phase, sub_stage, status) combination must be tested, not just happy paths.
+
+**New pattern candidate: "Error-Path Contract Omission" (P10).** Happy path is contracted and tested; error paths exist only in spec prose and are never converted to enumerable blueprint contracts. The implementation agent correctly implements the contracted paths and silently ignores the uncontracted error paths, producing code that compiles but loops on any failure.
+
+---
 
 ---
 

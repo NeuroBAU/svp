@@ -331,40 +331,6 @@ assert ARTIFACT_FILENAMES["project_context"] == "project_context.md"
 **DEFAULT_PROFILE key path regression test (spec Section 30):**
 - A Unit 1 unit test (in `tests/unit_1/`) must verify that every key path in `DEFAULT_PROFILE` matches the canonical profile schema defined in spec Section 6.4. This is a unit test of Unit 1's data contract, not a separate regression file.
 
-**Exhaustive Stage 3 dispatch_command_status contracts (Bug 65 fix).** dispatch_command_status for test_execution must handle ALL (sub_stage, status) combinations in Stage 3. The complete dispatch table:
-- At sub_stage == "red_run", TESTS_FAILED: advance sub_stage to "implementation" (happy path -- tests correctly fail against stubs).
-- At sub_stage == "red_run", TESTS_PASSED: increment red_run_retries. If retries < limit (default 2), set sub_stage to "test_generation" for test regeneration. If retries >= limit, set sub_stage to "gate_3_1" to present Gate 3.1 (test validation) for human decision.
-- At sub_stage == "green_run", TESTS_PASSED: advance sub_stage to "coverage_review" (happy path -- tests pass against implementation).
-- At sub_stage == "green_run", TESTS_FAILED: engage the fix ladder. If fix_ladder_position is None, advance to "fresh_impl" and set sub_stage to "implementation". If fix_ladder_position is "fresh_impl", advance to "diagnostic" and set sub_stage to "implementation". If fix_ladder_position is "diagnostic_impl", set sub_stage to "gate_3_2" to present Gate 3.2 (diagnostic decision) for human escalation.
-- At sub_stage == "stub_generation", COMMAND_SUCCEEDED: advance sub_stage to "test_generation".
-A regression test (test_bug65_stage3_error_handling.py) must verify all five dispatch paths.
-
-**Stage 3 fix_ladder_position conditional in route() (Bug 65 fix).** When route() dispatches sub_stage == "implementation", it must check fix_ladder_position to determine which agent to invoke:
-- fix_ladder_position in (None, "fresh_impl"): invoke implementation_agent (normal implementation path).
-- fix_ladder_position == "diagnostic": invoke diagnostic_agent. The diagnostic agent returns DIAGNOSIS_COMPLETE with a classification suffix. This is governed by the two-branch routing invariant (see gate-presenting entries above).
-- fix_ladder_position == "diagnostic_impl": invoke implementation_agent with diagnostic context (the diagnostic agent's output is forwarded as additional context to the implementation agent).
-
-**dispatch_agent_status for diagnostic_agent (Bug 65 fix).** dispatch_agent_status for diagnostic_agent must parse the DIAGNOSIS_COMPLETE status line and extract the classification suffix:
-- DIAGNOSIS_COMPLETE: implementation -- advance fix_ladder_position to "diagnostic_impl" and set sub_stage to "implementation" for implementation with diagnostic context.
-- DIAGNOSIS_COMPLETE: blueprint -- call restart_from_stage(state, "2", project_root) to restart from Stage 2 for blueprint revision.
-- DIAGNOSIS_COMPLETE: spec -- call restart_from_stage(state, "1", project_root) to restart from Stage 1 for spec revision.
-
-**Gate 3.1 per-option dispatch contracts (Bug 65 fix).** dispatch_gate_response for gate_3_1_test_validation:
-- TEST CORRECT: engage the fix ladder. Advance fix_ladder_position from None to "fresh_impl" (or from current position to next rung) and set sub_stage to "implementation". The human has confirmed the tests are correct, so the implementation must be fixed.
-- TEST WRONG: set sub_stage to "test_generation" for test regeneration. The human has determined the tests are defective. Reset red_run_retries to 0.
-
-**Gate 3.2 per-option dispatch contracts (Bug 65 fix).** dispatch_gate_response for gate_3_2_diagnostic_decision:
-- FIX IMPLEMENTATION: reset fix_ladder_position to None and set sub_stage to "implementation". The human has decided the implementation should be reattempted from scratch after diagnostic analysis.
-- FIX BLUEPRINT: call restart_from_stage(state, "2", project_root) to restart from Stage 2.
-- FIX SPEC: call restart_from_stage(state, "1", project_root) to restart from Stage 1.
-
-**Stage 3 gate sub-stage routing (Bug 65 fix).** route() must handle two gate-presenting sub-stages in Stage 3:
-- sub_stage == "gate_3_1": emit a human_gate action for gate_3_1_test_validation.
-- sub_stage == "gate_3_2": emit a human_gate action for gate_3_2_diagnostic_decision.
-These are deterministic gate presentations (not governed by the two-branch invariant) because they are reached only via explicit sub_stage assignment in dispatch_command_status or dispatch_gate_response.
-
-**Stage 3 coverage_review two-branch dispatch (Bug 65 fix, updating Bug 46).** The coverage_review two-branch in route() dispatches on last_status.txt content. If COVERAGE_COMPLETE: no gaps, route() advances directly to unit_completion (no agent re-invocation needed). If COVERAGE_COMPLETE: tests added, route() emits a run_command for auto-format on the new test files, then advances sub_stage to red_run for re-validation. dispatch_agent_status for coverage_review returns state unchanged (it does NOT advance sub_stage); the advancement is handled by route() reading last_status.txt. This corrects the Bug 46 contract which stated dispatch_agent_status advances to unit_completion -- dispatch_agent_status for coverage_review is now a no-op, and route() handles the two-branch logic.
-
 ### Tier 3 -- Dependencies
 
 None. This is the most foundational unit.

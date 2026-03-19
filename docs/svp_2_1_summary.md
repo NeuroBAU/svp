@@ -3,7 +3,7 @@
 **Date:** 2026-03-15
 **Companion to:** Stakeholder Specification v8.29 (Document 2)
 **Pipeline role:** Reference document. Available to blueprint checker as cross-check.
-**Bug count:** 64 bugs cataloged across SVP 1.0 through SVP 2.1 (see `svp_2_1_lessons_learned.md`).
+**Bug count:** 65 bugs cataloged across SVP 1.0 through SVP 2.1 (see `svp_2_1_lessons_learned.md`).
 
 ---
 
@@ -38,6 +38,7 @@ Each line is a verifiable contract. Section numbers reference Document 2.
 - **Route-level state persistence invariant (§3.6, Bug 42 fix):** Any `route()` branch that performs an in-memory state transition (via `complete_*` or `advance_*`) and then recursively routes must persist state to disk via `save_state()` before returning the action block. Without this, `update_state.py` loads stale state from disk and overwrites the in-memory transition. Structural tests must verify every `complete_*`/`advance_*` call in `route()` is followed by `save_state()`.
 - **Exhaustive dispatch_agent_status invariant (§3.6, Bug 42 fix, Bugs 44/46 fix):** Every main-pipeline agent type in `dispatch_agent_status` must explicitly advance pipeline state (modify stage, sub_stage, or a state flag). A bare `return state` is only valid for slash-command-initiated agents (help, hint). Structural tests must verify main-pipeline handlers are not no-ops. Routing and dispatch must have consistent null-handling for sub_stage (Bug 44).
 - **Exhaustive dispatch_command_status invariant (§3.6, Bug 45 fix):** Every `dispatch_command_status` handler for `test_execution` must produce a state transition for the expected outcome at each sub_stage. No-op returns are invalid for `red_run` (TESTS_FAILED -> implementation) and `green_run` (TESTS_PASSED -> coverage_review).
+- **Exhaustive Stage 3 error-path dispatch (Bug 65 fix):** dispatch_command_status must handle ALL (sub_stage, status) combinations in Stage 3, including: red_run/TESTS_PASSED (retry/regenerate/Gate 3.1), green_run/TESTS_FAILED (fix ladder engagement), stub_generation/COMMAND_SUCCEEDED. route() must check fix_ladder_position at implementation sub_stage to dispatch diagnostic_agent vs implementation_agent. Gate 3.1 and Gate 3.2 have explicit per-option dispatch contracts.
 - **COMMAND/POST separation invariant (§3.6, Bug 47 fix):** COMMAND fields must never embed state update calls (`update_state.py`). State updates are exclusively the responsibility of POST commands. Embedding updates in both causes double dispatch and TransitionError.
 - **CLI argument enumeration invariant (§3.6, Bug 48 fix, STRENGTHENED Bug 49 fix):** Any blueprint Tier 2 function signature that accepts `argv` and uses `argparse` internally must enumerate every `add_argument` call (argument name, type, required/optional) in the Tier 2 invariants section. Prose-only descriptions in Tier 3 are insufficient for CLI contracts. This invariant applies to ALL units with CLI entry points: Unit 6 (`main`), Unit 7 (`main`), Unit 9 (`main`), Unit 10 (`update_state_main`, `run_tests_main`, `run_quality_gate_main`), Unit 23 (`compliance_scan_main`), Unit 24 (`parse_args`). A structural regression test (`test_bug49_argparse_enumeration.py`) verifies compliance.
 - **Contract sufficiency invariant (§3.16, Bug 50 fix):** A Tier 3 behavioral contract is sufficient if and only if an implementation agent reading ONLY the Tier 2 signature and Tier 3 contract could produce a correct implementation. If behavior depends on specific values (lookup tables, enum validation sets, magic numbers, algorithm parameters, file paths for side effects), those values must appear in Tier 2 invariants or Tier 3 contract.
@@ -112,7 +113,7 @@ Per-unit cycle (11 steps, Bug 36 fix adds stub generation):
 - Test agent and implementation agent receive `blueprint_contracts.md` only (`include_tier1=False`). Tier 1 prose excluded from these task prompts to reduce token cost.
 - Test agent task prompt includes filtered lessons learned entries for the current unit (unit number match or pattern classification match). Filtering is deterministic in Unit 9. Section omitted when no matches.
 - Stub generator writes `__SVP_STUB__ = True` sentinel as first non-import statement in every stub file.
-- Routing script must emit a distinct action for each Stage 3 sub-stage (Bug 25 fix, updated for Bug 36): `None`/`stub_generation` → stub generator `run_command`, `test_generation` → test_agent, `red_run` → pytest (expect fail), `implementation` → implementation_agent, `green_run` → pytest (expect pass), `coverage_review` → coverage_review agent, `unit_completion` → complete_unit + session_boundary.
+- Routing script must emit a distinct action for each Stage 3 sub-stage (Bug 25 fix, updated for Bugs 36, 65): `None`/`stub_generation` → stub generator `run_command`, `test_generation` → test_agent, `red_run` → pytest (expect fail), `implementation` → implementation_agent, `green_run` → pytest (expect pass), `coverage_review` → coverage_review agent, `unit_completion` → complete_unit + session_boundary.
 
 ### Stage 4: Integration Testing (§11)
 
@@ -447,8 +448,9 @@ Note: Both redo profile sub-stages are governed by the two-branch routing invari
 | 53 | `test_bug53_orphaned_functions.py` | Orphaned dead-code function removal |
 | 54 | `test_bug54_orphaned_update_state_from_status.py` | Orphaned update_state_from_status removal |
 | 58 | `test_bug58_gate_5_3_unused_functions.py` | Gate 5.3 vocabulary, dispatch, routing |
+| 65 | `test_bug65_stage3_error_handling.py` | Stage 3 exhaustive error-path dispatch |
 
-All regression tests live in `tests/regressions/`. Bugs 55–57 are documentation/spec fixes with no dedicated regression test files.
+All regression tests live in `tests/regressions/`. Bugs 55–57 are documentation/spec fixes with no dedicated regression test files. Bug 65 is a compound fix (9 findings) covering all Stage 3 error-path dispatch contracts.
 
 ---
 
@@ -464,8 +466,9 @@ All regression tests live in `tests/regressions/`. Bugs 55–57 are documentatio
 - **Pass History:** Record of pipeline passes through Stage 3+. Tracks reach, reason ended, timestamp.
 - **Session Boundary:** Point where launcher cycles the Claude Code session to prevent context degradation.
 - **Binary Decision Logic:** Every diagnostic failure produces: implementation problem (fix locally) or document problem (fix document, restart). No third option.
-- **Pattern Catalog:** Part 2 of `svp_2_1_lessons_learned.md`. Named failure patterns (P1–P9) with instance lists and prevention rules. Blueprint checker receives the catalog for advisory risk analysis.
+- **Pattern Catalog:** Part 2 of `svp_2_1_lessons_learned.md`. Named failure patterns (P1–P10) with instance lists and prevention rules. Blueprint checker receives the catalog for advisory risk analysis.
 - **Pattern P9 (Spec Structural Gap):** The spec provides a principle but not the granularity rules needed to operationalize it. Reviewers and checkers have no structural criteria to verify. Introduced in Bug 56.
+- **Pattern P10 (Error-Path Contract Omission):** Spec and blueprint define only the happy-path dispatch transitions. Error-path and edge-case transitions (unexpected test outcomes, fix ladder engagement, gate presentations) are left unspecified. Implementation omits them because no contract requires them. Introduced in Bug 65.
 - **Two-Tier Defense Model (Bugs 56–57):** (1) LLM-driven review catches root causes at authoring time via mandatory checklists baked into reviewer agent definitions. (2) Gate C deterministic check catches symptoms at assembly time via unused function detection. Together they provide defense in depth against the Bugs 52–55 pattern (functions implemented but never wired into dispatch).
 
 ### Four-Layer Orchestration

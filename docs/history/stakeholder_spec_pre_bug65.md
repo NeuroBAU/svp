@@ -1,6 +1,6 @@
 # SVP — Stratified Verification Pipeline
 
-## Stakeholder Specification v8.32 (SVP 2.1)
+## Stakeholder Specification v8.31 (SVP 2.1)
 
 **Date:** 2026-03-17
 **Supersedes:** v8.30 (SVP 2.1)
@@ -234,22 +234,7 @@ The blueprint must implement `route()` such that adding a new agent-to-gate sub-
 
 **Exhaustive dispatch_agent_status invariant (NEW IN 2.1 — Bug 42 fix, CHANGED IN 2.1 — Bugs 44, 46 fix).** Every agent type registered in `dispatch_agent_status` must explicitly handle its success status line with a state transition that advances the pipeline (modifying at least one of `stage`, `sub_stage`, or a state flag). A bare `return state` (no field changes) is only valid when the agent's completion genuinely does not require a stage/sub-stage change — for example, slash-command-initiated agents (help, hint) whose completion returns control to the current pipeline position. For agents on the main pipeline path (reference indexing, git repo agent, blueprint checker, triage agent, repair agent, test agent, coverage review agent, etc.), a bare `return state` is a bug — it leaves the pipeline stuck at the current position with no mechanism to advance. A structural test must verify that every main-pipeline agent type in `dispatch_agent_status` modifies at least one state field in its success handler. The routing function and dispatch function must have consistent null-handling for `sub_stage`: when routing treats `None` as equivalent to a named sub_stage (e.g., `test_generation`), the dispatch must also accept `None` for that agent type (Bug 44 fix).
 
-**Exhaustive dispatch_command_status invariant (NEW IN 2.1 — Bug 45 fix, CHANGED IN 2.1 — Bug 65 fix).** Every `dispatch_command_status` handler for `test_execution` must produce a state transition for the expected outcome at each sub-stage. No-op returns (`return state`) are invalid for `red_run` (`TESTS_FAILED` must advance to `implementation`) and `green_run` (`TESTS_PASSED` must advance to `coverage_review`). A `dispatch_command_status` handler that returns state unchanged for a status line that requires advancement is a bug — it leaves the pipeline stuck re-running the same command indefinitely. A structural test must verify that `dispatch_command_status` for `test_execution` advances `sub_stage` for each expected status/sub_stage combination.
-
-**Extended exhaustive dispatch table (Bug 65 fix).** The invariant above covers only two happy-path cases. The complete dispatch table for ALL (phase, sub_stage, status) combinations in Stage 3 is:
-
-| Phase | Sub-stage | Status | Required transition |
-|-------|-----------|--------|-------------------|
-| `stub_generation` | `None` / `stub_generation` | `COMMAND_SUCCEEDED` | advance to `test_generation` |
-| `test_execution` | `red_run` | `TESTS_FAILED` | advance to `implementation` |
-| `test_execution` | `red_run` | `TESTS_PASSED` | increment `red_run_retries`; if < limit: regenerate tests (`test_generation`); if >= limit: present Gate 3.1 (`gate_3_1`) |
-| `test_execution` | `green_run` | `TESTS_PASSED` | advance to `coverage_review` |
-| `test_execution` | `green_run` | `TESTS_FAILED` | advance fix ladder: `None` -> `fresh_impl` (implementation); `fresh_impl` -> `diagnostic` (implementation); `diagnostic_impl` -> exhausted (`gate_3_2`) |
-| `quality_gate` | `quality_gate_a` / `quality_gate_b` | `COMMAND_SUCCEEDED` | advance to next sub-stage (`red_run` / `green_run`) |
-| `quality_gate` | `quality_gate_a` / `quality_gate_b` | `COMMAND_FAILED` | advance to retry sub-stage |
-| `unit_completion` | `unit_completion` | `COMMAND_SUCCEEDED` | complete unit, advance to next |
-
-Silence (bare `return state`) is not a valid contract outcome for any entry in this table. Every cell must produce a distinct state transition.
+**Exhaustive dispatch_command_status invariant (NEW IN 2.1 — Bug 45 fix).** Every `dispatch_command_status` handler for `test_execution` must produce a state transition for the expected outcome at each sub-stage. No-op returns (`return state`) are invalid for `red_run` (`TESTS_FAILED` must advance to `implementation`) and `green_run` (`TESTS_PASSED` must advance to `coverage_review`). A `dispatch_command_status` handler that returns state unchanged for a status line that requires advancement is a bug — it leaves the pipeline stuck re-running the same command indefinitely. A structural test must verify that `dispatch_command_status` for `test_execution` advances `sub_stage` for each expected status/sub_stage combination.
 
 **COMMAND/POST separation invariant (NEW IN 2.1 — Bug 47 fix).** COMMAND fields in routing action blocks must never embed state update calls (`update_state.py`). State updates are exclusively the responsibility of POST commands. If a COMMAND embeds a state update call and a POST command also invokes `update_state.py` for the same phase, the state update runs twice, causing a `TransitionError` on the second invocation. The COMMAND should only produce output, write status files, or execute deterministic tool commands; the POST command handles state transitions. This applies to all routing action blocks, not just `unit_completion` (though Bug 47 was discovered there).
 
@@ -971,9 +956,7 @@ This table is the single authoritative reference for the dual numbering scheme. 
 
 The mapping table above is authoritative for resolving both collisions and deviations.
 
-| bug65 | 65 | Dedicated file | `test_bug65_stage3_error_handling.py` | Stage 3 error-handling: stub_generation, fix ladder, diagnostic escalation, Gate 3.1/3.2, coverage two-branch, red_run retries (24 tests) |
-
-**Regression test count.** There are 45 distinct regression test file entries in the table above (40 unique filenames): 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 22 newly authored in this build. Three `test_bugNN_` filename prefixes are reused across different bugs (`test_bug17_*`, `test_bug18_*`, `test_bug19_*` -- see naming note above), but each table entry corresponds to a distinct file with a unique full filename. The 22 newly authored files are: `test_bug13_hook_schema_validation.py` (Bug 17), `test_bug22_repo_sibling_directory.py` (Bug 37), `test_bug23_stage1_spec_gate_routing.py` (Bug 41), `test_bug42_pre_stage3_state_persistence.py` (Bug 42), `test_bug43_stage2_blueprint_routing.py` (Bug 43), `test_bug44_null_substage_dispatch.py` (Bug 44), `test_bug45_test_execution_dispatch.py` (Bug 45), `test_bug46_coverage_dispatch.py` (Bug 46), `test_bug47_unit_completion_double_dispatch.py` (Bug 47), `test_bug48_launcher_cli_contract.py` (Bug 48), `test_bug49_argparse_enumeration.py` (Bug 49), `test_bug50_contract_sufficiency.py` (Bug 50), `test_bug51_debug_reassembly.py` (Bug 51), `test_bug52_version_document_wiring.py` (Bug 52), `test_bug53_orphaned_functions.py` (Bug 53), `test_bug54_orphaned_update_state_from_status.py` (Bug 54), `test_bug55_rollback_gate62_wiring.py` (Bug 55), `test_bug58_gate_5_3_unused_functions.py` (Bug 58), `test_bug59_blueprint_path_and_gates.py` (Bug 59), `test_bug60_unit_context_blueprint_path.py` (Bug 60), `test_bug61_include_tier1_parameter.py` (Bug 61), and `test_bug62_selective_blueprint_loading.py` (Bug 62). All other files are carried forward unchanged.
+**Regression test count.** There are 44 distinct regression test file entries in the table above (39 unique filenames): 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 22 newly authored in this build. Three `test_bugNN_` filename prefixes are reused across different bugs (`test_bug17_*`, `test_bug18_*`, `test_bug19_*` -- see naming note above), but each table entry corresponds to a distinct file with a unique full filename. The 22 newly authored files are: `test_bug13_hook_schema_validation.py` (Bug 17), `test_bug22_repo_sibling_directory.py` (Bug 37), `test_bug23_stage1_spec_gate_routing.py` (Bug 41), `test_bug42_pre_stage3_state_persistence.py` (Bug 42), `test_bug43_stage2_blueprint_routing.py` (Bug 43), `test_bug44_null_substage_dispatch.py` (Bug 44), `test_bug45_test_execution_dispatch.py` (Bug 45), `test_bug46_coverage_dispatch.py` (Bug 46), `test_bug47_unit_completion_double_dispatch.py` (Bug 47), `test_bug48_launcher_cli_contract.py` (Bug 48), `test_bug49_argparse_enumeration.py` (Bug 49), `test_bug50_contract_sufficiency.py` (Bug 50), `test_bug51_debug_reassembly.py` (Bug 51), `test_bug52_version_document_wiring.py` (Bug 52), `test_bug53_orphaned_functions.py` (Bug 53), `test_bug54_orphaned_update_state_from_status.py` (Bug 54), `test_bug55_rollback_gate62_wiring.py` (Bug 55), `test_bug58_gate_5_3_unused_functions.py` (Bug 58), `test_bug59_blueprint_path_and_gates.py` (Bug 59), `test_bug60_unit_context_blueprint_path.py` (Bug 60), `test_bug61_include_tier1_parameter.py` (Bug 61), and `test_bug62_selective_blueprint_loading.py` (Bug 62). All other files are carried forward unchanged.
 
 **New regression test naming convention.** Newly authored regression tests in this build use the unified catalog number: `test_bugNN_descriptive_suffix.py` where NN is the unified bug number. The `test_bug13_hook_schema_validation.py` file for unified Bug 17 uses a pre-unified filename prefix (`bug13`) because Bug 17 was catalogued before the unified numbering convention was established. Despite being newly authored in this build, its filename uses the old numbering for backward compatibility: the SVP 2.0 regression test inventory already allocated the `test_bug13` prefix slot, and existing tooling and documentation reference this filename. Changing it would break the established carry-forward contract. The filename is treated as a fixed historical artifact.
 
@@ -1317,10 +1300,10 @@ After the test agent produces tests and before the red run, a deterministic qual
 The main session runs the test suite against the stub via bash command. Test execution commands are resolved from `toolchain.json` **(CHANGED IN 2.0)**. Every test must fail. Three outcomes:
 
 - **All tests fail:** structurally sound. Proceed to implementation. **State transition (Bug 45 fix):** `dispatch_command_status` for `test_execution` at `sub_stage=red_run` must advance `sub_stage` to `implementation` when `TESTS_FAILED` is received. A no-op return is invalid — it causes an infinite loop re-running the red run.
-- **Some tests pass against the stub:** those tests are defective. Test suite is regenerated by a fresh test agent with the passing tests identified. Red run repeated. **State transition (Bug 65 fix):** `dispatch_command_status` for `test_execution` at `sub_stage=red_run` must increment `red_run_retries` when `TESTS_PASSED` is received, then: if retries < limit (default 3), advance `sub_stage` to `test_generation` for regeneration; if retries >= limit, advance `sub_stage` to `gate_3_1` to present Gate 3.1 (`gate_3_1_test_validation`) for human decision. See Section 3.6 extended dispatch table.
+- **Some tests pass against the stub:** those tests are defective. Test suite is regenerated by a fresh test agent with the passing tests identified. Red run repeated.
 - **Tests error (won't run):** syntax problems, import issues, malformed fixtures. Test suite regenerated. Red run repeated.
 
-If the test suite fails the red run after the configured number of attempts (default 3, tracked as `red_run_retries`), Gate 3.1 is presented for human decision (Section 10.9).
+If the test suite fails the red run after the configured number of attempts (default 3, tracked as `red_run_retries`), the diagnostic agent determines whether the blueprint contract is insufficiently specified.
 
 Collection error indicators are read from `toolchain.json` (`testing.collection_error_indicators`) **(CHANGED IN 2.0)**.
 
@@ -1361,7 +1344,7 @@ The implementation agent gets one re-pass with the quality report appended to it
 
 The main session runs the test suite against the real implementation via bash command. All tests must pass. Test execution commands are resolved from `toolchain.json` **(CHANGED IN 2.0)**.
 
-**State transition (Bug 45 fix, CHANGED — Bug 65 fix).** `dispatch_command_status` for `test_execution` at `sub_stage=green_run` must advance `sub_stage` to `coverage_review` when `TESTS_PASSED` is received. When `TESTS_FAILED` is received, the fix ladder must engage (Section 10.10): the dispatch advances `fix_ladder_position` to the next rung and sets `sub_stage` to `implementation` for retry, or to `gate_3_2` when the ladder is exhausted. A no-op return is invalid for either status — it causes an infinite loop re-running the green run. See Section 3.6 extended dispatch table.
+**State transition (Bug 45 fix).** `dispatch_command_status` for `test_execution` at `sub_stage=green_run` must advance `sub_stage` to `coverage_review` when `TESTS_PASSED` is received. A no-op return is invalid — it causes an infinite loop re-running the green run.
 
 ### 10.8 On Pass: Coverage Review
 
@@ -1369,7 +1352,7 @@ A coverage review agent reads the blueprint and the passing test suite to identi
 
 **Quality gate exception (CHANGED IN 2.1).** Coverage review does not re-run the full quality gate A or B cycles. However, newly added test code must receive a minimum quality floor: after coverage review adds test files, the routing script runs auto-formatting on the new test files as a deterministic `run_command` immediately after coverage review completion, before advancing to the next sub-stage. Specifically, the routing script emits `run_command` actions for `ruff format {target}` and `ruff check --select E,F,I --fix {target}` (the same Gate A auto-fix operations, resolved from `toolchain.json`). This is a formatting-only pass with no agent re-pass cycle, no type check, and no dedicated sub-stage — the auto-formatting commands execute within the `coverage_review` sub-stage's completion flow. If auto-fix resolves everything, continue to the red-green validation. Formatting residuals from coverage review auto-fix are silently accepted at this stage — they do not affect test correctness and are not eliminated but deferred: Gate C during Stage 5 assembly (Section 12.2) runs format check + full lint on the entire assembled project and will catch and fix them as part of the Stage 5 bounded fix cycle (Section 12.4). These deferred residuals will consume bounded fix cycle attempts in Stage 5; this is acceptable because formatting fixes are trivial for the git repo agent (auto-fix resolves them mechanically) and do not represent a meaningful draw on the Stage 5 retry budget. The implementation is not modified during coverage review, so Gate B does not re-run. If coverage review causes implementation changes (via the simplified fix ladder), those changes go through Gate B as part of the fix ladder's normal flow.
 
-**State transition (Bug 46 fix, CHANGED — Bug 65 fix).** `dispatch_agent_status` for `coverage_review` returns state unchanged (keeps `sub_stage` at `coverage_review`). The two-branch routing pattern in `route()` reads `last_status.txt` to determine the next action: if `COVERAGE_COMPLETE: no gaps`, advance directly to `unit_completion`; if `COVERAGE_COMPLETE: tests added`, emit auto-format `run_command` before advancing. This change moves the dispatch logic from `dispatch_agent_status` to `route()` to support the two-branch pattern (Section 3.6 command-presenting entries).
+**State transition (Bug 46 fix).** `dispatch_agent_status` for `coverage_review` must advance `sub_stage` to `unit_completion` when `COVERAGE_COMPLETE` is received (either `COVERAGE_COMPLETE: no gaps` or `COVERAGE_COMPLETE: tests added`, after any post-completion auto-formatting). A bare `return state` is invalid — it causes an infinite loop re-invoking the coverage review agent. This is an instance of the exhaustive dispatch_agent_status invariant (Section 3.6).
 
 **Green-run failure path.** If any newly added coverage test fails the green run, this follows the simplified fix ladder (Section 10.10). If a second coverage review produces tests that also fail, escalate directly to diagnostic — the repeated coverage gap pattern is a diagnostic signal.
 
@@ -2516,16 +2499,6 @@ A unit's dependency list references a unit with a higher number (forward edge) o
 **Detection:** Three independent checkpoints: blueprint checker (Stage 2), infrastructure DAG validation (Pre-Stage-3), stub generator forward-reference guard (Stage 3). Any one catching the violation is sufficient.
 
 **Recovery:** This is always a blueprint-level problem. The pipeline returns to Stage 2. The blueprint author must restructure units to eliminate forward edges. If the forward dependency reflects a genuine circular relationship in the domain logic, the blueprint author must merge the circularly dependent components into a single unit or decompose differently.
-
-### 24.14a Stage 3 Error-Path Dispatch Failure (NEW IN 2.1 — Bug 65)
-
-A Stage 3 dispatch function returns state unchanged for a status line that requires a state transition. The pipeline loops indefinitely re-running the same command or re-invoking the same agent.
-
-**Root cause:** The blueprint Tier 3 contracts covered only happy-path transitions. Error-path dispatch (TESTS_PASSED at red_run, TESTS_FAILED at green_run, DIAGNOSIS_COMPLETE at diagnostic) was described in spec prose (Sections 10.4, 10.9, 10.10, 10.11) but never appeared as enumerable contracts in the blueprint. The implementation agent correctly implemented the contracted paths and produced no-op stubs for the uncontracted ones.
-
-**Detection:** The extended dispatch table (Section 3.6) enumerates every (phase, sub_stage, status) combination. A regression test (`test_bug65_stage3_error_handling.py`) verifies that each combination produces a distinct state transition.
-
-**Recovery:** This is a compound P7+P9+P1 instance. The fix adds concrete dispatch contracts for every error path and wires all fix ladder, diagnostic escalation, Gate 3.1/3.2, and stub_generation transitions.
 
 ### 24.15 Quality Gate Failure (NEW IN 2.1)
 
