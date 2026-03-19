@@ -410,7 +410,7 @@ STAGE_3_SUB_STAGES: List[Optional[str]] = [
 
 STAGE_4_SUB_STAGES: List[Optional[str]] = [None]
 
-STAGE_5_SUB_STAGES: List[Optional[str]] = [None, "repo_test", "compliance_scan", "gate_5_3", "repo_complete"]
+STAGE_5_SUB_STAGES: List[Optional[str]] = [None, "repo_test", "structural_check", "compliance_scan", "gate_5_3", "repo_complete"]
 
 QUALITY_GATE_SUB_STAGES: List[str] = [
     "quality_gate_a", "quality_gate_b",
@@ -1617,7 +1617,7 @@ BLUEPRINT_REVIEWER_MD_CONTENT: str
 
 ### Tier 3 -- Behavioral Contracts
 
-- **Blueprint Checker (EXPANDED for SVP 2.1):** Receives all blueprint files discovered from the blueprint directory (via Unit 9's task prompt assembly, which uses `discover_blueprint_files` from Unit 1). Validates internal consistency: every `## Unit N:` heading found across all files must have corresponding Tier 1, Tier 2, and Tier 3 content somewhere in the discovered files. Validates alignment, DAG acyclicity, Layer 2 preference coverage (including quality preferences). **Receives pattern catalog section of `svp_2_1_lessons_learned.md` -- produces advisory risk section identifying structural features matching known failure patterns (P1-P10). Advisory only -- does not block approval.** The checker is agnostic to the number or names of blueprint files -- it validates the combined content. **Gate reachability check (Bugs 65-69 P10 fix):** For every gate in GATE_VOCABULARY, verify there exists a `route()` code path in the blueprint's Unit 10 contracts that presents it. For every gate response option, verify `dispatch_gate_response` produces a state transition or is documented as an intentional two-branch no-op. This is an alignment condition, not advisory.
+- **Blueprint Checker (EXPANDED for SVP 2.1, Bug 72 registry completeness):** Receives all blueprint files discovered from the blueprint directory (via Unit 9's task prompt assembly, which uses `discover_blueprint_files` from Unit 1). Validates internal consistency: every `## Unit N:` heading found across all files must have corresponding Tier 1, Tier 2, and Tier 3 content somewhere in the discovered files. Validates alignment, DAG acyclicity, Layer 2 preference coverage (including quality preferences). **Receives pattern catalog section of `svp_2_1_lessons_learned.md` -- produces advisory risk section identifying structural features matching known failure patterns (P1-P10). Advisory only -- does not block approval.** The checker is agnostic to the number or names of blueprint files -- it validates the combined content. **Gate reachability check (Bugs 65-69 P10 fix):** For every gate in GATE_VOCABULARY, verify there exists a `route()` code path in the blueprint's Unit 10 contracts that presents it. For every gate response option, verify `dispatch_gate_response` produces a state transition or is documented as an intentional two-branch no-op. This is an alignment condition, not advisory.
 - **Stakeholder Spec Reviewer (Bug 57 expansion, EXPANDED Bugs 65-69 P10 fix):** Agent definition includes a mandatory review checklist requiring explicit verification of: downstream dependency analysis for re-entry paths, Tier 3 contract requirements for exported functions, per-gate-option dispatch contract requirements, call-site traceability for specified functions, re-entry invalidation requirements, and gate reachability verification (every gate defined in GATE_VOCABULARY must have a route() path and every response must produce a state transition).
 - **Blueprint Reviewer (Bug 57 expansion, EXPANDED Bugs 65-69 P10 fix):** Agent definition includes a mandatory review checklist requiring explicit verification of: Tier 2/Tier 3 completeness, per-gate dispatch contracts, call-site traceability, re-entry downstream invalidation, contract sufficiency for reimplementation, and gate reachability (every gate in GATE_VOCABULARY must have a route() code path that presents it; every response option must produce a state transition or be documented as an intentional two-branch no-op).
 
@@ -1887,7 +1887,7 @@ assert "delivered_repo_path" in BUG_TRIAGE_AGENT_MD_CONTENT.lower() or \
 
 ### Tier 3 -- Behavioral Contracts
 
-- **Bug Triage Agent (CHANGED IN 2.1):** Seven-step workflow. Receives `delivered_repo_path` from task prompt. Step 7 -- commit and push: prepares commit using fixed debug commit message format (`[SVP-DEBUG] Bug NNN: <summary>` with structured body) regardless of `vcs.commit_style`. Presents to human for approval. Gate response options: **COMMIT APPROVED** or **COMMIT REJECTED**. The `BUG_TRIAGE_AGENT_MD_CONTENT` must contain Step 7 instructions verbatim.
+- **Bug Triage Agent (CHANGED IN 2.1, Bug 72 structural pre-check):** Step 0 structural pre-check + seven-step workflow. Receives `structural_check_results` from task prompt for accelerated diagnosis. Includes Registry Diagnosis Recipe. Receives `delivered_repo_path` from task prompt. Step 7 -- commit and push: prepares commit using fixed debug commit message format (`[SVP-DEBUG] Bug NNN: <summary>` with structured body) regardless of `vcs.commit_style`. Presents to human for approval. Gate response options: **COMMIT APPROVED** or **COMMIT REJECTED**. The `BUG_TRIAGE_AGENT_MD_CONTENT` must contain Step 7 instructions verbatim.
 - **Repair Agent:** Unchanged.
 
 ### Tier 3 -- Dependencies

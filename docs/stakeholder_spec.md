@@ -1,9 +1,9 @@
 # SVP — Stratified Verification Pipeline
 
-## Stakeholder Specification v8.32 (SVP 2.1)
+## Stakeholder Specification v8.33 (SVP 2.1)
 
 **Date:** 2026-03-17
-**Supersedes:** v8.30 (SVP 2.1)
+**Supersedes:** v8.32 (SVP 2.1)
 **Build Tool:** SVP 2.0
 
 ---
@@ -385,6 +385,29 @@ The downstream dependency invariant (Section 3.18) and contract granularity rule
 2. **LLM-driven review checks at Gates 1.1/1.2 and 2.1/2.2 (authoring time).** The stakeholder spec reviewer, blueprint checker, and blueprint reviewer agents each have mandatory review checklists baked into their agent definitions. These checklists require the review agents to explicitly verify downstream dependency analysis, contract granularity, per-gate dispatch contracts, call-site traceability, re-entry invalidation, and gate reachability (for every gate in GATE_VOCABULARY, verify there exists a route() code path that presents it; for every gate response option, verify dispatch_gate_response produces a state transition or is documented as an intentional two-branch no-op -- Bugs 65-69 P10 fix). The checklists are part of the agent's system prompt and run automatically during every spec review and blueprint review -- no human action required to activate them.
 
 The two mechanisms are complementary: the review checklists catch the root cause (spec/blueprint gaps) at authoring time; the Gate C check catches the symptom (dead code) at assembly time. Neither alone is sufficient. The review checklists are LLM-driven and advisory (the review agent flags issues but does not block progress mechanically); the Gate C check is deterministic and presents a human gate.
+
+### 3.21 Structural Completeness Test Suite (NEW IN 2.1 -- Bug 71 fix)
+
+The regression test file `tests/regressions/test_bug71_structural_completeness.py` provides a third enforcement layer: 14 automated guard tests that verify declaration-vs-usage consistency across the pipeline's constants, dispatch tables, routing functions, and state transitions. These tests run as part of the standard pytest suite and catch classes of bugs that neither LLM review nor Gate C can detect (e.g., a gate declared in GATE_VOCABULARY but missing from route(), or a status line declared in AGENT_STATUS_LINES but not handled by dispatch).
+
+The 14 techniques are: (1) gate vocabulary vs route reachability, (2) response options vs dispatch handlers, (3) exported functions vs call sites, (4) stub vs script constant synchronization, (5) skipped (narrative-only), (6) per-agent loading matrix, (7) agent status lines vs dispatch, (8) known agent types vs route invocations, (9) debug phase transitions vs route handlers, (10) sub-stages vs route branches, (11) fix ladder positions vs route context, (12) command status patterns vs phase handlers, (13) phase-to-agent map vs known phases, (14) debug phase transitions vs known phases.
+
+This suite must be maintained as the pipeline evolves: any new gate, agent type, status line, sub-stage, debug phase, or fix ladder position must be reflected in the corresponding stub constants, script constants, and structural tests.
+
+
+### 3.22 Generalized Structural Completeness Checking -- Four-Layer Defense (NEW IN 2.1 -- Bug 72 fix)
+
+SVP employs a four-layer defense system for structural completeness that works for any Python project, not just SVP itself:
+
+**Layer 1 -- Blueprint checker prompt update.** The blueprint checker agent definition includes a mandatory registry completeness checklist item. The checker must identify every registry, vocabulary, enum, or dispatch table declared in the blueprint and verify that every declared value has a corresponding handler/branch contract in at least one unit. A registry value with no handler contract is an alignment failure.
+
+**Layer 2 -- Integration test author prompt update.** The integration test author agent definition includes a requirement to generate registry-handler alignment tests. For every registry, dispatch table, vocabulary, and enum-like constant in the codebase, the integration test author generates a pytest test that collects all declared values via AST, collects all values handled in the corresponding dispatch logic, and asserts bidirectional coverage.
+
+**Layer 3 -- Deterministic structural check script.** `scripts/structural_check.py` is a project-agnostic AST scanner that performs four high-confidence, low-false-positive checks: (1) dict registry keys never dispatched, (2) enum values never matched, (3) exported functions never called, (4) string dispatch gaps (registry-linked). The script uses only stdlib imports (ast, json, pathlib, argparse, sys) and has no project-specific knowledge. It runs as a Stage 5 sub-stage (`structural_check`) between `repo_test` and `compliance_scan`. CLI: `python scripts/structural_check.py --target <path> [--format json|text] [--strict]`. In `--strict` mode, any findings produce exit code 1.
+
+**Layer 4 -- Triage agent pre-computation.** The bug triage agent task prompt includes structural check results (pre-computed by `prepare_task.py` running `structural_check.py` against the delivered repo). The triage agent reviews these results in Step 0 before reproducing the bug. If a structural finding directly explains the reported symptom, the agent classifies immediately. The triage agent definition also includes a Registry Diagnosis Recipe for manual investigation.
+
+The four layers are complementary: Layer 1 catches gaps at blueprint authoring time (LLM-driven), Layer 2 generates persistent regression guards (test-driven), Layer 3 catches gaps at assembly time (deterministic), and Layer 4 accelerates post-delivery debugging (diagnostic).
 
 ---
 

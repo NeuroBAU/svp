@@ -10,6 +10,12 @@ import argparse
 import json
 import sys
 
+# Bug 72: structural check pre-computation for bug triage
+try:
+    from structural_check import run_checks as _structural_run_checks
+except ImportError:
+    _structural_run_checks = None
+
 
 # ---------------------------------------------------------------------------
 # Bug 22 fix: import ARTIFACT_FILENAMES from Unit 1
@@ -626,6 +632,20 @@ def _assemble_sections_for_agent(
             except (json.JSONDecodeError, KeyError):
                 pass
 
+        # Bug 72: structural check pre-computation
+        _delivered = sections.get("delivered_repo_path")
+        if _delivered and _structural_run_checks is not None:
+            try:
+                from pathlib import Path as _P
+                delivered_p = _P(_delivered)
+                if delivered_p.is_dir():
+                    sc_results = _structural_run_checks(delivered_p)
+                    sections["structural_check_results"] = json.dumps(
+                        sc_results, indent=2
+                    )
+            except Exception:
+                pass  # Best-effort; do not fail task prompt assembly
+
     elif agent_type == "repair_agent":
         # Build/environment error diagnosis, environment state
         error_path = project_root / ".svp" / "error_output.txt"
@@ -978,19 +998,6 @@ def prepare_gate_prompt(
         parts.append("")
         parts.append("- **FIX BLUEPRINT**: The problem is in the blueprint.")
         parts.append("- **FIX SPEC**: The problem is in the stakeholder spec.")
-
-    elif gate_id == "gate_5_3_unused_functions":
-        parts.append("# Gate 5.3: Unused Functions")
-        parts.append("")
-        parts.append(
-            "The delivered repository contains unused functions."
-            " Decide whether to fix the spec or override and continue."
-        )
-        parts.append("")
-        parts.append("## Response Options")
-        parts.append("")
-        parts.append("- **FIX SPEC**: The problem is in the stakeholder spec.")
-        parts.append("- **OVERRIDE CONTINUE**: Accept unused functions and continue.")
 
     elif gate_id == "gate_6_0_debug_permission":
         parts.append("# Gate 6.0: Debug Permission")

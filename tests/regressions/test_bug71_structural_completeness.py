@@ -891,6 +891,7 @@ class TestPhaseToAgentMapVsKnownPhases:
         "unit_completion",
         "quality_gate",
         "compliance_scan",
+        "structural_check",  # Bug 72: command phase, not agent phase
         "test_execution",
     }
 

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Bug 72: Generalized structural completeness checking -- four-layer defense. Layer 1: blueprint checker registry completeness checklist. Layer 2: integration test author registry-handler alignment tests. Layer 3: `scripts/structural_check.py` project-agnostic AST scanner (4 checks: dict registry gaps, enum value gaps, unused exports, string dispatch gaps). Layer 4: bug triage agent Step 0 structural pre-check and Registry Diagnosis Recipe. Added `structural_check` sub-stage to Stage 5 between `repo_test` and `compliance_scan`. 24 regression tests.
 - Bug 69: Compound fix for debug loop gates. E.1: Separated triage_readonly from triage in route() so Gate 6.0 (debug permission) is presented after read-only triage completes. E.2: Added regression_test phase handler in route() and wired Gate 6.1 TEST CORRECT to advance to complete phase. E.3: Fixed gate_6_3 RECLASSIFY BUG from bare no-op to reset debug phase to triage with cleared classification. Added repair->triage and regression_test->complete to _DEBUG_PHASE_TRANSITIONS. E.4: Added complete phase handler in route() and wired Gate 6.5 COMMIT APPROVED to complete_debug_session. 23 regression tests.
 - Bug 68: Implement Stage 4 failure handling. Added `gate_4_1` and `gate_4_2` sub-stages to `STAGE_4_SUB_STAGES`. Added gate routing branches in `route()` for `gate_4_1_integration_failure` and `gate_4_2_assembly_exhausted`. Added `TESTS_FAILED` handler in `dispatch_command_status` for Stage 4 with retry counting and exhaustion escalation to `gate_4_2`. Fixed `gate_4_1` `ASSEMBLY FIX` dispatch from bare no-op to reset `sub_stage` to `None` for re-assembly. 14 regression tests.
 - Bug 67: Add gate_5_3 routing path in route() for unused function detection. Added `gate_5_3` sub-stage to `STAGE_5_SUB_STAGES`, `gate_5_3` branch in `route()` to present `gate_5_3_unused_functions` gate, `UNUSED_FUNCTIONS_DETECTED` command status pattern, and compliance_scan dispatch handler to advance to gate_5_3 on unused function detection.
@@ -60,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Bug 72: Generalized structural completeness checking -- four-layer defense. Layer 1: blueprint checker registry completeness checklist. Layer 2: integration test author registry-handler alignment tests. Layer 3: `scripts/structural_check.py` project-agnostic AST scanner (4 checks: dict registry gaps, enum value gaps, unused exports, string dispatch gaps). Layer 4: bug triage agent Step 0 structural pre-check and Registry Diagnosis Recipe. Added `structural_check` sub-stage to Stage 5 between `repo_test` and `compliance_scan`. 24 regression tests.
 - Bug 17: Hook configuration schema (type: "command", nested hooks array)
 - Bug 21: Two-branch routing for Stage 0 sub-stages
 - Bug 22: Canonical pipeline artifact filenames as shared constants
@@ -109,12 +111,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Bug 72: Generalized structural completeness checking -- four-layer defense. Layer 1: blueprint checker registry completeness checklist. Layer 2: integration test author registry-handler alignment tests. Layer 3: `scripts/structural_check.py` project-agnostic AST scanner (4 checks: dict registry gaps, enum value gaps, unused exports, string dispatch gaps). Layer 4: bug triage agent Step 0 structural pre-check and Registry Diagnosis Recipe. Added `structural_check` sub-stage to Stage 5 between `repo_test` and `compliance_scan`. 24 regression tests.
 - Miscellaneous bug fixes and robustness improvements.
 
 ## [1.2.0] - 2025-09-01
 
 ### Fixed
 
+- Bug 72: Generalized structural completeness checking -- four-layer defense. Layer 1: blueprint checker registry completeness checklist. Layer 2: integration test author registry-handler alignment tests. Layer 3: `scripts/structural_check.py` project-agnostic AST scanner (4 checks: dict registry gaps, enum value gaps, unused exports, string dispatch gaps). Layer 4: bug triage agent Step 0 structural pre-check and Registry Diagnosis Recipe. Added `structural_check` sub-stage to Stage 5 between `repo_test` and `compliance_scan`. 24 regression tests.
 - Gate status string vocabulary (Bug 1).
 - Hook permission reset after debug session entry (Bug 2).
 

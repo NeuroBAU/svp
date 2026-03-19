@@ -53,6 +53,16 @@ Test that quality gate retry cycles are properly isolated -- a retry of one gate
 ### 11. Quality Package Installation (NEW IN SVP 2.1)
 Test that quality tool packages (ruff, mypy, etc.) are correctly installed before gates execute. Verify that installation failures are handled gracefully and that the correct versions are installed based on the profile's quality configuration.
 
+### 12. Structural Completeness: Registry-Handler Alignment (NEW IN SVP 2.1 -- Bug 72)
+
+Identify all registries, dispatch tables, vocabularies, and enum-like constants in the codebase. For each, generate a pytest test that:
+1. Collects all declared values from the registry via AST.
+2. Collects all values handled in the corresponding dispatch logic.
+3. Asserts every declared value has a handler.
+4. Asserts every handler references a declared value.
+
+Write these to tests/integration/test_structural_completeness.py.
+
 ## Methodology
 
 1. **Read the blueprint** to understand unit boundaries and cross-unit contracts.

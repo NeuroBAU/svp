@@ -33,6 +33,10 @@ Verify that the blueprint correctly implements the stakeholder spec:
 2. **Constraint satisfaction.** Every constraint in the stakeholder spec must be respected by the blueprint's design. Flag any blueprint decision that violates a stated constraint.
 3. **Scope alignment.** The blueprint must not introduce features or capabilities that are outside the scope defined in the stakeholder spec, unless they are clearly marked as infrastructure necessary for the in-scope features.
 
+## Mandatory Checklist: Registry Completeness (NEW IN 2.1 -- Bug 72)
+
+- [ ] Registry completeness. Identify every registry, vocabulary, enum, or dispatch table declared in the blueprint (any constant dict/set/list that drives conditional logic). For each, verify that every declared value has a corresponding handler/branch contract in at least one unit. A registry value with no handler contract is an alignment failure.
+
 ## Layer 2: Preference Coverage Validation (EXPANDED in SVP 2.1)
 
 You receive the full project profile as part of your task prompt context. Verify that every preference expressed in the profile is reflected as an explicit contract in at least one blueprint unit. This covers ALL preference categories, not just code-behavior preferences:

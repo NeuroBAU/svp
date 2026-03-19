@@ -181,6 +181,7 @@ _KNOWN_PHASES = {
     "stub_generation",
     "unit_completion",
     "quality_gate",  # NEW IN 2.1
+    "structural_check",  # NEW IN 2.1 (Bug 72)
 }
 
 
@@ -932,6 +933,16 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 "POST": _post_cmd("gate", gate_id="gate_5_1_repo_test"),
             }
 
+        # Bug 72: structural_check sub-stage (runs before compliance_scan)
+        if sub_stage == "structural_check":
+            delivered = getattr(state, "delivered_repo_path", None) or "."
+            return {
+                "ACTION": "run_command",
+                "COMMAND": f"python scripts/structural_check.py --target {delivered} --format json --strict",
+                "CONTEXT": "structural_check",
+                "POST": _post_cmd("structural_check"),
+            }
+
         if sub_stage == "compliance_scan":
             return {
                 "ACTION": "run_command",
@@ -1376,7 +1387,7 @@ def dispatch_gate_response(
 
     elif gate_id == "gate_5_1_repo_test":
         if response == "TESTS PASSED":
-            return advance_sub_stage(state, "compliance_scan", project_root)
+            return advance_sub_stage(state, "structural_check", project_root)
         else:  # TESTS FAILED
             # Re-invoke git repo agent with incremented retry counter
             new_state = increment_red_run_retries(state)
@@ -1804,6 +1815,16 @@ def dispatch_command_status(
     elif phase == "stub_generation":
         if status_line.startswith("COMMAND_SUCCEEDED"):
             return advance_sub_stage(state, "test_generation", project_root)
+        return state
+
+    # Bug 72: structural_check command status dispatch
+    elif phase == "structural_check":
+        if status_line.startswith("COMMAND_SUCCEEDED"):
+            # Clean -- advance to compliance_scan
+            return advance_sub_stage(state, "compliance_scan", project_root)
+        elif status_line.startswith("COMMAND_FAILED"):
+            # Findings detected -- present Gate 5.3 (unused function gate)
+            return advance_sub_stage(state, "gate_5_3", project_root)
         return state
 
     elif phase == "compliance_scan":

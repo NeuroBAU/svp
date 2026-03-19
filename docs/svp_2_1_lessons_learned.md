@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update). Bug 59 discovered post-delivery (stale blueprints/ directory, critical implementation bugs, stakeholder spec gaps). Bug 60 discovered post-delivery (broken _get_unit_context path and stale fallback ARTIFACT_FILENAMES). Bug 61 discovered post-delivery (missing include_tier1 parameter in _get_unit_context and build_unit_context). Bug 62 discovered post-delivery (selective blueprint loading not wired per agent matrix). Bug 63 discovered post-delivery (documentation retrofit for Bugs 60-62). Bug 64 discovered post-delivery (11 unit test failures from stale assertions after Bugs 59-62 code changes). Bug 65 discovered post-delivery (Stage 3 error-handling infrastructure entirely unimplemented: 9 findings covering stub_generation routing, fix ladder engagement, diagnostic escalation, Gate 3.1/3.2 dispatch, coverage two-branch, red_run retries).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update). Bug 59 discovered post-delivery (stale blueprints/ directory, critical implementation bugs, stakeholder spec gaps). Bug 60 discovered post-delivery (broken _get_unit_context path and stale fallback ARTIFACT_FILENAMES). Bug 61 discovered post-delivery (missing include_tier1 parameter in _get_unit_context and build_unit_context). Bug 62 discovered post-delivery (selective blueprint loading not wired per agent matrix). Bug 63 discovered post-delivery (documentation retrofit for Bugs 60-62). Bug 64 discovered post-delivery (11 unit test failures from stale assertions after Bugs 59-62 code changes). Bug 65 discovered post-delivery (Stage 3 error-handling infrastructure entirely unimplemented: 9 findings covering stub_generation routing, fix ladder engagement, diagnostic escalation, Gate 3.1/3.2 dispatch, coverage two-branch, red_run retries). Bug 71 discovered post-delivery (structural completeness test suite automating 14 systematic bug-finding techniques; found Stage 4 gate routing gap and TESTS_FAILED dispatch gap). Bug 72 discovered post-delivery (generalized structural completeness checking: four-layer defense system with project-agnostic AST scanner, agent prompt updates, and routing integration).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-70)
+## Part 1: Unified Bug Catalog (Bugs 1-72)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -1215,6 +1215,59 @@ Three findings from systematic analysis of routing.py dispatch coverage:
 **Pattern:** P10 (Error-Path Contract Omission) for F1 and F2. P5 (Vocabulary Cruft) for F3. The pattern continues: routing blocks implement the happy path but leave error/alternate paths as no-ops or bare returns.
 
 **Prevention:** For every state transition function that sets `sub_stage=None`, verify that `route()` handles the resulting state correctly by examining ALL state fields (not just `sub_stage`). For every command status pattern in COMMAND_STATUS_PATTERNS, verify that dispatch produces a distinct state change for every (phase, sub_stage) combination where that status can occur.
+
+---
+
+### Bug 71 -- Structural Completeness Test Suite (14 Automated Guards)
+
+**Caught:** Post-delivery (systematic technique analysis). **Test:** `test_bug71_structural_completeness.py`
+
+Wrote 163 automated tests across 14 test classes, each automating one of the systematic bug-finding techniques that discovered Bugs 52-70. The test suite acts as a permanent regression guard against declaration-vs-usage bugs.
+
+**Findings during test development:**
+
+**F1: Stage 4 gate_4_1/gate_4_2 unreachable from route().** The route() function for Stage 4 had no sub_stage handling -- it only checked last_status for INTEGRATION_TESTS_COMPLETE vs. invoking the agent. When dispatch_command_status set sub_stage to "gate_4_1" or "gate_4_2", route() did not present the corresponding human gates. Fixed by adding sub_stage checks at the top of Stage 4 routing.
+
+**F2: Stage 4 TESTS_FAILED not handled in dispatch_command_status.** The TESTS_FAILED branch in dispatch_command_status checked sub_stage == "red_run" and sub_stage == "green_run" but had no stage == "4" fallback. TESTS_ERROR had the Stage 4 handler but TESTS_FAILED did not. Fixed by adding a stage == "4" check after the green_run block.
+
+**14 technique tests implemented:**
+1. Gate Vocabulary vs Route Reachability (AST analysis)
+2. Response Options vs Dispatch Handlers (parametrized over all gate/response pairs)
+3. Exported Functions vs Call Sites (no orphaned public functions)
+4. Stub vs Script Synchronization (7 constant comparison tests)
+5. (Skipped -- narrative-vs-contract not automatable)
+6. Per-Agent Loading Matrix (prepare_task.py agent handling)
+7. Agent Status Lines vs Dispatch (parametrized over all agent/status pairs)
+8. Known Agent Types vs Route Invocations (AST analysis)
+9. Debug Phase Transitions vs Route Handlers (all debug phases)
+10. Sub-Stages vs Route Branches (Stage 3/4/5 parametrized)
+11. Fix Ladder Positions vs Route Context (7 ladder/context combinations)
+12. Command Status Patterns vs Phase Handlers (12 critical combinations)
+13. Phase-to-Agent Map vs Known Phases
+14. Debug Phase Transitions vs Known Phases (stub vs script sync)
+
+**Pattern:** P10 (Error-Path Contract Omission) for both findings. The structural tests would have caught these at build time if they had existed during the original build.
+
+**Prevention:** Run the structural completeness test suite after every delivery. Any new gate, agent type, status line, sub-stage, or debug phase that is declared but not wired will be caught automatically.
+
+---
+### Bug 72 -- Generalized Structural Completeness Checking (Four-Layer Defense)
+
+**Caught:** Post-delivery (proactive feature addition). **Test:** `test_bug72_structural_check.py`
+
+Built a project-agnostic structural completeness checking system that works for any Python project SVP builds, not just SVP itself. Four complementary layers:
+
+**Layer 1 (Blueprint checker):** Added mandatory registry completeness checklist item to blueprint checker agent definition. The checker must identify every registry, vocabulary, enum, or dispatch table and verify handler coverage.
+
+**Layer 2 (Integration test author):** Added requirement to generate registry-handler alignment tests using AST analysis of registries and dispatch logic.
+
+**Layer 3 (Deterministic script):** Created `scripts/structural_check.py` -- a project-agnostic AST scanner performing four checks: (1) dict registry keys never dispatched, (2) enum values never matched, (3) exported functions never called, (4) string dispatch gaps. Only stdlib imports. Added as Stage 5 `structural_check` sub-stage between `repo_test` and `compliance_scan`.
+
+**Layer 4 (Triage agent):** Added Step 0 structural pre-check and Registry Diagnosis Recipe to bug triage agent. Task prompt assembly pre-computes structural check results against the delivered repo.
+
+**Pattern:** P11 (Structural Completeness Gap) -- new pattern. The system lacked a generalized, project-agnostic mechanism for detecting declaration-vs-usage gaps. The existing Bug 71 test suite was SVP-specific; the four-layer defense generalizes this to any project.
+
+**Prevention:** Every new registry, dispatch table, or enum-like constant introduced in any project should be detectable by the structural check script. The four layers ensure coverage at authoring time (L1), test time (L2), assembly time (L3), and debug time (L4).
 
 ---
 ---
