@@ -37,7 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Spec sections 3.18-3.22 added (downstream dependency invariant, contract granularity, review enforcement, structural completeness)
-- Pattern catalog expanded: P10 (Error-Path Contract Omission), P11 (Structural Completeness Gap)
+- Pattern catalog expanded: P10 (Error-Path Contract Omission), P11 (Structural Completeness Gap), P12 (Test Target Mismatch)
+- Pre-green-run test import switch requirement: tests must target real scripts before green run (Bug 74)
+- Structural check expanded from 4 to 5 checks (Bug 74: stub import detection)
+- Blueprint checker and reviewer checklists: added regression test target verification (Bug 74)
 - rollback_to_unit: delete instead of copy-to-backup (Bug 55)
 - Spec version: v8.31 -> v8.33
 
@@ -106,6 +109,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bug 45: `dispatch_command_status` for `test_execution` advances state
 - Bug 46: `dispatch_agent_status` for `coverage_review` advances to `unit_completion`
 - Bug 47: `unit_completion` COMMAND/POST separation (no double dispatch)
+- Bug 48: Launcher CLI contract loss — restored `svp new`, bare `svp`, `svp restore` three-mode vocabulary
+- Bug 49: Systemic bare argparse stubs — CLI argument enumeration enforced across 5 units
+- Bug 50: Insufficient contract specificity — boundary violations in blueprint Tier 2/3
+- Bug 51: Debug loop missing reassembly routing after repair completion
 - Bug 52: Wired `version_document()` into `dispatch_gate_response` REVISE branches — document version tracking (spec Section 23) was non-functional
 - Bug 53: Removed orphaned dead-code functions (`reset_fix_ladder`, `reset_alignment_iteration`, `record_pass_end`)
 - Bug 54: Removed orphaned hollow function `update_state_from_status` — blueprint-specified entry point that was never implemented or called; `update_state_main` → `dispatch_status` is the actual dispatch path
