@@ -1,13 +1,13 @@
-"""Regression test for Bug 46: dispatch_agent_status for coverage_review doesn't advance to unit_completion.
+"""Regression test for Bug 46: dispatch_agent_status for coverage_review.
 
-Tests that dispatch_agent_status for coverage_review with COVERAGE_COMPLETE
-and sub_stage == "coverage_review" advances to unit_completion.
+Bug 65 update: coverage_review dispatch no longer advances sub_stage directly.
+Instead, route() uses two-branch pattern to check last_status and determine next action.
+The dispatch just returns state unchanged so route() can read last_status.txt.
 """
 
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 from types import SimpleNamespace
 
 
@@ -38,28 +38,23 @@ def _make_state(**kwargs):
 
 
 class TestBug46CoverageDispatch(unittest.TestCase):
-    """dispatch_agent_status must advance coverage_review to unit_completion."""
+    """Bug 65: dispatch_agent_status for coverage_review returns state unchanged.
+    Two-branch logic is now in route()."""
 
-    def test_coverage_complete_advances_to_unit_completion(self):
-        """After COVERAGE_COMPLETE with sub_stage=coverage_review,
-        should advance to unit_completion."""
+    def test_coverage_complete_returns_state_unchanged(self):
+        """After COVERAGE_COMPLETE, dispatch should return state unchanged.
+        Route() handles the two-branch check via last_status.txt."""
         from routing import dispatch_agent_status
 
         state = _make_state(stage="3", sub_stage="coverage_review")
         project_root = Path("/tmp/fake_project")
 
-        with patch("routing.advance_sub_stage") as mock_advance:
-            mock_advance.return_value = _make_state(
-                stage="3", sub_stage="unit_completion"
-            )
-            result = dispatch_agent_status(
-                state, "coverage_review", "COVERAGE_COMPLETE: no gaps",
-                unit=1, phase="coverage_review", project_root=project_root,
-            )
-            mock_advance.assert_called_once_with(
-                state, "unit_completion", project_root
-            )
-            self.assertEqual(result.sub_stage, "unit_completion")
+        result = dispatch_agent_status(
+            state, "coverage_review", "COVERAGE_COMPLETE: no gaps",
+            unit=1, phase="coverage_review", project_root=project_root,
+        )
+        # Bug 65: dispatch returns state unchanged; route() reads last_status
+        self.assertEqual(result.sub_stage, "coverage_review")
 
     def test_coverage_complete_no_advance_wrong_substage(self):
         """If sub_stage is not coverage_review, should not advance."""

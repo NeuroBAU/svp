@@ -201,10 +201,10 @@ class TestUnit1Toolchain:
 
 
 class TestUnit3Rollback:
-    """Verify rollback backup behavior."""
+    """Verify rollback deletion behavior (Bug 55: delete, not backup)."""
 
-    def test_rollback_creates_backup(self) -> None:
-        """Rollback preserves code in logs/rollback/."""
+    def test_rollback_deletes_files(self) -> None:
+        """Rollback deletes invalidated source/test files (Bug 55)."""
         import pipeline_state
         import state_transitions
 
@@ -212,7 +212,6 @@ class TestUnit3Rollback:
             root = Path(tmpdir)
             # Create required dirs
             (root / ".svp" / "markers").mkdir(parents=True)
-            (root / "logs" / "rollback").mkdir(parents=True)
             src = root / "src" / "unit_1"
             src.mkdir(parents=True)
             (src / "stub.py").write_text("# code")
@@ -233,10 +232,10 @@ class TestUnit3Rollback:
 
             state_transitions.rollback_to_unit(state, 1, root)
 
-            # Bug 55: rollback deletes (rmtree), does not backup (copytree).
-            # Verify the source and test dirs were removed.
-            assert not src.exists(), "Source dir should be deleted after rollback"
-            assert not tests.exists(), "Tests dir should be deleted after rollback"
+            # Bug 55: files are deleted, not backed up
+            assert not src.exists(), "Source dir should be deleted"
+            assert not tests.exists(), "Test dir should be deleted"
+            assert not (root / "logs" / "rollback").exists(), "No backup dir should be created"
 
 
 class TestUnit3Immutability:
@@ -273,6 +272,7 @@ class TestUnit3Immutability:
             orig2 = state2.to_dict()
             state_transitions.advance_sub_stage(state2, "test_generation", root)
             assert state2.to_dict() == orig2, "advance_sub_stage mutated input"
+
 
 
 # ======================================================= #
@@ -418,7 +418,8 @@ class TestUnit10Dispatch:
                 "coverage_review",
                 root,
             )
-            assert new.sub_stage == "unit_completion"
+            # Bug 65: dispatch returns state unchanged; route() uses two-branch
+            assert new.sub_stage == "coverage_review"
 
     def test_dispatch_reference_indexing_advances(
         self,

@@ -11,7 +11,9 @@ Bug 43 fix (two-branch routing invariant for Stage 4, Stage 5, redo profile, deb
 Gate 6.5 (debug commit), quality gate execution,
 Bug 55 fix (Gate 6.2 FIX UNIT wired to rollback_to_unit, set_debug_classification
 wired into bug_triage dispatch, build_env fast path, phase-based debug routing),
-Bug 58 fix (Gate 5.3 unused_functions added to GATE_VOCABULARY and dispatch).
+Bug 58 fix (Gate 5.3 unused_functions added to GATE_VOCABULARY and dispatch),
+Bug 65 fix (Stage 3 error handling: stub_generation routing, fix ladder engagement,
+diagnostic escalation, Gate 3.1/3.2 dispatch, coverage two-branch, red_run retries).
 """
 
 import json
@@ -500,10 +502,19 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
         }
 
     # Stage 3 (Bug 25: explicit routing for ALL sub-stages)
+    # Bug 65: stub_generation, fix ladder checks, coverage two-branch, diagnostic routing
     if stage == "3":
         unit = state.current_unit
 
-        if sub_stage is None or sub_stage == "test_generation":
+        # F1: sub_stage None means stub_generation (not test_generation)
+        if sub_stage is None:
+            return {
+                "ACTION": "run_command",
+                "COMMAND": f"python scripts/generate_stubs.py --unit {unit} --project-root .",
+                "POST": _post_cmd("stub_generation", unit=unit),
+            }
+
+        elif sub_stage == "test_generation":
             return {
                 "ACTION": "invoke_agent",
                 "AGENT": "test_agent",
@@ -549,14 +560,31 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             }
 
         elif sub_stage == "implementation":
-            return {
-                "ACTION": "invoke_agent",
-                "AGENT": "implementation_agent",
-                "CONTEXT": "implementation",
-                "UNIT": unit,
-                "PREPARE": _prepare_cmd("implementation_agent", unit=unit),
-                "POST": _post_cmd("implementation", unit=unit),
-            }
+            # F6: Check fix_ladder_position to determine agent
+            ladder_pos = state.fix_ladder_position
+            if ladder_pos == "diagnostic":
+                # Invoke diagnostic agent instead of implementation agent
+                return {
+                    "ACTION": "invoke_agent",
+                    "AGENT": "diagnostic_agent",
+                    "CONTEXT": "diagnostic",
+                    "UNIT": unit,
+                    "PREPARE": _prepare_cmd("diagnostic_agent", unit=unit),
+                    "POST": _post_cmd("diagnostic", unit=unit),
+                }
+            else:
+                # Normal implementation or fresh_impl or diagnostic_impl
+                context = "implementation"
+                if ladder_pos == "diagnostic_impl":
+                    context = "diagnostic_impl"
+                return {
+                    "ACTION": "invoke_agent",
+                    "AGENT": "implementation_agent",
+                    "CONTEXT": context,
+                    "UNIT": unit,
+                    "PREPARE": _prepare_cmd("implementation_agent", unit=unit),
+                    "POST": _post_cmd("implementation", unit=unit),
+                }
 
         elif sub_stage == "quality_gate_b":
             return {
@@ -594,20 +622,58 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             }
 
         elif sub_stage == "coverage_review":
-            return {
-                "ACTION": "invoke_agent",
-                "AGENT": "coverage_review",
-                "CONTEXT": "coverage_review",
-                "UNIT": unit,
-                "PREPARE": _prepare_cmd("coverage_review", unit=unit),
-                "POST": _post_cmd("coverage_review", unit=unit),
-            }
+            # F5: Two-branch check for coverage_review
+            last_status = _read_last_status(project_root)
+            if last_status == "COVERAGE_COMPLETE: tests added":
+                # Auto-format before advancing to unit_completion
+                return {
+                    "ACTION": "run_command",
+                    "COMMAND": f"python scripts/run_quality_gate.py --gate gate_b --target tests/unit_{unit}/ --project-root .",
+                    "POST": _post_cmd("quality_gate", unit=unit),
+                }
+            elif last_status == "COVERAGE_COMPLETE: no gaps":
+                # Advance directly to unit_completion
+                return {
+                    "ACTION": "run_command",
+                    "COMMAND": "echo COMMAND_SUCCEEDED",
+                    "POST": _post_cmd("unit_completion", unit=unit),
+                }
+            else:
+                # No status yet: invoke coverage_review agent
+                return {
+                    "ACTION": "invoke_agent",
+                    "AGENT": "coverage_review",
+                    "CONTEXT": "coverage_review",
+                    "UNIT": unit,
+                    "PREPARE": _prepare_cmd("coverage_review", unit=unit),
+                    "POST": _post_cmd("coverage_review", unit=unit),
+                }
 
         elif sub_stage == "unit_completion":
             return {
                 "ACTION": "run_command",
                 "COMMAND": "echo COMMAND_SUCCEEDED",
                 "POST": _post_cmd("unit_completion", unit=unit),
+            }
+
+        # Bug 65: Gate 3.1 (test validation after red_run retries exhausted)
+        elif sub_stage == "gate_3_1":
+            return {
+                "ACTION": "human_gate",
+                "GATE_ID": "gate_3_1_test_validation",
+                "OPTIONS": GATE_VOCABULARY["gate_3_1_test_validation"],
+                "PREPARE": _gate_prepare_cmd("gate_3_1_test_validation", unit=unit),
+                "POST": _post_cmd("gate", unit=unit, gate_id="gate_3_1_test_validation"),
+            }
+
+        # Bug 65: Gate 3.2 (diagnostic decision after fix ladder exhaustion)
+        elif sub_stage == "gate_3_2":
+            return {
+                "ACTION": "human_gate",
+                "GATE_ID": "gate_3_2_diagnostic_decision",
+                "OPTIONS": GATE_VOCABULARY["gate_3_2_diagnostic_decision"],
+                "PREPARE": _gate_prepare_cmd("gate_3_2_diagnostic_decision", unit=unit),
+                "POST": _post_cmd("gate", unit=unit, gate_id="gate_3_2_diagnostic_decision"),
             }
 
         # Fallback for Stage 3 with unrecognized sub_stage
@@ -1100,13 +1166,25 @@ def dispatch_gate_response(
 
     elif gate_id == "gate_3_1_test_validation":
         if response == "TEST CORRECT":
-            return state
+            # F7: Tests are correct, implementation is wrong -> engage fix ladder
+            new_state = _try_transition(
+                lambda: advance_fix_ladder(state, "fresh_impl"), state
+            )
+            new_state = advance_sub_stage(new_state, "implementation", project_root)
+            return new_state
         else:  # TEST WRONG
-            return state
+            # F7: Tests are wrong -> regenerate tests
+            return advance_sub_stage(state, "test_generation", project_root)
 
     elif gate_id == "gate_3_2_diagnostic_decision":
         if response == "FIX IMPLEMENTATION":
-            return state
+            # Reset fix ladder and go back to implementation
+            import copy as _copy
+            new_state = PipelineState.from_dict(_copy.deepcopy(state.to_dict()))
+            new_state.fix_ladder_position = None
+            new_state.sub_stage = "implementation"
+            new_state.last_action = "Gate 3.2: FIX IMPLEMENTATION, resetting fix ladder"
+            return new_state
         elif response == "FIX BLUEPRINT":
             _version_blueprint(project_root, "Gate 3.2 FIX BLUEPRINT")
             return _try_transition(
@@ -1388,12 +1466,22 @@ def dispatch_agent_status(
             return state
 
     elif agent_type == "coverage_review":
-        if status_line.startswith("COVERAGE_COMPLETE"):
-            if state.stage == "3" and state.sub_stage == "coverage_review":
-                return advance_sub_stage(state, "unit_completion", project_root)
+        # F5: Keep sub_stage at coverage_review; route() reads last_status for two-branch
         return state
 
     elif agent_type == "diagnostic_agent":
+        # F4: Parse diagnostic classification and set appropriate state
+        if status_line.startswith("DIAGNOSIS_COMPLETE:"):
+            classification = status_line.split(": ", 1)[1].strip()
+            if classification == "implementation":
+                # Advance to diagnostic_impl for implementation retry with guidance
+                new_state = _try_transition(
+                    lambda: advance_fix_ladder(state, "diagnostic_impl"), state
+                )
+                return advance_sub_stage(new_state, "implementation", project_root)
+            elif classification in ("blueprint", "spec"):
+                # Surface at Gate 3.2 for human decision
+                return state  # route() will present Gate 3.2 based on fix ladder exhaustion
         return state
 
     elif agent_type == "integration_test_author":
@@ -1484,6 +1572,16 @@ def dispatch_command_status(
             # Green run: advance to coverage_review
             if state.sub_stage == "green_run":
                 return advance_sub_stage(state, "coverage_review", project_root)
+            # F2: Red run with TESTS_PASSED means defective tests
+            if state.sub_stage == "red_run":
+                # F10: Increment red_run_retries
+                new_state = increment_red_run_retries(state)
+                # Check retry limit (default 3)
+                if new_state.red_run_retries >= 3:
+                    # Present Gate 3.1 for human decision
+                    return advance_sub_stage(new_state, "gate_3_1", project_root)
+                # Under limit: regenerate tests
+                return advance_sub_stage(new_state, "test_generation", project_root)
             # Stage 4: integration tests passed -> advance to Stage 5
             if state.stage == "4":
                 return advance_stage(state, project_root)
@@ -1492,10 +1590,36 @@ def dispatch_command_status(
             # Red run: all tests should fail against stubs -> advance to implementation
             if state.sub_stage == "red_run":
                 return advance_sub_stage(state, "implementation", project_root)
-            # Green run failure: stay at green_run for retry/fix ladder
+            # F3: Green run failure -> engage fix ladder
+            if state.sub_stage == "green_run":
+                ladder_pos = state.fix_ladder_position
+                if ladder_pos is None:
+                    # First failure: advance to fresh_impl
+                    new_state = _try_transition(
+                        lambda: advance_fix_ladder(state, "fresh_impl"), state
+                    )
+                    return advance_sub_stage(new_state, "implementation", project_root)
+                elif ladder_pos == "fresh_impl":
+                    # Second failure: advance to diagnostic
+                    new_state = _try_transition(
+                        lambda: advance_fix_ladder(state, "diagnostic"), state
+                    )
+                    return advance_sub_stage(new_state, "implementation", project_root)
+                elif ladder_pos == "diagnostic_impl":
+                    # Exhausted: present Gate 3.2
+                    return advance_sub_stage(state, "gate_3_2", project_root)
+                else:
+                    # Other positions: try next ladder step or Gate 3.2
+                    return advance_sub_stage(state, "gate_3_2", project_root)
             return state
         elif status_line.startswith("TESTS_ERROR"):
             return state
+
+    # F9: stub_generation command dispatch
+    elif phase == "stub_generation":
+        if status_line.startswith("COMMAND_SUCCEEDED"):
+            return advance_sub_stage(state, "test_generation", project_root)
+        return state
 
     elif phase == "compliance_scan":
         if status_line.startswith("COMMAND_SUCCEEDED"):
