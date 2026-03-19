@@ -1562,13 +1562,24 @@ assert "delivery" in SETUP_AGENT_MD_CONTENT
 assert "environment_recommendation" in SETUP_AGENT_MD_CONTENT
 assert "quality" in SETUP_AGENT_MD_CONTENT
 
+# Blueprint Author Rules P1-P4 (RFC-2, spec Section 8.1)
+assert "Rule P1" in BLUEPRINT_AUTHOR_AGENT_MD_CONTENT
+assert "Rule P2" in BLUEPRINT_AUTHOR_AGENT_MD_CONTENT
+assert "Rule P3" in BLUEPRINT_AUTHOR_AGENT_MD_CONTENT
+assert "Rule P4" in BLUEPRINT_AUTHOR_AGENT_MD_CONTENT
+
 # All *_MD_CONTENT must be valid Claude Code agent definitions
 ```
 
 ### Tier 3 -- Behavioral Contracts
 
 - **Setup Agent:** Operates in project context mode, project profile mode, and targeted revision mode. Profile dialog covers five areas including Area 5 (quality preferences, NEW IN 2.1) and changelog in Area 1. Writes files using `ARTIFACT_FILENAMES` constants. System prompt must include Rules 1-4 verbatim as numbered behavioral requirements. `SETUP_AGENT_MD_CONTENT` must embed the complete `project_profile.json` schema structure with exact canonical field names matching `DEFAULT_PROFILE` in Unit 1, so the agent's JSON output uses identical section and field names.
-- **Blueprint Author Agent:** Receives profile sections (`readme`, `vcs`, `delivery`, `quality`). Produces blueprint files in the `blueprint/` directory (currently `blueprint_prose.md` and `blueprint_contracts.md` as paired output, but the system is agnostic to the exact filenames). Encodes tool preferences as behavioral contracts (Layer 1).
+- **Blueprint Author Agent:** Receives profile sections (`readme`, `vcs`, `delivery`, `quality`). Produces blueprint files in the `blueprint/` directory (currently `blueprint_prose.md` and `blueprint_contracts.md` as paired output, but the system is agnostic to the exact filenames). Encodes tool preferences as behavioral contracts (Layer 1). **Unit-level preference capture (RFC-2):** The blueprint author agent definition includes Rules P1-P4 for capturing domain preferences during the decomposition dialog:
+  - **Rule P1 (Ask at the unit level):** After establishing each unit's Tier 1 description and before finalizing contracts, ask about domain conventions, preferences about output appearance, domain-specific choices that are not requirements but matter.
+  - **Rule P2 (Domain language only):** Use the human's domain vocabulary, not engineering vocabulary. Right: "When this module saves your data, what file format do your collaborators' tools expect?" Wrong: "Do you have preferences for the serialization format?"
+  - **Rule P3 (Progressive disclosure):** One open question per unit. Follow-up only if the human indicates preferences. No menu of categories for every unit.
+  - **Rule P4 (Conflict detection at capture time):** If a preference contradicts a behavioral contract being developed, identify immediately and resolve during dialog.
+  Captured preferences are recorded as a `### Preferences` subsection within each unit's Tier 1 description in `blueprint_prose.md`. Absence of the subsection means "no preferences" -- no explicit marker needed.
 
 ### Tier 3 -- Dependencies
 
@@ -1617,7 +1628,7 @@ BLUEPRINT_REVIEWER_MD_CONTENT: str
 
 ### Tier 3 -- Behavioral Contracts
 
-- **Blueprint Checker (EXPANDED for SVP 2.1, Bug 72 registry completeness):** Receives all blueprint files discovered from the blueprint directory (via Unit 9's task prompt assembly, which uses `discover_blueprint_files` from Unit 1). Validates internal consistency: every `## Unit N:` heading found across all files must have corresponding Tier 1, Tier 2, and Tier 3 content somewhere in the discovered files. Validates alignment, DAG acyclicity, Layer 2 preference coverage (including quality preferences). **Receives pattern catalog section of `svp_2_1_lessons_learned.md` -- produces advisory risk section identifying structural features matching known failure patterns (P1-P10). Advisory only -- does not block approval.** The checker is agnostic to the number or names of blueprint files -- it validates the combined content. **Gate reachability check (Bugs 65-69 P10 fix):** For every gate in GATE_VOCABULARY, verify there exists a `route()` code path in the blueprint's Unit 10 contracts that presents it. For every gate response option, verify `dispatch_gate_response` produces a state transition or is documented as an intentional two-branch no-op. This is an alignment condition, not advisory.
+- **Blueprint Checker (EXPANDED for SVP 2.1, Bug 72 registry completeness):** Receives all blueprint files discovered from the blueprint directory (via Unit 9's task prompt assembly, which uses `discover_blueprint_files` from Unit 1). Validates internal consistency: every `## Unit N:` heading found across all files must have corresponding Tier 1, Tier 2, and Tier 3 content somewhere in the discovered files. Validates alignment, DAG acyclicity, Layer 2 preference coverage (including quality preferences). **Receives pattern catalog section of `svp_2_1_lessons_learned.md` -- produces advisory risk section identifying structural features matching known failure patterns (P1-P10). Advisory only -- does not block approval.** The checker is agnostic to the number or names of blueprint files -- it validates the combined content. **Preference-contract consistency (RFC-2):** For each unit that has a Preferences subsection in Tier 1, verify that no stated preference contradicts a Tier 2 signature or Tier 3 behavioral contract. Report as a non-blocking warning (not an alignment failure), since preferences are non-binding. **Gate reachability check (Bugs 65-69 P10 fix):** For every gate in GATE_VOCABULARY, verify there exists a `route()` code path in the blueprint's Unit 10 contracts that presents it. For every gate response option, verify `dispatch_gate_response` produces a state transition or is documented as an intentional two-branch no-op. This is an alignment condition, not advisory.
 - **Stakeholder Spec Reviewer (Bug 57 expansion, EXPANDED Bugs 65-69 P10 fix):** Agent definition includes a mandatory review checklist requiring explicit verification of: downstream dependency analysis for re-entry paths, Tier 3 contract requirements for exported functions, per-gate-option dispatch contract requirements, call-site traceability for specified functions, re-entry invalidation requirements, and gate reachability verification (every gate defined in GATE_VOCABULARY must have a route() path and every response must produce a state transition).
 - **Blueprint Reviewer (Bug 57 expansion, EXPANDED Bugs 65-69 P10 fix):** Agent definition includes a mandatory review checklist requiring explicit verification of: Tier 2/Tier 3 completeness, per-gate dispatch contracts, call-site traceability, re-entry downstream invalidation, contract sufficiency for reimplementation, and gate reachability (every gate in GATE_VOCABULARY must have a route() code path that presents it; every response option must produce a state transition or be documented as an intentional two-branch no-op).
 
@@ -2057,12 +2068,12 @@ from typing import Dict, Any, List
 from pathlib import Path
 
 PLUGIN_JSON: Dict[str, Any] = {
-    "name": "svp", "version": "2.1.1",
+    "name": "svp", "version": "2.1.0",
     "description": "Stratified Verification Pipeline - deterministically orchestrated software development",
 }
 MARKETPLACE_JSON: Dict[str, Any] = {
     "name": "svp", "owner": {"name": "SVP"},
-    "plugins": [{"name": "svp", "source": "./svp", "version": "2.1.1",
+    "plugins": [{"name": "svp", "source": "./svp", "version": "2.1.0",
         "description": "Stratified Verification Pipeline", "author": {"name": "SVP"}}]
 }
 

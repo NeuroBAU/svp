@@ -385,6 +385,8 @@ Defines the agent definition files for the three dialog agents: Setup Agent, Sta
 SVP 2.0 expansion: Setup agent gains project profile dialog (five areas), Gate 0.3, targeted revision mode.
 SVP 2.1 expansion: Setup agent gains Area 5 (quality preferences) and changelog question in Area 1. Setup agent's system prompt must include all four UX behavioral rules (plain-language explanations, best-option recommendations, sensible defaults, progressive disclosure) as numbered requirements. Setup agent's system prompt must also embed the complete `project_profile.json` schema structure with exact canonical field names matching `DEFAULT_PROFILE` in Unit 1, so the agent's JSON output uses identical section and field names. Blueprint author receives `quality` profile section.
 
+RFC-2 expansion: Blueprint author agent definition includes Rules P1-P4 for unit-level preference capture during the decomposition dialog. P1: ask at the unit level (after Tier 1, before contracts). P2: use domain language only. P3: progressive disclosure (one open question per unit). P4: conflict detection at capture time. Captured preferences are recorded as a `### Preferences` subsection within each unit's Tier 1 description in `blueprint_prose.md`.
+
 ---
 
 ## Unit 14: Review and Checker Agent Definitions
@@ -397,6 +399,8 @@ Defines the agent definition files for the three review/checker agents: Stakehol
 
 SVP 2.0 expansion: Blueprint Checker gains Layer 2 preference coverage validation.
 SVP 2.1 expansion: Blueprint Checker validates quality profile preferences (Layer 2), receives all blueprint files discovered from the blueprint directory (validates internal consistency -- every unit heading found across all files must have corresponding Tier 1, Tier 2, and Tier 3 content), and receives the pattern catalog section of `svp_2_1_lessons_learned.md` to produce an advisory risk section identifying structural features matching known failure patterns (P1-P8+). The risk section is advisory only -- it does not block alignment confirmation. The checker is agnostic to the number or names of blueprint files.
+
+RFC-2 expansion: Blueprint Checker gains preference-contract consistency validation. For each unit that has a Preferences subsection in Tier 1, the checker verifies that no stated preference contradicts a Tier 2 signature or Tier 3 behavioral contract. Reported as a non-blocking warning (not an alignment failure), since preferences are non-binding.
 
 ---
 

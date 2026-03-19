@@ -76,7 +76,8 @@ Each line is a verifiable contract. Section numbers reference Document 2.
 - Sub-stages: blueprint_dialog → alignment_check (Bug 23 fix). After Gate 2.1 APPROVE, routing must transition to alignment_check sub-stage and invoke blueprint checker -- not advance directly to Pre-Stage-3. On ALIGNMENT_CONFIRMED, present Gate 2.2 (the human always decides when to advance to Pre-Stage-3). On Gate 2.2 APPROVE, advance to Pre-Stage-3. On ALIGNMENT_FAILED, present appropriate gate. The Gate 2.2 APPROVE transition to Pre-Stage-3 must persist state to disk before returning the Pre-Stage-3 action block (route-level state persistence invariant, Bug 42 fix). `dispatch_agent_status` for `reference_indexing` must advance from `pre_stage_3` to stage 3 (exhaustive dispatch invariant, Bug 42 fix).
 - Blueprint author produces two files: `blueprint_prose.md` and `blueprint_contracts.md`. Both submitted at every gate. Checker receives both and validates internal consistency (no unit present in one file but absent from the other).
 - **Selective blueprint loading (Bugs 60-62 fix, now implemented):** Per Section 3.16 agent matrix, Unit 9 exports `load_blueprint_contracts_only()` and `load_blueprint_prose_only()` for per-agent loading. `test_agent` and `implementation_agent` receive contracts-only via `build_unit_context(include_tier1=False)`. `integration_test_author` and `git_repo_agent` use `load_blueprint_contracts_only()`. `help_agent` uses `load_blueprint_prose_only()`. `blueprint_checker`, `blueprint_reviewer`, `hint_agent`, and `bug_triage` receive both files. Internal `_get_unit_context` resolves blueprint directory via `get_blueprint_dir()` (Bug 60 fix) and passes `include_tier1` through (Bug 61 fix).
-- Checker receives pattern catalog from `svp_2_1_lessons_learned.md`. The preparation script extracts Part 2 of the lessons learned document verbatim and includes it in the checker's task prompt. Produces advisory risk section identifying structural features matching known failure patterns (P1-P9). Does not block approval.
+- Checker receives pattern catalog from `svp_2_1_lessons_learned.md`. The preparation script extracts Part 2 of the lessons learned document verbatim and includes it in the checker's task prompt. Produces advisory risk section identifying structural features matching known failure patterns (P1-P10). Does not block approval.
+- **Unit-level preference capture (RFC-2, Section 8.1):** Blueprint author agent follows Rules P1-P4 to capture domain preferences during decomposition dialog. P1: ask at the unit level. P2: domain language only. P3: progressive disclosure. P4: conflict detection at capture time. Preferences recorded as optional `### Preferences` subsection in Tier 1. Absence means "no preferences." Authority: spec > contracts > preferences. Blueprint checker validates preference-contract consistency as non-blocking warning.
 - Alignment loop: configurable iteration limit (default 3).
 
 ### Pre-Stage-3: Infrastructure (§9)
@@ -449,8 +450,12 @@ Note: Both redo profile sub-stages are governed by the two-branch routing invari
 | 54 | `test_bug54_orphaned_update_state_from_status.py` | Orphaned update_state_from_status removal |
 | 58 | `test_bug58_gate_5_3_unused_functions.py` | Gate 5.3 vocabulary, dispatch, routing |
 | 65 | `test_bug65_stage3_error_handling.py` | Stage 3 exhaustive error-path dispatch |
+| 67 | `test_bug67_gate_5_3_routing.py` | gate_5_3 routing path, UNUSED_FUNCTIONS_DETECTED dispatch |
+| 66 | `test_bug66_gate_2_3_retry_blueprint.py` | gate_2_3 RETRY BLUEPRINT dispatch |
+| 68 | `test_bug68_stage4_failure_handling.py` | Stage 4 failure handling, gates 4.1/4.2 |
+| 69 | `test_bug69_debug_loop_gates.py` | Debug loop gates 6.0/6.1/6.3/6.5 routing and dispatch |
 
-All regression tests live in `tests/regressions/`. Bugs 55–57 are documentation/spec fixes with no dedicated regression test files. Bug 65 is a compound fix (9 findings) covering all Stage 3 error-path dispatch contracts.
+All regression tests live in `tests/regressions/`. Bugs 55–57 and 63 are documentation/spec fixes with no dedicated regression test files. Bug 65 is a compound fix (9 findings) covering all Stage 3 error-path dispatch contracts. Bugs 66-69 are P10 (Error-Path Contract Omission) instances across Stages 2, 4, 5, and the debug loop.
 
 ---
 
@@ -468,7 +473,7 @@ All regression tests live in `tests/regressions/`. Bugs 55–57 are documentatio
 - **Binary Decision Logic:** Every diagnostic failure produces: implementation problem (fix locally) or document problem (fix document, restart). No third option.
 - **Pattern Catalog:** Part 2 of `svp_2_1_lessons_learned.md`. Named failure patterns (P1–P10) with instance lists and prevention rules. Blueprint checker receives the catalog for advisory risk analysis.
 - **Pattern P9 (Spec Structural Gap):** The spec provides a principle but not the granularity rules needed to operationalize it. Reviewers and checkers have no structural criteria to verify. Introduced in Bug 56.
-- **Pattern P10 (Error-Path Contract Omission):** Spec and blueprint define only the happy-path dispatch transitions. Error-path and edge-case transitions (unexpected test outcomes, fix ladder engagement, gate presentations) are left unspecified. Implementation omits them because no contract requires them. Introduced in Bug 65.
+- **Pattern P10 (Error-Path Contract Omission):** Spec and blueprint define only the happy-path dispatch transitions. Error-path and edge-case transitions (unexpected test outcomes, fix ladder engagement, gate presentations) are left unspecified. Implementation omits them because no contract requires them. Introduced in Bug 65, expanded in Bugs 66-69 (every stage independently had the same disease). Spec now requires gate reachability and dispatch exhaustiveness invariant (Section 3.6).
 - **Two-Tier Defense Model (Bugs 56–57):** (1) LLM-driven review catches root causes at authoring time via mandatory checklists baked into reviewer agent definitions. (2) Gate C deterministic check catches symptoms at assembly time via unused function detection. Together they provide defense in depth against the Bugs 52–55 pattern (functions implemented but never wired into dispatch).
 
 ### Four-Layer Orchestration
@@ -482,6 +487,7 @@ All regression tests live in `tests/regressions/`. Bugs 55–57 are documentatio
 
 - **Layer 1 — Blueprint Contracts:** Profile preferences translated into explicit behavioral contracts in affected units.
 - **Layer 2 — Blueprint Checker Validation:** Checker verifies every profile preference covered by at least one unit's contracts.
+- **Unit-Level Preferences (RFC-2):** Optional `### Preferences` subsection within a unit's Tier 1 description capturing domain conventions, output appearance choices, and domain-specific decisions that are not requirements but matter. Non-binding guidance within the space contracts leave open. Authority hierarchy: spec > contracts > preferences.
 - **Layer 3 — Delivery Compliance Scan:** Deterministic AST-based script scans delivered source for banned patterns.
 
 ### Quality Gates

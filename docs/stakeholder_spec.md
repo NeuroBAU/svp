@@ -1130,9 +1130,19 @@ The blueprint author agent receives `project_profile.json` content (the `readme`
 
 The blueprint must produce units in the three-tier format:
 
-- **Tier 1 — Description:** free prose describing purpose, inputs, outputs, role.
+- **Tier 1 — Description:** free prose describing purpose, inputs, outputs, role. May optionally include a `### Preferences` subsection (see below).
 - **Tier 2 — Machine-readable signatures:** valid Python parseable by `ast`. Import statements declaring all types, followed by type-annotated function and class signatures with ellipsis bodies. Also includes invariants as Python `assert` statements.
 - **Tier 3 — Error conditions, behavioral contracts, dependencies:** structured text. Error conditions as exception types with messages. Behavioral contracts as discrete testable claims. Dependencies as upstream unit references (backward-only).
+
+**Unit-level Preferences subsection (NEW IN 2.1 — RFC-2).** Each unit's Tier 1 description in `blueprint_prose.md` may optionally include a `### Preferences` subsection. This subsection captures domain conventions, output appearance choices, and domain-specific decisions that are not requirements but matter to the human. The format is a `### Preferences` heading within the unit's Tier 1 block, followed by free prose describing the preferences.
+
+- **Absence means "no preferences."** If a unit has no `### Preferences` subsection, no explicit "no preferences" marker is needed.
+- **Authority hierarchy:** spec > contracts > preferences. Preferences are non-binding guidance that operates within the space that contracts leave open. A preference never overrides a behavioral contract or a spec requirement.
+- **No new artifacts.** Preferences travel inside Tier 1 descriptions. Agents that receive Tier 1 (via `build_unit_context` with `include_tier1=True`) automatically receive any Preferences subsections. No changes to `prepare_task.py` are needed.
+
+The blueprint author agent captures preferences during the decomposition dialog using Rules P1-P4 (see Unit 13 agent definition). The blueprint checker validates preference-contract consistency as a non-blocking warning (see Unit 14 agent definition).
+
+**Testability requirement.** Rules P1-P4 must appear verbatim in the blueprint author agent definition (`BLUEPRINT_AUTHOR_AGENT_MD_CONTENT`). The blueprint checker validates their presence. A structural test verifies the rule text is present. This mirrors Section 6.4's testability requirement for Setup Agent Rules 1-4.
 
 **Unit granularity.** A unit is the smallest piece of code that can be independently tested against its blueprint contract without requiring any other unit's implementation to exist. Unit boundaries must be clean interfaces — if unit B depends on unit A, unit B's tests mock unit A based on its contract, never its implementation.
 

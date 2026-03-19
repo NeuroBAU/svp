@@ -866,6 +866,26 @@ Set `vcs.changelog` in your profile to `"keep_a_changelog"` or `"conventional_ch
 **Test Scenarios in README**
 When `testing.readme_test_scenarios` is set in the profile, the README includes a section describing the test suite's coverage approach.
 
+## SVP 2.1.1 Features
+
+SVP 2.1.1 adds unit-level preference capture to the blueprint dialog, enabling domain experts to express non-requirement preferences (output format conventions, naming styles, display choices) during blueprint construction rather than after delivery.
+
+**Unit-Level Preference Capture (RFC-2)**
+During Stage 2 blueprint construction, the blueprint author agent follows four rules (P1-P4) to capture domain preferences at the unit level:
+
+- **Rule P1 (Ask at the unit level):** After establishing each unit's Tier 1 description and before finalizing its contracts, ask about domain conventions, output appearance preferences, and domain-specific choices that are not requirements but matter.
+- **Rule P2 (Domain language only):** Use the human's domain vocabulary, not engineering vocabulary. The agent asks "What file format do your collaborators' tools expect?" rather than "Do you have preferences for the serialization format?"
+- **Rule P3 (Progressive disclosure):** One open question per unit. Follow-up only if the human indicates preferences. No menu of categories for every unit.
+- **Rule P4 (Conflict detection at capture time):** If a preference contradicts a behavioral contract being developed, identify immediately and resolve during dialog.
+
+Captured preferences are recorded as a `### Preferences` subsection within each unit's Tier 1 description in `blueprint_prose.md`. Absence of the subsection means "no preferences" -- no explicit marker is needed. The authority hierarchy is: spec > contracts > preferences. Preferences are non-binding guidance that operates within the space contracts leave open.
+
+**Preference-Contract Consistency Validation**
+The blueprint checker validates that no stated preference contradicts a Tier 2 signature or Tier 3 behavioral contract. Inconsistencies are reported as non-blocking warnings (not alignment failures), since preferences are advisory by design.
+
+**Structural Completeness Checking**
+SVP 2.1.1 introduces a four-layer structural completeness defense: a project-agnostic AST scanner, 14 automated declaration-vs-usage techniques, 163 structural tests, and registry completeness validation. This system catches orphaned functions, missing dispatch paths, and declaration-usage mismatches at build time rather than after delivery.
+
 ## History
 
 - **SVP 1.0** — Initial release. The pipeline scripts and plugin infrastructure were hand-written, then used to build subsequent versions of SVP itself.

@@ -371,6 +371,8 @@ Defines the agent definition files for the three dialog agents: Setup Agent, Sta
 SVP 2.0 expansion: Setup agent gains project profile dialog (five areas), Gate 0.3, targeted revision mode.
 SVP 2.1 expansion: Setup agent gains Area 5 (quality preferences) and changelog question in Area 1. Setup agent's system prompt must include all four UX behavioral rules (plain-language explanations, best-option recommendations, sensible defaults, progressive disclosure) as numbered requirements. Setup agent's system prompt must also embed the complete `project_profile.json` schema structure with exact canonical field names matching `DEFAULT_PROFILE` in Unit 1, so the agent's JSON output uses identical section and field names. Blueprint author receives `quality` profile section.
 
+RFC-2 expansion: Blueprint author agent definition includes Rules P1-P4 for unit-level preference capture during the decomposition dialog. P1: ask at the unit level (after Tier 1, before contracts). P2: use domain language only. P3: progressive disclosure (one open question per unit). P4: conflict detection at capture time. Captured preferences are recorded as a `### Preferences` subsection within each unit's Tier 1 description in `blueprint_prose.md`. Absence means "no preferences." Authority hierarchy: spec > contracts > preferences.
+
 ---
 
 ## Unit 14: Review and Checker Agent Definitions
@@ -382,7 +384,11 @@ SVP 2.1 expansion: Setup agent gains Area 5 (quality preferences) and changelog 
 Defines the agent definition files for the three review/checker agents: Stakeholder Spec Reviewer, Blueprint Checker, and Blueprint Reviewer. Single-shot agents that produce a critique or verdict. Implements spec Sections 7.4, 8.2, and "report most fundamental level."
 
 SVP 2.0 expansion: Blueprint Checker gains Layer 2 preference coverage validation.
-SVP 2.1 expansion: Blueprint Checker validates quality profile preferences (Layer 2), receives all blueprint files discovered from the blueprint directory (validates internal consistency -- every unit heading found across all files must have corresponding Tier 1, Tier 2, and Tier 3 content), and receives the pattern catalog section of `svp_2_1_lessons_learned.md` to produce an advisory risk section identifying structural features matching known failure patterns (P1-P8+). The risk section is advisory only -- it does not block alignment confirmation. The checker is agnostic to the number or names of blueprint files. Bug 57 expansion: All three review agents (stakeholder reviewer, blueprint checker, blueprint reviewer) gain mandatory review checklists baked into their agent definitions. The checklists require explicit verification of downstream dependency analysis, contract granularity, per-gate dispatch contracts, call-site traceability, and re-entry invalidation (spec Section 3.20).
+SVP 2.1 expansion: Blueprint Checker validates quality profile preferences (Layer 2), receives all blueprint files discovered from the blueprint directory (validates internal consistency -- every unit heading found across all files must have corresponding Tier 1, Tier 2, and Tier 3 content), and receives the pattern catalog section of `svp_2_1_lessons_learned.md` to produce an advisory risk section identifying structural features matching known failure patterns (P1-P8+). The risk section is advisory only -- it does not block alignment confirmation. The checker is agnostic to the number or names of blueprint files.
+
+RFC-2 expansion: Blueprint Checker gains preference-contract consistency validation. For each unit that has a Preferences subsection in Tier 1, the checker verifies that no stated preference contradicts a Tier 2 signature or Tier 3 behavioral contract. Reported as a non-blocking warning (not an alignment failure), since preferences are non-binding.
+
+Bug 57 expansion: All three review agents (stakeholder reviewer, blueprint checker, blueprint reviewer) gain mandatory review checklists baked into their agent definitions. The checklists require explicit verification of downstream dependency analysis, contract granularity, per-gate dispatch contracts, call-site traceability, and re-entry invalidation (spec Section 3.20).
 
 ---
 
@@ -1697,6 +1703,7 @@ assert set(GATE_RESPONSES.keys()) == set(ALL_GATE_IDS), \
 - `sub_stage=None`: uses the two-branch routing invariant. `route()` reads `last_status.txt`. If it contains `REPO_ASSEMBLY_COMPLETE`, this status was already processed by `dispatch_agent_status` which advanced `sub_stage` to `"repo_test"` -- so this branch is only reached when no relevant status exists, in which case it invokes `git_repo_agent`.
 - `sub_stage="repo_test"`: present `gate_5_1_repo_test`
 - `sub_stage="compliance_scan"`: run compliance scan script
+- `sub_stage="gate_5_3"`: present `gate_5_3_unused_functions` (Bug 67 fix)
 - `sub_stage="repo_complete"`: return `pipeline_complete`
 
 **`dispatch_agent_status` for `setup_agent` -- `PROJECT_CONTEXT_REJECTED` handling:** When `dispatch_agent_status` receives `PROJECT_CONTEXT_REJECTED` from the setup agent, it does NOT advance the pipeline. The next `route()` call reads `PROJECT_CONTEXT_REJECTED` from `last_status.txt` and emits a `pipeline_held` action. This is distinct from `PROJECT_CONTEXT_COMPLETE`, which advances to the context approval gate. `pipeline_held` signals that the human cannot provide sufficient project context and the pipeline holds until the human re-engages (e.g., via a new session or by providing context externally and resuming).
@@ -1956,13 +1963,19 @@ assert "delivery" in SETUP_AGENT_MD_CONTENT
 assert "environment_recommendation" in SETUP_AGENT_MD_CONTENT
 assert "quality" in SETUP_AGENT_MD_CONTENT
 
+# Blueprint Author Rules P1-P4 (RFC-2, spec Section 8.1)
+assert "Rule P1" in BLUEPRINT_AUTHOR_AGENT_MD_CONTENT
+assert "Rule P2" in BLUEPRINT_AUTHOR_AGENT_MD_CONTENT
+assert "Rule P3" in BLUEPRINT_AUTHOR_AGENT_MD_CONTENT
+assert "Rule P4" in BLUEPRINT_AUTHOR_AGENT_MD_CONTENT
+
 # All *_MD_CONTENT must be valid Claude Code agent definitions
 ```
 
 ### Tier 3 -- Behavioral Contracts
 
 - **Setup Agent:** Operates in project context mode, project profile mode, and targeted revision mode. Profile dialog covers five areas including Area 5 (quality preferences, NEW IN 2.1) and changelog in Area 1. Writes files using `ARTIFACT_FILENAMES` constants. System prompt must include Rules 1-4 verbatim as numbered behavioral requirements. `SETUP_AGENT_MD_CONTENT` must embed the complete `project_profile.json` schema structure with exact canonical field names matching `DEFAULT_PROFILE` in Unit 1, so the agent's JSON output uses identical section and field names.
-- **Blueprint Author Agent:** Receives profile sections (`readme`, `vcs`, `delivery`, `quality`). Produces blueprint files in the `blueprint/` directory (currently `blueprint_prose.md` and `blueprint_contracts.md` as paired output, but the system is agnostic to the exact filenames). Encodes tool preferences as behavioral contracts (Layer 1).
+- **Blueprint Author Agent:** Receives profile sections (`readme`, `vcs`, `delivery`, `quality`). Produces blueprint files in the `blueprint/` directory (currently `blueprint_prose.md` and `blueprint_contracts.md` as paired output, but the system is agnostic to the exact filenames). Encodes tool preferences as behavioral contracts (Layer 1). **Unit-level preference capture (RFC-2):** The blueprint author agent definition includes Rules P1-P4 for capturing domain preferences during the decomposition dialog: P1 (ask at the unit level), P2 (domain language only), P3 (progressive disclosure), P4 (conflict detection at capture time). Captured preferences are recorded as a `### Preferences` subsection within each unit's Tier 1 description. Absence means "no preferences." Authority: spec > contracts > preferences.
 
 ### Tier 3 -- Dependencies
 
@@ -2011,7 +2024,7 @@ BLUEPRINT_REVIEWER_MD_CONTENT: str
 
 ### Tier 3 -- Behavioral Contracts
 
-- **Blueprint Checker (EXPANDED for SVP 2.1):** Receives all blueprint files discovered from the blueprint directory (via Unit 9's task prompt assembly, which uses `discover_blueprint_files` from Unit 1). Validates internal consistency: every `## Unit N:` heading found across all files must have corresponding Tier 1, Tier 2, and Tier 3 content somewhere in the discovered files. Validates alignment, DAG acyclicity, Layer 2 preference coverage (including quality preferences). **Receives pattern catalog section of `svp_2_1_lessons_learned.md` -- produces advisory risk section identifying structural features matching known failure patterns (P1-P8+). Advisory only -- does not block approval.** The checker is agnostic to the number or names of blueprint files -- it validates the combined content.
+- **Blueprint Checker (EXPANDED for SVP 2.1):** Receives all blueprint files discovered from the blueprint directory (via Unit 9's task prompt assembly, which uses `discover_blueprint_files` from Unit 1). Validates internal consistency: every `## Unit N:` heading found across all files must have corresponding Tier 1, Tier 2, and Tier 3 content somewhere in the discovered files. Validates alignment, DAG acyclicity, Layer 2 preference coverage (including quality preferences). **Receives pattern catalog section of `svp_2_1_lessons_learned.md` -- produces advisory risk section identifying structural features matching known failure patterns (P1-P8+). Advisory only -- does not block approval.** The checker is agnostic to the number or names of blueprint files -- it validates the combined content. **Preference-contract consistency (RFC-2):** For each unit that has a Preferences subsection in Tier 1, verify that no stated preference contradicts a Tier 2 signature or Tier 3 behavioral contract. Report as a non-blocking warning (not an alignment failure), since preferences are non-binding.
 - **Stakeholder Spec Reviewer:** Unchanged.
 - **Blueprint Reviewer:** Unchanged.
 
@@ -2451,12 +2464,12 @@ from typing import Dict, Any, List
 from pathlib import Path
 
 PLUGIN_JSON: Dict[str, Any] = {
-    "name": "svp", "version": "2.1.1",
+    "name": "svp", "version": "2.1.0",
     "description": "Stratified Verification Pipeline - deterministically orchestrated software development",
 }
 MARKETPLACE_JSON: Dict[str, Any] = {
     "name": "svp", "owner": {"name": "SVP"},
-    "plugins": [{"name": "svp", "source": "./svp", "version": "2.1.1",
+    "plugins": [{"name": "svp", "source": "./svp", "version": "2.1.0",
         "description": "Stratified Verification Pipeline", "author": {"name": "SVP"}}]
 }
 
