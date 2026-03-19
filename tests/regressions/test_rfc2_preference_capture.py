@@ -21,9 +21,33 @@ import pytest
 
 # Project root and script paths for the delivered repo layout
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-_SVP_SCRIPTS = _PROJECT_ROOT / "svp" / "scripts"
+_SVP_SCRIPTS = _PROJECT_ROOT / "scripts"
+if not _SVP_SCRIPTS.is_dir():
+    _SVP_SCRIPTS = _PROJECT_ROOT / "svp" / "scripts"
 
-# Ensure svp/scripts is importable
+def _find_doc(filename: str) -> Path:
+    """Find a document in either workspace or delivered repo layout."""
+    # Delivered repo: docs/
+    p = _PROJECT_ROOT / "docs" / filename
+    if p.exists():
+        return p
+    # Workspace: specs/ or blueprint/ depending on file
+    if "spec" in filename:
+        p = _PROJECT_ROOT / "specs" / filename
+    elif "blueprint" in filename:
+        p = _PROJECT_ROOT / "blueprint" / filename
+    elif "summary" in filename:
+        p = _PROJECT_ROOT / "docs" / filename
+    if p.exists():
+        return p
+    # Also check references/
+    p = _PROJECT_ROOT / "references" / filename
+    if p.exists():
+        return p
+    return _PROJECT_ROOT / "docs" / filename  # fallback (will trigger skip)
+
+
+# Ensure scripts is importable
 if str(_SVP_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SVP_SCRIPTS))
 
@@ -237,7 +261,7 @@ class TestBlueprintContractsP1P4Invariants:
     """Verify blueprint_contracts.md contains P1-P4 invariant asserts."""
 
     def test_contracts_file_has_p1_p4_asserts(self):
-        contracts_path = _PROJECT_ROOT / "docs" / "blueprint_contracts.md"
+        contracts_path = _find_doc("blueprint_contracts.md")
         if not contracts_path.exists():
             pytest.skip("blueprint_contracts.md not found in docs/")
         content = contracts_path.read_text()
@@ -256,7 +280,7 @@ class TestSpecContainsRFC2:
     """Verify stakeholder_spec.md documents RFC-2 features."""
 
     def test_spec_has_preferences_subsection(self):
-        spec_path = _PROJECT_ROOT / "docs" / "stakeholder_spec.md"
+        spec_path = _find_doc("stakeholder_spec.md")
         if not spec_path.exists():
             pytest.skip("stakeholder_spec.md not found in docs/")
         content = spec_path.read_text()
@@ -264,14 +288,14 @@ class TestSpecContainsRFC2:
         assert "RFC-2" in content
 
     def test_spec_has_authority_hierarchy(self):
-        spec_path = _PROJECT_ROOT / "docs" / "stakeholder_spec.md"
+        spec_path = _find_doc("stakeholder_spec.md")
         if not spec_path.exists():
             pytest.skip("stakeholder_spec.md not found in docs/")
         content = spec_path.read_text()
         assert "spec > contracts > preferences" in content.lower()
 
     def test_spec_has_testability_requirement(self):
-        spec_path = _PROJECT_ROOT / "docs" / "stakeholder_spec.md"
+        spec_path = _find_doc("stakeholder_spec.md")
         if not spec_path.exists():
             pytest.skip("stakeholder_spec.md not found in docs/")
         content = spec_path.read_text()
@@ -287,7 +311,7 @@ class TestSummaryRFC2Glossary:
     """Verify svp_2_1_summary.md has RFC-2 glossary entry."""
 
     def test_summary_has_rfc2_glossary(self):
-        summary_path = _PROJECT_ROOT / "docs" / "svp_2_1_summary.md"
+        summary_path = _find_doc("svp_2_1_summary.md")
         if not summary_path.exists():
             pytest.skip("svp_2_1_summary.md not found in docs/")
         content = summary_path.read_text()
