@@ -1173,8 +1173,6 @@ The blueprint generation and checking cycle may iterate. On each iteration:
 *Best case:* Never reached. Alignment converges within 1-2 attempts.
 *Worst case:* Three attempts fail. The human uses the Help Agent to identify the root cause, revises the spec, and restarts.
 
-**Gate 2.3 dispatch behavior (Bug 66 fix).** RETRY BLUEPRINT versions the current blueprint, resets `alignment_iteration` to 0 and `sub_stage` to `None`, returning the pipeline to blueprint authoring. REVISE SPEC versions the spec and restarts from Stage 1. RESTART SPEC restarts from Stage 1 without versioning.
-
 ### 8.4 Output
 
 Blessed `blueprint_prose.md` and `blueprint_contracts.md` files with completion marker. Pipeline state updated. Session boundary fires.

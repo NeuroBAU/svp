@@ -1162,7 +1162,15 @@ def dispatch_gate_response(
                 state,
             )
         else:  # RETRY BLUEPRINT
-            return state
+            # Bug 66: version blueprint and reset sub_stage to None
+            # so routing re-invokes blueprint_author, not blueprint_checker
+            _version_blueprint(project_root, "Gate 2.3 RETRY BLUEPRINT")
+            import copy as _copy
+            new_state = PipelineState.from_dict(_copy.deepcopy(state.to_dict()))
+            new_state.alignment_iteration = 0
+            new_state.sub_stage = None
+            new_state.last_action = "Gate 2.3: RETRY BLUEPRINT, resetting to blueprint authoring"
+            return new_state
 
     elif gate_id == "gate_3_1_test_validation":
         if response == "TEST CORRECT":

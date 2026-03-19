@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-65)
+## Part 1: Unified Bug Catalog (Bugs 1-66)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -537,7 +537,7 @@ A function is rewritten during a version upgrade and loses edge cases, search pa
 The spec provides a principle but not the granularity rules needed to operationalize it. Reviewers and checkers have no structural criteria to verify, so they cannot catch the gap. **Prevention:** Spec principles must be accompanied by enumerated verification criteria. Review agents must carry mandatory checklists derived from these criteria.
 
 ### P10 — Error-Path Contract Omission (NEW — Bug 65)
-**Instances:** Bug 65.
+**Instances:** Bugs 65, 66.
 Happy-path transitions are contracted and tested; error paths are described in spec prose but never converted to enumerable blueprint Tier 3 contracts. The implementation agent faithfully implements the contracted happy paths and produces no-op stubs for the uncontracted error paths, resulting in infinite loops on any failure. **Prevention:** Every dispatch function's (phase, sub_stage, status) combination must have a contracted behavior -- including error cases. Per-gate-option dispatch contracts must be applied strictly. Regression tests must cover error-path dispatch completeness.
 
 ---
@@ -1119,6 +1119,20 @@ The entire Stage 3 error-handling infrastructure was dead code. Only the happy p
 **Prevention:** (1) Exhaustive dispatch_command_status tables for ALL (phase, sub_stage, status) combinations -- silence is not a valid contract outcome. (2) Per-gate-option dispatch contracts applied strictly: every gate response option must produce a distinct state transition. (3) Regression tests for error-path dispatch completeness: every reachable (phase, sub_stage, status) combination must be tested, not just happy paths.
 
 **New pattern candidate: "Error-Path Contract Omission" (P10).** Happy path is contracted and tested; error paths exist only in spec prose and are never converted to enumerable blueprint contracts. The implementation agent correctly implements the contracted paths and silently ignores the uncontracted error paths, producing code that compiles but loops on any failure.
+
+### Bug 66 -- gate_2_3 RETRY BLUEPRINT No-Op Causing Routing Loop
+
+**Caught:** Post-delivery (bug triage agent). **Test:** `test_bug66_gate_2_3_retry_blueprint.py`
+
+In `dispatch_gate_response`, the handler for `gate_2_3_alignment_exhausted` with response `RETRY BLUEPRINT` returned `state` unchanged. The `sub_stage` remained `alignment_check`, so on the next routing cycle, `route()` re-invoked the blueprint_checker instead of the blueprint_author. The human intended to retry the blueprint (go back to authoring), but got the alignment checker again in an infinite loop.
+
+**Impact:** RETRY BLUEPRINT at Gate 2.3 was entirely non-functional. The only escape from alignment exhaustion was REVISE SPEC or RESTART SPEC.
+
+**Fix:** Version the blueprint via `_version_blueprint`, reset `alignment_iteration` to 0 and `sub_stage` to `None` so routing invokes blueprint_author. Mirrored in `src/unit_10/stub.py`. The blueprint contracts already specified the correct behavior at line 1325; the implementation simply never followed the contract.
+
+**Pattern:** P10 (Error-Path Contract Omission). Gate dispatch handler left as bare `return state` no-op. Identical to Bug 65 F7 pattern (gate dispatch no-ops).
+
+**Prevention:** Every gate dispatch branch must produce a distinct state transition. A bare `return state` in a gate handler is almost always a bug. Regression tests should verify that each gate response option produces the expected sub_stage and alignment_iteration values.
 
 ---
 

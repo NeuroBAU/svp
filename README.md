@@ -548,7 +548,7 @@ can.
 
 SVP itself was built by SVP. The lessons learned document
 (`docs/references/svp_2_1_lessons_learned.md` in the
-delivered repository) catalogs 65 bugs discovered across
+delivered repository) catalogs 66 bugs discovered across
 five build generations — from SVP 1.0 through SVP 2.1.
 Nearly every one traces back to something the stakeholder
 spec didn't say clearly enough. The checklist below is
@@ -757,7 +757,7 @@ caught every one during blueprint alignment.
 > path must document what happens to downstream units."
 
 These nine questions are not exhaustive, but they cover
-the patterns that produced 65 bugs across five build
+the patterns that produced 66 bugs across five build
 generations of SVP. The lessons learned document in the
 delivered repository contains the full catalog with root
 causes, patterns, and prevention rules. Bug 50 in
@@ -820,7 +820,7 @@ Every time a document is revised through a gate decision (REVISE, FIX BLUEPRINT,
 The SVP test suite covers:
 
 - **Unit tests** (`tests/unit_N/`): One test module per pipeline unit, covering the unit's behavioral contracts.
-- **Regression tests** (`tests/regressions/`): Carry-forward tests for all 65 catalogued bugs. Each file targets a specific bug scenario.
+- **Regression tests** (`tests/regressions/`): Carry-forward tests for all 66 catalogued bugs. Each file targets a specific bug scenario.
 - **Integration tests** (`tests/integration/`): Cross-unit tests covering toolchain resolution, profile flow, blueprint checker preference validation, quality gate execution, and write authorization.
 
 Run the full test suite from the repository root:
