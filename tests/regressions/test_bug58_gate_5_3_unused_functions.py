@@ -41,24 +41,28 @@ class TestGate53Dispatch(unittest.TestCase):
     """dispatch_gate_response must handle both Gate 5.3 responses."""
 
     def _make_state(self, **kwargs):
-        from types import SimpleNamespace
+        from pipeline_state import PipelineState
 
         defaults = {
             "stage": "5",
-            "sub_stage": "repo_test",
-            "current_unit": 1,
+            "sub_stage": "gate_5_3",
+            "current_unit": None,
+            "total_units": 10,
+            "fix_ladder_position": None,
             "red_run_retries": 0,
-            "debug_session": None,
             "alignment_iteration": 0,
-            "fix_ladder": None,
-            "pass_number": 1,
-            "quality_gate": None,
-            "delivered_repo_path": None,
-            "redo_profile_revision": None,
+            "verified_units": [],
+            "pass_history": [],
+            "log_references": {},
+            "project_name": "test",
             "last_action": None,
+            "debug_session": None,
+            "debug_history": [],
+            "redo_triggered_from": None,
+            "delivered_repo_path": None,
         }
         defaults.update(kwargs)
-        return SimpleNamespace(**defaults)
+        return PipelineState(**defaults)
 
     @patch("routing.restart_from_stage")
     @patch("routing._version_spec")
@@ -78,7 +82,7 @@ class TestGate53Dispatch(unittest.TestCase):
         call_args = mock_restart.call_args
         self.assertEqual(call_args[0][1], "1")
 
-    def test_override_continue_returns_state(self):
+    def test_override_continue_advances_to_repo_complete(self):
         from routing import dispatch_gate_response
 
         state = self._make_state()
@@ -86,9 +90,9 @@ class TestGate53Dispatch(unittest.TestCase):
             state, "gate_5_3_unused_functions", "OVERRIDE CONTINUE", Path("/tmp")
         )
 
-        # State should be returned (not restarted)
+        # Bug 73-A: must advance to repo_complete, not return unchanged
         self.assertEqual(result.stage, "5")
-        self.assertIn("overrode", result.last_action)
+        self.assertEqual(result.sub_stage, "repo_complete")
 
 
 if __name__ == "__main__":

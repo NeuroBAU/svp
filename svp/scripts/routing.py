@@ -17,7 +17,9 @@ Bug 65 fix (Stage 3 error handling: stub_generation routing, fix ladder engageme
 diagnostic escalation, Gate 3.1/3.2 dispatch, coverage two-branch, red_run retries),
 Bug 69 fix (debug loop gates: gate_6_0 triage_readonly/triage separation, gate_6_1
 regression_test phase routing, gate_6_3 RECLASSIFY BUG reset, gate_6_5 debug commit),
-Bug 70 fix (fix ladder routing at sub_stage=None, TESTS_ERROR infinite loop, dead phases).
+Bug 70 fix (fix ladder routing at sub_stage=None, TESTS_ERROR infinite loop, dead phases),
+Bug 73 fix (Stage 0 PROFILE_COMPLETE routing loop, Gate 5.3 OVERRIDE CONTINUE loop,
+Gate 4.1 ASSEMBLY FIX loop — dispatch handlers returning unchanged state).
 """
 
 import json
@@ -355,8 +357,9 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             }
         elif sub_stage == "project_context":
             # Bug 21: two-branch routing
+            # Bug 73: also match PROFILE_COMPLETE (agent completed both artifacts)
             last_status = _read_last_status(project_root)
-            if last_status == "PROJECT_CONTEXT_COMPLETE":
+            if last_status in ("PROJECT_CONTEXT_COMPLETE", "PROFILE_COMPLETE"):
                 return {
                     "ACTION": "human_gate",
                     "GATE_ID": "gate_0_2_context_approval",
@@ -374,8 +377,14 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 }
         elif sub_stage == "project_profile":
             # Bug 21: two-branch routing
+            # Bug 73: also check artifact existence (profile may have been created
+            # during the context phase, with last_status overwritten by Gate 0.2)
             last_status = _read_last_status(project_root)
-            if last_status == "PROFILE_COMPLETE":
+            profile_exists = (project_root / "project_profile.json").exists()
+            if last_status == "PROFILE_COMPLETE" or (
+                profile_exists
+                and last_status not in ("PROFILE REJECTED", None)
+            ):
                 return {
                     "ACTION": "human_gate",
                     "GATE_ID": "gate_0_3_profile_approval",
@@ -1362,7 +1371,11 @@ def dispatch_gate_response(
 
     elif gate_id == "gate_4_1_integration_failure":
         if response == "ASSEMBLY FIX":
-            return state
+            # Bug 73-B: reset sub_stage so integration_test_author is re-invoked;
+            # returning unchanged state loops gate_4_1
+            new_state = advance_sub_stage(state, None, project_root)
+            new_state.last_action = "Gate 4.1: ASSEMBLY FIX, re-invoking integration test author"
+            return new_state
         elif response == "FIX BLUEPRINT":
             _version_blueprint(project_root, "Gate 4.1 FIX BLUEPRINT")
             return _try_transition(
@@ -1442,8 +1455,8 @@ def dispatch_gate_response(
                 state,
             )
         else:  # OVERRIDE CONTINUE
-            state.last_action = "Gate 5.3: human overrode unused function finding, continuing"
-            return state
+            # Bug 73-A: must advance sub_stage; returning unchanged state loops gate_5_3
+            return advance_sub_stage(state, "repo_complete", project_root)
 
     elif gate_id == "gate_6_0_debug_permission":
         if response == "AUTHORIZE DEBUG":
