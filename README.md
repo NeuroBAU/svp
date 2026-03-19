@@ -548,7 +548,7 @@ can.
 
 SVP itself was built by SVP. The lessons learned document
 (`docs/references/svp_2_1_lessons_learned.md` in the
-delivered repository) catalogs 66 bugs discovered across
+delivered repository) catalogs 67 bugs discovered across
 five build generations — from SVP 1.0 through SVP 2.1.
 Nearly every one traces back to something the stakeholder
 spec didn't say clearly enough. The checklist below is
@@ -757,7 +757,7 @@ caught every one during blueprint alignment.
 > path must document what happens to downstream units."
 
 These nine questions are not exhaustive, but they cover
-the patterns that produced 66 bugs across five build
+the patterns that produced 67 bugs across five build
 generations of SVP. The lessons learned document in the
 delivered repository contains the full catalog with root
 causes, patterns, and prevention rules. Bug 50 in

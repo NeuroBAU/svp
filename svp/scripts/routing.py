@@ -12,6 +12,7 @@ Gate 6.5 (debug commit), quality gate execution,
 Bug 55 fix (Gate 6.2 FIX UNIT wired to rollback_to_unit, set_debug_classification
 wired into bug_triage dispatch, build_env fast path, phase-based debug routing),
 Bug 58 fix (Gate 5.3 unused_functions added to GATE_VOCABULARY and dispatch),
+Bug 67 fix (gate_5_3 routing path in route() and dispatch_command_status),
 Bug 65 fix (Stage 3 error handling: stub_generation routing, fix ladder engagement,
 diagnostic escalation, Gate 3.1/3.2 dispatch, coverage two-branch, red_run retries).
 """
@@ -144,6 +145,7 @@ COMMAND_STATUS_PATTERNS: List[str] = [
     "TESTS_ERROR",  # "TESTS_ERROR: [error summary]"
     "COMMAND_SUCCEEDED",
     "COMMAND_FAILED",  # "COMMAND_FAILED: [exit code]"
+    "UNUSED_FUNCTIONS_DETECTED",  # Bug 67: unused exported functions found
 ]
 
 # Known phases for dispatch
@@ -822,6 +824,16 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 "COMMAND": f"python scripts/compliance_scan.py --project-root .",
                 "CONTEXT": "compliance_scan",
                 "POST": _post_cmd("compliance_scan"),
+            }
+
+        # Bug 67: gate_5_3 routing path for unused function detection
+        if sub_stage == "gate_5_3":
+            return {
+                "ACTION": "human_gate",
+                "GATE_ID": "gate_5_3_unused_functions",
+                "OPTIONS": GATE_VOCABULARY["gate_5_3_unused_functions"],
+                "PREPARE": _gate_prepare_cmd("gate_5_3_unused_functions"),
+                "POST": _post_cmd("gate", gate_id="gate_5_3_unused_functions"),
             }
 
         if sub_stage == "repo_complete":
@@ -1633,6 +1645,9 @@ def dispatch_command_status(
         if status_line.startswith("COMMAND_SUCCEEDED"):
             # Scan passed -- repo delivery complete
             return advance_sub_stage(state, "repo_complete", project_root)
+        elif status_line.startswith("UNUSED_FUNCTIONS_DETECTED"):
+            # Bug 67: unused exported functions found -- present Gate 5.3
+            return advance_sub_stage(state, "gate_5_3", project_root)
         elif status_line.startswith("COMMAND_FAILED"):
             # Violations found -- re-enter bounded fix cycle
             new_state = increment_red_run_retries(state)
