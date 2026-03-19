@@ -1220,4 +1220,16 @@ Bugs 65-69 all share the same root cause: P10 (Error-Path Contract Omission). Th
 
 ---
 
+### Bug 74: Regression tests testing stubs instead of real implementation
+
+**Date:** 2026-03-19
+**Classification:** structural (test infrastructure)
+**Root cause:** P12 (Test Target Mismatch) -- Eight workspace regression test files imported from `src.unit_N.stub` instead of the real implementation modules. Stubs may diverge from the real scripts, causing false-pass scenarios.
+
+**Pattern:** When a build pipeline uses both stubs and real scripts, regression tests must always target the real scripts. Stubs are intermediate artifacts; the real scripts are what gets delivered.
+
+**Prevention:** (1) `pyproject.toml` pythonpath config for direct script imports. (2) Blueprint checker must verify no `from src.unit_` imports in regression tests. (3) Blueprint reviewer must include this check in its review checklist.
+
+---
+
 *End of lessons learned.*

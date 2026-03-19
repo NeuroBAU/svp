@@ -22,8 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- 22 bugs (52-73) spanning orphaned functions, dead gates, no-op dispatch handlers, routing loops, spec structural gaps, blueprint split compliance
+- 23 bugs (52-74) spanning orphaned functions, dead gates, no-op dispatch handlers, routing loops, test infrastructure, spec structural gaps, blueprint split compliance
 - Bug 73: Three routing/dispatch loops from unchanged state returns (Stage 0 PROFILE_COMPLETE, Gate 5.3 OVERRIDE CONTINUE, Gate 4.1 ASSEMBLY FIX)
+- Bug 74: Regression tests must test real scripts, not stubs (test target invariant added to checker/reviewer checklists)
 - Gate 5.3 routing path (Bug 67)
 - gate_2_3 RETRY BLUEPRINT routing loop (Bug 66)
 - gate_6_3 RECLASSIFY BUG dispatch (Bug 69)
