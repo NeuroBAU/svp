@@ -289,6 +289,11 @@ def validate_state(state: PipelineState) -> list[str]:
         elif state.stage == "3":
             if state.sub_stage not in STAGE_3_SUB_STAGES:
                 errors.append(f"Invalid sub_stage '{state.sub_stage}' for stage 3")
+        # Bug 68: Stage 4 sub-stage validation
+        elif state.stage == "4":
+            valid_stage_4 = [None, "gate_4_1", "gate_4_2"]
+            if state.sub_stage not in valid_stage_4:
+                errors.append(f"Invalid sub_stage '{state.sub_stage}' for stage 4")
 
     # Non-negative counters
     if state.red_run_retries < 0:
