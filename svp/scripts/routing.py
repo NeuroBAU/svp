@@ -15,8 +15,8 @@ Bug 58 fix (Gate 5.3 unused_functions added to GATE_VOCABULARY and dispatch),
 Bug 67 fix (gate_5_3 routing path in route() and dispatch_command_status),
 Bug 65 fix (Stage 3 error handling: stub_generation routing, fix ladder engagement,
 diagnostic escalation, Gate 3.1/3.2 dispatch, coverage two-branch, red_run retries),
-Bug 68 fix (Stage 4 failure handling: gate_4_1/gate_4_2 routing, TESTS_FAILED dispatch,
-ASSEMBLY FIX dispatch).
+Bug 69 fix (debug loop gates: gate_6_0 triage_readonly/triage separation, gate_6_1
+regression_test phase routing, gate_6_3 RECLASSIFY BUG reset, gate_6_5 debug commit).
 """
 
 import json
@@ -690,27 +690,8 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             "POST": _post_cmd("implementation", unit=unit),
         }
 
-    # Stage 4 (Bug 43: two-branch routing, Bug 68: gate sub-stages)
+    # Stage 4 (Bug 43: two-branch routing)
     if stage == "4":
-        sub_stage = state.sub_stage
-        # Bug 68: Gate sub-stage routing
-        if sub_stage == "gate_4_1":
-            return {
-                "ACTION": "human_gate",
-                "GATE_ID": "gate_4_1_integration_failure",
-                "OPTIONS": GATE_VOCABULARY["gate_4_1_integration_failure"],
-                "PREPARE": _gate_prepare_cmd("gate_4_1_integration_failure"),
-                "POST": _post_cmd("gate", gate_id="gate_4_1_integration_failure"),
-            }
-        elif sub_stage == "gate_4_2":
-            return {
-                "ACTION": "human_gate",
-                "GATE_ID": "gate_4_2_assembly_exhausted",
-                "OPTIONS": GATE_VOCABULARY["gate_4_2_assembly_exhausted"],
-                "PREPARE": _gate_prepare_cmd("gate_4_2_assembly_exhausted"),
-                "POST": _post_cmd("gate", gate_id="gate_4_2_assembly_exhausted"),
-            }
-        # Default: two-branch routing for integration test authoring
         last_status = _read_last_status(project_root)
         if last_status == "INTEGRATION_TESTS_COMPLETE":
             return {
@@ -740,8 +721,36 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             if debug_phase == "stage3_reentry":
                 pass  # Fall through to normal Stage 5 routing below
 
-            # Triage phases: check for completion or invoke triage
-            elif debug_phase in ("triage_readonly", "triage"):
+            # Bug 69 E.1: triage_readonly -- read-only triage, then Gate 6.0
+            elif debug_phase == "triage_readonly":
+                last_status = _read_last_status(project_root)
+                if last_status in (
+                    "TRIAGE_COMPLETE: single_unit",
+                    "TRIAGE_COMPLETE: cross_unit",
+                    "TRIAGE_COMPLETE: build_env",
+                    "TRIAGE_NON_REPRODUCIBLE",
+                    "TRIAGE_NEEDS_REFINEMENT",
+                ):
+                    # Triage agent completed: present Gate 6.0 for authorization
+                    return {
+                        "ACTION": "human_gate",
+                        "GATE_ID": "gate_6_0_debug_permission",
+                        "OPTIONS": GATE_VOCABULARY["gate_6_0_debug_permission"],
+                        "PREPARE": _gate_prepare_cmd("gate_6_0_debug_permission"),
+                        "POST": _post_cmd("gate", gate_id="gate_6_0_debug_permission"),
+                    }
+                else:
+                    # Triage agent not yet completed: invoke in read-only mode
+                    return {
+                        "ACTION": "invoke_agent",
+                        "AGENT": "bug_triage",
+                        "CONTEXT": "debug",
+                        "PREPARE": _prepare_cmd("bug_triage"),
+                        "POST": _post_cmd("debug"),
+                    }
+
+            # Bug 69 E.1: triage -- authorized triage with write access
+            elif debug_phase == "triage":
                 last_status = _read_last_status(project_root)
                 # Bug 55: exact status matching for build_env fast path
                 if last_status in ("TRIAGE_COMPLETE: single_unit", "TRIAGE_COMPLETE: cross_unit"):
@@ -800,8 +809,35 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                         "POST": _post_cmd("repair"),
                     }
 
-            # Other debug phases (regression_test, complete): fall through
-            # to normal Stage 5 routing
+            # Bug 69 E.2: regression_test phase handler
+            elif debug_phase == "regression_test":
+                last_status = _read_last_status(project_root)
+                if last_status == "REGRESSION_TEST_COMPLETE":
+                    return {
+                        "ACTION": "human_gate",
+                        "GATE_ID": "gate_6_1_regression_test",
+                        "OPTIONS": GATE_VOCABULARY["gate_6_1_regression_test"],
+                        "PREPARE": _gate_prepare_cmd("gate_6_1_regression_test"),
+                        "POST": _post_cmd("gate", gate_id="gate_6_1_regression_test"),
+                    }
+                else:
+                    return {
+                        "ACTION": "invoke_agent",
+                        "AGENT": "test_agent",
+                        "CONTEXT": "regression_test",
+                        "PREPARE": _prepare_cmd("test_agent"),
+                        "POST": _post_cmd("regression_test"),
+                    }
+
+            # Bug 69 E.4: complete phase handler
+            elif debug_phase == "complete":
+                return {
+                    "ACTION": "human_gate",
+                    "GATE_ID": "gate_6_5_debug_commit",
+                    "OPTIONS": GATE_VOCABULARY["gate_6_5_debug_commit"],
+                    "PREPARE": _gate_prepare_cmd("gate_6_5_debug_commit"),
+                    "POST": _post_cmd("gate", gate_id="gate_6_5_debug_commit"),
+                }
 
         # Bug 43: two-branch routing for repo assembly
         if sub_stage is None:
@@ -1245,11 +1281,7 @@ def dispatch_gate_response(
 
     elif gate_id == "gate_4_1_integration_failure":
         if response == "ASSEMBLY FIX":
-            # Bug 68: Reset sub_stage to None so routing re-invokes integration_test_author
-            new_state = _clone_state(state)
-            new_state.sub_stage = None
-            new_state.last_action = "Gate 4.1: ASSEMBLY FIX, re-invoking integration test author"
-            return new_state
+            return state
         elif response == "FIX BLUEPRINT":
             _version_blueprint(project_root, "Gate 4.1 FIX BLUEPRINT")
             return _try_transition(
@@ -1340,8 +1372,13 @@ def dispatch_gate_response(
 
     elif gate_id == "gate_6_1_regression_test":
         if response == "TEST CORRECT":
-            return state
+            # Bug 69 E.2: advance debug phase to complete
+            return _try_transition(
+                lambda: update_debug_phase(state, "complete"), state
+            )
         else:  # TEST WRONG
+            # Two-branch no-op: last_status != REGRESSION_TEST_COMPLETE,
+            # so routing re-invokes test agent
             return state
 
     elif gate_id == "gate_6_2_debug_classification":
@@ -1393,7 +1430,14 @@ def dispatch_gate_response(
         if response == "RETRY REPAIR":
             return state
         elif response == "RECLASSIFY BUG":
-            return state
+            # Bug 69 E.3: reset debug phase to triage and clear classification
+            new_state = _try_transition(
+                lambda: update_debug_phase(state, "triage"), state
+            )
+            if new_state.debug_session is not None:
+                new_state.debug_session.classification = None
+                new_state.debug_session.affected_units = []
+            return new_state
         else:  # ABANDON DEBUG
             return _try_transition(lambda: abandon_debug_session(state), state)
 
@@ -1405,10 +1449,13 @@ def dispatch_gate_response(
 
     elif gate_id == "gate_6_5_debug_commit":
         if response == "COMMIT APPROVED":
-            # Proceed with commit
-            return state
+            # Bug 69 E.4: complete debug session -- moves to debug_history
+            return _try_transition(
+                lambda: complete_debug_session(state, "Debug fix committed and pushed"),
+                state,
+            )
         else:  # COMMIT REJECTED
-            # Allow human edit or abort
+            # Two-branch no-op: stays in complete phase, re-presents Gate 6.5
             return state
 
     elif gate_id == "gate_hint_conflict":
@@ -1635,12 +1682,6 @@ def dispatch_command_status(
             # Red run: all tests should fail against stubs -> advance to implementation
             if state.sub_stage == "red_run":
                 return advance_sub_stage(state, "implementation", project_root)
-            # Bug 68: Stage 4 integration tests failed -> increment retries, route to gate
-            if state.stage == "4":
-                new_state = increment_red_run_retries(state)
-                if new_state.red_run_retries >= 3:
-                    return advance_sub_stage(new_state, "gate_4_2", project_root)
-                return advance_sub_stage(new_state, "gate_4_1", project_root)
             # F3: Green run failure -> engage fix ladder
             if state.sub_stage == "green_run":
                 ladder_pos = state.fix_ladder_position

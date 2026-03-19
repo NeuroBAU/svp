@@ -8,6 +8,8 @@ quality gate state transitions, and delivered repo path recording.
 
 Bug 55 fix: rollback_to_unit accepts Stage 5 with active debug session,
 deletes (not copies) invalidated source/test files, transitions to Stage 3.
+
+Bug 69 fix: repair phase can transition to triage (RECLASSIFY BUG).
 """
 
 import copy
@@ -39,9 +41,9 @@ _FIX_LADDER_TRANSITIONS: Dict[Optional[str], List[str]] = {
 _DEBUG_PHASE_TRANSITIONS: Dict[str, List[str]] = {
     "triage_readonly": ["triage"],
     "triage": ["regression_test", "stage3_reentry"],
-    "regression_test": ["stage3_reentry", "repair"],
+    "regression_test": ["stage3_reentry", "repair", "complete"],
     "stage3_reentry": ["repair", "complete"],
-    "repair": ["complete"],
+    "repair": ["triage", "complete"],
     "complete": [],
 }
 

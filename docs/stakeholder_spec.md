@@ -972,6 +972,7 @@ This table is the single authoritative reference for the dual numbering scheme. 
 The mapping table above is authoritative for resolving both collisions and deviations.
 
 | bug65 | 65 | Dedicated file | `test_bug65_stage3_error_handling.py` | Stage 3 error-handling: stub_generation, fix ladder, diagnostic escalation, Gate 3.1/3.2, coverage two-branch, red_run retries (24 tests) |
+| bug67 | 67 | Dedicated file | `test_bug67_gate_5_3_routing.py` | gate_5_3 routing path, UNUSED_FUNCTIONS_DETECTED dispatch, STAGE_5_SUB_STAGES |
 
 **Regression test count.** There are 45 distinct regression test file entries in the table above (40 unique filenames): 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 22 newly authored in this build. Three `test_bugNN_` filename prefixes are reused across different bugs (`test_bug17_*`, `test_bug18_*`, `test_bug19_*` -- see naming note above), but each table entry corresponds to a distinct file with a unique full filename. The 22 newly authored files are: `test_bug13_hook_schema_validation.py` (Bug 17), `test_bug22_repo_sibling_directory.py` (Bug 37), `test_bug23_stage1_spec_gate_routing.py` (Bug 41), `test_bug42_pre_stage3_state_persistence.py` (Bug 42), `test_bug43_stage2_blueprint_routing.py` (Bug 43), `test_bug44_null_substage_dispatch.py` (Bug 44), `test_bug45_test_execution_dispatch.py` (Bug 45), `test_bug46_coverage_dispatch.py` (Bug 46), `test_bug47_unit_completion_double_dispatch.py` (Bug 47), `test_bug48_launcher_cli_contract.py` (Bug 48), `test_bug49_argparse_enumeration.py` (Bug 49), `test_bug50_contract_sufficiency.py` (Bug 50), `test_bug51_debug_reassembly.py` (Bug 51), `test_bug52_version_document_wiring.py` (Bug 52), `test_bug53_orphaned_functions.py` (Bug 53), `test_bug54_orphaned_update_state_from_status.py` (Bug 54), `test_bug55_rollback_gate62_wiring.py` (Bug 55), `test_bug58_gate_5_3_unused_functions.py` (Bug 58), `test_bug59_blueprint_path_and_gates.py` (Bug 59), `test_bug60_unit_context_blueprint_path.py` (Bug 60), `test_bug61_include_tier1_parameter.py` (Bug 61), and `test_bug62_selective_blueprint_loading.py` (Bug 62). All other files are carried forward unchanged.
 
@@ -1172,8 +1173,6 @@ The blueprint generation and checking cycle may iterate. On each iteration:
 **Scenarios — Gate 2.3.**
 *Best case:* Never reached. Alignment converges within 1-2 attempts.
 *Worst case:* Three attempts fail. The human uses the Help Agent to identify the root cause, revises the spec, and restarts.
-
-**Gate 2.3 dispatch behavior (Bug 66 fix).** RETRY BLUEPRINT versions the current blueprint, resets `alignment_iteration` to 0 and `sub_stage` to `None`, returning the pipeline to blueprint authoring. REVISE SPEC versions the spec and restarts from Stage 1. RESTART SPEC restarts from Stage 1 without versioning.
 
 ### 8.4 Output
 
@@ -1867,7 +1866,7 @@ If triage cannot produce a failing test after iteration limit: revised hypothesi
 
 #### 12.17.8 Repair Agent Exhaustion
 
-Gate 6.3: **RETRY REPAIR**, **RECLASSIFY BUG**, or **ABANDON DEBUG**.
+Gate 6.3: **RETRY REPAIR**, **RECLASSIFY BUG**, or **ABANDON DEBUG**. RECLASSIFY BUG resets the debug phase to triage and clears the existing classification, allowing the triage agent to re-investigate with a fresh hypothesis (Bug 69 fix). ABANDON DEBUG calls `abandon_debug_session` and returns to "Stage 5 complete."
 
 #### 12.17.9 Debug Session Abandonment
 

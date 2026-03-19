@@ -410,7 +410,7 @@ STAGE_3_SUB_STAGES: List[Optional[str]] = [
 
 STAGE_4_SUB_STAGES: List[Optional[str]] = [None]
 
-STAGE_5_SUB_STAGES: List[Optional[str]] = [None, "repo_test", "compliance_scan", "repo_complete"]
+STAGE_5_SUB_STAGES: List[Optional[str]] = [None, "repo_test", "compliance_scan", "gate_5_3", "repo_complete"]
 
 QUALITY_GATE_SUB_STAGES: List[str] = [
     "quality_gate_a", "quality_gate_b",
@@ -660,6 +660,7 @@ assert result.delivered_repo_path == repo_path
 - `quality_gate_pass` advances past quality gate: from `quality_gate_a`/`quality_gate_a_retry` to `"red_run"`; from `quality_gate_b`/`quality_gate_b_retry` to `"green_run"`.
 - `quality_gate_fail_to_ladder` calls `advance_fix_ladder` internally. If ladder has room, sets `sub_stage` to `None`. If exhausted, preserves sub_stage for routing to present exhaustion gate.
 - `set_delivered_repo_path` records the absolute path to the delivered repository.
+- `update_debug_phase` validates the requested phase transition against a controlled transition table. Valid transitions (Bug 69 additions marked): `triage_readonly` -> [`triage`, `stage3_reentry`]; `triage` -> [`stage3_reentry`, `repair`, `regression_test`]; `stage3_reentry` -> [`regression_test`]; `repair` -> [**`triage`** (Bug 69 E.3), `complete`]; `regression_test` -> [`stage3_reentry`, `repair`, **`complete`** (Bug 69 E.2)]. Invalid transitions raise `TransitionError`. The `repair -> triage` transition enables RECLASSIFY BUG at Gate 6.3. The `regression_test -> complete` transition enables TEST CORRECT at Gate 6.1.
 - All transition functions return a new PipelineState via deep copy (to_dict -> deepcopy -> from_dict). Input state is never mutated. This is a structural invariant, not an implementation suggestion.
 
 ### Tier 3 -- Dependencies
@@ -1141,6 +1142,7 @@ CROSS_AGENT_STATUS_LINES: Dict[str, str] = {
 COMMAND_STATUS_PATTERNS: List[str] = [
     "TESTS_PASSED", "TESTS_FAILED", "TESTS_ERROR",
     "COMMAND_SUCCEEDED", "COMMAND_FAILED",
+    "UNUSED_FUNCTIONS_DETECTED",  # Bug 67
 ]
 
 GATE_RESPONSES: Dict[str, List[str]] = {
@@ -1322,7 +1324,7 @@ assert set(GATE_RESPONSES.keys()) == set(ALL_GATE_IDS), \
   - If it contains `ALIGNMENT_FAILED: spec` or `ALIGNMENT_FAILED: blueprint`: checks alignment iteration count. If under limit, increments `alignment_iteration` and resets `sub_stage` to `None` (re-enter blueprint dialog). If at limit, presents `gate_2_3_alignment_exhausted`.
   - Otherwise (no status yet): emits an `invoke_agent` action for the `blueprint_checker`.
 - Gate 2.2 (`gate_2_2_blueprint_post_review`) dispatch: `APPROVE` calls `complete_alignment_check` to advance to Pre-Stage-3. `REVISE` resets `sub_stage` to `None` for fresh blueprint dialog. `FRESH REVIEW` invokes the blueprint reviewer.
-- Gate 2.3 (`gate_2_3_alignment_exhausted`) dispatch: `RETRY BLUEPRINT` calls `_version_blueprint`, resets `alignment_iteration` to 0 and `sub_stage` to `None` (re-enter blueprint authoring dialog -- not alignment check). `REVISE SPEC` calls `_version_spec`, then `restart_from_stage` to Stage 1. `RESTART SPEC` calls `restart_from_stage` to Stage 1. (Bug 66 fix: previously RETRY BLUEPRINT returned state unchanged, causing routing loop back to alignment_check.)
+- Gate 2.3 (`gate_2_3_alignment_exhausted`) dispatch: `RETRY BLUEPRINT` resets `alignment_iteration` and `sub_stage` to `None` (re-enter blueprint dialog). `REVISE SPEC` initiates targeted spec revision, then `restart_from_stage` to Stage 2. `RESTART SPEC` calls `restart_from_stage` to Stage 1.
 
 **Post-delivery debug loop routing.** When `stage == "5"` and `debug_session is not None`, `route()` dispatches on `debug_session.phase`:
 - **`triage_readonly`:** Emits an `invoke_agent` action for `bug_triage` in read-only mode. After triage agent completes, uses two-branch pattern: reads `last_status.txt`. If it contains `TRIAGE_COMPLETE: build_env`, `TRIAGE_COMPLETE: single_unit`, or `TRIAGE_COMPLETE: cross_unit`, presents `gate_6_0_debug_permission` for authorization. If it contains `TRIAGE_NEEDS_REFINEMENT`, re-invokes the triage agent with refinement context (bounded by `triage_refinement_count` in `debug_session`, default limit 2; if limit reached, presents `gate_6_4_non_reproducible`). `TRIAGE_NEEDS_REFINEMENT` is not governed by the two-branch invariant -- it triggers same-agent re-invocation. If it contains `TRIAGE_NON_REPRODUCIBLE`, presents `gate_6_4_non_reproducible`.
@@ -1331,11 +1333,11 @@ assert set(GATE_RESPONSES.keys()) == set(ALL_GATE_IDS), \
 - Gate 6.2 (`gate_6_2_debug_classification`) dispatch: `FIX UNIT` calls `set_debug_classification`, then `update_debug_phase("stage3_reentry")`, then `rollback_to_unit(state, N)` where N is the lowest affected unit -- this invalidates all verified units >= N, deletes their source/test files, sets stage to "3" with sub_stage None, and clears `last_status.txt` to prevent stale re-trigger after rebuild. `FIX BLUEPRINT` initiates targeted blueprint revision, restarts from Stage 2 (full pipeline re-entry). `FIX SPEC` initiates targeted spec revision, restarts from Stage 1.
 - **`stage3_reentry` phase routing:** When `debug_session.phase == "stage3_reentry"`, Gate 6.2 FIX UNIT has already called `rollback_to_unit` which set `stage: "3"`, `current_unit: N`, `sub_stage: None`, and invalidated all verified units >= N (removing them from `verified_units` and deleting their source/test files). The `route()` function falls through to normal Stage 5 routing (which now sees stage "3") and the pipeline rebuilds from unit N forward through all remaining units. Quality Gates A and B run normally during re-entry. After all units complete, `route()` transitions to the repair success path: reassembly and debug completion (Section 12.17.6), which runs all tests (unit, regression, integration), performs full Stage 5 repo reassembly, updates lessons learned, and presents `gate_6_5_debug_commit`. (Bug 55 correction: the original description incorrectly stated that verified_units was not modified and only the affected unit was reprocessed. The correct behavior is full rollback and rebuild from unit N forward.)
 - **`repair`:** Emits an `invoke_agent` action for `repair_agent`. After agent completes, uses two-branch pattern: if `last_status.txt` contains `REPAIR_COMPLETE`, routes to the success path -- reassembly and debug completion (Section 12.17.6), which runs all tests (unit, regression, integration), performs full Stage 5 repo reassembly, updates lessons learned, and then presents `gate_6_5_debug_commit` for commit approval. `REPAIR_COMPLETE` does NOT present Gate 6.3. If `REPAIR_FAILED`, checks repair attempt count -- if under limit, re-invokes repair agent; if exhausted, presents `gate_6_3_repair_exhausted`. If `REPAIR_RECLASSIFY`, presents `gate_6_3_repair_exhausted` for the human to decide (RETRY REPAIR, RECLASSIFY BUG, or ABANDON DEBUG).
-- Gate 6.3 (`gate_6_3_repair_exhausted`) dispatch: `RETRY REPAIR` resets repair counter and re-invokes repair agent. `RECLASSIFY BUG` presents `gate_6_2_debug_classification` for reclassification. `ABANDON DEBUG` calls `abandon_debug_session`, returns to "Stage 5 complete."
+- Gate 6.3 (`gate_6_3_repair_exhausted`) dispatch: `RETRY REPAIR` resets repair counter and re-invokes repair agent. `RECLASSIFY BUG` resets debug phase to `"triage"` via `update_debug_phase` and clears `debug_session.classification` and `debug_session.affected_units`, allowing the triage agent to re-investigate with a fresh hypothesis (Bug 69 E.3 fix). `ABANDON DEBUG` calls `abandon_debug_session`, returns to "Stage 5 complete."
 - Gate 6.4 (`gate_6_4_non_reproducible`) dispatch: `RETRY TRIAGE` re-invokes triage agent. `ABANDON DEBUG` calls `abandon_debug_session`, returns to "Stage 5 complete."
 - **`regression_test`:** Uses two-branch routing invariant. Reads `last_status.txt`: if it does not contain `REGRESSION_TEST_COMPLETE`, emits an `invoke_agent` action for test agent in regression test mode. If it contains `REGRESSION_TEST_COMPLETE`, emits a `human_gate` action for `gate_6_1_regression_test`.
-- Gate 6.1 (`gate_6_1_regression_test`) dispatch: `TEST CORRECT` proceeds to lessons learned update and commit preparation. `TEST WRONG` re-invokes test agent to rewrite the regression test.
-- Gate 6.5 (`gate_6_5_debug_commit`) dispatch: `COMMIT APPROVED` proceeds with commit and push, then calls `complete_debug_session`. `COMMIT REJECTED` allows human to edit or abort the commit.
+- Gate 6.1 (`gate_6_1_regression_test`) dispatch: `TEST CORRECT` calls `update_debug_phase(state, "complete")` to advance to the commit preparation phase (Bug 69 E.2 fix). `TEST WRONG` is a no-op (returns state unchanged), allowing the test agent to be re-invoked on the next routing cycle.
+- Gate 6.5 (`gate_6_5_debug_commit`) dispatch: `COMMIT APPROVED` calls `complete_debug_session(state, "Debug fix committed and pushed")` to end the debug session (Bug 69 E.4 fix). `COMMIT REJECTED` is a no-op (returns state unchanged), allowing the human to edit or abort.
 
 **Redo profile sub-stage routing (Bug 43 fix).** When `sub_stage` is `"redo_profile_delivery"` or `"redo_profile_blueprint"`, `route()` uses the two-branch routing invariant. Reads `last_status.txt`: if it contains `PROFILE_COMPLETE`, emits a `human_gate` action for `gate_0_3r_profile_revision`. Otherwise, emits an `invoke_agent` action for the setup agent in targeted revision mode. Gate 0.3r dispatch: `PROFILE APPROVED` calls `complete_redo_profile_revision` (Unit 3) -- for `redo_profile_delivery`, restores snapshot position; for `redo_profile_blueprint`, restarts from Stage 2. `PROFILE REJECTED` re-invokes setup agent (clears `last_status.txt`, keeps sub_stage).
 
