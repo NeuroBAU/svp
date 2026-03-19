@@ -2451,12 +2451,12 @@ from typing import Dict, Any, List
 from pathlib import Path
 
 PLUGIN_JSON: Dict[str, Any] = {
-    "name": "svp", "version": "2.1.0",
+    "name": "svp", "version": "2.1.1",
     "description": "Stratified Verification Pipeline - deterministically orchestrated software development",
 }
 MARKETPLACE_JSON: Dict[str, Any] = {
     "name": "svp", "owner": {"name": "SVP"},
-    "plugins": [{"name": "svp", "source": "./svp", "version": "2.1.0",
+    "plugins": [{"name": "svp", "source": "./svp", "version": "2.1.1",
         "description": "Stratified Verification Pipeline", "author": {"name": "SVP"}}]
 }
 

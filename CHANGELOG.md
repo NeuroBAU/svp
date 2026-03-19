@@ -7,20 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-03-19
+
+### Added
+
+- RFC-2: Unit-level preference capture in blueprint dialog (Rules P1-P4)
+- Generalized structural completeness checking -- four-layer defense system (Bug 72)
+- 163 structural completeness tests automating 14 declaration-vs-usage techniques (Bug 71)
+- Stage 3 full error handling: fix ladder, diagnostic escalation, Gates 3.1/3.2 (Bug 65)
+- Stage 4 failure handling: Gates 4.1/4.2, ASSEMBLY FIX dispatch (Bug 68)
+- Debug loop gates: Gate 6.0 (permission), Gate 6.1 (regression test), Gate 6.5 (commit) (Bug 69)
+- Selective blueprint loading per agent type per spec Section 3.16 (Bugs 60-62)
+- Gate C unused function detection with Gate 5.3 human gate (Bugs 56-58)
+
 ### Fixed
 
-- Bug 72: Generalized structural completeness checking -- four-layer defense. Layer 1: blueprint checker registry completeness checklist. Layer 2: integration test author registry-handler alignment tests. Layer 3: `scripts/structural_check.py` project-agnostic AST scanner (4 checks: dict registry gaps, enum value gaps, unused exports, string dispatch gaps). Layer 4: bug triage agent Step 0 structural pre-check and Registry Diagnosis Recipe. Added `structural_check` sub-stage to Stage 5 between `repo_test` and `compliance_scan`. 24 regression tests.
-- Bug 69: Compound fix for debug loop gates. E.1: Separated triage_readonly from triage in route() so Gate 6.0 (debug permission) is presented after read-only triage completes. E.2: Added regression_test phase handler in route() and wired Gate 6.1 TEST CORRECT to advance to complete phase. E.3: Fixed gate_6_3 RECLASSIFY BUG from bare no-op to reset debug phase to triage with cleared classification. Added repair->triage and regression_test->complete to _DEBUG_PHASE_TRANSITIONS. E.4: Added complete phase handler in route() and wired Gate 6.5 COMMIT APPROVED to complete_debug_session. 23 regression tests.
-- Bug 68: Implement Stage 4 failure handling. Added `gate_4_1` and `gate_4_2` sub-stages to `STAGE_4_SUB_STAGES`. Added gate routing branches in `route()` for `gate_4_1_integration_failure` and `gate_4_2_assembly_exhausted`. Added `TESTS_FAILED` handler in `dispatch_command_status` for Stage 4 with retry counting and exhaustion escalation to `gate_4_2`. Fixed `gate_4_1` `ASSEMBLY FIX` dispatch from bare no-op to reset `sub_stage` to `None` for re-assembly. 14 regression tests.
-- Bug 67: Add gate_5_3 routing path in route() for unused function detection. Added `gate_5_3` sub-stage to `STAGE_5_SUB_STAGES`, `gate_5_3` branch in `route()` to present `gate_5_3_unused_functions` gate, `UNUSED_FUNCTIONS_DETECTED` command status pattern, and compliance_scan dispatch handler to advance to gate_5_3 on unused function detection.
-- Bug 66: Fix gate_2_3 RETRY BLUEPRINT no-op -- reset sub_stage to None and alignment_iteration to 0 so routing re-invokes blueprint_author instead of looping on blueprint_checker. Versioned blueprint before reset. Mirrored in stub.py. Updated spec, blueprint contracts, lessons learned. New pattern P10 instance.
-- Bug 65: Compound fix -- Stage 3 routing error handling entirely unimplemented. Nine findings (F1-F10, excluding F8): stub_generation routing (F1/F9), red_run TESTS_PASSED retry/regenerate/Gate 3.1 (F2/F10), green_run TESTS_FAILED fix ladder engagement (F3), diagnostic_agent dispatch with classification parsing (F4), coverage_review two-branch pattern (F5), fix_ladder_position conditional at implementation (F6), Gate 3.1 per-option dispatch (F7). Added gate_3_1 and gate_3_2 sub-stage routing. New pattern P10 (Error-Path Contract Omission). 24 regression tests.
-- Bug 64: Fixed 11 unit test failures from stale assertions after Bugs 59-62 code changes. Added `gate_5_3_unused_functions` to `ALL_GATE_IDS` in Unit 9 and `prepare_gate_prompt` handler. Updated ARTIFACT_FILENAMES tests for `blueprint_dir`. Fixed fix ladder and debug phase transition test assertions. Updated gate count from 22 to 23.
-- Bug 63: Documentation retrofit for Bugs 60-62. Updated stakeholder spec (v8.31): Section 3.16 agent loading matrix now reflects implementation status with selective loading functions; Section 6.8 regression test table extended through Bug 62; Section 24 failure modes added for Bugs 59-62; Section 30 Unit 9 guidance documents selective loading exports. Blueprint prose updated with selective loading description. Lessons learned catalog range updated to Bugs 1-62, pattern instance counts corrected, regression test mapping extended through Bug 62. Summary document updated to 63 bugs, selective loading described as implemented.
-- Bug 62: Added `load_blueprint_contracts_only()` and `load_blueprint_prose_only()` to Unit 9. Wired `integration_test_author` and `git_repo_agent` to contracts-only, `help_agent` to prose-only per spec Section 3.16 matrix.
-- Bug 61: Added `include_tier1` parameter to `build_unit_context` (Unit 5) and `_get_unit_context` (Unit 9). Test agent and implementation agent now pass `include_tier1=False`.
-- Bug 60: Fixed `_get_unit_context` blueprint directory resolution. Changed fallback ARTIFACT_FILENAMES key from `"blueprint"` to `"blueprint_dir"`. Fixed path construction to pass directory to `build_unit_context`.
-- Bug 59: Removed stale `blueprints/` (plural) directory. Fixed `_version_blueprint` path, `advance_stage` blueprint check, `load_blueprint` two-file loading. Added `gate_hint_conflict` to GATE_VOCABULARY/ALL_GATE_IDS. Added `REGRESSION_TEST_COMPLETE` to test_agent status. Added `triage_refinement_count`/`repair_retry_count` to DebugSession. Added `companion_paths` to `version_document`. Fixed `_FIX_LADDER_TRANSITIONS` cross-branch error. Removed undocumented `investigation` debug phase. Stakeholder spec gaps: Section 24 failure modes for Bugs 52-58, regression test table through Bug 58, P1-P9 references.
+- 21 bugs (52-72) spanning orphaned functions, dead gates, no-op dispatch handlers, spec structural gaps, blueprint split compliance
+- Gate 5.3 routing path (Bug 67)
+- gate_2_3 RETRY BLUEPRINT routing loop (Bug 66)
+- gate_6_3 RECLASSIFY BUG dispatch (Bug 69)
+- Fix ladder routing at sub_stage=None (Bug 70)
+- TESTS_ERROR infinite loop (Bug 70)
+- Stale blueprints/ directory removed (Bug 59)
+- All 11 unit test failures from code modernization (Bug 64)
+
+### Changed
+
+- Spec sections 3.18-3.22 added (downstream dependency invariant, contract granularity, review enforcement, structural completeness)
+- Pattern catalog expanded: P10 (Error-Path Contract Omission), P11 (Structural Completeness Gap)
+- rollback_to_unit: delete instead of copy-to-backup (Bug 55)
+- Spec version: v8.31 -> v8.33
 
 ## [2.1.0] - 2026-03-16
 
@@ -61,7 +77,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Bug 72: Generalized structural completeness checking -- four-layer defense. Layer 1: blueprint checker registry completeness checklist. Layer 2: integration test author registry-handler alignment tests. Layer 3: `scripts/structural_check.py` project-agnostic AST scanner (4 checks: dict registry gaps, enum value gaps, unused exports, string dispatch gaps). Layer 4: bug triage agent Step 0 structural pre-check and Registry Diagnosis Recipe. Added `structural_check` sub-stage to Stage 5 between `repo_test` and `compliance_scan`. 24 regression tests.
 - Bug 17: Hook configuration schema (type: "command", nested hooks array)
 - Bug 21: Two-branch routing for Stage 0 sub-stages
 - Bug 22: Canonical pipeline artifact filenames as shared constants
@@ -111,14 +126,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Bug 72: Generalized structural completeness checking -- four-layer defense. Layer 1: blueprint checker registry completeness checklist. Layer 2: integration test author registry-handler alignment tests. Layer 3: `scripts/structural_check.py` project-agnostic AST scanner (4 checks: dict registry gaps, enum value gaps, unused exports, string dispatch gaps). Layer 4: bug triage agent Step 0 structural pre-check and Registry Diagnosis Recipe. Added `structural_check` sub-stage to Stage 5 between `repo_test` and `compliance_scan`. 24 regression tests.
 - Miscellaneous bug fixes and robustness improvements.
 
 ## [1.2.0] - 2025-09-01
 
 ### Fixed
 
-- Bug 72: Generalized structural completeness checking -- four-layer defense. Layer 1: blueprint checker registry completeness checklist. Layer 2: integration test author registry-handler alignment tests. Layer 3: `scripts/structural_check.py` project-agnostic AST scanner (4 checks: dict registry gaps, enum value gaps, unused exports, string dispatch gaps). Layer 4: bug triage agent Step 0 structural pre-check and Registry Diagnosis Recipe. Added `structural_check` sub-stage to Stage 5 between `repo_test` and `compliance_scan`. 24 regression tests.
 - Gate status string vocabulary (Bug 1).
 - Hook permission reset after debug session entry (Bug 2).
 
@@ -138,7 +151,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Human decision gates at every critical point.
 - Stateless agents with ledger-based multi-turn conversations.
 
-[Unreleased]: https://github.com/wilya7/svp/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/wilya7/svp/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/wilya7/svp/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/wilya7/svp/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/wilya7/svp/compare/v1.2.1...v2.0.0
 [1.2.1]: https://github.com/wilya7/svp/compare/v1.2.0...v1.2.1

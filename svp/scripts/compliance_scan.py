@@ -16,7 +16,7 @@ from pathlib import Path
 
 PLUGIN_JSON: Dict[str, Any] = {
     "name": "svp",
-    "version": "2.1.0",
+    "version": "2.1.1",
     "description": "Stratified Verification Pipeline - deterministically orchestrated software development",
 }
 
@@ -32,7 +32,7 @@ MARKETPLACE_JSON: Dict[str, Any] = {
             "name": "svp",
             "source": "./svp",
             "description": "Stratified Verification Pipeline -- deterministically orchestrated, sequentially gated development for domain experts",
-            "version": "2.1.0",
+            "version": "2.1.1",
             "author": {"name": "SVP"},
         }
     ],

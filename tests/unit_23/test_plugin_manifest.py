@@ -27,7 +27,7 @@ class TestPluginJson:
         assert PLUGIN_JSON["name"] == "svp"
 
     def test_version(self):
-        assert PLUGIN_JSON["version"] == "2.1.0"
+        assert PLUGIN_JSON["version"] == "2.1.1"
 
     def test_description(self):
         assert "Stratified Verification" in (PLUGIN_JSON["description"])
@@ -45,7 +45,7 @@ class TestMarketplaceJson:
         assert len(plugins) >= 1
         assert plugins[0]["name"] == "svp"
         assert plugins[0]["source"] == "./svp"
-        assert plugins[0]["version"] == "2.1.0"
+        assert plugins[0]["version"] == "2.1.1"
 
 
 class TestPluginJsonContent:
@@ -59,7 +59,7 @@ class TestPluginJsonContent:
 
     def test_version_2_1(self):
         data = json.loads(PLUGIN_JSON_CONTENT)
-        assert data["version"] == "2.1.0"
+        assert data["version"] == "2.1.1"
 
 
 class TestMarketplaceJsonContent:

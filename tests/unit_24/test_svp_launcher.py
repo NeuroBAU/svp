@@ -141,7 +141,7 @@ class TestIsSvpPluginDir:
         cp = tmp_path / ".claude-plugin"
         cp.mkdir()
         pj = cp / "plugin.json"
-        pj.write_text(json.dumps({"name": "svp", "version": "2.1.0"}))
+        pj.write_text(json.dumps({"name": "svp", "version": "2.1.1"}))
         assert _is_svp_plugin_dir(tmp_path) is True
 
 
