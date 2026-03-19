@@ -60,6 +60,10 @@ A preference that appears in the profile but has no corresponding explicit contr
 - Profile says `quality.linter: "ruff"` but no unit contracts ruff configuration generation -> alignment failure.
 - Profile says `vcs.changelog: "keep_a_changelog"` but no unit contracts changelog generation -> alignment failure.
 
+## Preference-Contract Consistency (RFC-2)
+
+For each unit that has a Preferences subsection in Tier 1, verify that no stated preference contradicts a Tier 2 signature or Tier 3 behavioral contract. Report as a non-blocking warning (not an alignment failure), since preferences are non-binding.
+
 ## Report Most Fundamental Level
 
 When multiple issues are found, report only the most fundamental level of issue. The hierarchy from most to least fundamental is:

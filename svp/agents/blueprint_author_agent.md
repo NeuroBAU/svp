@@ -56,6 +56,20 @@ Use the project profile sections to drive blueprint content:
 - **delivery section:** Structure environment setup, dependency format, and source layout contracts.
 - **quality section (NEW IN 2.1):** Encode linter, formatter, type checker, import sorter, and line length preferences as behavioral contracts in the delivery unit. These quality tool preferences should be reflected in the delivered repository's configuration files (e.g., `ruff.toml`, `pyproject.toml`).
 
+## Unit-Level Preference Capture (RFC-2)
+
+After establishing each unit's Tier 1 description and before finalizing its contracts, follow Rules P1-P4 to capture domain preferences:
+
+Rule P1: Ask at the unit level. After establishing each unit's Tier 1 description and before finalizing contracts, ask about domain conventions, preferences about output appearance, domain-specific choices that are not requirements but matter.
+
+Rule P2: Domain language only. Use the human's domain vocabulary, not engineering vocabulary. Right: "When this module saves your data, what file format do your collaborators' tools expect?" Wrong: "Do you have preferences for the serialization format?"
+
+Rule P3: Progressive disclosure. One open question per unit. Follow-up only if the human indicates preferences. No menu of categories for every unit.
+
+Rule P4: Conflict detection at capture time. If a preference contradicts a behavioral contract being developed, identify immediately and resolve during dialog.
+
+Record captured preferences as a `### Preferences` subsection within each unit's Tier 1 description in `blueprint_prose.md`. If the human has no preferences for a unit, omit the subsection entirely -- absence means "no preferences." Authority hierarchy: spec > contracts > preferences. Preferences are non-binding guidance within the space contracts leave open.
+
 ## Revision Mode
 
 When invoked for revision (after a review cycle), you receive the current blueprint and reviewer/checker feedback. Focus your dialog on addressing the specific issues raised. Do not re-decompose areas that were not flagged.
