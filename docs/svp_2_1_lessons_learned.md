@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-66)
+## Part 1: Unified Bug Catalog (Bugs 1-70)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65 (38 of 65 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69 (42 of 69 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 65 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 69 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -533,18 +533,18 @@ Spec enumeration is incomplete or terminology is undefined; implementation faith
 A function is rewritten during a version upgrade and loses edge cases, search paths, or validation logic from the previous version. The implementation agent generates fresh code without consulting the prior implementation. **Prevention:** When a blueprint says "unchanged from vN," the blueprint must enumerate the actual contract (paths, values, validation rules) so the implementation agent cannot independently reinvent a reduced version. The prior version's implementation should be included in the task prompt for any function marked as "unchanged" or "carried forward."
 
 ### P9 — Spec Structural Gap
-**Instances:** Bugs 56, 57, 65.
+**Instances:** Bugs 56, 57, 65, 66, 67, 68, 69.
 The spec provides a principle but not the granularity rules needed to operationalize it. Reviewers and checkers have no structural criteria to verify, so they cannot catch the gap. **Prevention:** Spec principles must be accompanied by enumerated verification criteria. Review agents must carry mandatory checklists derived from these criteria.
 
-### P10 — Error-Path Contract Omission (NEW — Bug 65)
-**Instances:** Bugs 65, 66.
+### P10 — Error-Path Contract Omission (NEW — Bug 65, EXPANDED — Bugs 66-69)
+**Instances:** Bugs 65, 66, 67, 68, 69.
 Happy-path transitions are contracted and tested; error paths are described in spec prose but never converted to enumerable blueprint Tier 3 contracts. The implementation agent faithfully implements the contracted happy paths and produces no-op stubs for the uncontracted error paths, resulting in infinite loops on any failure. **Prevention:** Every dispatch function's (phase, sub_stage, status) combination must have a contracted behavior -- including error cases. Per-gate-option dispatch contracts must be applied strictly. Regression tests must cover error-path dispatch completeness.
 
 ---
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (38 of 65 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (42 of 69 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -565,7 +565,9 @@ Happy-path transitions are contracted and tested; error paths are described in s
 
 19. **In-memory state transitions must be persisted before crossing action cycle boundaries.** When `route()` calls a state transition function and then recursively routes to produce an action block, the intermediate state exists only in memory. The POST command (`update_state.py`) loads state from disk independently. If the intermediate state is not saved to disk before the action block is returned, the POST command will operate on stale state. Every in-memory state transition in `route()` that precedes a recursive call or action block return must be followed by `save_state()`.
 
-20. **Error-path dispatch contracts must be as exhaustive as happy-path contracts.** Every (phase, sub_stage, status) combination in `dispatch_command_status` and `dispatch_agent_status` must have a contracted behavior. A `return state` for a status that requires pipeline advancement is a bug. Per-gate-option dispatch contracts must specify the exact state transition for every response option -- no-ops are valid only when the gate response genuinely does not change pipeline state. When `route()` calls a state transition function and then recursively routes to produce an action block, the intermediate state exists only in memory. The POST command (`update_state.py`) loads state from disk independently. If the intermediate state is not saved to disk before the action block is returned, the POST command will operate on stale state. Every in-memory state transition in `route()` that precedes a recursive call or action block return must be followed by `save_state()`.
+20. **Error-path dispatch contracts must be as exhaustive as happy-path contracts.** Every (phase, sub_stage, status) combination in `dispatch_command_status` and `dispatch_agent_status` must have a contracted behavior. A `return state` for a status that requires pipeline advancement is a bug. Per-gate-option dispatch contracts must specify the exact state transition for every response option -- no-ops are valid only when the gate response genuinely does not change pipeline state.
+
+21. **Every gate in GATE_VOCABULARY must be route()-reachable, and every response must produce a state transition.** Bugs 65-69 demonstrated that every stage independently had dead gates or no-op dispatches (P10 pattern). The spec now requires a gate reachability invariant: structural tests must verify that every gate is reachable from route() for at least one valid pipeline state, and every response option produces a distinct state transition or is documented as an intentional two-branch no-op. The blueprint checker and reviewer checklists must verify this during authoring.
 
 ---
 
@@ -640,6 +642,11 @@ Happy-path transitions are contracted and tested; error paths are described in s
 | 63 | (no dedicated regression test file -- documentation only) | Post-delivery (debug loop) |
 | 64 | (existing unit tests: invariant tests in unit_10, unit tests in unit_1/unit_3) | Post-delivery (debug loop) |
 | bug65 | 65 | `test_bug65_stage3_error_handling.py` | Post-delivery (debug loop) |
+
+| 66 |  | Post-delivery (debug loop) |
+| 67 |  | Post-delivery (debug loop) |
+| 68 |  | Post-delivery (debug loop) |
+| 69 |  | Post-delivery (debug loop) |
 
 Note: Regression test file names (test_bug2 through test_bug62) use either the original post-delivery numbering or the unified catalog numbering. This document's unified Bug 1-64 numbering includes blueprint-era, post-delivery, and rebuild preparation bugs chronologically. The mapping table provides the cross-reference.
 
@@ -1120,22 +1127,96 @@ The entire Stage 3 error-handling infrastructure was dead code. Only the happy p
 
 **New pattern candidate: "Error-Path Contract Omission" (P10).** Happy path is contracted and tested; error paths exist only in spec prose and are never converted to enumerable blueprint contracts. The implementation agent correctly implements the contracted paths and silently ignores the uncontracted error paths, producing code that compiles but loops on any failure.
 
-### Bug 66 -- gate_2_3 RETRY BLUEPRINT No-Op Causing Routing Loop
+---
+### Bug 67 -- gate_5_3_unused_functions Has No Routing Path in route()
 
-**Caught:** Post-delivery (bug triage agent). **Test:** `test_bug66_gate_2_3_retry_blueprint.py`
+**Caught:** Post-delivery (debug loop audit). **Test:** `test_bug67_gate_5_3_routing.py`
 
-In `dispatch_gate_response`, the handler for `gate_2_3_alignment_exhausted` with response `RETRY BLUEPRINT` returned `state` unchanged. The `sub_stage` remained `alignment_check`, so on the next routing cycle, `route()` re-invoked the blueprint_checker instead of the blueprint_author. The human intended to retry the blueprint (go back to authoring), but got the alignment checker again in an infinite loop.
+Bug 58 added `gate_5_3_unused_functions` to GATE_VOCABULARY, ALL_GATE_IDS, and dispatch_gate_response. However, no code path in `route()` ever presents this gate. There is no `sub_stage == "gate_5_3"` branch in Stage 5 routing, `gate_5_3` is not in STAGE_5_SUB_STAGES, there is no `UNUSED_FUNCTIONS_DETECTED` command status pattern, and dispatch_command_status for compliance_scan has no handler to advance to gate_5_3.
 
-**Impact:** RETRY BLUEPRINT at Gate 2.3 was entirely non-functional. The only escape from alignment exhaustion was REVISE SPEC or RESTART SPEC.
+**Impact:** The gate exists in the vocabulary and dispatch tables but can never be presented to the human. If the compliance scan detects unused functions, it falls through to the generic COMMAND_FAILED handler, re-entering the bounded fix cycle instead of presenting the human gate.
 
-**Fix:** Version the blueprint via `_version_blueprint`, reset `alignment_iteration` to 0 and `sub_stage` to `None` so routing invokes blueprint_author. Mirrored in `src/unit_10/stub.py`. The blueprint contracts already specified the correct behavior at line 1325; the implementation simply never followed the contract.
+**Fix:** (1) Added `gate_5_3` to STAGE_5_SUB_STAGES in unit_2/stub.py and all unit_2_mock.py files. (2) Added `gate_5_3` routing branch in route() to present gate_5_3_unused_functions. (3) Added `UNUSED_FUNCTIONS_DETECTED` to COMMAND_STATUS_PATTERNS. (4) Added compliance_scan dispatch handler for UNUSED_FUNCTIONS_DETECTED that advances to gate_5_3 sub-stage. Mirrored in unit_10/stub.py and delivered repo.
 
-**Pattern:** P10 (Error-Path Contract Omission). Gate dispatch handler left as bare `return state` no-op. Identical to Bug 65 F7 pattern (gate dispatch no-ops).
+**Pattern:** P1 (Cross-Unit Contract Drift). The gate vocabulary and dispatch handlers were added but the routing path, state constants, and command status patterns were not updated to connect them.
 
-**Prevention:** Every gate dispatch branch must produce a distinct state transition. A bare `return state` in a gate handler is almost always a bug. Regression tests should verify that each gate response option produces the expected sub_stage and alignment_iteration values.
+**Prevention:** When adding a new gate, verify the full chain: (1) GATE_VOCABULARY entry, (2) ALL_GATE_IDS entry, (3) dispatch_gate_response handler, (4) STAGE_N_SUB_STAGES entry, (5) route() branch, (6) command status pattern if gate is triggered by a command result, (7) dispatch_command_status handler, (8) prepare_gate_prompt handler.
 
 ---
 
+### Bug 66 -- gate_2_3 RETRY BLUEPRINT Is a No-Op Causing Routing Loop
+
+**Caught:** Post-delivery (debug loop audit). **Test:** `test_bug66_gate_2_3_retry_blueprint.py`
+
+`dispatch_gate_response` for `gate_2_3_alignment_exhausted` with response `RETRY BLUEPRINT` returned `state` unchanged. The sub_stage remained `alignment_check`, so on the next routing cycle, `route()` re-invoked the blueprint_checker instead of the blueprint_author. The human's intent to retry the blueprint dialog was silently ignored.
+
+**Fix:** Version the blueprint via `_version_blueprint`, reset `alignment_iteration` to 0 and `sub_stage` to `None` so routing invokes blueprint_author for a fresh dialog. Mirrored in `src/unit_10/stub.py`.
+
+**Pattern:** P10 (Error-Path Contract Omission). The blueprint contracts already specified the correct behavior (reset alignment_iteration and sub_stage); the implementation simply never followed it. The gate dispatch handler was a bare `return state`.
+
+**Prevention:** Every gate dispatch branch must produce a distinct state transition. A `return state` in a gate handler is almost always a bug unless explicitly documented as an intentional two-branch no-op.
+
+---
+
+### Bug 68 -- Stage 4 Failure Handling: Gates 4.1 and 4.2 Dead, ASSEMBLY FIX No-Op
+
+**Caught:** Post-delivery (debug loop audit). **Test:** `test_bug68_stage4_failure_handling.py`
+
+Stage 4 routing only implemented the happy path (integration_test_author -> run tests -> advance to Stage 5). Three failure-path defects: (1) no `gate_4_1` or `gate_4_2` sub-stage routing in `route()`, so gates could never be presented; (2) no `TESTS_FAILED` handler in `dispatch_command_status` for Stage 4, so integration test failures were silently swallowed; (3) `gate_4_1` `ASSEMBLY FIX` dispatch was a bare `return state` no-op instead of resetting sub_stage for re-assembly.
+
+**Fix:** Added `gate_4_1` and `gate_4_2` to `STAGE_4_SUB_STAGES`. Added gate routing branches in `route()`. Added Stage 4 `TESTS_FAILED` handler in `dispatch_command_status` with retry counting and exhaustion escalation. Fixed `gate_4_1` `ASSEMBLY FIX` dispatch to reset `sub_stage` to `None`. 14 regression tests.
+
+**Pattern:** P10 (Error-Path Contract Omission). Same disease as Bugs 65/66/67 -- the entire failure-handling side of a routing block was left as dead code or bare no-ops.
+
+**Prevention:** When implementing a new stage's routing, always verify that every gate in the GATE_VOCABULARY for that stage is reachable from `route()` via some `dispatch_command_status` or `dispatch_gate_response` transition.
+
+---
+
+### Bug 69 -- Debug Loop Gates: Dead Gates and No-Op Dispatches (Compound Fix)
+
+**Caught:** Post-delivery (debug loop audit). **Test:** `test_bug69_debug_loop_gates.py`
+
+Four interrelated debug loop gates were either never presented by `route()` or had no-op dispatch handlers. E.1: Gate 6.0 (debug permission) -- `route()` treated `triage_readonly` and `triage` identically, so Gate 6.0 was never presented. E.2: Gate 6.1 (regression test) -- `regression_test` debug phase had no handler in `route()`. E.3: Gate 6.3 `RECLASSIFY BUG` -- dispatch was bare `return state`. E.4: Gate 6.5 (debug commit) -- `complete` debug phase had no handler in `route()`.
+
+**Fix:** E.1: Separated `triage_readonly` (presents Gate 6.0 on completion) from `triage` (presents Gate 6.2). E.2: Added `regression_test` phase handler; wired TEST CORRECT to advance to `complete` phase. E.3: RECLASSIFY BUG resets phase to `triage` and clears classification. Added `repair->triage` and `regression_test->complete` to `_DEBUG_PHASE_TRANSITIONS`. E.4: Added `complete` phase handler; wired COMMIT APPROVED to `complete_debug_session`. 23 regression tests.
+
+**Pattern:** P10 (Error-Path Contract Omission). Same recurring pattern as Bugs 65-68 -- gate vocabulary entries and dispatch handlers exist but routing never presents them and dispatch returns state unchanged.
+
+**Prevention:** For every gate in GATE_VOCABULARY, verify: (1) route() has a path that returns that gate, (2) every response option in dispatch produces a distinct state change, (3) regression tests exercise both routing and dispatch for each response.
+
+---
+
+### Bugs 65-69 P10 Root Cause Fix -- Spec Strengthened
+
+**Date:** 2026-03-19
+
+Bugs 65-69 all share the same root cause: P10 (Error-Path Contract Omission). The spec described gate behaviors in prose (Sections 10-12) but did not require exhaustive dispatch contracts for ALL gates and ALL (phase, sub_stage, status) combinations. Happy paths were contracted; error paths were described in prose only. Each stage independently had the same disease.
+
+**Spec fix:** Added "Gate reachability and dispatch exhaustiveness invariant" to Section 3.6: every gate in GATE_VOCABULARY must have a reachable code path in `route()`; every response option must produce a meaningful state transition or be documented as an intentional two-branch no-op. Added structural test requirement for gate reachability. Added gate reachability check to Section 3.20 blueprint checker and reviewer checklists.
+
+**Blueprint fix:** Updated Unit 10 Tier 3 dispatch contracts for Gates 6.1, 6.3, 6.5 to reflect actual implementations. Added phase transition table to Unit 3 documenting all valid transitions including Bug 69 additions. Added gate reachability check to Unit 14 blueprint checker and reviewer checklists.
+
+**Pattern:** This is the meta-fix -- strengthening the spec and blueprint to prevent the P10 pattern from recurring in future builds. The individual bug fixes (65-69) addressed the symptoms; this fix addresses the root cause in the specification.
+
+---
+
+### Bug 70 -- Fix Ladder Routing Gap at sub_stage=None, TESTS_ERROR Infinite Loop, Dead Phases
+
+**Caught:** Post-delivery (systematic technique analysis). **Test:** `test_bug70_ladder_routing_tests_error.py`
+
+Three findings from systematic analysis of routing.py dispatch coverage:
+
+**F1: Fix ladder position not checked when sub_stage=None in Stage 3 routing.** When `quality_gate_fail_to_ladder` sets `sub_stage=None` with a non-None `fix_ladder_position` (e.g., `"fresh_test"` after Gate A retry fails), `route()` hit the `sub_stage is None` branch and unconditionally routed to stub_generation. This is wrong -- it should route based on the ladder position: test ladder positions to test_generation, impl ladder positions to implementation, diagnostic to diagnostic_agent.
+
+**F2: TESTS_ERROR at test_execution returned state unchanged -- infinite retry loop.** `dispatch_command_status` had a bare `return state` for TESTS_ERROR, causing the pipeline to re-run the same test command forever. Fixed: red_run TESTS_ERROR increments retries and regenerates tests (or presents Gate 3.1 on exhaustion). Green_run TESTS_ERROR engages fix ladder (same as TESTS_FAILED). Stage 4 TESTS_ERROR presents gate (same as TESTS_FAILED).
+
+**F3: Dead phase values in _KNOWN_PHASES.** `"test"` and `"infrastructure_setup"` were in `_KNOWN_PHASES` but never emitted as `--phase` arguments and never mapped in `phase_to_agent`. Removed as vocabulary cruft.
+
+**Pattern:** P10 (Error-Path Contract Omission) for F1 and F2. P5 (Vocabulary Cruft) for F3. The pattern continues: routing blocks implement the happy path but leave error/alternate paths as no-ops or bare returns.
+
+**Prevention:** For every state transition function that sets `sub_stage=None`, verify that `route()` handles the resulting state correctly by examining ALL state fields (not just `sub_stage`). For every command status pattern in COMMAND_STATUS_PATTERNS, verify that dispatch produces a distinct state change for every (phase, sub_stage) combination where that status can occur.
+
+---
 ---
 
 *End of lessons learned.*

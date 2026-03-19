@@ -1281,7 +1281,8 @@ assert set(GATE_RESPONSES.keys()) == set(ALL_GATE_IDS), \
 **Gates NOT governed by the two-branch invariant.** Nine gate IDs are intentionally absent from the lists above: `gate_0_1_hook_activation` (presented unconditionally at session start), `gate_6_5_debug_commit` (presented after deterministic commit preparation), `gate_hint_conflict` (presented by hint system on conflict detection), `gate_2_3_alignment_exhausted` (presented on counter exhaustion after `ALIGNMENT_FAILED`), `gate_3_1_test_validation` (presented after deterministic test run command), `gate_4_1_integration_failure` (presented after integration test command fails), `gate_4_2_assembly_exhausted` (presented on retry counter exhaustion), `gate_5_2_assembly_exhausted` (presented on Stage 5 retry exhaustion), and `gate_6_0_debug_permission` (entry gate for debug loop via `/svp:bug`).
 
 **Stage 3 core sub-stage routing (Bug 25 fix).** `route()` must emit a distinct action for each sub-stage:
-- `None` or `stub_generation`: `run_command` (stub generator script)
+- `None`: check `fix_ladder_position` (Bug 70 fix). If `fix_ladder_position` is `"fresh_test"` or `"hint_test"`, route to test agent. If `"fresh_impl"`, `"diagnostic_impl"`, route to implementation agent. If `"diagnostic"`, route to diagnostic agent. If `None`, route to stub generator (`run_command`).
+- `stub_generation`: `run_command` (stub generator script)
 - `test_generation`: `invoke_agent` (test agent) -- `dispatch_agent_status` handles the transition to `quality_gate_a` automatically on `TEST_GENERATION_COMPLETE`; no two-branch check needed (not in Section 3.6 exhaustive list)
 - `quality_gate_a`: `run_command` (Gate A tools)
 - `quality_gate_a_retry`: `invoke_agent` or `run_command` -- two-branch applies
@@ -1356,7 +1357,10 @@ assert set(GATE_RESPONSES.keys()) == set(ALL_GATE_IDS), \
 **`dispatch_command_status` for test_execution state advancement (Bug 45 fix).** `dispatch_command_status` for `test_execution` must advance `sub_stage` for each expected status/sub_stage combination:
 - At `sub_stage == "red_run"`, `TESTS_FAILED` must advance `sub_stage` to `"implementation"`. A no-op return is invalid -- it causes an infinite loop re-running the red run.
 - At `sub_stage == "green_run"`, `TESTS_PASSED` must advance `sub_stage` to `"coverage_review"`. A no-op return is invalid -- it causes an infinite loop re-running the green run.
-- `TESTS_ERROR` at any sub_stage triggers the error handling flow (regeneration or diagnostic escalation, depending on retry count).
+- `TESTS_ERROR` at any sub_stage triggers the error handling flow (Bug 70 fix -- must never return state unchanged):
+  - At `sub_stage == "red_run"`: increment `red_run_retries`; if under limit (3), advance to `"test_generation"`; if at limit, advance to `"gate_3_1"`.
+  - At `sub_stage == "green_run"`: engage fix ladder (same as TESTS_FAILED): None -> fresh_impl, fresh_impl -> diagnostic, diagnostic_impl -> gate_3_2.
+  - At `stage == "4"`: increment `red_run_retries`; if under limit, advance to `"gate_4_1"`; if at limit, advance to `"gate_4_2"`.
 A regression test (`test_bug45_test_execution_dispatch.py`) must verify both advancement transitions.
 
 **`dispatch_agent_status` for coverage_review state advancement (Bug 46 fix).** `dispatch_agent_status` for `coverage_review` must advance `sub_stage` to `"unit_completion"` when `COVERAGE_COMPLETE` is received (either `COVERAGE_COMPLETE: no gaps` or `COVERAGE_COMPLETE: tests added`, after any post-completion auto-formatting). A bare `return state` is invalid -- it causes an infinite loop re-invoking the coverage review agent. This is an instance of the exhaustive dispatch_agent_status invariant (Section 3.6). A regression test (`test_bug46_coverage_dispatch.py`) must verify this advancement.

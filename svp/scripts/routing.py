@@ -16,7 +16,8 @@ Bug 67 fix (gate_5_3 routing path in route() and dispatch_command_status),
 Bug 65 fix (Stage 3 error handling: stub_generation routing, fix ladder engagement,
 diagnostic escalation, Gate 3.1/3.2 dispatch, coverage two-branch, red_run retries),
 Bug 69 fix (debug loop gates: gate_6_0 triage_readonly/triage separation, gate_6_1
-regression_test phase routing, gate_6_3 RECLASSIFY BUG reset, gate_6_5 debug commit).
+regression_test phase routing, gate_6_3 RECLASSIFY BUG reset, gate_6_5 debug commit),
+Bug 70 fix (fix ladder routing at sub_stage=None, TESTS_ERROR infinite loop, dead phases).
 """
 
 import json
@@ -162,7 +163,6 @@ _KNOWN_PHASES = {
     "alignment_check",
     "test_generation",
     "test_execution",
-    "test",
     "implementation",
     "coverage_review",
     "diagnostic",
@@ -178,7 +178,6 @@ _KNOWN_PHASES = {
     "bug_triage",
     "repair",
     "regression_test",
-    "infrastructure_setup",
     "stub_generation",
     "unit_completion",
     "quality_gate",  # NEW IN 2.1
@@ -511,12 +510,51 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
         unit = state.current_unit
 
         # F1: sub_stage None means stub_generation (not test_generation)
+        # Bug 70 F1: Check fix_ladder_position before defaulting to stub_generation.
+        # When quality_gate_fail_to_ladder sets sub_stage=None with a non-None
+        # fix_ladder_position, route based on the ladder position instead.
         if sub_stage is None:
-            return {
-                "ACTION": "run_command",
-                "COMMAND": f"python scripts/generate_stubs.py --unit {unit} --project-root .",
-                "POST": _post_cmd("stub_generation", unit=unit),
-            }
+            ladder_pos = state.fix_ladder_position
+            if ladder_pos in ("fresh_test", "hint_test"):
+                # Test ladder: re-invoke test agent
+                return {
+                    "ACTION": "invoke_agent",
+                    "AGENT": "test_agent",
+                    "CONTEXT": "test_generation",
+                    "UNIT": unit,
+                    "PREPARE": _prepare_cmd("test_agent", unit=unit),
+                    "POST": _post_cmd("test_generation", unit=unit),
+                }
+            elif ladder_pos in ("fresh_impl", "diagnostic_impl"):
+                # Impl ladder: re-invoke implementation agent
+                context = "implementation"
+                if ladder_pos == "diagnostic_impl":
+                    context = "diagnostic_impl"
+                return {
+                    "ACTION": "invoke_agent",
+                    "AGENT": "implementation_agent",
+                    "CONTEXT": context,
+                    "UNIT": unit,
+                    "PREPARE": _prepare_cmd("implementation_agent", unit=unit),
+                    "POST": _post_cmd("implementation", unit=unit),
+                }
+            elif ladder_pos == "diagnostic":
+                # Diagnostic ladder: invoke diagnostic agent
+                return {
+                    "ACTION": "invoke_agent",
+                    "AGENT": "diagnostic_agent",
+                    "CONTEXT": "diagnostic",
+                    "UNIT": unit,
+                    "PREPARE": _prepare_cmd("diagnostic_agent", unit=unit),
+                    "POST": _post_cmd("diagnostic", unit=unit),
+                }
+            else:
+                # No ladder position (fresh start): generate stubs
+                return {
+                    "ACTION": "run_command",
+                    "COMMAND": f"python scripts/generate_stubs.py --unit {unit} --project-root .",
+                    "POST": _post_cmd("stub_generation", unit=unit),
+                }
 
         elif sub_stage == "test_generation":
             return {
@@ -1705,6 +1743,36 @@ def dispatch_command_status(
                     return advance_sub_stage(state, "gate_3_2", project_root)
             return state
         elif status_line.startswith("TESTS_ERROR"):
+            # Bug 70 F2: TESTS_ERROR must not return state unchanged (infinite loop).
+            # Red run: collection error means stub or test import problem -> regenerate tests
+            if state.sub_stage == "red_run":
+                new_state = increment_red_run_retries(state)
+                if new_state.red_run_retries >= 3:
+                    return advance_sub_stage(new_state, "gate_3_1", project_root)
+                return advance_sub_stage(new_state, "test_generation", project_root)
+            # Green run: collection error means impl has import/syntax errors -> fix ladder
+            if state.sub_stage == "green_run":
+                ladder_pos = state.fix_ladder_position
+                if ladder_pos is None:
+                    new_state = _try_transition(
+                        lambda: advance_fix_ladder(state, "fresh_impl"), state
+                    )
+                    return advance_sub_stage(new_state, "implementation", project_root)
+                elif ladder_pos == "fresh_impl":
+                    new_state = _try_transition(
+                        lambda: advance_fix_ladder(state, "diagnostic"), state
+                    )
+                    return advance_sub_stage(new_state, "implementation", project_root)
+                elif ladder_pos == "diagnostic_impl":
+                    return advance_sub_stage(state, "gate_3_2", project_root)
+                else:
+                    return advance_sub_stage(state, "gate_3_2", project_root)
+            # Stage 4: TESTS_ERROR -> same as TESTS_FAILED (present gate)
+            if state.stage == "4":
+                new_state = increment_red_run_retries(state)
+                if new_state.red_run_retries >= 3:
+                    return advance_sub_stage(new_state, "gate_4_2", project_root)
+                return advance_sub_stage(new_state, "gate_4_1", project_root)
             return state
 
     # F9: stub_generation command dispatch

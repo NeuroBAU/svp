@@ -2204,6 +2204,11 @@ Written after `run_command` actions:
 - `TESTS_PASSED: N passed` — all tests passed.
 - `TESTS_FAILED: N passed, M failed` — some tests failed.
 - `TESTS_ERROR: [error summary]` — execution error preventing test collection. Collection errors are narrowly defined: `ERROR collecting`, `ImportError`, `ModuleNotFoundError`, `SyntaxError` during collection. Fixture setup errors (`NotImplementedError` from stubs) are `TESTS_FAILED`, not `TESTS_ERROR`.
+
+**TESTS_ERROR dispatch rules (NEW IN 2.1 -- Bug 70 fix):** `TESTS_ERROR` must never return state unchanged. Dispatch behavior by sub_stage:
+  - **Red run:** Increment `red_run_retries`. If under limit (default 3), set `sub_stage` to `test_generation` (regenerate tests). If at limit, set `sub_stage` to `gate_3_1` (present Gate 3.1 for human decision).
+  - **Green run:** Engage the fix ladder, same as `TESTS_FAILED` -- the collection error indicates an implementation problem (import/syntax errors in generated code).
+  - **Stage 4:** Increment `red_run_retries` and present `gate_4_1` (under limit) or `gate_4_2` (at limit), same as `TESTS_FAILED`.
 - `COMMAND_SUCCEEDED` — non-test command exit code 0.
 - `COMMAND_FAILED: [exit code]` — non-test command nonzero exit.
 
