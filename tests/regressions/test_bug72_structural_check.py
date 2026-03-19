@@ -355,7 +355,7 @@ class TestCleanCode:
         results = run_checks(tmp_path)
         assert results["status"] == "CLEAN"
         assert results["summary"]["total_findings"] == 0
-        assert results["summary"]["checks_run"] == 4
+        assert results["summary"]["checks_run"] == 5  # Bug 74: added stub_imports check
 
 
 # ===================================================================

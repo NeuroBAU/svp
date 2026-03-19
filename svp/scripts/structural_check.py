@@ -455,21 +455,83 @@ def check_string_dispatch_gaps(
     return findings
 
 
+def check_stub_imports_in_tests(
+    target: Path,
+    py_files: List[Path],
+) -> List[Dict[str, Any]]:
+    """Bug 74: Check that test files import from real scripts, not stubs.
+
+    Tests must target the real implementation modules (routing, pipeline_state,
+    etc.), not the build-time stubs (src.unit_N.stub). Stubs are simplified
+    implementations that may diverge from the real scripts, causing false-pass
+    scenarios where tests pass but the deployed code is broken.
+
+    This check scans all .py files under a tests/ directory for
+    'from src.unit_' import patterns.
+    """
+    import re
+
+    pattern = re.compile(r"from\s+src\.unit_\d+")
+    findings: List[Dict[str, Any]] = []
+
+    # Only scan test files (under any tests/ directory)
+    test_files = [f for f in py_files if "/tests/" in str(f) or "\\tests\\" in str(f)]
+
+    for fpath in test_files:
+        try:
+            content = fpath.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+
+        in_docstring = False
+        for i, line in enumerate(content.splitlines(), 1):
+            stripped = line.strip()
+            # Track multi-line docstring boundaries
+            if '"""' in stripped or "'''" in stripped:
+                count = stripped.count('"""') + stripped.count("'''")
+                if count == 1:
+                    in_docstring = not in_docstring
+                # If count >= 2, it's an open+close on same line
+                continue
+            if in_docstring:
+                continue
+            # Skip comments
+            if stripped.startswith("#"):
+                continue
+            # Skip string literals containing the pattern
+            if stripped.startswith(("'", '"', "assert")):
+                if "from src.unit_" not in stripped.split("#")[0].split("import")[0]:
+                    continue
+            if pattern.search(line):
+                findings.append({
+                    "file": str(fpath.relative_to(target)),
+                    "line": i,
+                    "pattern": "stub_import",
+                    "context": stripped,
+                })
+
+    return findings
+
+
 # ---------------------------------------------------------------------------
 # Main runner
 # ---------------------------------------------------------------------------
 
 
 def run_checks(target: Path) -> Dict[str, Any]:
-    """Run all four checks and return structured results."""
+    """Run all five checks and return structured results."""
     py_files = _collect_py_files(target)
 
     dict_gaps = check_dict_registry_gaps(target, py_files)
     enum_gaps = check_enum_value_gaps(target, py_files)
     unused = check_unused_exports(target, py_files)
     dispatch_gaps = check_string_dispatch_gaps(target, py_files)
+    stub_imports = check_stub_imports_in_tests(target, py_files)
 
-    total = len(dict_gaps) + len(enum_gaps) + len(unused) + len(dispatch_gaps)
+    total = (
+        len(dict_gaps) + len(enum_gaps) + len(unused)
+        + len(dispatch_gaps) + len(stub_imports)
+    )
 
     return {
         "status": "CLEAN" if total == 0 else "FINDINGS",
@@ -478,11 +540,12 @@ def run_checks(target: Path) -> Dict[str, Any]:
             "enum_value_gaps": enum_gaps,
             "unused_exports": unused,
             "string_dispatch_gaps": dispatch_gaps,
+            "stub_imports_in_tests": stub_imports,
         },
         "summary": {
             "total_findings": total,
             "files_scanned": len(py_files),
-            "checks_run": 4,
+            "checks_run": 5,
         },
     }
 
@@ -530,6 +593,14 @@ def format_text(results: Dict[str, Any]) -> str:
             lines.append(
                 f"  {f['file']}: {f['function']} -- "
                 f"unhandled: {', '.join(f['unhandled'])}"
+            )
+        lines.append("")
+
+    if checks.get("stub_imports_in_tests"):
+        lines.append("== Stub Imports in Tests (Bug 74) ==")
+        for f in checks["stub_imports_in_tests"]:
+            lines.append(
+                f"  {f['file']}:{f['line']}: {f['context']}"
             )
         lines.append("")
 
