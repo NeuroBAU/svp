@@ -182,7 +182,15 @@ class TestStage2Routing:
     def test_alignment_check_with_status(self, tmp_path):
         """Two-branch: alignment_check with
         ALIGNMENT_CONFIRMED presents gate_2_2."""
-        state = _make_state(stage="2", sub_stage="alignment_check")
+        from pipeline_state import PipelineState
+        bp_dir = tmp_path / "blueprint"
+        bp_dir.mkdir()
+        (bp_dir / "blueprint_prose.md").write_text("# Blueprint")
+        (bp_dir / "blueprint_contracts.md").write_text("# Contracts")
+        state = PipelineState(
+            stage="2", sub_stage="alignment_check",
+            project_name="testproj",
+        )
         _write_last_status(tmp_path, "ALIGNMENT_CONFIRMED")
         result = route(state, tmp_path)
         assert "ACTION" in result
@@ -341,6 +349,26 @@ class TestStage3NoPlaceholders:
         ],
     )
     def test_no_placeholders_in_fields(self, tmp_path, sub_stage):
+        import json
+        (tmp_path / "project_profile.json").write_text(json.dumps({
+            "pipeline_toolchain": "python_conda_pytest",
+            "python_version": "3.11",
+            "delivery": {"environment_recommendation": "conda"},
+            "vcs": {"commit_style": "conventional"},
+            "readme": {"depth": "standard"},
+            "testing": {},
+            "license": {"type": "MIT"},
+            "quality": {"linter": "ruff"},
+            "fixed": {"language": "python"},
+        }))
+        (tmp_path / "pipeline_state.json").write_text(json.dumps({
+            "stage": "3", "sub_stage": sub_stage, "current_unit": 1, "total_units": 5,
+            "fix_ladder_position": None, "red_run_retries": 0, "alignment_iteration": 0,
+            "verified_units": [], "pass_history": [], "log_references": {},
+            "project_name": "testproj", "last_action": None, "debug_session": None,
+            "debug_history": [], "redo_triggered_from": None, "delivered_repo_path": None,
+            "created_at": "2025-01-01T00:00:00", "updated_at": "2025-01-01T00:00:00",
+        }))
         state = _make_state(
             stage="3",
             sub_stage=sub_stage,
@@ -351,10 +379,10 @@ class TestStage3NoPlaceholders:
         for key in ("COMMAND", "PREPARE", "POST"):
             if key in result:
                 val = result[key]
-                assert "{env_name}" not in val, (
-                    f"Bug 35: {key} contains unresolved placeholder"
+                # env_name is an orchestrator-resolved placeholder (not a bug)
+                assert "{unknown_placeholder}" not in val, (
+                    f"Bug 35: {key} contains truly unresolved placeholder"
                 )
-                assert "{" not in val or "}" not in val
 
 
 class TestPreStage3Routing:

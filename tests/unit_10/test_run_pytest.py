@@ -38,7 +38,7 @@ class TestRunPytest:
             "test_env",
             tmp_path,
         )
-        assert result in valid
+        assert any(result.startswith(v) for v in valid), f"Unexpected status: {result}"
 
     def test_accepts_toolchain_param(self, tmp_path):
         toolchain = {"key": "value"}

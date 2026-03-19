@@ -106,7 +106,6 @@ class TestStage3SubStages:
 
         expected = [
             None,
-            "stub_generation",
             "test_generation",
             "quality_gate_a",
             "quality_gate_a_retry",
@@ -123,14 +122,14 @@ class TestStage3SubStages:
     def test_stage_3_sub_stages_length(self):
         from pipeline_state import STAGE_3_SUB_STAGES
 
-        assert len(STAGE_3_SUB_STAGES) == 12
+        assert len(STAGE_3_SUB_STAGES) == 11
 
 
 class TestStage4SubStages:
     def test_stage_4_sub_stages_values(self):
         from pipeline_state import STAGE_4_SUB_STAGES
 
-        assert STAGE_4_SUB_STAGES == [None]
+        assert STAGE_4_SUB_STAGES == [None, "gate_4_1", "gate_4_2"]
 
 
 class TestStage5SubStages:
@@ -140,7 +139,9 @@ class TestStage5SubStages:
         expected = [
             None,
             "repo_test",
+            "structural_check",
             "compliance_scan",
+            "gate_5_3",
             "repo_complete",
         ]
         assert STAGE_5_SUB_STAGES == expected
@@ -1067,8 +1068,8 @@ class TestLoadState:
         ds = DebugSession(
             bug_id=7,
             description="session test",
-            classification=None,
-            affected_units=[],
+            classification="single_unit",
+            affected_units=[1],
             regression_test_path=None,
             phase="triage",
             authorized=False,
@@ -1123,14 +1124,14 @@ class TestLoadState:
             last_action=None,
             debug_session=None,
             debug_history=[],
-            redo_triggered_from={"stage": "2"},
+            redo_triggered_from={"stage": "2", "sub_stage": None, "current_unit": None, "fix_ladder_position": None, "red_run_retries": 0},
             delivered_repo_path=None,
             created_at="2025-01-01T00:00:00",
             updated_at="2025-01-01T00:00:00",
         )
         save_state(state, tmp_path)
         result = load_state(tmp_path)
-        assert result.redo_triggered_from == {"stage": "2"}
+        assert result.redo_triggered_from["stage"] == "2"
 
     def test_load_deserializes_delivered_repo_path(self, tmp_path):
         from pipeline_state import (
@@ -1927,7 +1928,7 @@ class TestAppendOnlyHistory:
             alignment_iteration=0,
             verified_units=[],
             pass_history=[
-                {"pass": 1, "reason": "complete"},
+                {"pass_number": 1, "reached_unit": 0, "ended_reason": "complete", "timestamp": "2025-01-01T00:00:00"},
             ],
             log_references={},
             project_name="test",
@@ -1942,7 +1943,7 @@ class TestAppendOnlyHistory:
         save_state(state, tmp_path)
         loaded = load_state(tmp_path)
         assert len(loaded.pass_history) == 1
-        assert loaded.pass_history[0]["pass"] == 1
+        assert loaded.pass_history[0]["pass_number"] == 1
 
     def test_debug_history_preserved_through_roundtrip(self, tmp_path):
         from pipeline_state import (
@@ -1966,7 +1967,7 @@ class TestAppendOnlyHistory:
             last_action=None,
             debug_session=None,
             debug_history=[
-                {"bug_id": 1, "result": "fixed"},
+                {"bug_id": 1, "result": "fixed", "resolution": "fixed"},
             ],
             redo_triggered_from=None,
             delivered_repo_path=None,

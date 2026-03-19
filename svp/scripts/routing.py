@@ -88,6 +88,9 @@ GATE_VOCABULARY: Dict[str, List[str]] = {
     "gate_hint_conflict": ["BLUEPRINT CORRECT", "HINT CORRECT"],
 }
 
+# Backward compatibility alias (stub name)
+GATE_RESPONSES = GATE_VOCABULARY
+
 # --- Data contract: terminal status line vocabulary ---
 
 AGENT_STATUS_LINES: Dict[str, List[str]] = {
@@ -140,6 +143,11 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
 
 # Cross-agent status (any agent receiving a hint)
 CROSS_AGENT_STATUS: str = "HINT_BLUEPRINT_CONFLICT"
+
+# Stub compatibility
+CROSS_AGENT_STATUS_LINES: Dict[str, str] = {
+    "HINT_BLUEPRINT_CONFLICT": "gate_hint_conflict",
+}
 
 # Command result status line patterns
 COMMAND_STATUS_PATTERNS: List[str] = [
@@ -224,6 +232,11 @@ def _read_last_status(project_root: Path) -> Optional[str]:
         if content:
             return content
     return None
+
+
+
+# Public alias (stub name)
+read_last_status = _read_last_status
 
 
 def _read_triage_affected_units(project_root: Path) -> List[int]:

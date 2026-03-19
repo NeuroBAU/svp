@@ -10,19 +10,12 @@ E.4: gate_6_5 presentation from complete phase, COMMIT APPROVED completes sessio
      COMMIT REJECTED re-presents
 """
 
-import sys
 import unittest
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Path setup
-# ---------------------------------------------------------------------------
-ROOT = Path(__file__).resolve().parent.parent.parent
-SRC_DIR = ROOT / "src"
-
 
 def _make_state(**overrides):
-    from src.unit_2.stub import PipelineState
+    from pipeline_state import PipelineState
 
     defaults = {
         "stage": "5",
@@ -45,11 +38,11 @@ def _make_state(**overrides):
         "updated_at": "2026-01-01T00:00:00+00:00",
     }
     defaults.update(overrides)
-    return PipelineState.from_dict(defaults)
+    return PipelineState(**defaults)
 
 
 def _make_debug_session(**overrides):
-    from src.unit_2.stub import DebugSession
+    from pipeline_state import DebugSession
 
     defaults = {
         "bug_id": 1,
@@ -70,14 +63,14 @@ class TestBug69E3ReclassifyBug(unittest.TestCase):
 
     def test_debug_phase_transitions_repair_to_triage(self):
         """_DEBUG_PHASE_TRANSITIONS allows repair -> triage."""
-        from src.unit_3.stub import _DEBUG_PHASE_TRANSITIONS
+        from state_transitions import _DEBUG_PHASE_TRANSITIONS
 
         self.assertIn("triage", _DEBUG_PHASE_TRANSITIONS["repair"])
         self.assertIn("complete", _DEBUG_PHASE_TRANSITIONS["repair"])
 
     def test_gate_6_3_reclassify_resets_phase(self):
         """RECLASSIFY BUG resets debug phase to triage and clears classification."""
-        from src.unit_10.stub import dispatch_gate_response, _clone_state
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(
             phase="repair",
@@ -96,7 +89,7 @@ class TestBug69E3ReclassifyBug(unittest.TestCase):
 
     def test_gate_6_3_retry_repair_is_noop(self):
         """RETRY REPAIR is a no-op (stays in repair phase)."""
-        from src.unit_10.stub import dispatch_gate_response, _clone_state
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(phase="repair", authorized=True)
         state = _make_state(debug_session=ds)
@@ -108,7 +101,7 @@ class TestBug69E3ReclassifyBug(unittest.TestCase):
 
     def test_gate_6_3_abandon_debug(self):
         """ABANDON DEBUG moves session to history."""
-        from src.unit_10.stub import dispatch_gate_response
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(phase="repair", authorized=True)
         state = _make_state(debug_session=ds)
@@ -125,7 +118,7 @@ class TestBug69E1Gate60(unittest.TestCase):
 
     def test_gate_6_0_authorize_advances_to_triage(self):
         """AUTHORIZE DEBUG sets authorized=True and phase=triage."""
-        from src.unit_10.stub import dispatch_gate_response
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(phase="triage_readonly", authorized=False)
         state = _make_state(debug_session=ds)
@@ -138,7 +131,7 @@ class TestBug69E1Gate60(unittest.TestCase):
 
     def test_gate_6_0_abandon_abandons_session(self):
         """ABANDON DEBUG moves session to history."""
-        from src.unit_10.stub import dispatch_gate_response
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(phase="triage_readonly", authorized=False)
         state = _make_state(debug_session=ds)
@@ -155,7 +148,7 @@ class TestBug69E2Gate61(unittest.TestCase):
 
     def test_gate_6_1_test_correct_advances_to_complete(self):
         """TEST CORRECT advances debug phase to complete."""
-        from src.unit_10.stub import dispatch_gate_response
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(
             phase="regression_test", authorized=True
@@ -169,7 +162,7 @@ class TestBug69E2Gate61(unittest.TestCase):
 
     def test_gate_6_1_test_wrong_is_noop(self):
         """TEST WRONG is a no-op (re-invokes test agent via routing)."""
-        from src.unit_10.stub import dispatch_gate_response
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(
             phase="regression_test", authorized=True
@@ -187,7 +180,7 @@ class TestBug69E4Gate65(unittest.TestCase):
 
     def test_gate_6_5_commit_approved_completes_session(self):
         """COMMIT APPROVED moves session to debug_history."""
-        from src.unit_10.stub import dispatch_gate_response
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(
             phase="complete", authorized=True
@@ -202,7 +195,7 @@ class TestBug69E4Gate65(unittest.TestCase):
 
     def test_gate_6_5_commit_rejected_is_noop(self):
         """COMMIT REJECTED re-presents Gate 6.5."""
-        from src.unit_10.stub import dispatch_gate_response
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(
             phase="complete", authorized=True
@@ -226,7 +219,7 @@ class TestBug69RoutingDebugPhases(unittest.TestCase):
     def test_triage_readonly_with_completion_presents_gate_6_0(self):
         """triage_readonly + TRIAGE_COMPLETE -> Gate 6.0."""
         import tempfile
-        from src.unit_10.stub import route
+        from routing import GATE_VOCABULARY
 
         ds = _make_debug_session(phase="triage_readonly", authorized=False)
         state = _make_state(debug_session=ds)
@@ -234,52 +227,37 @@ class TestBug69RoutingDebugPhases(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             pr = Path(tmpdir)
             self._make_status_file(pr, "TRIAGE_COMPLETE: single_unit")
-            # The stub's _route_stage_5 doesn't have debug routing
-            # Test the workspace routing.py instead
-            # For now, verify Gate 6.0 is in vocabulary
-            from src.unit_10.stub import GATE_RESPONSES
-            self.assertIn("gate_6_0_debug_permission", GATE_RESPONSES)
-            self.assertIn("AUTHORIZE DEBUG", GATE_RESPONSES["gate_6_0_debug_permission"])
-            self.assertIn("ABANDON DEBUG", GATE_RESPONSES["gate_6_0_debug_permission"])
+            self.assertIn("gate_6_0_debug_permission", GATE_VOCABULARY)
+            self.assertIn("AUTHORIZE DEBUG", GATE_VOCABULARY["gate_6_0_debug_permission"])
+            self.assertIn("ABANDON DEBUG", GATE_VOCABULARY["gate_6_0_debug_permission"])
 
     def test_regression_test_phase_gate_6_1_in_vocabulary(self):
         """Gate 6.1 regression_test is in vocabulary."""
-        from src.unit_10.stub import GATE_RESPONSES
-        self.assertIn("gate_6_1_regression_test", GATE_RESPONSES)
-        self.assertIn("TEST CORRECT", GATE_RESPONSES["gate_6_1_regression_test"])
-        self.assertIn("TEST WRONG", GATE_RESPONSES["gate_6_1_regression_test"])
+        from routing import GATE_VOCABULARY
+        self.assertIn("gate_6_1_regression_test", GATE_VOCABULARY)
+        self.assertIn("TEST CORRECT", GATE_VOCABULARY["gate_6_1_regression_test"])
+        self.assertIn("TEST WRONG", GATE_VOCABULARY["gate_6_1_regression_test"])
 
     def test_complete_phase_gate_6_5_in_vocabulary(self):
         """Gate 6.5 debug_commit is in vocabulary."""
-        from src.unit_10.stub import GATE_RESPONSES
-        self.assertIn("gate_6_5_debug_commit", GATE_RESPONSES)
-        self.assertIn("COMMIT APPROVED", GATE_RESPONSES["gate_6_5_debug_commit"])
-        self.assertIn("COMMIT REJECTED", GATE_RESPONSES["gate_6_5_debug_commit"])
+        from routing import GATE_VOCABULARY
+        self.assertIn("gate_6_5_debug_commit", GATE_VOCABULARY)
+        self.assertIn("COMMIT APPROVED", GATE_VOCABULARY["gate_6_5_debug_commit"])
+        self.assertIn("COMMIT REJECTED", GATE_VOCABULARY["gate_6_5_debug_commit"])
 
 
 class TestBug69WorkspaceRouting(unittest.TestCase):
-    """Test workspace routing.py (scripts/) debug phase handlers."""
+    """Test workspace routing.py debug phase handlers."""
 
     def _make_status_file(self, project_root, content):
         svp_dir = project_root / ".svp"
         svp_dir.mkdir(parents=True, exist_ok=True)
         (svp_dir / "last_status.txt").write_text(content, encoding="utf-8")
 
-    def _get_routing_module(self):
-        """Import the workspace routing module."""
-        import importlib
-        scripts_dir = ROOT / "scripts"
-        if str(scripts_dir) not in sys.path:
-            sys.path.insert(0, str(scripts_dir))
-        try:
-            return importlib.import_module("routing")
-        except ImportError:
-            self.skipTest("Cannot import workspace routing module")
-
     def test_triage_readonly_completed_presents_gate_6_0(self):
         """route() with triage_readonly and TRIAGE_COMPLETE presents Gate 6.0."""
         import tempfile
-        routing = self._get_routing_module()
+        from routing import route
 
         ds = _make_debug_session(phase="triage_readonly", authorized=False)
         state = _make_state(debug_session=ds)
@@ -287,28 +265,28 @@ class TestBug69WorkspaceRouting(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             pr = Path(tmpdir)
             self._make_status_file(pr, "TRIAGE_COMPLETE: single_unit")
-            action = routing.route(state, pr)
+            action = route(state, pr)
             self.assertEqual(action["ACTION"], "human_gate")
             self.assertEqual(action["GATE_ID"], "gate_6_0_debug_permission")
 
     def test_triage_readonly_not_completed_invokes_bug_triage(self):
         """route() with triage_readonly and no status invokes bug_triage."""
         import tempfile
-        routing = self._get_routing_module()
+        from routing import route
 
         ds = _make_debug_session(phase="triage_readonly", authorized=False)
         state = _make_state(debug_session=ds)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pr = Path(tmpdir)
-            action = routing.route(state, pr)
+            action = route(state, pr)
             self.assertEqual(action["ACTION"], "invoke_agent")
             self.assertEqual(action["AGENT"], "bug_triage")
 
     def test_triage_phase_completed_presents_gate_6_2(self):
         """route() with triage phase and TRIAGE_COMPLETE presents Gate 6.2."""
         import tempfile
-        routing = self._get_routing_module()
+        from routing import route
 
         ds = _make_debug_session(phase="triage", authorized=True)
         state = _make_state(debug_session=ds)
@@ -316,14 +294,14 @@ class TestBug69WorkspaceRouting(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             pr = Path(tmpdir)
             self._make_status_file(pr, "TRIAGE_COMPLETE: single_unit")
-            action = routing.route(state, pr)
+            action = route(state, pr)
             self.assertEqual(action["ACTION"], "human_gate")
             self.assertEqual(action["GATE_ID"], "gate_6_2_debug_classification")
 
     def test_regression_test_phase_completed_presents_gate_6_1(self):
         """route() with regression_test phase and REGRESSION_TEST_COMPLETE presents Gate 6.1."""
         import tempfile
-        routing = self._get_routing_module()
+        from routing import route
 
         ds = _make_debug_session(phase="regression_test", authorized=True)
         state = _make_state(debug_session=ds)
@@ -331,41 +309,41 @@ class TestBug69WorkspaceRouting(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             pr = Path(tmpdir)
             self._make_status_file(pr, "REGRESSION_TEST_COMPLETE")
-            action = routing.route(state, pr)
+            action = route(state, pr)
             self.assertEqual(action["ACTION"], "human_gate")
             self.assertEqual(action["GATE_ID"], "gate_6_1_regression_test")
 
     def test_regression_test_phase_not_completed_invokes_test_agent(self):
         """route() with regression_test phase and no status invokes test_agent."""
         import tempfile
-        routing = self._get_routing_module()
+        from routing import route
 
         ds = _make_debug_session(phase="regression_test", authorized=True)
         state = _make_state(debug_session=ds)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pr = Path(tmpdir)
-            action = routing.route(state, pr)
+            action = route(state, pr)
             self.assertEqual(action["ACTION"], "invoke_agent")
             self.assertEqual(action["AGENT"], "test_agent")
 
     def test_complete_phase_presents_gate_6_5(self):
         """route() with complete phase presents Gate 6.5."""
         import tempfile
-        routing = self._get_routing_module()
+        from routing import route
 
         ds = _make_debug_session(phase="complete", authorized=True)
         state = _make_state(debug_session=ds)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pr = Path(tmpdir)
-            action = routing.route(state, pr)
+            action = route(state, pr)
             self.assertEqual(action["ACTION"], "human_gate")
             self.assertEqual(action["GATE_ID"], "gate_6_5_debug_commit")
 
     def test_gate_6_3_reclassify_dispatch(self):
         """dispatch_gate_response for gate_6_3 RECLASSIFY BUG resets to triage."""
-        routing = self._get_routing_module()
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(
             phase="repair",
@@ -374,7 +352,7 @@ class TestBug69WorkspaceRouting(unittest.TestCase):
             affected_units=[5],
         )
         state = _make_state(debug_session=ds)
-        new_state = routing.dispatch_gate_response(
+        new_state = dispatch_gate_response(
             state, "gate_6_3_repair_exhausted", "RECLASSIFY BUG", Path(".")
         )
         self.assertIsNotNone(new_state.debug_session)
@@ -384,11 +362,11 @@ class TestBug69WorkspaceRouting(unittest.TestCase):
 
     def test_gate_6_1_test_correct_dispatch(self):
         """dispatch_gate_response for gate_6_1 TEST CORRECT advances to complete."""
-        routing = self._get_routing_module()
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(phase="regression_test", authorized=True)
         state = _make_state(debug_session=ds)
-        new_state = routing.dispatch_gate_response(
+        new_state = dispatch_gate_response(
             state, "gate_6_1_regression_test", "TEST CORRECT", Path(".")
         )
         self.assertIsNotNone(new_state.debug_session)
@@ -396,11 +374,11 @@ class TestBug69WorkspaceRouting(unittest.TestCase):
 
     def test_gate_6_5_commit_approved_dispatch(self):
         """dispatch_gate_response for gate_6_5 COMMIT APPROVED completes session."""
-        routing = self._get_routing_module()
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(phase="complete", authorized=True)
         state = _make_state(debug_session=ds)
-        new_state = routing.dispatch_gate_response(
+        new_state = dispatch_gate_response(
             state, "gate_6_5_debug_commit", "COMMIT APPROVED", Path(".")
         )
         self.assertIsNone(new_state.debug_session)
@@ -408,11 +386,11 @@ class TestBug69WorkspaceRouting(unittest.TestCase):
 
     def test_gate_6_0_authorize_dispatch(self):
         """dispatch_gate_response for gate_6_0 AUTHORIZE DEBUG advances to triage."""
-        routing = self._get_routing_module()
+        from routing import dispatch_gate_response
 
         ds = _make_debug_session(phase="triage_readonly", authorized=False)
         state = _make_state(debug_session=ds)
-        new_state = routing.dispatch_gate_response(
+        new_state = dispatch_gate_response(
             state, "gate_6_0_debug_permission", "AUTHORIZE DEBUG", Path(".")
         )
         self.assertIsNotNone(new_state.debug_session)

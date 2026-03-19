@@ -177,13 +177,15 @@ class TestAdvanceStageErrors:
     def test_advances_from_3_to_4(self, tmp_path):
         from state_transitions import advance_stage
 
-        state = _make_state(stage="3")
+        verified = [{"unit": i, "timestamp": "t"} for i in range(1, 6)]
+        state = _make_state(stage="3", verified_units=verified)
         result = advance_stage(state, tmp_path)
         assert result.stage == "4"
 
     def test_resets_sub_stage_to_none(self, tmp_path):
         from state_transitions import advance_stage
 
+        (tmp_path / "project_profile.json").write_text("{}")
         state = _make_state(
             stage="0",
             sub_stage="something",
@@ -194,6 +196,7 @@ class TestAdvanceStageErrors:
     def test_sets_last_action(self, tmp_path):
         from state_transitions import advance_stage
 
+        (tmp_path / "project_profile.json").write_text("{}")
         state = _make_state(stage="0")
         result = advance_stage(state, tmp_path)
         assert result.last_action is not None
@@ -317,7 +320,7 @@ class TestRestartFromStageBehavior:
             state, "2", "redo request", tmp_path
         )
         entry = result.pass_history[0]
-        assert entry["reason"] == "redo request"
+        assert entry["ended_reason"] == "redo request"
 
     def test_resets_fix_ladder(self, tmp_path):
         from state_transitions import restart_from_stage
@@ -691,7 +694,7 @@ class TestEnterRedoProfileRevisionBehavior:
 
         state = _make_state(stage="3")
         result = enter_redo_profile_revision(
-            state, "delivery"
+            state, "profile_delivery"
         )
         assert (
             result.sub_stage
@@ -705,7 +708,7 @@ class TestEnterRedoProfileRevisionBehavior:
 
         state = _make_state(stage="3")
         result = enter_redo_profile_revision(
-            state, "blueprint"
+            state, "profile_blueprint"
         )
         assert (
             result.sub_stage
@@ -723,7 +726,7 @@ class TestEnterRedoProfileRevisionBehavior:
             current_unit=2,
         )
         result = enter_redo_profile_revision(
-            state, "delivery"
+            state, "profile_delivery"
         )
         snap = result.redo_triggered_from
         assert snap is not None
@@ -740,7 +743,7 @@ class TestEnterRedoProfileRevisionBehavior:
         state = _make_state(stage="3")
         with pytest.raises(TransitionError):
             enter_redo_profile_revision(
-                state, "invalid_class"
+                state, "delivery"  # must be "profile_delivery" or "profile_blueprint"
             )
 
     def test_already_in_redo_raises(self):
@@ -797,8 +800,10 @@ class TestCompleteRedoProfileRevisionBehavior:
             complete_redo_profile_revision,
         )
 
+        snapshot = {"stage": "3", "sub_stage": "red_run", "current_unit": 2, "fix_ladder_position": None, "red_run_retries": 0}
         state = _make_state(
             sub_stage="redo_profile_blueprint",
+            redo_triggered_from=snapshot,
         )
         result = complete_redo_profile_revision(
             state
@@ -812,11 +817,13 @@ class TestCompleteRedoProfileRevisionBehavior:
             complete_redo_profile_revision,
         )
 
+        snapshot = {"stage": "3", "sub_stage": "red_run", "current_unit": 2, "fix_ladder_position": None, "red_run_retries": 0}
         state = _make_state(
             sub_stage="redo_profile_blueprint",
             fix_ladder_position="hint_test",
             red_run_retries=3,
             alignment_iteration=2,
+            redo_triggered_from=snapshot,
         )
         result = complete_redo_profile_revision(
             state
@@ -830,9 +837,11 @@ class TestCompleteRedoProfileRevisionBehavior:
             complete_redo_profile_revision,
         )
 
+        snapshot = {"stage": "3", "sub_stage": "red_run", "current_unit": 2, "fix_ladder_position": None, "red_run_retries": 0}
         state = _make_state(
             sub_stage="redo_profile_blueprint",
             pass_history=[],
+            redo_triggered_from=snapshot,
         )
         result = complete_redo_profile_revision(
             state
@@ -1245,7 +1254,7 @@ class TestImmutabilityAdditional:
         state = _make_state(stage="3")
         old_dict = state.to_dict()
         enter_redo_profile_revision(
-            state, "delivery"
+            state, "profile_delivery"
         )
         assert state.to_dict() == old_dict
 
@@ -1254,8 +1263,10 @@ class TestImmutabilityAdditional:
             complete_redo_profile_revision,
         )
 
+        snapshot = {"stage": "3", "sub_stage": "red_run", "current_unit": 2, "fix_ladder_position": None, "red_run_retries": 0}
         state = _make_state(
             sub_stage="redo_profile_delivery",
+            redo_triggered_from=snapshot,
         )
         old_dict = state.to_dict()
         complete_redo_profile_revision(state)

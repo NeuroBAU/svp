@@ -12,6 +12,9 @@ STAGES: List[str] = ["0", "1", "2", "pre_stage_3", "3", "4", "5"]
 
 SUB_STAGES_STAGE_0: List[str] = ["hook_activation", "project_context", "project_profile"]
 
+# Stage 1 sub-stages: only None (no sub-stages for Stage 1)
+STAGE_1_SUB_STAGES: List[Optional[str]] = [None]
+
 # Stage 2 sub-stages (Bug 23 fix -- NEW IN 2.1)
 # blueprint_dialog: blueprint authoring and review cycle (default)
 # alignment_check: blueprint checker verifying spec-blueprint alignment
@@ -40,6 +43,11 @@ QUALITY_GATE_SUB_STAGES: List[str] = [
 
 # Redo-triggered profile revision sub-stages (can appear in any stage)
 REDO_PROFILE_SUB_STAGES: List[str] = ["redo_profile_delivery", "redo_profile_blueprint"]
+
+STAGE_4_SUB_STAGES: List[Optional[str]] = [None, "gate_4_1", "gate_4_2"]
+STAGE_5_SUB_STAGES: List[Optional[str]] = [
+    None, "repo_test", "structural_check", "compliance_scan", "gate_5_3", "repo_complete",
+]
 
 FIX_LADDER_POSITIONS: List[Optional[str]] = [
     None, "fresh_test", "hint_test",
@@ -137,6 +145,9 @@ class PipelineState:
         self.project_name = kwargs.get("project_name", None)
         self.last_action = kwargs.get("last_action", None)
         self.debug_session = kwargs.get("debug_session", None)
+        # Auto-convert dict to DebugSession if needed
+        if isinstance(self.debug_session, dict):
+            self.debug_session = DebugSession.from_dict(self.debug_session)
         self.debug_history = kwargs.get("debug_history", [])
         self.redo_triggered_from = kwargs.get("redo_triggered_from", None)
         self.delivered_repo_path = kwargs.get("delivered_repo_path", None)
@@ -283,6 +294,12 @@ def validate_state(state: PipelineState) -> list[str]:
         elif state.stage == "0":
             if state.sub_stage not in SUB_STAGES_STAGE_0:
                 errors.append(f"Invalid sub_stage '{state.sub_stage}' for stage 0")
+        elif state.stage == "1":
+            if state.sub_stage not in STAGE_1_SUB_STAGES:
+                errors.append(f"Invalid sub_stage '{state.sub_stage}' for stage 1")
+        elif state.stage == "pre_stage_3":
+            # pre_stage_3 only allows None sub_stage (or redo profile, handled above)
+            errors.append(f"Invalid sub_stage '{state.sub_stage}' for pre_stage_3")
         elif state.stage == "2":
             if state.sub_stage not in STAGE_2_SUB_STAGES:
                 errors.append(f"Invalid sub_stage '{state.sub_stage}' for stage 2")
@@ -370,7 +387,7 @@ def recover_state_from_markers(project_root: Path) -> Optional[PipelineState]:
 
     # Check for blueprint approval marker
     blueprint_approved = False
-    blueprint_path = project_root / "blueprint" / ARTIFACT_FILENAMES["blueprint"]
+    blueprint_path = project_root / "blueprint" / "blueprint_prose.md"
     if blueprint_path.exists():
         content = blueprint_path.read_text(encoding="utf-8")
         if "<!-- SVP_APPROVED:" in content:
@@ -485,8 +502,11 @@ def get_stage_display(state: PipelineState) -> str:
 
     display = stage_names.get(state.stage, f"Stage {state.stage}")
 
-    if state.stage == "3" and state.current_unit is not None and state.total_units is not None:
-        display += f", Unit {state.current_unit} of {state.total_units}"
+    if state.stage == "3" and state.current_unit is not None:
+        if state.total_units is not None:
+            display += f", Unit {state.current_unit} of {state.total_units}"
+        else:
+            display += f", Unit {state.current_unit}"
         # Add pass number if there's pass history
         if state.pass_history:
             pass_number = len(state.pass_history) + 1

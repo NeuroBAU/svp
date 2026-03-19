@@ -117,6 +117,7 @@ class TestAdvanceStage:
     def test_returns_new_state(self, tmp_path):
         from state_transitions import advance_stage
 
+        (tmp_path / "project_profile.json").write_text("{}")
         state = _make_state(stage="0")
         result = advance_stage(state, tmp_path)
         assert result is not state
@@ -124,6 +125,7 @@ class TestAdvanceStage:
     def test_does_not_mutate_input(self, tmp_path):
         from state_transitions import advance_stage
 
+        (tmp_path / "project_profile.json").write_text("{}")
         state = _make_state(stage="0")
         original_stage = state.stage
         advance_stage(state, tmp_path)
@@ -132,6 +134,7 @@ class TestAdvanceStage:
     def test_advances_from_0_to_1(self, tmp_path):
         from state_transitions import advance_stage
 
+        (tmp_path / "project_profile.json").write_text("{}")
         state = _make_state(stage="0")
         result = advance_stage(state, tmp_path)
         assert result.stage == "1"
@@ -139,6 +142,8 @@ class TestAdvanceStage:
     def test_advances_from_1_to_2(self, tmp_path):
         from state_transitions import advance_stage
 
+        (tmp_path / "specs").mkdir()
+        (tmp_path / "specs" / "stakeholder_spec.md").write_text("# Spec")
         state = _make_state(stage="1")
         result = advance_stage(state, tmp_path)
         assert result.stage == "2"
@@ -146,7 +151,11 @@ class TestAdvanceStage:
     def test_advances_from_2_to_pre_stage_3(self, tmp_path):
         from state_transitions import advance_stage
 
-        state = _make_state(stage="2")
+        bp_dir = tmp_path / "blueprint"
+        bp_dir.mkdir()
+        (bp_dir / "blueprint_prose.md").write_text("# Blueprint")
+        (bp_dir / "blueprint_contracts.md").write_text("# Contracts")
+        state = _make_state(stage="2", sub_stage="alignment_check")
         result = advance_stage(state, tmp_path)
         assert result.stage == "pre_stage_3"
 
@@ -789,7 +798,7 @@ class TestSetDeliveredRepoPath:
             set_delivered_repo_path,
         )
 
-        state = _make_state(delivered_repo_path=None)
+        state = _make_state(stage="5", delivered_repo_path=None)
         result = set_delivered_repo_path(state, "/tmp/delivered-repo")
         assert result.delivered_repo_path == "/tmp/delivered-repo"
 
@@ -798,7 +807,7 @@ class TestSetDeliveredRepoPath:
             set_delivered_repo_path,
         )
 
-        state = _make_state(delivered_repo_path=None)
+        state = _make_state(stage="5", delivered_repo_path=None)
         set_delivered_repo_path(state, "/tmp/delivered-repo")
         assert state.delivered_repo_path is None
 
@@ -1013,7 +1022,7 @@ class TestEnterRedoProfileRevision:
         )
 
         state = _make_state(stage="3")
-        result = enter_redo_profile_revision(state, "delivery")
+        result = enter_redo_profile_revision(state, "profile_delivery")
         assert result is not state
 
     def test_does_not_mutate_input(self):
@@ -1023,7 +1032,7 @@ class TestEnterRedoProfileRevision:
 
         state = _make_state(stage="3")
         original_sub = state.sub_stage
-        enter_redo_profile_revision(state, "delivery")
+        enter_redo_profile_revision(state, "profile_delivery")
         assert state.sub_stage == original_sub
 
 
@@ -1033,7 +1042,8 @@ class TestCompleteRedoProfileRevision:
             complete_redo_profile_revision,
         )
 
-        state = _make_state(sub_stage="redo_profile_delivery")
+        snapshot = {"stage": "3", "sub_stage": "red_run", "current_unit": 2, "fix_ladder_position": None, "red_run_retries": 0}
+        state = _make_state(sub_stage="redo_profile_delivery", redo_triggered_from=snapshot)
         result = complete_redo_profile_revision(state)
         assert result is not state
 
@@ -1042,7 +1052,8 @@ class TestCompleteRedoProfileRevision:
             complete_redo_profile_revision,
         )
 
-        state = _make_state(sub_stage="redo_profile_delivery")
+        snapshot = {"stage": "3", "sub_stage": "red_run", "current_unit": 2, "fix_ladder_position": None, "red_run_retries": 0}
+        state = _make_state(sub_stage="redo_profile_delivery", redo_triggered_from=snapshot)
         complete_redo_profile_revision(state)
         assert state.sub_stage == "redo_profile_delivery"
 
@@ -1058,6 +1069,7 @@ class TestImmutabilityInvariant:
     def test_advance_stage_immutable(self, tmp_path):
         from state_transitions import advance_stage
 
+        (tmp_path / "project_profile.json").write_text("{}")
         state = _make_state(stage="0")
         old_dict = state.to_dict()
         advance_stage(state, tmp_path)
@@ -1106,7 +1118,7 @@ class TestImmutabilityInvariant:
             set_delivered_repo_path,
         )
 
-        state = _make_state(delivered_repo_path=None)
+        state = _make_state(stage="5", delivered_repo_path=None)
         old_dict = state.to_dict()
         set_delivered_repo_path(state, "/tmp/repo")
         assert state.to_dict() == old_dict

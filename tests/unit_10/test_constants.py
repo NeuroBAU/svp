@@ -246,7 +246,7 @@ class TestCommandStatusPatterns:
         assert "COMMAND_FAILED" in COMMAND_STATUS_PATTERNS
 
     def test_exactly_five_patterns(self):
-        assert len(COMMAND_STATUS_PATTERNS) == 5
+        assert len(COMMAND_STATUS_PATTERNS) == 6
 
     def test_all_items_are_strings(self):
         for p in COMMAND_STATUS_PATTERNS:

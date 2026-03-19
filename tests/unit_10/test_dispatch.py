@@ -67,13 +67,13 @@ def _make_state(
 
 class TestDispatchStatus:
     def test_dispatch_status_returns_state(self, tmp_path):
-        state = _make_state()
+        state = _make_state(sub_stage="test_generation")
         result = dispatch_status(
             state,
             "TEST_GENERATION_COMPLETE",
             None,
             1,
-            "main",
+            "test_generation",
             tmp_path,
         )
         assert result is not None
@@ -104,7 +104,7 @@ class TestDispatchStatus:
             "TESTS_PASSED",
             None,
             1,
-            "main",
+            "gate",
             tmp_path,
         )
         assert result is not None
@@ -187,7 +187,7 @@ class TestDispatchAgentStatus:
             "test_agent",
             "TEST_GENERATION_COMPLETE",
             1,
-            "main",
+            "test_generation",
             tmp_path,
         )
         assert result is not None
@@ -200,7 +200,7 @@ class TestDispatchAgentStatus:
                 "nonexistent_agent",
                 "SOME_STATUS",
                 None,
-                "main",
+                "test_generation",
                 tmp_path,
             )
 
@@ -248,7 +248,7 @@ class TestBug44TestAgentSubStage:
             "test_agent",
             "TEST_GENERATION_COMPLETE",
             1,
-            "main",
+            "test_generation",
             tmp_path,
         )
         assert result is not None
@@ -264,7 +264,7 @@ class TestBug44TestAgentSubStage:
             "test_agent",
             "TEST_GENERATION_COMPLETE",
             1,
-            "main",
+            "test_generation",
             tmp_path,
         )
         assert result is not None
@@ -280,7 +280,7 @@ class TestBug44TestAgentSubStage:
             "test_agent",
             "REGRESSION_TEST_COMPLETE",
             1,
-            "main",
+            "regression_test",
             tmp_path,
         )
         assert result is not None
@@ -301,7 +301,7 @@ class TestBug46CoverageReview:
             "coverage_review",
             "COVERAGE_COMPLETE: no gaps",
             1,
-            "main",
+            "coverage_review",
             tmp_path,
         )
         assert result is not None
@@ -317,7 +317,7 @@ class TestBug46CoverageReview:
             "coverage_review",
             "COVERAGE_COMPLETE: tests added",
             1,
-            "main",
+            "coverage_review",
             tmp_path,
         )
         assert result is not None
@@ -337,7 +337,7 @@ class TestDispatchAgentStatusReferenceIndexing:
             "reference_indexing",
             "INDEXING_COMPLETE",
             None,
-            "main",
+            "reference_indexing",
             tmp_path,
         )
         assert result is not None
@@ -399,7 +399,7 @@ class TestDispatchCommandStatus:
             state,
             "TESTS_PASSED",
             1,
-            "main",
+            "test_execution",
             tmp_path,
         )
         assert result is not None
@@ -414,7 +414,7 @@ class TestDispatchCommandStatus:
             state,
             "TESTS_FAILED",
             1,
-            "main",
+            "test_execution",
             tmp_path,
         )
         assert result is not None
@@ -429,7 +429,7 @@ class TestDispatchCommandStatus:
             state,
             "TESTS_ERROR",
             1,
-            "main",
+            "test_execution",
             tmp_path,
         )
         assert result is not None
@@ -444,7 +444,7 @@ class TestDispatchCommandStatus:
             state,
             "COMMAND_SUCCEEDED",
             1,
-            "main",
+            "stub_generation",
             tmp_path,
         )
         assert result is not None
@@ -459,7 +459,7 @@ class TestDispatchCommandStatus:
             state,
             "COMMAND_FAILED",
             1,
-            "main",
+            "stub_generation",
             tmp_path,
         )
         assert result is not None
@@ -477,7 +477,7 @@ class TestDispatchCommandStatus:
                 state,
                 "INFRASTRUCTURE_SETUP_COMPLETE",
                 1,
-                "main",
+                "test_execution",
                 tmp_path,
             )
 
@@ -499,7 +499,7 @@ class TestBug45CommandStatusAdvancement:
             state,
             "TESTS_PASSED",
             1,
-            "main",
+            "test_execution",
             tmp_path,
         )
         assert result is not None
@@ -516,7 +516,7 @@ class TestBug45CommandStatusAdvancement:
             state,
             "TESTS_FAILED",
             1,
-            "main",
+            "test_execution",
             tmp_path,
         )
         assert result is not None
@@ -533,7 +533,7 @@ class TestBug45CommandStatusAdvancement:
             state,
             "TESTS_PASSED",
             1,
-            "main",
+            "test_execution",
             tmp_path,
         )
         assert result is not None
@@ -550,7 +550,7 @@ class TestBug45CommandStatusAdvancement:
             state,
             "TESTS_FAILED",
             1,
-            "main",
+            "test_execution",
             tmp_path,
         )
         assert result is not None

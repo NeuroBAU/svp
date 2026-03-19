@@ -502,12 +502,12 @@ class TestStructuralCheckRouting:
     """Verify structural_check is wired into Stage 5 routing."""
 
     def test_structural_check_in_stage5_sub_stages(self):
-        from src.unit_2.stub import STAGE_5_SUB_STAGES
+        from pipeline_state import STAGE_5_SUB_STAGES
 
         assert "structural_check" in STAGE_5_SUB_STAGES
 
     def test_structural_check_before_compliance_scan(self):
-        from src.unit_2.stub import STAGE_5_SUB_STAGES
+        from pipeline_state import STAGE_5_SUB_STAGES
 
         sc_idx = STAGE_5_SUB_STAGES.index("structural_check")
         cs_idx = STAGE_5_SUB_STAGES.index("compliance_scan")
@@ -520,7 +520,7 @@ class TestStructuralCheckRouting:
 
     def test_route_structural_check_sub_stage(self):
         from routing import route
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         state = PipelineState(
             stage="5",
@@ -536,7 +536,7 @@ class TestStructuralCheckRouting:
 
     def test_dispatch_structural_check_succeeded(self):
         from routing import dispatch_command_status
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         state = PipelineState(
             stage="5",
@@ -551,7 +551,7 @@ class TestStructuralCheckRouting:
 
     def test_dispatch_structural_check_failed(self):
         from routing import dispatch_command_status
-        from src.unit_2.stub import PipelineState
+        from pipeline_state import PipelineState
 
         state = PipelineState(
             stage="5",

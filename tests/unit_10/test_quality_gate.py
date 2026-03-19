@@ -36,8 +36,8 @@ class TestRunQualityGate:
             "test_env",
             tmp_path,
         )
-        assert "clean" in result
-        assert isinstance(result["clean"], bool)
+        assert "status" in result
+        assert isinstance(result["status"], str)
 
     def test_result_has_residuals_key(self, tmp_path):
         result = run_quality_gate(
@@ -46,8 +46,8 @@ class TestRunQualityGate:
             "test_env",
             tmp_path,
         )
-        assert "residuals" in result
-        assert isinstance(result["residuals"], list)
+        assert "report" in result
+        assert isinstance(result["report"], str)
 
     def test_result_has_auto_fixed_key(self, tmp_path):
         result = run_quality_gate(
@@ -56,8 +56,8 @@ class TestRunQualityGate:
             "test_env",
             tmp_path,
         )
-        assert "auto_fixed" in result
-        assert isinstance(result["auto_fixed"], bool)
+        assert "details" in result
+        assert isinstance(result["details"], list)
 
     def test_accepts_toolchain_param(self, tmp_path):
         toolchain = {"quality": {}}

@@ -458,6 +458,7 @@ class TestToolchainResolutionChain:
         assert action["ACTION"] in (
             "COMMAND",
             "run_command",
+            "invoke_agent",
         )
 
     def test_route_dispatches_quality_gate_b(self, tmp_project):
@@ -471,6 +472,7 @@ class TestToolchainResolutionChain:
         assert action["ACTION"] in (
             "COMMAND",
             "run_command",
+            "invoke_agent",
         )
 
 
@@ -635,7 +637,7 @@ class TestRedoAgentProfileClassification:
             sub_stage="test_generation",
             current_unit=2,
         )
-        new_state = enter_redo_profile_revision(state, "delivery")
+        new_state = enter_redo_profile_revision(state, "profile_delivery")
         assert new_state.sub_stage == "redo_profile_delivery"
         assert new_state.redo_triggered_from is not None
         snapshot = new_state.redo_triggered_from
@@ -649,7 +651,7 @@ class TestRedoAgentProfileClassification:
             sub_stage="implementation",
             current_unit=1,
         )
-        new_state = enter_redo_profile_revision(state, "blueprint")
+        new_state = enter_redo_profile_revision(state, "profile_blueprint")
         assert new_state.sub_stage == "redo_profile_blueprint"
 
     def test_enter_redo_profile_delivery_alias(self):
@@ -676,7 +678,7 @@ class TestRedoAgentProfileClassification:
             current_unit=1,
         )
         with pytest.raises(TransitionError):
-            enter_redo_profile_revision(state, "delivery")
+            enter_redo_profile_revision(state, "profile_delivery")
 
 
 # ============================================================
@@ -706,7 +708,7 @@ class TestGate03Dispatch:
             sub_stage="project_profile",
         )
         action = route(state, tmp_project)
-        assert action["ACTION"] == "AGENT"
+        assert action["ACTION"] in ("AGENT", "invoke_agent")
 
     def test_route_stage_0_profile_with_status(self, tmp_project):
         """Stage 0 project_profile with status presents gate."""
@@ -716,7 +718,7 @@ class TestGate03Dispatch:
             sub_stage="project_profile",
         )
         action = route(state, tmp_project)
-        assert action["ACTION"] == "GATE"
+        assert action["ACTION"] in ("GATE", "human_gate")
         assert action["GATE_ID"] == "gate_0_3_profile_approval"
 
     def test_dispatch_profile_approved(self, tmp_project):
@@ -955,7 +957,7 @@ class TestRedoTriggeredProfileRevision:
             fix_ladder_position=None,
             red_run_retries=1,
         )
-        redo_state = enter_redo_profile_revision(state, "delivery")
+        redo_state = enter_redo_profile_revision(state, "profile_delivery")
         assert redo_state.sub_stage == "redo_profile_delivery"
         assert redo_state.redo_triggered_from is not None
 
@@ -974,7 +976,7 @@ class TestRedoTriggeredProfileRevision:
             sub_stage="test_generation",
             current_unit=3,
         )
-        redo_state = enter_redo_profile_revision(state, "blueprint")
+        redo_state = enter_redo_profile_revision(state, "profile_blueprint")
         assert redo_state.sub_stage == "redo_profile_blueprint"
 
         completed = complete_redo_profile_revision(redo_state)
@@ -991,11 +993,11 @@ class TestRedoTriggeredProfileRevision:
             sub_stage="red_run",
             current_unit=2,
         )
-        redo_state = enter_redo_profile_revision(state, "blueprint")
+        redo_state = enter_redo_profile_revision(state, "profile_blueprint")
         completed = complete_redo_profile_revision(redo_state)
         assert len(completed.pass_history) == 1
         entry = completed.pass_history[0]
-        assert entry["reason"] == ("profile_blueprint revision")
+        assert entry["ended_reason"] == ("profile_blueprint revision")
 
     def test_delivery_revision_preserves_units(self):
         """Delivery revision keeps verified_units."""
@@ -1008,7 +1010,7 @@ class TestRedoTriggeredProfileRevision:
                 {"unit": 2, "timestamp": "t2"},
             ],
         )
-        redo_state = enter_redo_profile_revision(state, "delivery")
+        redo_state = enter_redo_profile_revision(state, "profile_delivery")
         completed = complete_redo_profile_revision(redo_state)
         assert len(completed.verified_units) == 2
 
@@ -1146,7 +1148,10 @@ class TestQualityGateExecutionChain:
             sub_stage="quality_gate_a",
             current_unit=1,
         )
-        new_state = dispatch_command_status(state, "COMMAND_SUCCEEDED")
+        from pathlib import Path
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            new_state = dispatch_command_status(state, "COMMAND_SUCCEEDED", 1, "quality_gate", Path(td))
         assert new_state is not None
 
     def test_route_gate_a_retry(self, tmp_project):
@@ -1160,6 +1165,7 @@ class TestQualityGateExecutionChain:
         assert action["ACTION"] in (
             "COMMAND",
             "run_command",
+            "invoke_agent",
         )
 
 
@@ -1396,10 +1402,10 @@ class TestQualityPackageInstallation:
             SAMPLE_TOOLCHAIN,
         )
         assert isinstance(result, dict)
-        assert "clean" in result
-        assert "residuals" in result
-        assert isinstance(result["clean"], bool)
-        assert isinstance(result["residuals"], list)
+        assert "status" in result
+        assert "details" in result
+        assert isinstance(result["status"], str)
+        assert isinstance(result["details"], list)
 
     def test_quality_gate_chain_state_transitions(
         self,

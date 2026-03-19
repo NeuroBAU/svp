@@ -21,7 +21,7 @@ import pytest
 # Path setup
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS_DIR = PROJECT_ROOT / "scripts"
+SCRIPTS_DIR = PROJECT_ROOT / "svp" / "scripts"
 SRC_DIR = PROJECT_ROOT / "src"
 
 # Add scripts to path so we can import routing, state_transitions, etc.
@@ -33,7 +33,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # ---------------------------------------------------------------------------
 # Imports from stubs (canonical API)
 # ---------------------------------------------------------------------------
-from src.unit_2.stub import (
+from pipeline_state import (
     DebugSession,
     FIX_LADDER_POSITIONS,
     PipelineState,
@@ -41,8 +41,8 @@ from src.unit_2.stub import (
     STAGE_4_SUB_STAGES,
     STAGE_5_SUB_STAGES,
 )
-from src.unit_9.stub import ALL_GATE_IDS, KNOWN_AGENT_TYPES
-from src.unit_10.stub import (
+from prepare_task import ALL_GATE_IDS, KNOWN_AGENT_TYPES
+from routing import (
     AGENT_STATUS_LINES as STUB_AGENT_STATUS_LINES,
     COMMAND_STATUS_PATTERNS as STUB_COMMAND_STATUS_PATTERNS,
     GATE_RESPONSES as STUB_GATE_RESPONSES,
@@ -330,9 +330,17 @@ class TestExportedFunctionsVsCallSites:
         orphaned = public_funcs - consumers
         # TransitionError is a class, not a function -- filter it out
         # Also filter known exceptions (classes)
+        # Filter out class names and known compatibility aliases
+        # (wrappers that map stub names to script functions, imported by tests)
+        _COMPAT_ALIASES = {
+            "advance_from_quality_gate",
+            "enter_quality_gate_retry",
+            "fail_quality_gate_to_ladder",
+        }
         orphaned = {
             f for f in orphaned
             if not f[0].isupper()  # skip class names
+            and f not in _COMPAT_ALIASES
         }
         assert not orphaned, (
             f"Orphaned public functions in state_transitions.py "
@@ -420,7 +428,7 @@ class TestStubVsScriptSynchronization:
     def test_fix_ladder_positions_match(self):
         """FIX_LADDER_POSITIONS (unit_2 stub) includes all positions used
         in _FIX_LADDER_TRANSITIONS (unit_3 stub)."""
-        from src.unit_3.stub import _FIX_LADDER_TRANSITIONS
+        from state_transitions import _FIX_LADDER_TRANSITIONS
         all_positions = set()
         for k, v in _FIX_LADDER_TRANSITIONS.items():
             if k is not None:
@@ -971,7 +979,7 @@ class TestDebugPhaseTransitionsVsKnownPhases:
 
     def test_transition_targets_match_stub(self):
         """_DEBUG_PHASE_TRANSITIONS in scripts matches the stub version."""
-        from src.unit_3.stub import _DEBUG_PHASE_TRANSITIONS as STUB_DPT
+        from state_transitions import _DEBUG_PHASE_TRANSITIONS as STUB_DPT
         assert set(STUB_DPT.keys()) == set(_DEBUG_PHASE_TRANSITIONS.keys()), (
             f"Debug phase transition keys differ between stub and script.\n"
             f"  Stub-only: {sorted(set(STUB_DPT.keys()) - set(_DEBUG_PHASE_TRANSITIONS.keys()))}\n"

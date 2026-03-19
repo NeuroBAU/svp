@@ -118,7 +118,7 @@ class TestBehaviorHandledInline:
         )
         result = restart_from_stage(state, "2", "blueprint revision", tmp_path)
         assert len(result.pass_history) == 1
-        assert result.pass_history[0]["reason"] == "blueprint revision"
+        assert result.pass_history[0]["ended_reason"] == "blueprint revision"
 
     def test_complete_unit_resets_fix_ladder(self, tmp_path):
         from state_transitions import complete_unit

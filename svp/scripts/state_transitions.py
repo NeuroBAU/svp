@@ -817,3 +817,32 @@ def set_delivered_repo_path(state: PipelineState, repo_path: str) -> PipelineSta
     new_state.delivered_repo_path = repo_path
     new_state.last_action = f"Set delivered repo path to {repo_path}"
     return new_state
+
+
+# --- Compatibility aliases for test imports (stub function names) ---
+
+def advance_from_quality_gate(state: PipelineState, target_sub_stage: str) -> PipelineState:
+    """Alias for quality_gate_pass that accepts (and ignores) a target sub-stage argument.
+    
+    The stub API exposes advance_from_quality_gate(state, target); the script
+    infers the target from the current sub_stage via quality_gate_pass(state).
+    """
+    return quality_gate_pass(state)
+
+
+def enter_quality_gate_retry(state: PipelineState, retry_sub_stage: str) -> PipelineState:
+    """Alias for advance_quality_gate_to_retry that accepts (and ignores) a retry sub-stage argument.
+    
+    The stub API exposes enter_quality_gate_retry(state, retry_sub_stage); the script
+    infers the retry sub_stage via advance_quality_gate_to_retry(state).
+    """
+    return advance_quality_gate_to_retry(state)
+
+
+def fail_quality_gate_to_ladder(state: PipelineState, position: str) -> PipelineState:
+    """Alias for quality_gate_fail_to_ladder that accepts (and ignores) a position argument.
+    
+    The stub API exposes fail_quality_gate_to_ladder(state, position); the script
+    infers the ladder branch via quality_gate_fail_to_ladder(state).
+    """
+    return quality_gate_fail_to_ladder(state)

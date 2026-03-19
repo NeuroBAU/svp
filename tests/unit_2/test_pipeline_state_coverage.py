@@ -427,10 +427,9 @@ class TestRecoverStateMarkersCorrect:
 
         markers_dir = tmp_path / ".svp" / "markers"
         markers_dir.mkdir(parents=True)
-        marker_data = {"unit": 1, "status": "complete"}
         (
-            markers_dir / "unit_1_complete.json"
-        ).write_text(json.dumps(marker_data))
+            markers_dir / "unit_1_verified"
+        ).write_text("VERIFIED: 2025-01-01T00:00:00")
 
         result = recover_state_from_markers(tmp_path)
         assert result is not None
@@ -448,10 +447,9 @@ class TestRecoverStateMarkersCorrect:
         markers_dir = tmp_path / ".svp" / "markers"
         markers_dir.mkdir(parents=True)
         for i in [1, 2, 3]:
-            data = {"unit": i, "status": "complete"}
-            fname = f"unit_{i}_complete.json"
+            fname = f"unit_{i}_verified"
             (markers_dir / fname).write_text(
-                json.dumps(data)
+                f"VERIFIED: 2025-01-01T00:00:00"
             )
 
         result = recover_state_from_markers(tmp_path)
@@ -495,24 +493,23 @@ class TestRecoverStateMarkersCorrect:
 
         markers_dir = tmp_path / ".svp" / "markers"
         markers_dir.mkdir(parents=True)
-        # One valid, one malformed
-        valid = {"unit": 2, "status": "complete"}
+        # One valid marker, one non-matching file
         (
-            markers_dir / "unit_2_complete.json"
-        ).write_text(json.dumps(valid))
+            markers_dir / "unit_2_verified"
+        ).write_text("VERIFIED: 2025-01-01T00:00:00")
         (
-            markers_dir / "unit_3_complete.json"
-        ).write_text("{bad json")
+            markers_dir / "not_a_marker.txt"
+        ).write_text("garbage")
 
         result = recover_state_from_markers(tmp_path)
         assert result is not None
         assert len(result.verified_units) == 1
 
-    def test_recover_falls_back_to_load_state(
+    def test_recover_falls_back_to_none_when_no_markers(
         self, tmp_path
     ):
         """When .svp exists but no markers, and a valid
-        pipeline_state.json exists, load it."""
+        pipeline_state.json exists, returns None (no marker-based recovery)."""
         from pipeline_state import (
             create_initial_state,
             recover_state_from_markers,
@@ -525,8 +522,7 @@ class TestRecoverStateMarkersCorrect:
         save_state(state, tmp_path)
 
         result = recover_state_from_markers(tmp_path)
-        assert result is not None
-        assert result.stage == "0"
+        assert result is None
 
 
 # ---------------------------------------------------------------
@@ -766,7 +762,7 @@ class TestDebugSessionDefaults:
         assert ds.classification is None
         assert ds.affected_units == []
         assert ds.regression_test_path is None
-        assert ds.phase == "triage"
+        assert ds.phase == "triage_readonly"
         assert ds.authorized is False
         assert ds.triage_refinement_count == 0
         assert ds.repair_retry_count == 0

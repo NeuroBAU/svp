@@ -119,6 +119,11 @@ def load_stakeholder_spec(project_root: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def get_blueprint_dir(project_root: Path) -> Path:
+    """Return the blueprint directory path."""
+    return project_root / ARTIFACT_FILENAMES.get("blueprint_dir", "blueprint")
+
+
 def load_blueprint(project_root: Path) -> str:
     """Load the blueprint document (both prose and contracts files).
 
@@ -1108,6 +1113,51 @@ def prepare_gate_prompt(
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
+
+
+def filter_lessons_learned(project_root: Path, unit_number: int, dependencies: List[int]) -> str:
+    """Extract lessons matching unit or its dependencies."""
+    ll_fname = ARTIFACT_FILENAMES.get("lessons_learned", "svp_2_1_lessons_learned.md")
+    ll_path = project_root / ll_fname
+    if not ll_path.exists():
+        return ""
+    ll_content = ll_path.read_text(encoding="utf-8")
+    if not ll_content.strip():
+        return ""
+    relevant = {unit_number} | set(dependencies)
+    lines = ll_content.split("\n")
+    matched = []
+    current_entry = []
+    entry_relevant = False
+    for line in lines:
+        if line.startswith("## ") or line.startswith("# "):
+            if current_entry and entry_relevant:
+                matched.extend(current_entry)
+                matched.append("")
+            current_entry = [line]
+            entry_relevant = False
+            for u in relevant:
+                if f"unit {u}" in line.lower() or f"unit_{u}" in line.lower():
+                    entry_relevant = True
+                    break
+        else:
+            current_entry.append(line)
+            if not entry_relevant:
+                for u in relevant:
+                    if f"unit {u}" in line.lower() or f"unit_{u}" in line.lower():
+                        entry_relevant = True
+                        break
+    if current_entry and entry_relevant:
+        matched.extend(current_entry)
+    result = "\n".join(matched).strip()
+    if not result:
+        return ""
+    return "## Lessons Learned (Filtered)\n\n" + result
+
+
+def load_lessons_learned_for_unit(project_root: Path, unit_number: int) -> str:
+    """Load lessons learned filtered for a unit."""
+    return filter_lessons_learned(project_root, unit_number, [])
 
 
 def main() -> None:
