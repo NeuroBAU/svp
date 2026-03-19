@@ -1270,6 +1270,22 @@ Built a project-agnostic structural completeness checking system that works for 
 **Prevention:** Every new registry, dispatch table, or enum-like constant introduced in any project should be detectable by the structural check script. The four layers ensure coverage at authoring time (L1), test time (L2), assembly time (L3), and debug time (L4).
 
 ---
+
+### Bug 73: Routing/dispatch loops from unchanged state returns (compound fix)
+
+**Date:** 2026-03-19
+**Classification:** single_unit (routing.py)
+**Root cause:** P10 (Error-Path Contract Omission) -- Three dispatch handlers returned state unchanged, causing routing to loop back to the same action indefinitely.
+
+**Findings (3 fixes):**
+- Bug 73: Stage 0 project_context routing only checked `PROJECT_CONTEXT_COMPLETE`. If the setup agent completed both artifacts in one session and wrote `PROFILE_COMPLETE`, the else branch re-invoked the setup agent. Additionally, after Gate 0.2 overwrites last_status with "CONTEXT APPROVED", the project_profile branch couldn't detect the already-created profile. Fixed by: (a) expanding the project_context check to also match PROFILE_COMPLETE, (b) adding artifact-existence fallback in the project_profile branch.
+- Bug 73-A: Gate 5.3 `OVERRIDE CONTINUE` returned state unchanged with sub_stage still "gate_5_3". Routing re-presented the same gate. Fixed by advancing sub_stage to "repo_complete".
+- Bug 73-B: Gate 4.1 `ASSEMBLY FIX` returned state unchanged with sub_stage still "gate_4_1". Routing re-presented the same gate. Fixed by resetting sub_stage to None via advance_sub_stage.
+
+**Pattern:** Every `return state` in a dispatch handler is suspect. The returned state, when fed back into `route()`, must produce a *different* action than the one that just completed. If it produces the same action, the pipeline loops. This is the 7th occurrence of this pattern.
+
+**Prevention:** Exhaustive checklist for every dispatch handler: trace the returned state through `route()` and verify it produces a different action. No `return state` without explicit sub_stage advancement.
+
 ---
 
 *End of lessons learned.*

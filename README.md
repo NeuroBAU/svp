@@ -548,7 +548,7 @@ can.
 
 SVP itself was built by SVP. The lessons learned document
 (`docs/references/svp_2_1_lessons_learned.md` in the
-delivered repository) catalogs 72 bugs discovered across
+delivered repository) catalogs 73 bugs discovered across
 five build generations — from SVP 1.0 through SVP 2.1.
 Nearly every one traces back to something the stakeholder
 spec didn't say clearly enough. The checklist below is
@@ -757,7 +757,7 @@ caught every one during blueprint alignment.
 > path must document what happens to downstream units."
 
 These nine questions are not exhaustive, but they cover
-the patterns that produced 72 bugs across five build
+the patterns that produced 73 bugs across five build
 generations of SVP. The lessons learned document in the
 delivered repository contains the full catalog with root
 causes, patterns, and prevention rules. Bug 50 in
@@ -820,7 +820,7 @@ Every time a document is revised through a gate decision (REVISE, FIX BLUEPRINT,
 The SVP test suite covers:
 
 - **Unit tests** (`tests/unit_N/`): One test module per pipeline unit, covering the unit's behavioral contracts.
-- **Regression tests** (`tests/regressions/`): Carry-forward tests for all 66 catalogued bugs. Each file targets a specific bug scenario.
+- **Regression tests** (`tests/regressions/`): Carry-forward tests for all 73 catalogued bugs. Each file targets a specific bug scenario.
 - **Integration tests** (`tests/integration/`): Cross-unit tests covering toolchain resolution, profile flow, blueprint checker preference validation, quality gate execution, and write authorization.
 
 Run the full test suite from the repository root:
@@ -894,7 +894,7 @@ SVP 2.1.1 introduces a four-layer structural completeness defense: a project-agn
 - **SVP 1.2.1** — Further bug fixes and robustness improvements.
 - **SVP 2.0** — Project Profile (`project_profile.json`) for delivery preferences. Pipeline Toolchain Abstraction (`toolchain.json`). Profile-driven Stage 5 delivery. Delivery compliance scan. `/svp:redo` profile revision support.
 - **SVP 2.1** — Pipeline Quality Gates (A, B, C) as mandatory build-time checkpoints. Delivered quality configuration via `project_profile.json`. Blueprint prose/contracts split for token-efficient agent context. Universal two-branch routing invariant applied across all pipeline stages. 51 bug fixes (Bugs 17-58) spanning routing, dispatch, state persistence, dead code removal, and spec structural gaps. See CHANGELOG.md for detailed bug-by-bug history.
-- **SVP 2.1.1** — RFC-2: unit-level preference capture in blueprint dialog (Rules P1-P4, preference-contract consistency validation). Structural completeness checking system: four-layer defense with project-agnostic AST scanner, 14 automated declaration-vs-usage techniques, 163 structural tests (Bugs 71-72). 21 additional bug fixes (Bugs 52-72) including full Stage 3 error handling, Stage 4 failure paths, debug loop gates, and selective blueprint loading. RFC-1 (interactive spec) deferred to future release. 72 total bugs cataloged across SVP 1.0 through 2.1.1.
+- **SVP 2.1.1** — RFC-2: unit-level preference capture in blueprint dialog (Rules P1-P4, preference-contract consistency validation). Structural completeness checking system: four-layer defense with project-agnostic AST scanner, 14 automated declaration-vs-usage techniques, 163 structural tests (Bugs 71-72). 21 additional bug fixes (Bugs 52-72) including full Stage 3 error handling, Stage 4 failure paths, debug loop gates, and selective blueprint loading. RFC-1 (interactive spec) deferred to future release. 73 total bugs cataloged across SVP 1.0 through 2.1.1.
 
 ## License
 

@@ -22,7 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- 21 bugs (52-72) spanning orphaned functions, dead gates, no-op dispatch handlers, spec structural gaps, blueprint split compliance
+- 22 bugs (52-73) spanning orphaned functions, dead gates, no-op dispatch handlers, routing loops, spec structural gaps, blueprint split compliance
+- Bug 73: Three routing/dispatch loops from unchanged state returns (Stage 0 PROFILE_COMPLETE, Gate 5.3 OVERRIDE CONTINUE, Gate 4.1 ASSEMBLY FIX)
 - Gate 5.3 routing path (Bug 67)
 - gate_2_3 RETRY BLUEPRINT routing loop (Bug 66)
 - gate_6_3 RECLASSIFY BUG dispatch (Bug 69)
