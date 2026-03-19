@@ -97,7 +97,7 @@ Seven-step logic bug path:
 
 ### Regression Test Inventory (Carry-Forward)
 
-All regression test files carry forward to `tests/regressions/`. 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 13 newly authored in this build (35 total):
+All regression test files carry forward to `tests/regressions/`. 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 24 newly authored in this build (46 total):
 
 | File | Bug Covered |
 |------|-------------|
@@ -187,7 +187,7 @@ SVP processes text artifacts:
 
 ## Success Criteria
 
-1. All SVP 2.0 regression tests pass (updated for signature changes; covering same bug scenarios). All 35 regression test files carry forward (15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 13 newly authored in this build).
+1. All SVP 2.0 regression tests pass (updated for signature changes; covering same bug scenarios). All 46 regression test files carry forward (15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 24 newly authored in this build).
 2. Quality Gate A: post-test, pre-red-run. Format + light lint (E, F, I). No type check on tests.
 3. Quality Gate B: post-implementation, pre-green-run. Format + heavy lint + mypy (--ignore-missing-imports, unit level).
 4. Quality Gate C: Stage 5 assembly. Format check + full lint + full mypy (cross-unit, no --ignore-missing-imports).
