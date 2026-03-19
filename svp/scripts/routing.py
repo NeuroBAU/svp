@@ -729,7 +729,26 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
         }
 
     # Stage 4 (Bug 43: two-branch routing)
+    # Bug 71: Added sub_stage handling for gate_4_1, gate_4_2.
     if stage == "4":
+        # Bug 68/71: Check gate sub-stages first
+        if sub_stage == "gate_4_1":
+            return {
+                "ACTION": "human_gate",
+                "GATE_ID": "gate_4_1_integration_failure",
+                "OPTIONS": GATE_VOCABULARY["gate_4_1_integration_failure"],
+                "PREPARE": _gate_prepare_cmd("gate_4_1_integration_failure"),
+                "POST": _post_cmd("gate", gate_id="gate_4_1_integration_failure"),
+            }
+        elif sub_stage == "gate_4_2":
+            return {
+                "ACTION": "human_gate",
+                "GATE_ID": "gate_4_2_assembly_exhausted",
+                "OPTIONS": GATE_VOCABULARY["gate_4_2_assembly_exhausted"],
+                "PREPARE": _gate_prepare_cmd("gate_4_2_assembly_exhausted"),
+                "POST": _post_cmd("gate", gate_id="gate_4_2_assembly_exhausted"),
+            }
+
         last_status = _read_last_status(project_root)
         if last_status == "INTEGRATION_TESTS_COMPLETE":
             return {
@@ -1741,6 +1760,12 @@ def dispatch_command_status(
                 else:
                     # Other positions: try next ladder step or Gate 3.2
                     return advance_sub_stage(state, "gate_3_2", project_root)
+            # Bug 71: Stage 4 TESTS_FAILED handler (missing from original)
+            if state.stage == "4":
+                new_state = increment_red_run_retries(state)
+                if new_state.red_run_retries >= 3:
+                    return advance_sub_stage(new_state, "gate_4_2", project_root)
+                return advance_sub_stage(new_state, "gate_4_1", project_root)
             return state
         elif status_line.startswith("TESTS_ERROR"):
             # Bug 70 F2: TESTS_ERROR must not return state unchanged (infinite loop).
