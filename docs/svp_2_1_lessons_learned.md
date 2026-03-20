@@ -1476,7 +1476,7 @@ Gap B (Unit 10): routing.py profile sub-stage guard (Bug 52/73 artifact-existenc
 
 **Prevention:** State validators must account for the lifecycle of composite state objects. When a state object is populated in stages, validation rules must be phase-aware.
 
-**Test:** (manual verification -- routing.py now loads state successfully during triage_readonly phase)
+**Test:** `test_bug88_debug_session_validator.py`
 
 ---
 
