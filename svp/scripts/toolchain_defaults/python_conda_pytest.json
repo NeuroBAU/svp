@@ -59,7 +59,8 @@
       "tool": "ruff",
       "light": "{run_prefix} ruff check {target}",
       "heavy": "{run_prefix} ruff check {target} --select ALL",
-      "check": "{run_prefix} ruff check {target}"
+      "check": "{run_prefix} ruff check {target}",
+      "unused_exports": "{run_prefix} ruff check {target} --select F811"
     },
     "type_checker": {
       "tool": "mypy",
@@ -82,7 +83,8 @@
     "gate_c": [
       "formatter.check",
       "linter.heavy",
-      "type_checker.check"
+      "type_checker.check",
+      "linter.unused_exports"
     ]
   },
   "file_structure": {

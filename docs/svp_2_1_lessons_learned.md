@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-80)
+## Part 1: Unified Bug Catalog (Bugs 1-82)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69 (42 of 80 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69 (42 of 82 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 80 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 82 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -544,7 +544,7 @@ Happy-path transitions are contracted and tested; error paths are described in s
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (42 of 80 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (42 of 82 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -1353,6 +1353,22 @@ Built a project-agnostic structural completeness checking system that works for 
 **Pattern:** Every agent that produces files must have exact output paths in its definition. Without them, the agent guesses based on conventions and often guesses wrong.
 
 **Fix:** Added explicit output paths to blueprint author agent definition and constraints. Fixed stale `blueprint.md` reference in git_repo_agent to `blueprint_prose.md` and `blueprint_contracts.md`.
+
+### Bug 81: No env-existence guard in run_quality_gate / run_pytest
+
+**Date:** 2026-03-20
+**Classification:** single_unit (routing.py)
+**Root cause:** Neither `run_quality_gate` nor `run_pytest` checks whether the conda environment exists before running commands. When the env is missing (e.g., infrastructure setup was skipped), conda's error is silently treated as a quality/test failure. The pipeline engages the fix ladder, sending agents chasing phantom problems with no diagnostic about the root cause.
+
+**Fix:** Added `_check_conda_env_exists()` guard. Both functions now return a clear error message (`TESTS_ERROR: conda environment 'X' does not exist`) instead of opaque quality/test failures.
+
+### Bug 82: Toolchain defaults schema drift — missing unused_exports
+
+**Date:** 2026-03-20
+**Classification:** toolchain configuration
+**Root cause:** The delivered plugin's `python_conda_pytest.json` was missing `linter.unused_exports` and Gate C's composition didn't include it. Projects created from the plugin defaults would skip the unused-function detection at Gate C (Bugs 56/58 feature).
+
+**Fix:** Added `"unused_exports": "{run_prefix} ruff check {target} --select F811"` to linter section and `"linter.unused_exports"` to gate_c composition in both workspace and delivered defaults.
 
 ---
 

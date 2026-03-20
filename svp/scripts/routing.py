@@ -1066,6 +1066,18 @@ def run_quality_gate(
         report: formatted quality report string
         details: list of per-tool result dicts
     """
+    # Bug 81: check env exists before running quality tools
+    if not _check_conda_env_exists(env_name):
+        error_msg = (
+            f"conda environment '{env_name}' does not exist. "
+            f"Run infrastructure setup (Pre-Stage-3) first."
+        )
+        return {
+            "status": "residuals",
+            "report": f"## Environment Error\n{error_msg}\n",
+            "details": [{"tool": "env_check", "exit_code": 1, "stderr": error_msg}],
+        }
+
     # Load toolchain if not provided
     if toolchain is None:
         try:
@@ -1935,6 +1947,22 @@ def dispatch_command_status(
 # --- Run tests wrapper ---
 
 
+def _check_conda_env_exists(env_name: str) -> bool:
+    """Bug 81: Check if a conda environment exists before running commands."""
+    try:
+        result = subprocess.run(
+            ["conda", "env", "list", "--json"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0:
+            import json as _json
+            data = _json.loads(result.stdout)
+            return any(env_name in p for p in data.get("envs", []))
+    except Exception:
+        pass
+    return True  # If we can't check, assume it exists and let the command fail naturally
+
+
 def run_pytest(
     test_path: Path,
     env_name: str,
@@ -1942,6 +1970,13 @@ def run_pytest(
     toolchain: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Execute pytest and return a command result status line."""
+    # Bug 81: check env exists before running
+    if not _check_conda_env_exists(env_name):
+        return (
+            f"TESTS_ERROR: conda environment '{env_name}' does not exist. "
+            f"Run infrastructure setup (Pre-Stage-3) first."
+        )
+
     # Build command
     if (
         toolchain is not None

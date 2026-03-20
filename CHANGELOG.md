@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- 29 bugs (52-80) spanning orphaned functions, dead gates, no-op dispatch handlers, routing loops, test infrastructure, quality gate state mismatch, skipped infrastructure setup, agent tool permissions, toolchain compatibility, spec structural gaps, blueprint split compliance
+- 31 bugs (52-82) spanning orphaned functions, dead gates, no-op dispatch handlers, routing loops, test infrastructure, quality gate state mismatch, skipped infrastructure setup, agent tool permissions, toolchain compatibility, spec structural gaps, blueprint split compliance
 - Bug 73: Three routing/dispatch loops from unchanged state returns (Stage 0 PROFILE_COMPLETE, Gate 5.3 OVERRIDE CONTINUE, Gate 4.1 ASSEMBLY FIX)
 - Bug 74: Regression tests must test real scripts, not stubs (test target invariant added to checker/reviewer checklists)
 - Bug 75: Coverage review auto-format quality gate TransitionError (sub_stage=coverage_review vs quality_gate_b mismatch)
@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bug 78: Reference indexing agent missing Write tool — cannot produce summaries.md
 - Bug 79: Reference indexing task prompt loaded summaries.md (own output) instead of raw reference docs (input)
 - Bug 80: Blueprint author agent missing output path — wrote to docs/ instead of blueprint/; also fixed stale blueprint.md reference in git_repo_agent
+- Bug 81: No env-existence guard in run_quality_gate / run_pytest — missing conda env silently treated as quality/test failure
+- Bug 82: Toolchain defaults schema drift — missing linter.unused_exports and Gate C unused_exports check
 - Gate 5.3 routing path (Bug 67)
 - gate_2_3 RETRY BLUEPRINT routing loop (Bug 66)
 - gate_6_3 RECLASSIFY BUG dispatch (Bug 69)

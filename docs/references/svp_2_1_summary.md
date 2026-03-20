@@ -3,7 +3,7 @@
 **Date:** 2026-03-15
 **Companion to:** Stakeholder Specification v8.29 (Document 2)
 **Pipeline role:** Reference document. Available to blueprint checker as cross-check.
-**Bug count:** 80 bugs cataloged across SVP 1.0 through SVP 2.1 (see `svp_2_1_lessons_learned.md`).
+**Bug count:** 82 bugs cataloged across SVP 1.0 through SVP 2.1 (see `svp_2_1_lessons_learned.md`).
 
 ---
 
