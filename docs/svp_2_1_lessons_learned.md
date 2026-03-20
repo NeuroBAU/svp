@@ -1460,7 +1460,7 @@ Gap B (Unit 10): routing.py profile sub-stage guard (Bug 52/73 artifact-existenc
 
 **Prevention:** Every artifact that exists in N>1 locations must have a deterministic sync script, not rely on agent instructions to keep copies aligned.
 
-**Test:** (manual verification -- sync script is infrastructure, not unit-testable in the standard framework)
+**Test:** `test_bug87_doc_sync_routing.py`
 
 ---
 
