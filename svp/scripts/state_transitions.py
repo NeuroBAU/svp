@@ -503,6 +503,8 @@ def complete_debug_session(state: PipelineState, fix_summary: str) -> PipelineSt
     session_record["fix_summary"] = fix_summary
     session_record["completed_at"] = datetime.now(timezone.utc).isoformat()
     session_record["status"] = "completed"
+    # Bug 95: validate_state requires 'resolution' in every debug_history entry
+    session_record["resolution"] = fix_summary
 
     new_state.debug_history = list(new_state.debug_history) + [session_record]
     new_state.debug_session = None
@@ -522,6 +524,8 @@ def abandon_debug_session(state: PipelineState) -> PipelineState:
     session_record = new_state.debug_session.to_dict()
     session_record["abandoned_at"] = datetime.now(timezone.utc).isoformat()
     session_record["status"] = "abandoned"
+    # Bug 95: validate_state requires 'resolution' in every debug_history entry
+    session_record["resolution"] = "Abandoned by user"
 
     new_state.debug_history = list(new_state.debug_history) + [session_record]
     new_state.debug_session = None

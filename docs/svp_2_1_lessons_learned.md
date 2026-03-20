@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-93)
+## Part 1: Unified Bug Catalog (Bugs 1-95)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69, 86, 89, 93 (45 of 93 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69, 86, 89, 93, 95 (46 of 95 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 93 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 95 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -556,7 +556,7 @@ Pipeline defines artifact synchronization invariants for code artifacts (source 
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (45 of 93 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (46 of 95 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -675,6 +675,8 @@ Pipeline defines artifact synchronization invariants for code artifacts (source 
 | 91 | `test_bug90_profile_schema_alignment.py` (shared) | Post-delivery (debug loop) |
 | 92 | `test_bug92_doc_sync_marker_reset.py` | Post-delivery (debug loop) |
 | 93 | `test_bug93_triage_result_json.py` | Post-delivery (debug loop) |
+| 94 | (feature, not a bug — no regression test) | Post-delivery (debug loop) |
+| 95 | `test_bug95_abandon_resolution_field.py` | Post-delivery (debug loop) |
 
 Note: Regression test file names (test_bug2 through test_bug62) use either the original post-delivery numbering or the unified catalog numbering. This document's unified Bug 1-64 numbering includes blueprint-era, post-delivery, and rebuild preparation bugs chronologically. The mapping table provides the cross-reference.
 
@@ -1589,6 +1591,22 @@ Gap B (Unit 10): routing.py profile sub-stage guard (Bug 52/73 artifact-existenc
 **Prevention:** When designing dialog flows with multiple configuration areas, always consider whether a "use existing / skip" option is needed alongside "accept defaults" and "configure manually."
 
 **Test:** `test_bug94_use_repo_tooling.py`
+
+---
+
+### Bug 95: abandon/complete_debug_session missing resolution field in history
+
+**Date:** 2026-03-20
+**Classification:** pipeline tooling (state_transitions.py)
+**Root cause:** P1 (Cross-Unit Contract Drift) -- `validate_state()` (pipeline_state.py) requires every `debug_history` entry to have a `resolution` field. But `abandon_debug_session()` and `complete_debug_session()` (state_transitions.py) don't write it when moving the session to history. After abandoning a debug session, the next `load_state()` call fails with `ValueError: debug_history[0] missing 'resolution' field`.
+
+**Fix:** Both `abandon_debug_session` and `complete_debug_session` now set `session_record["resolution"]` — "Abandoned by user" for abandon, the `fix_summary` parameter for complete.
+
+**Pattern:** P1 (Cross-Unit Contract Drift) -- The validator (consumer) requires a field that the transition functions (producers) don't write. The validator was added (Bug 88) without updating the transition functions that populate the validated data structure.
+
+**Prevention:** When adding validation rules to a state validator, verify that every producer of the validated data structure writes all required fields. Structural tests should verify that every field required by the validator is set by every function that creates or modifies the validated object.
+
+**Test:** `test_bug95_abandon_resolution_field.py`
 
 ---
 

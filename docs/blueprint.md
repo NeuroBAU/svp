@@ -1116,6 +1116,8 @@ assert result.delivered_repo_path == repo_path
 - `advance_quality_gate_to_retry` transitions from `quality_gate_a` to `quality_gate_a_retry` or `quality_gate_b` to `quality_gate_b_retry`.
 - `quality_gate_pass` advances past quality gate: from `quality_gate_a`/`quality_gate_a_retry` to `"red_run"`; from `quality_gate_b`/`quality_gate_b_retry` to `"green_run"`.
 - `quality_gate_fail_to_ladder` calls `advance_fix_ladder` internally. If ladder has room, sets `sub_stage` to `None`. If exhausted, preserves sub_stage for routing to present exhaustion gate.
+- `complete_debug_session` moves the active debug session to `debug_history` with `status: "completed"`, `completed_at`, `fix_summary`, and `resolution` (set to `fix_summary` — Bug 95 fix). Requires `authorized == True`.
+- `abandon_debug_session` moves the active debug session to `debug_history` with `status: "abandoned"`, `abandoned_at`, and `resolution: "Abandoned by user"` (Bug 95 fix). Both functions must produce history entries that pass `validate_state`.
 - `set_delivered_repo_path` records the absolute path to the delivered repository.
 - All transition functions return a new `PipelineState` -- they do not mutate the input.
 
