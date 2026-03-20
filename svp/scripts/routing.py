@@ -262,11 +262,13 @@ def _read_triage_affected_units(project_root: Path) -> List[int]:
 # --- Command generation helpers ---
 
 
-def _prepare_cmd(agent_type: str, unit: Optional[int] = None) -> str:
+def _prepare_cmd(agent_type: str, unit: Optional[int] = None, context: Optional[str] = None) -> str:
     """Generate the PREPARE command string for invoking an agent via prepare_task.py."""
     cmd = f"python scripts/prepare_task.py --agent {agent_type} --project-root . --output .svp/task_prompt.md"
     if unit is not None:
         cmd += f" --unit {unit}"
+    if context is not None:
+        cmd += f" --context {context}"
     return cmd
 
 
@@ -362,7 +364,7 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             action = _invoke_agent_action(
                 "setup_agent", project_root,
                 context="targeted_profile_revision",
-                prepare_cmd=_prepare_cmd("setup_agent"),
+                prepare_cmd=_prepare_cmd("setup_agent", context="targeted_profile_revision"),
                 post_cmd=_post_cmd("setup"),
             )
             action["CLASSIFICATION"] = "profile_delivery"
@@ -382,7 +384,7 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             action = _invoke_agent_action(
                 "setup_agent", project_root,
                 context="targeted_profile_revision",
-                prepare_cmd=_prepare_cmd("setup_agent"),
+                prepare_cmd=_prepare_cmd("setup_agent", context="targeted_profile_revision"),
                 post_cmd=_post_cmd("setup"),
             )
             action["CLASSIFICATION"] = "profile_blueprint"
@@ -415,19 +417,15 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 return _invoke_agent_action(
                     "setup_agent", project_root,
                     context="project_context",
-                    prepare_cmd=_prepare_cmd("setup_agent"),
+                    prepare_cmd=_prepare_cmd("setup_agent", context="project_context"),
                     post_cmd=_post_cmd("setup"),
                 )
         elif sub_stage == "project_profile":
-            # Bug 21: two-branch routing
-            # Bug 52: also check artifact existence (profile may have been created
-            # during the context phase, with last_status overwritten by Gate 0.2)
+            # Bug 86 fix: Only PROFILE_COMPLETE should trigger the gate.
+            # The artifact-existence fallback was too loose -- carry-over statuses
+            # like CONTEXT APPROVED could skip the profile dialog.
             last_status = _read_last_status(project_root)
-            profile_exists = (project_root / "project_profile.json").exists()
-            if last_status == "PROFILE_COMPLETE" or (
-                profile_exists
-                and last_status not in ("PROFILE REJECTED", None)
-            ):
+            if last_status == "PROFILE_COMPLETE":
                 return {
                     "ACTION": "human_gate",
                     "GATE_ID": "gate_0_3_profile_approval",
@@ -439,7 +437,7 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 return _invoke_agent_action(
                     "setup_agent", project_root,
                     context="project_profile",
-                    prepare_cmd=_prepare_cmd("setup_agent"),
+                    prepare_cmd=_prepare_cmd("setup_agent", context="project_profile"),
                     post_cmd=_post_cmd("setup"),
                 )
 

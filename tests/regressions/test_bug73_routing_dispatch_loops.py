@@ -88,9 +88,11 @@ class TestBug73ProfileCompleteAtProjectContext(unittest.TestCase):
 class TestBug73ProfileArtifactFallback(unittest.TestCase):
     """Stage 0 project_profile must present Gate 0.3 when artifact exists."""
 
-    def test_profile_exists_after_gate_0_2_presents_gate_0_3(self):
+    def test_profile_exists_after_gate_0_2_invokes_agent(self):
         """After Gate 0.2 CONTEXT APPROVED, last_status is overwritten.
-        If project_profile.json exists, Gate 0.3 should still be presented."""
+        Bug 86 fix: artifact-existence fallback removed. Only PROFILE_COMPLETE
+        triggers the gate. CONTEXT APPROVED should invoke setup_agent for
+        the profile dialog even if project_profile.json exists."""
         from routing import route
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -103,8 +105,8 @@ class TestBug73ProfileArtifactFallback(unittest.TestCase):
             state = _make_state(stage="0", sub_stage="project_profile")
             result = route(state, project_root)
 
-            self.assertEqual(result["ACTION"], "human_gate")
-            self.assertEqual(result["GATE_ID"], "gate_0_3_profile_approval")
+            self.assertEqual(result["ACTION"], "invoke_agent")
+            self.assertEqual(result["AGENT"], "setup_agent")
 
     def test_profile_rejected_reinvokes_agent(self):
         """PROFILE REJECTED should re-invoke setup_agent even if file exists."""

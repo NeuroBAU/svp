@@ -394,6 +394,7 @@ def _assemble_sections_for_agent(
     gate_id: Optional[str],
     extra_context: Optional[Dict[str, str]],
     revision_mode: Optional[str],
+    context: Optional[str] = None,
 ) -> Dict[str, str]:
     """Build the sections dict for the given agent type."""
     sections: Dict[str, str] = {}
@@ -409,6 +410,11 @@ def _assemble_sections_for_agent(
             profile_str = load_full_profile(project_root)
             sections["current_profile"] = profile_str
             sections["revision_mode"] = f"Revision mode: {revision_mode}"
+        # Bug 86 Fix A: inject mode signal so setup agent knows which phase it is in
+        if context == "project_context":
+            sections["current_mode"] = "Mode 1: project_context -- Gather project context from the user."
+        elif context == "project_profile":
+            sections["current_mode"] = "Mode 2: project_profile -- Conduct the five-area profile dialog."
 
     elif agent_type == "stakeholder_dialog":
         ledger = _safe_load_ledger(project_root, "dialog")
@@ -739,6 +745,7 @@ def prepare_agent_task(
     gate_id: Optional[str] = None,
     extra_context: Optional[Dict[str, str]] = None,
     revision_mode: Optional[str] = None,
+    context: Optional[str] = None,
 ) -> Path:
     """Assemble a task prompt file at .svp/task_prompt.md and return its path."""
     # Pre-conditions
@@ -762,6 +769,7 @@ def prepare_agent_task(
         gate_id=gate_id,
         extra_context=extra_context,
         revision_mode=revision_mode,
+        context=context,
     )
 
     # Handle hint content via Unit 8
@@ -1235,6 +1243,7 @@ def main() -> None:
         help="Quality report path or gate name",
     )
     parser.add_argument("--output", type=str, default=None, help="Override output path")
+    parser.add_argument("--context", type=str, default=None, help="Context mode for setup agent")
 
     args = parser.parse_args()
     project_root = Path(args.project_root)
@@ -1246,6 +1255,7 @@ def main() -> None:
             unit_number=args.unit,
             ladder_position=args.ladder,
             revision_mode=args.revision_mode,
+            context=args.context,
         )
     elif args.gate:
         result = prepare_gate_prompt(
