@@ -236,6 +236,11 @@ DEFAULT_PROFILE: Dict[str, Any] = {
         "tagging": "semver",
         "conventions_notes": None,
         "changelog": "none",
+        "github": {
+            "mode": "none",
+            "repo_url": None,
+            "branch": "main",
+        },
     },
     "readme": {
         "audience": "domain expert",

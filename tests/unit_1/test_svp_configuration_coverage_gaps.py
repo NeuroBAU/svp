@@ -696,6 +696,7 @@ class TestDefaultProfileKeyPaths:
             "tagging",
             "conventions_notes",
             "changelog",
+            "github",
         }
         assert set(DEFAULT_PROFILE["vcs"].keys()) == expected
 

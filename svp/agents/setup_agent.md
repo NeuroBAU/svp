@@ -49,6 +49,22 @@ Ask about:
 - Tagging convention (semver, custom, none)
 - Issue references (yes/no)
 - **Changelog format (NEW IN 2.1):** keep_a_changelog, conventional_changelog, or none
+- **GitHub repository (NEW IN 2.1.1):** Ask the human how they want to handle the remote repository. Present these four options clearly:
+
+  1. **Create new** — SVP will create a new GitHub repository during delivery (Stage 5). Ask for the desired repo name (default: project name). Requires `gh` CLI to be authenticated.
+  2. **Existing repo, force push** — The human has an existing GitHub repo they want to overwrite with the delivered project. Ask for the repo URL (e.g., `https://github.com/user/repo.git`). The git repo agent will push with `--force`. **Warn the human:** this destroys all existing content in the repo.
+  3. **Existing repo, new branch** — The human has an existing GitHub repo and wants the delivered project on a separate branch. Ask for the repo URL and branch name (default: `svp-delivery`). Non-destructive.
+  4. **No GitHub** — Local repository only. No remote is configured. The human can push manually later.
+
+  Record in `project_profile.json` under `vcs.github`:
+  ```json
+  {
+    "mode": "new" | "existing_force" | "existing_branch" | "none",
+    "repo_url": "https://github.com/user/repo.git" | null,
+    "branch": "main" | "svp-delivery" | null
+  }
+  ```
+  Default recommendation: **No GitHub** (safest — the human can always push later).
 
 #### Area 2: README and Documentation
 

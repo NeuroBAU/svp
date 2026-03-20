@@ -143,6 +143,19 @@ pythonpath = ["svp/scripts"]
 
 For general projects, set `pythonpath` to the directory containing the project's Python modules as determined by the blueprint file tree and `delivery.source_layout`.
 
+## GitHub Remote Configuration (NEW IN 2.1.1)
+
+After all commits are made, configure the GitHub remote based on `vcs.github` in the project profile:
+
+- **`mode: "new"`** — Create a new GitHub repository using `gh repo create <name> --public --source .` (or `--private` if specified). Then push all commits.
+- **`mode: "existing_force"`** — Add the remote: `git remote add origin <repo_url>`. Push with force: `git push -u origin <branch> --force`. Warn in commit message that this is a force push.
+- **`mode: "existing_branch"`** — Add the remote: `git remote add origin <repo_url>`. Push to the specified branch: `git push -u origin HEAD:<branch>`.
+- **`mode: "none"`** — Do not configure any remote. Do not push. The repository is local only.
+
+If `vcs.github.mode` is absent or `"none"`, skip all remote operations. The human can push manually later.
+
+**Error handling:** If `gh` is not available for `mode: "new"`, or if the remote URL is unreachable, report the error in the terminal status but do NOT fail the assembly. The repository is still valid locally.
+
 ## Commit Order
 
 Commits must follow the order specified in spec Section 12.1. Each logical group of artifacts is committed separately with an appropriate message following the configured `vcs.commit_style`.
