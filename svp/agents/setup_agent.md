@@ -56,6 +56,34 @@ Ask about:
   3. **Existing repo, new branch** — The human has an existing GitHub repo and wants the delivered project on a separate branch. Ask for the repo URL and branch name (default: `svp-delivery`). Non-destructive.
   4. **No GitHub** — Local repository only. No remote is configured. The human can push manually later.
 
+  **If the human selects any option other than "No GitHub", immediately verify the prerequisites using Bash:**
+
+  **Step 1 — Check `gh` CLI is installed:** Run `which gh` or `gh --version`. If not found, tell the human:
+  > "The GitHub CLI (`gh`) is not installed. You need it for GitHub integration. Install it with:
+  > - **macOS:** `brew install gh`
+  > - **Linux:** `sudo apt install gh` or `sudo dnf install gh`
+  > - **Windows:** `winget install GitHub.cli`
+  > - **Or visit:** https://cli.github.com/
+  >
+  > Install it now and tell me when you're done."
+
+  Wait for the human to confirm, then re-check with `gh --version`.
+
+  **Step 2 — Check `gh` authentication:** Run `gh auth status`. If not authenticated, tell the human:
+  > "The GitHub CLI is installed but not authenticated. Let's set it up:
+  > 1. Run `gh auth login` in your terminal
+  > 2. Choose **GitHub.com**
+  > 3. Choose your preferred authentication method (browser is easiest)
+  > 4. Follow the prompts to complete authentication
+  >
+  > Tell me when you're done."
+
+  Wait for the human to confirm, then re-check with `gh auth status`. Show the authenticated user/org to confirm.
+
+  **Step 3 — For "existing" modes, validate the repo URL:** Run `gh repo view <repo_url> --json name` to verify the repo exists and is accessible. If it fails, tell the human the URL might be wrong or they might not have access.
+
+  Only proceed with recording the GitHub configuration after all checks pass. If the human can't or won't install/authenticate `gh`, suggest falling back to **No GitHub** and record `mode: "none"`.
+
   Record in `project_profile.json` under `vcs.github`:
   ```json
   {
