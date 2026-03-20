@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69, 86 (43 of 87 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69, 86 (43 of 88 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 87 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 88 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -556,7 +556,7 @@ Pipeline defines artifact synchronization invariants for code artifacts (source 
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (43 of 87 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (43 of 88 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -1461,6 +1461,22 @@ Gap B (Unit 10): routing.py profile sub-stage guard (Bug 52/73 artifact-existenc
 **Prevention:** Every artifact that exists in N>1 locations must have a deterministic sync script, not rely on agent instructions to keep copies aligned.
 
 **Test:** (manual verification -- sync script is infrastructure, not unit-testable in the standard framework)
+
+---
+
+### Bug 88: Debug session validator rejects legitimate triage state
+
+**Date:** 2026-03-20
+**Classification:** pipeline tooling (pipeline_state.py)
+**Root cause:** P7 (Spec Completeness) -- `validate_state()` unconditionally required `classification` and `affected_units` in any active debug session. But during `triage_readonly` and `triage` phases, these fields are legitimately `None`/empty -- they are set by `set_debug_classification()` only after the triage agent completes. Any call to `load_state()` (including from `routing_main()`) would reject a freshly entered debug session.
+
+**Fix:** Guarded the classification/affected_units validation with a phase check: only required when `debug_session.phase` is not in `("triage_readonly", "triage")`.
+
+**Pattern:** P7 (Spec Completeness) -- Validator written without considering the lifecycle stages of the debug session. The validator assumed a fully populated session rather than accounting for the progressive population pattern (description at entry, classification after triage).
+
+**Prevention:** State validators must account for the lifecycle of composite state objects. When a state object is populated in stages, validation rules must be phase-aware.
+
+**Test:** (manual verification -- routing.py now loads state successfully during triage_readonly phase)
 
 ---
 
