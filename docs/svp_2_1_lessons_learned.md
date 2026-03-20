@@ -1576,4 +1576,20 @@ Gap B (Unit 10): routing.py profile sub-stage guard (Bug 52/73 artifact-existenc
 
 ---
 
+### Bug 94: Setup dialog Area 5 missing "use repo tooling" option
+
+**Date:** 2026-03-20
+**Classification:** single_unit (dialog_agent_definitions.py, svp_config.py)
+**Root cause:** P2 (Missing Feature Path) -- The Setup Agent Area 5 dialog (Unit 13) offers only two paths: accept defaults or configure individually. No third path exists for the human to say "use the repo's existing tooling configuration" and skip all quality tool questions entirely. The DEFAULT_PROFILE in svp_config.py (Unit 5) also lacks a `use_repo_tooling` field, and validation rejects "repo" as a tool value.
+
+**Fix:** Added a three-path dialog flow in Area 5: (1) use repo tooling -- sets `quality.use_repo_tooling: true` and all tool fields to "repo", skipping individual questions; (2) accept defaults; (3) configure individually. Added `use_repo_tooling: false` to DEFAULT_PROFILE quality section. Updated validation to skip individual tool validation when `use_repo_tooling` is true.
+
+**Pattern:** P2 (Missing Feature Path) -- A dialog agent offers N paths but the human needs N+1. The missing path is typically a "skip" or "defer" option that bypasses a whole dialog area.
+
+**Prevention:** When designing dialog flows with multiple configuration areas, always consider whether a "use existing / skip" option is needed alongside "accept defaults" and "configure manually."
+
+**Test:** `test_bug94_use_repo_tooling.py`
+
+---
+
 *End of lessons learned.*
