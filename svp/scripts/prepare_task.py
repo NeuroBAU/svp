@@ -604,12 +604,27 @@ def _assemble_sections_for_agent(
             sections["unit_context"] = _get_unit_context(project_root, unit_number)
 
     elif agent_type == "reference_indexing":
-        # Full reference document
-        refs = _safe_load_reference_summaries(project_root)
-        if refs:
-            sections["reference_document"] = refs
+        # Bug 79: load RAW reference documents, not the already-indexed summaries.
+        # The agent produces references/summaries.md; it should not read its own output.
+        ref_dir = project_root / "references"
+        if ref_dir.is_dir():
+            ref_files = sorted(
+                f for f in ref_dir.iterdir()
+                if f.is_file() and f.name != "summaries.md"
+            )
+            if ref_files:
+                parts = []
+                for rf in ref_files:
+                    try:
+                        content = rf.read_text(encoding="utf-8")
+                        parts.append(f"## {rf.name}\n\n{content}")
+                    except (OSError, UnicodeDecodeError):
+                        parts.append(f"## {rf.name}\n\n(Could not read file.)")
+                sections["reference_documents"] = "\n\n---\n\n".join(parts)
+            else:
+                sections["reference_documents"] = "(No reference documents found in references/ directory.)"
         else:
-            sections["reference_document"] = "(No reference documents available.)"
+            sections["reference_documents"] = "(No references/ directory found.)"
 
     elif agent_type == "bug_triage":
         spec = _safe_load_spec(project_root)
