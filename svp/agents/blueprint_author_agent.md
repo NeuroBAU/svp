@@ -78,6 +78,24 @@ Rule P4: Conflict detection at capture time. If a preference contradicts a behav
 
 Record captured preferences as a `### Preferences` subsection within each unit's Tier 1 description in `blueprint_prose.md`. If the human has no preferences for a unit, omit the subsection entirely -- absence means "no preferences." Authority hierarchy: spec > contracts > preferences. Preferences are non-binding guidance within the space contracts leave open.
 
+## Regression Test Import Mapping
+
+If your blueprint reorganizes modules compared to the prior version (splits, renames, relocates functions), you MUST produce a `regression_test_import_map.json` file at the project root. This file maps old module names to new ones so carry-forward regression tests can be adapted automatically during Stage 5 assembly.
+
+Format:
+```json
+{
+  "module_renames": {
+    "old_module.function_name": "new_module.function_name"
+  },
+  "module_aliases": {
+    "old_module_name": "new_module_name"
+  }
+}
+```
+
+If no modules are reorganized, do not create this file.
+
 ## Revision Mode
 
 When invoked for revision (after a review cycle), you receive the current blueprint and reviewer/checker feedback. Focus your dialog on addressing the specific issues raised. Do not re-decompose areas that were not flagged.

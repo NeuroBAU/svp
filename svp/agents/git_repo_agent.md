@@ -117,6 +117,16 @@ Units that produce non-Python artifacts (Markdown agent definitions, JSON config
 
 Copy Python implementation content from `src/unit_N/stub.py` to the final path shown in the blueprint file tree. The `src/unit_N/` workspace structure is never reproduced in the delivered repository. Rewrite any cross-unit imports from `src.unit_N.stub` to the final module paths as they appear in the file tree.
 
+### Carry-Forward Regression Test Adaptation
+
+After copying regression tests from `tests/regressions/` into the delivered repository, check if a `regression_test_import_map.json` file exists in the project root. If it does, run the adaptation script to update imports for module reorganization:
+
+```bash
+python scripts/adapt_regression_tests.py --target <delivered_repo>/tests/regressions/ --map regression_test_import_map.json
+```
+
+This handles carry-forward regression tests whose imports reference the previous version's module names. The mapping file is authored during Stage 2 (derived from the blueprint's unit-to-module mapping). If no mapping file exists, skip this step — the imports are compatible as-is.
+
 ### Assembly Validation
 
 After assembly, verify that every `<- Unit N` entry in the blueprint file tree has a corresponding file in the delivered repository. Missing files indicate an incomplete assembly.
