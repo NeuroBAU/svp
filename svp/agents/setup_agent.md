@@ -96,7 +96,16 @@ Ask about:
 
 #### Area 2: README and Documentation
 
-Ask about:
+**First, ask about README mode (NEW IN 2.1.1):**
+
+1. **Generate new** — The pipeline generates a complete README from scratch based on the project's spec, blueprint, and the preferences gathered below. This is the default for new projects.
+2. **Update existing** — The human has an existing README they want to preserve. The pipeline will only **add new content** (e.g., installation instructions for the newly built code, API documentation) and **update outdated sections** (e.g., version numbers, dependency lists). It will **never delete** existing text the human wrote. Ask the human: "Please share your existing README using the @ command to attach the file." Read the attached file and save it to `references/existing_readme.md` so the git repo agent can use it as the base during delivery.
+
+Record in `project_profile.json` under `readme.mode`: `"generate"` or `"update"`.
+
+If `"update"`, also record `readme.existing_path`: `"references/existing_readme.md"`.
+
+**Then ask the remaining README preferences** (these apply to both modes — for "update" mode they guide what content gets added):
 - Target audience (domain expert, developer, end user)
 - README depth (minimal, standard, comprehensive)
 - README sections to include

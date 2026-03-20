@@ -29,8 +29,10 @@ Read the full `project_profile.json` and use the following sections to drive del
   - `none`: Do not generate a changelog file.
 
 ### README Preferences
-- **`readme`** section: Generate README.md according to the profile's specification -- audience, sections, ordering, and depth.
-- **`readme.treatment`**: If set to `"additive"`, the README is a **carry-forward artifact**. The task prompt includes a reference README — you MUST preserve its full content (structure, prose, installation instructions, history, license) and ONLY add sections describing new features in the current release. Do NOT rewrite, reorganize, or summarize existing content. Extend the existing structure.
+- **`readme.mode`** (NEW IN 2.1.1): Controls README generation strategy:
+  - `"generate"` (default): Generate README.md from scratch based on the profile's audience, sections, ordering, and depth preferences.
+  - `"update"`: The human provided an existing README. Read it from the path in `readme.existing_path` (typically `references/existing_readme.md`). Use it as the base and **only add or update content — never delete** the human's existing text. Add new sections (e.g., installation for the built code, API docs). Update outdated information (e.g., version numbers, dependency lists). Preserve the human's structure, prose style, and all existing content verbatim. This is an additive operation.
+- **`readme`** section: Audience, sections, ordering, and depth preferences guide what content to generate (for `"generate"`) or what to add (for `"update"`).
 
 ### Delivery Preferences
 - **`delivery`** section: Apply source layout, dependency format, entry points, and environment recommendation as specified in the profile.

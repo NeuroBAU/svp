@@ -243,6 +243,8 @@ DEFAULT_PROFILE: Dict[str, Any] = {
         },
     },
     "readme": {
+        "mode": "generate",
+        "existing_path": None,
         "audience": "domain expert",
         "sections": [
             "Header", "What it does", "Who it's for", "Installation",

@@ -704,6 +704,8 @@ class TestDefaultProfileKeyPaths:
         from svp_config import DEFAULT_PROFILE
 
         expected = {
+            "mode",
+            "existing_path",
             "audience",
             "sections",
             "depth",
