@@ -23,10 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- 24 bugs (52-75) spanning orphaned functions, dead gates, no-op dispatch handlers, routing loops, test infrastructure, quality gate state mismatch, spec structural gaps, blueprint split compliance
+- 26 bugs (52-77) spanning orphaned functions, dead gates, no-op dispatch handlers, routing loops, test infrastructure, quality gate state mismatch, skipped infrastructure setup, toolchain compatibility, spec structural gaps, blueprint split compliance
 - Bug 73: Three routing/dispatch loops from unchanged state returns (Stage 0 PROFILE_COMPLETE, Gate 5.3 OVERRIDE CONTINUE, Gate 4.1 ASSEMBLY FIX)
 - Bug 74: Regression tests must test real scripts, not stubs (test target invariant added to checker/reviewer checklists)
 - Bug 75: Coverage review auto-format quality gate TransitionError (sub_stage=coverage_review vs quality_gate_b mismatch)
+- Bug 76: Pre-Stage-3 routing skipped infrastructure setup (conda env creation, quality package install)
+- Bug 77: `--no-banner` flag in toolchain.json incompatible with conda ≥25.x
 - Gate 5.3 routing path (Bug 67)
 - gate_2_3 RETRY BLUEPRINT routing loop (Bug 66)
 - gate_6_3 RECLASSIFY BUG dispatch (Bug 69)

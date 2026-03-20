@@ -192,6 +192,7 @@ _KNOWN_PHASES = {
     "unit_completion",
     "quality_gate",  # NEW IN 2.1
     "structural_check",  # NEW IN 2.1 (Bug 72)
+    "infrastructure",  # Bug 76: Pre-Stage-3 infrastructure setup
 }
 
 
@@ -516,15 +517,33 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                     "POST": _post_cmd("blueprint_draft"),
                 }
 
-    # Pre-Stage 3
+    # Pre-Stage 3 (Bug 76: infrastructure setup must run before reference indexing)
     if stage == "pre_stage_3":
-        return {
-            "ACTION": "invoke_agent",
-            "AGENT": "reference_indexing",
-            "CONTEXT": "reference_indexing",
-            "PREPARE": _prepare_cmd("reference_indexing"),
-            "POST": _post_cmd("reference_indexing"),
-        }
+        if sub_stage == "reference_indexing":
+            # Two-branch: check if agent already completed
+            last_status = _read_last_status(project_root)
+            if last_status == "INDEXING_COMPLETE":
+                # Advance to Stage 3
+                return {
+                    "ACTION": "run_command",
+                    "COMMAND": "echo COMMAND_SUCCEEDED",
+                    "POST": _post_cmd("reference_indexing"),
+                }
+            else:
+                return {
+                    "ACTION": "invoke_agent",
+                    "AGENT": "reference_indexing",
+                    "CONTEXT": "reference_indexing",
+                    "PREPARE": _prepare_cmd("reference_indexing"),
+                    "POST": _post_cmd("reference_indexing"),
+                }
+        else:
+            # sub_stage is None: run infrastructure setup first
+            return {
+                "ACTION": "run_command",
+                "COMMAND": "python scripts/setup_infrastructure.py --project-root .",
+                "POST": _post_cmd("infrastructure"),
+            }
 
     # Stage 3 (Bug 25: explicit routing for ALL sub-stages)
     # Bug 65: stub_generation, fix ladder checks, coverage two-branch, diagnostic routing
@@ -1889,6 +1908,20 @@ def dispatch_command_status(
                 return quality_gate_fail_to_ladder(state)
             # Fallback
             return state
+
+    elif phase == "infrastructure":
+        # Bug 76: Pre-Stage-3 infrastructure setup dispatch
+        if status_line.startswith("COMMAND_SUCCEEDED"):
+            return advance_sub_stage(state, "reference_indexing", project_root)
+        elif status_line.startswith("COMMAND_FAILED"):
+            # Infrastructure failure — blueprint problem, return to Stage 2
+            return _try_transition(
+                lambda: restart_from_stage(
+                    state, "2", "infrastructure setup failed", project_root
+                ),
+                state,
+            )
+        return state
 
     elif phase == "unit_completion":
         if status_line.startswith("COMMAND_SUCCEEDED"):

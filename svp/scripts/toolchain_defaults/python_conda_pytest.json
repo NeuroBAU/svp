@@ -3,9 +3,9 @@
   "environment": {
     "tool": "conda",
     "create": "conda create -n {env_name} python={python_version} -y",
-    "run_prefix": "conda run -n {env_name} --no-banner",
-    "install": "conda run -n {env_name} --no-banner pip install {packages}",
-    "install_dev": "conda run -n {env_name} --no-banner pip install {packages}",
+    "run_prefix": "conda run -n {env_name}",
+    "install": "conda run -n {env_name} pip install {packages}",
+    "install_dev": "conda run -n {env_name} pip install {packages}",
     "remove": "conda env remove -n {env_name} -y"
   },
   "testing": {

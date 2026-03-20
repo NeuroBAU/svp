@@ -901,6 +901,7 @@ class TestPhaseToAgentMapVsKnownPhases:
         "compliance_scan",
         "structural_check",  # Bug 72: command phase, not agent phase
         "test_execution",
+        "infrastructure",  # Bug 76: command phase, not agent phase
     }
 
     def test_all_known_phases_have_mapping_or_exception(self):
