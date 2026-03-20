@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-85)
+## Part 1: Unified Bug Catalog (Bugs 1-86)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69 (42 of 85 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69, 86 (43 of 86 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 85 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 86 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -544,7 +544,7 @@ Happy-path transitions are contracted and tested; error paths are described in s
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (42 of 85 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (43 of 86 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -884,6 +884,18 @@ After a successful repair in the debug loop, the triage agent's Step 6 instructs
 **Pattern:** P1 (Cross-unit contract drift). The agent definition (Unit 19) described a workflow step that the routing script (Unit 10) did not implement.
 
 **Prevention:** Every workflow step described in an agent definition that requires a state transition must have a corresponding dispatch handler in Unit 10. A structural test should verify that every agent terminal status line has a non-trivial dispatch handler (not bare `return state`) for main-pipeline agents.
+
+---
+
+### Bug 52 -- version_document Not Wired at Every REVISE/FIX Gate
+
+**Caught:** Post-delivery (SVP 2.1 QC audit). **Test:** `test_bug52_version_document_wiring.py`
+
+`version_document()` not wired at every REVISE/FIX gate. Several dispatch handlers called `restart_from_stage` without first calling `version_document`, allowing document revisions to overwrite the only copy without creating a versioned backup.
+
+**Pattern:** P1 (Cross-unit contract drift). The spec required versioning before every revision restart, but multiple dispatch handlers omitted the call.
+
+**Prevention:** Structural test verifies that every dispatch handler calling `restart_from_stage` is preceded by the appropriate `_version_*` call. See spec Section 24.40.
 
 ---
 
@@ -1370,6 +1382,10 @@ Built a project-agnostic structural completeness checking system that works for 
 
 **Fix:** Added `"unused_exports": "{run_prefix} ruff check {target} --select F811"` to linter section and `"linter.unused_exports"` to gate_c composition in both workspace and delivered defaults.
 
+### Bug 83 -- Number not assigned
+
+---
+
 ### Bug 84: Lessons learned not injected into agent task prompts
 
 **Date:** 2026-03-20
@@ -1391,6 +1407,32 @@ Built a project-agnostic structural completeness checking system that works for 
 **Integration:** Git repo agent runs the script after copying regression tests, before committing. Blueprint author agent instructed to produce the mapping file when modules change.
 
 **Future (Proposal 2):** An agent-driven adaptation step in Stage 4 for complex cases (behavioral changes, patch target resolution). Deferred to SVP 2.2.
+
+---
+
+### Bug 86: Profile dialog skipped due to speculative artifact write
+
+**Date:** 2026-03-20
+**Classification:** cross_unit (Unit 9 prepare_task.py, Unit 10 routing.py)
+**Root cause:** Two structural gaps combined to bypass the spec-required five-area profile dialog (Section 6.4).
+
+Gap A (Unit 9): prepare_task.py assembled identical task prompt sections for both project_context and project_profile sub-stages, with no mode signal. The CONTEXT value from the routing action block was never injected into the task prompt, so the setup agent had no authoritative instruction distinguishing Mode 1 (context) from Mode 2 (profile). With rich input, it pattern-matched and speculatively wrote both artifacts.
+
+Gap B (Unit 10): routing.py profile sub-stage guard (Bug 52/73 artifact-existence fallback) accepted any non-rejected, non-None last_status combined with profile file existence. When the agent speculatively wrote project_profile.json during context phase and the user approved at Gate 0.2, last_status became CONTEXT APPROVED -- which passed the guard, skipping the profile dialog entirely.
+
+**Fix:**
+- Fix A: Added --context CLI argument to prepare_task.py. When context is project_context or project_profile, a current_mode section is injected into the setup agent task prompt with an explicit mode number and instruction to execute only that mode.
+- Fix B: Tightened the profile sub-stage routing guard to only accept PROFILE_COMPLETE as the status that skips the dialog. Removed the artifact-existence fallback that allowed carry-over statuses to trigger the gate.
+- Updated Bug 73 regression test to reflect corrected behavior.
+
+**Pattern:** Cross-unit mode confusion -- when an agent operates in multiple modes but the mode signal is not communicated through the preparation pipeline, the agent may execute the wrong mode. Combined with a permissive routing guard, this allows speculative writes to bypass required interactions.
+
+**Prevention:**
+- When an agent has multiple operating modes, the routing-to-preparation pipeline must communicate which mode to execute, not just which agent to invoke.
+- Routing guards that check artifact existence as a fallback must be carefully scoped to prevent carry-over statuses from satisfying the condition.
+- Regression tests should test the exact scenario: artifact exists + wrong status = agent invoked (not gate presented).
+
+**Test:** `test_bug86_profile_dialog_skip.py`
 
 ---
 

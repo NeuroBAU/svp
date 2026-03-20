@@ -1,7 +1,7 @@
 # SVP 2.1 — Lessons Learned
 
 **Date:** 2026-03-15
-**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update). Bug 59 discovered post-delivery (stale blueprints/ directory, critical implementation bugs, stakeholder spec gaps). Bug 60 discovered post-delivery (broken _get_unit_context path and stale fallback ARTIFACT_FILENAMES). Bug 61 discovered post-delivery (missing include_tier1 parameter in _get_unit_context and build_unit_context). Bug 62 discovered post-delivery (selective blueprint loading not wired per agent matrix). Bug 63 discovered post-delivery (documentation retrofit for Bugs 60-62). Bug 64 discovered post-delivery (11 unit test failures from stale assertions after Bugs 59-62 code changes). Bug 65 discovered post-delivery (Stage 3 error-handling infrastructure entirely unimplemented: 9 findings covering stub_generation routing, fix ladder engagement, diagnostic escalation, Gate 3.1/3.2 dispatch, coverage two-branch, red_run retries).
+**Source material:** Regression tests from `tests/regressions/`, unit test suites, and build tool observations across SVP 1.0 through 2.0. Bugs 17-25 discovered during SVP 2.1 pre-build inspection and early build. Bugs 26-30 discovered post-delivery (assembly and carry-forward regressions). Bugs 31-32 discovered during rebuild preparation (plugin discovery regression, CLI vocabulary regression). Bugs 33-36 discovered during SVP 2.1 rebuild (bootstrapping: SVP 2.1 building itself). Bugs 37-41 discovered post-delivery during SVP 2.1 rebuild (repo location, command definitions, skill guidance, artifact synchronization, Stage 1 routing). Bug 42 discovered post-delivery (pre-stage-3 state persistence and reference indexing advancement). Bug 43 discovered post-delivery during SVP 2.1 rebuild (Stage 2 blueprint routing missing two-branch check). Bugs 44-47 discovered post-delivery (SVP 2.1 build: Stage 3 dispatch and unit_completion routing). Bug 48 discovered post-delivery (launcher CLI contract loss). Bug 49 discovered post-delivery (systemic bare argparse stubs across 5 units). Bug 50 discovered post-delivery (insufficient contract specificity and boundary violations in blueprint). Bug 51 discovered post-delivery (debug loop missing reassembly routing after repair). Bug 54 discovered post-delivery (orphaned hollow function update_state_from_status). Bug 55 discovered post-delivery (rollback_to_unit and set_debug_classification never wired into dispatch). Bug 56 discovered post-delivery (spec structural gaps: downstream dependency analysis and contract granularity rules). Bug 57 discovered post-delivery (review enforcement: baked dependency and contract checklists into reviewer agent definitions). Bug 58 discovered post-delivery (Gate 5.3 missing from GATE_VOCABULARY; comprehensive summary document update). Bug 59 discovered post-delivery (stale blueprints/ directory, critical implementation bugs, stakeholder spec gaps). Bug 60 discovered post-delivery (broken _get_unit_context path and stale fallback ARTIFACT_FILENAMES). Bug 61 discovered post-delivery (missing include_tier1 parameter in _get_unit_context and build_unit_context). Bug 62 discovered post-delivery (selective blueprint loading not wired per agent matrix). Bug 63 discovered post-delivery (documentation retrofit for Bugs 60-62). Bug 64 discovered post-delivery (11 unit test failures from stale assertions after Bugs 59-62 code changes). Bug 65 discovered post-delivery (Stage 3 error-handling infrastructure entirely unimplemented: 9 findings covering stub_generation routing, fix ladder engagement, diagnostic escalation, Gate 3.1/3.2 dispatch, coverage two-branch, red_run retries). Bug 71 discovered post-delivery (structural completeness test suite automating 14 systematic bug-finding techniques; found Stage 4 gate routing gap and TESTS_FAILED dispatch gap). Bug 72 discovered post-delivery (generalized structural completeness checking: four-layer defense system with project-agnostic AST scanner, agent prompt updates, and routing integration).
 **Document status:** Living document. Updated by the bug triage agent during post-delivery debug sessions (Section 12.17, Step 6).
 
 ---
@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-85)
+## Part 1: Unified Bug Catalog (Bugs 1-86)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69 (42 of 85 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69, 86 (43 of 86 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 85 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 86 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -544,7 +544,7 @@ Happy-path transitions are contracted and tested; error paths are described in s
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (42 of 85 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (43 of 86 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -887,6 +887,18 @@ After a successful repair in the debug loop, the triage agent's Step 6 instructs
 
 ---
 
+### Bug 52 -- version_document Not Wired at Every REVISE/FIX Gate
+
+**Caught:** Post-delivery (SVP 2.1 QC audit). **Test:** `test_bug52_version_document_wiring.py`
+
+`version_document()` not wired at every REVISE/FIX gate. Several dispatch handlers called `restart_from_stage` without first calling `version_document`, allowing document revisions to overwrite the only copy without creating a versioned backup.
+
+**Pattern:** P1 (Cross-unit contract drift). The spec required versioning before every revision restart, but multiple dispatch handlers omitted the call.
+
+**Prevention:** Structural test verifies that every dispatch handler calling `restart_from_stage` is preceded by the appropriate `_version_*` call. See spec Section 24.40.
+
+---
+
 ### Bug 53 -- Orphaned functions: reset_fix_ladder, reset_alignment_iteration, record_pass_end
 
 **Caught:** Post-delivery (SVP 2.1 QC audit). **Test:** `tests/regressions/test_bug53_orphaned_functions.py`
@@ -1199,7 +1211,75 @@ Bugs 65-69 all share the same root cause: P10 (Error-Path Contract Omission). Th
 **Pattern:** This is the meta-fix -- strengthening the spec and blueprint to prevent the P10 pattern from recurring in future builds. The individual bug fixes (65-69) addressed the symptoms; this fix addresses the root cause in the specification.
 
 ---
+
+### Bug 70 -- Fix Ladder Routing Gap at sub_stage=None, TESTS_ERROR Infinite Loop, Dead Phases
+
+**Caught:** Post-delivery (systematic technique analysis). **Test:** `test_bug70_ladder_routing_tests_error.py`
+
+Three findings from systematic analysis of routing.py dispatch coverage:
+
+**F1: Fix ladder position not checked when sub_stage=None in Stage 3 routing.** When `quality_gate_fail_to_ladder` sets `sub_stage=None` with a non-None `fix_ladder_position` (e.g., `"fresh_test"` after Gate A retry fails), `route()` hit the `sub_stage is None` branch and unconditionally routed to stub_generation. This is wrong -- it should route based on the ladder position: test ladder positions to test_generation, impl ladder positions to implementation, diagnostic to diagnostic_agent.
+
+**F2: TESTS_ERROR at test_execution returned state unchanged -- infinite retry loop.** `dispatch_command_status` had a bare `return state` for TESTS_ERROR, causing the pipeline to re-run the same test command forever. Fixed: red_run TESTS_ERROR increments retries and regenerates tests (or presents Gate 3.1 on exhaustion). Green_run TESTS_ERROR engages fix ladder (same as TESTS_FAILED). Stage 4 TESTS_ERROR presents gate (same as TESTS_FAILED).
+
+**F3: Dead phase values in _KNOWN_PHASES.** `"test"` and `"infrastructure_setup"` were in `_KNOWN_PHASES` but never emitted as `--phase` arguments and never mapped in `phase_to_agent`. Removed as vocabulary cruft.
+
+**Pattern:** P10 (Error-Path Contract Omission) for F1 and F2. P5 (Vocabulary Cruft) for F3. The pattern continues: routing blocks implement the happy path but leave error/alternate paths as no-ops or bare returns.
+
+**Prevention:** For every state transition function that sets `sub_stage=None`, verify that `route()` handles the resulting state correctly by examining ALL state fields (not just `sub_stage`). For every command status pattern in COMMAND_STATUS_PATTERNS, verify that dispatch produces a distinct state change for every (phase, sub_stage) combination where that status can occur.
+
 ---
+
+### Bug 71 -- Structural Completeness Test Suite (14 Automated Guards)
+
+**Caught:** Post-delivery (systematic technique analysis). **Test:** `test_bug71_structural_completeness.py`
+
+Wrote 163 automated tests across 14 test classes, each automating one of the systematic bug-finding techniques that discovered Bugs 52-70. The test suite acts as a permanent regression guard against declaration-vs-usage bugs.
+
+**Findings during test development:**
+
+**F1: Stage 4 gate_4_1/gate_4_2 unreachable from route().** The route() function for Stage 4 had no sub_stage handling -- it only checked last_status for INTEGRATION_TESTS_COMPLETE vs. invoking the agent. When dispatch_command_status set sub_stage to "gate_4_1" or "gate_4_2", route() did not present the corresponding human gates. Fixed by adding sub_stage checks at the top of Stage 4 routing.
+
+**F2: Stage 4 TESTS_FAILED not handled in dispatch_command_status.** The TESTS_FAILED branch in dispatch_command_status checked sub_stage == "red_run" and sub_stage == "green_run" but had no stage == "4" fallback. TESTS_ERROR had the Stage 4 handler but TESTS_FAILED did not. Fixed by adding a stage == "4" check after the green_run block.
+
+**14 technique tests implemented:**
+1. Gate Vocabulary vs Route Reachability (AST analysis)
+2. Response Options vs Dispatch Handlers (parametrized over all gate/response pairs)
+3. Exported Functions vs Call Sites (no orphaned public functions)
+4. Stub vs Script Synchronization (7 constant comparison tests)
+5. (Skipped -- narrative-vs-contract not automatable)
+6. Per-Agent Loading Matrix (prepare_task.py agent handling)
+7. Agent Status Lines vs Dispatch (parametrized over all agent/status pairs)
+8. Known Agent Types vs Route Invocations (AST analysis)
+9. Debug Phase Transitions vs Route Handlers (all debug phases)
+10. Sub-Stages vs Route Branches (Stage 3/4/5 parametrized)
+11. Fix Ladder Positions vs Route Context (7 ladder/context combinations)
+12. Command Status Patterns vs Phase Handlers (12 critical combinations)
+13. Phase-to-Agent Map vs Known Phases
+14. Debug Phase Transitions vs Known Phases (stub vs script sync)
+
+**Pattern:** P10 (Error-Path Contract Omission) for both findings. The structural tests would have caught these at build time if they had existed during the original build.
+
+**Prevention:** Run the structural completeness test suite after every delivery. Any new gate, agent type, status line, sub-stage, or debug phase that is declared but not wired will be caught automatically.
+
+---
+### Bug 72 -- Generalized Structural Completeness Checking (Four-Layer Defense)
+
+**Caught:** Post-delivery (proactive feature addition). **Test:** `test_bug72_structural_check.py`
+
+Built a project-agnostic structural completeness checking system that works for any Python project SVP builds, not just SVP itself. Four complementary layers:
+
+**Layer 1 (Blueprint checker):** Added mandatory registry completeness checklist item to blueprint checker agent definition. The checker must identify every registry, vocabulary, enum, or dispatch table and verify handler coverage.
+
+**Layer 2 (Integration test author):** Added requirement to generate registry-handler alignment tests using AST analysis of registries and dispatch logic.
+
+**Layer 3 (Deterministic script):** Created `scripts/structural_check.py` -- a project-agnostic AST scanner performing five checks: (1) dict registry keys never dispatched, (2) enum values never matched, (3) exported functions never called, (4) string dispatch gaps, (5) stub imports in test files (Bug 74). Only stdlib imports. Added as Stage 5 `structural_check` sub-stage between `repo_test` and `compliance_scan`.
+
+**Layer 4 (Triage agent):** Added Step 0 structural pre-check and Registry Diagnosis Recipe to bug triage agent. Task prompt assembly pre-computes structural check results against the delivered repo.
+
+**Pattern:** P11 (Structural Completeness Gap) -- new pattern. The system lacked a generalized, project-agnostic mechanism for detecting declaration-vs-usage gaps. The existing Bug 71 test suite was SVP-specific; the four-layer defense generalizes this to any project.
+
+**Prevention:** Every new registry, dispatch table, or enum-like constant introduced in any project should be detectable by the structural check script. The four layers ensure coverage at authoring time (L1), test time (L2), assembly time (L3), and debug time (L4).
 
 ---
 
@@ -1248,7 +1328,7 @@ Bugs 65-69 all share the same root cause: P10 (Error-Path Contract Omission). Th
 
 **Date:** 2026-03-20
 **Classification:** single_unit (routing.py)
-**Root cause:** P10 — `route()` for `pre_stage_3` invoked agent without running infrastructure setup first.
+**Root cause:** P10 (Error-Path Contract Omission) — `route()` for `stage == "pre_stage_3"` invoked `reference_indexing` agent without first running `setup_infrastructure.py`. Conda env never created, quality packages never installed.
 
 **Fix:** Sub-stage handling: `None` → run infrastructure command; `"reference_indexing"` → invoke agent.
 
@@ -1256,7 +1336,7 @@ Bugs 65-69 all share the same root cause: P10 (Error-Path Contract Omission). Th
 
 **Date:** 2026-03-20
 **Classification:** toolchain configuration
-**Root cause:** Removed unsupported `--no-banner` from `run_prefix`.
+**Root cause:** `run_prefix` in toolchain defaults used `--no-banner` which is not supported in conda 25.x+. Removed the flag.
 
 ---
 
@@ -1264,51 +1344,95 @@ Bugs 65-69 all share the same root cause: P10 (Error-Path Contract Omission). Th
 
 **Date:** 2026-03-20
 **Classification:** agent definition
-**Root cause:** Agent listed only Read, Glob, Grep. Cannot write `references/summaries.md`.
+**Root cause:** Agent definition listed only Read, Glob, Grep tools. Cannot produce `references/summaries.md`. Downstream agents receive no reference context.
 
-**Fix:** Added Write to tool list.
+**Fix:** Added Write to tool list. Clarified "read-only" applies to input documents, not output.
 
 ### Bug 79: Reference indexing task prompt feeds agent its own output
 
 **Date:** 2026-03-20
-**Root cause:** `_assemble_sections_for_agent` loaded `references/summaries.md` (agent output) instead of raw reference files.
+**Classification:** single_unit (prepare_task.py)
+**Root cause:** The `reference_indexing` case in `_assemble_sections_for_agent` called `_safe_load_reference_summaries()` which reads `references/summaries.md` — the file the agent is supposed to produce. Before the agent has run, the file doesn't exist, so the agent gets "(No reference documents available.)" instead of the raw reference documents it needs to index.
 
-**Fix:** Scan `references/` for raw files, include their content.
+**Fix:** Changed to scan `references/` directory for raw files (excluding `summaries.md`) and include their content in the task prompt.
 
 ### Bug 80: Blueprint author agent missing output path specification
 
 **Date:** 2026-03-20
-**Root cause:** Agent definition didn't specify output paths. Wrote to `docs/` instead of `blueprint/`. Also stale `blueprint.md` in git_repo_agent.
+**Classification:** agent definition
+**Root cause:** The blueprint author agent definition never specified where to write output. The pipeline expects `blueprint/blueprint_prose.md` and `blueprint/blueprint_contracts.md`, but without explicit instructions the agent wrote to `docs/` instead. Additionally, `git_repo_agent.md` referenced the old single-file `blueprint/blueprint.md` instead of the two-file format.
 
-**Fix:** Explicit paths in agent definition + fixed git_repo_agent copy paths.
+**Pattern:** Every agent that produces files must have exact output paths in its definition. Without them, the agent guesses based on conventions and often guesses wrong.
+
+**Fix:** Added explicit output paths to blueprint author agent definition and constraints. Fixed stale `blueprint.md` reference in git_repo_agent to `blueprint_prose.md` and `blueprint_contracts.md`.
 
 ### Bug 81: No env-existence guard in run_quality_gate / run_pytest
 
 **Date:** 2026-03-20
-**Root cause:** Missing conda env silently treated as quality/test failure.
+**Classification:** single_unit (routing.py)
+**Root cause:** Neither `run_quality_gate` nor `run_pytest` checks whether the conda environment exists before running commands. When the env is missing (e.g., infrastructure setup was skipped), conda's error is silently treated as a quality/test failure. The pipeline engages the fix ladder, sending agents chasing phantom problems with no diagnostic about the root cause.
 
-**Fix:** Added `_check_conda_env_exists()` guard with clear error message.
+**Fix:** Added `_check_conda_env_exists()` guard. Both functions now return a clear error message (`TESTS_ERROR: conda environment 'X' does not exist`) instead of opaque quality/test failures.
 
-### Bug 82: Toolchain defaults schema drift
+### Bug 82: Toolchain defaults schema drift — missing unused_exports
 
 **Date:** 2026-03-20
-**Root cause:** Plugin defaults missing `linter.unused_exports` and Gate C entry.
+**Classification:** toolchain configuration
+**Root cause:** The delivered plugin's `python_conda_pytest.json` was missing `linter.unused_exports` and Gate C's composition didn't include it. Projects created from the plugin defaults would skip the unused-function detection at Gate C (Bugs 56/58 feature).
 
-**Fix:** Added unused_exports to linter section and gate_c composition.
+**Fix:** Added `"unused_exports": "{run_prefix} ruff check {target} --select F811"` to linter section and `"linter.unused_exports"` to gate_c composition in both workspace and delivered defaults.
+
+### Bug 83 -- Number not assigned
+
+---
 
 ### Bug 84: Lessons learned not injected into agent task prompts
 
 **Date:** 2026-03-20
-**Root cause:** P7 — `filter_lessons_learned()` defined but never called. No agent received lessons learned.
+**Classification:** single_unit (prepare_task.py)
+**Root cause:** P7 (Spec Completeness) — `filter_lessons_learned()` and `load_lessons_learned_for_unit()` were defined but never called from `_assemble_sections_for_agent()`. No agent — Stage 2 or Stage 3 — received the lessons learned document. The spec (Section 3.22) requires the blueprint checker to receive the pattern catalog, and proactive lessons learned is a documented SVP 2.1 feature.
 
-**Fix:** Wired full LL into Stage 2 agents, filtered LL into Stage 3 per-unit agents.
+**Fix:** Added `_safe_load_lessons_learned()` helper (checks multiple paths). Wired full lessons learned into blueprint_author, blueprint_checker, and blueprint_reviewer. Wired filtered (per-unit) lessons learned into test_agent and implementation_agent.
+
+**Pattern:** Functions defined but never called from the assembly point are equivalent to dead code. The structural completeness checker should detect exported functions with no call sites (check 3: `check_unused_exports`), but `_assemble_sections_for_agent` is a single function with internal branch logic — the missing call is inside a branch, not a missing function reference.
 
 ### Bug 85: Carry-forward regression tests break on module reorganization
 
 **Date:** 2026-03-20
-**Root cause:** SVP N's module names in regression tests break when SVP N+1 reorganizes.
+**Classification:** pipeline tooling
+**Root cause:** When SVP N builds SVP N+1, carry-forward regression tests import from SVP N's module names. If N+1 reorganizes modules (splits, renames), these imports break. During the SVP 2.2 build this caused 233 test failures in the delivered repo.
 
-**Fix:** `adapt_regression_tests.py` with JSON mapping. Git repo agent runs after test copy.
+**Fix (Proposal 1):** Added `adapt_regression_tests.py` — a deterministic rewriter that reads a JSON mapping file (`regression_test_import_map.json`) and applies import replacements to all test files. Handles `from/import` statements and `@patch()` targets. The mapping file is authored during Stage 2 by the blueprint author agent when modules are reorganized.
+
+**Integration:** Git repo agent runs the script after copying regression tests, before committing. Blueprint author agent instructed to produce the mapping file when modules change.
+
+**Future (Proposal 2):** An agent-driven adaptation step in Stage 4 for complex cases (behavioral changes, patch target resolution). Deferred to SVP 2.2.
+
+---
+
+### Bug 86: Profile dialog skipped due to speculative artifact write
+
+**Date:** 2026-03-20
+**Classification:** cross_unit (Unit 9 prepare_task.py, Unit 10 routing.py)
+**Root cause:** Two structural gaps combined to bypass the spec-required five-area profile dialog (Section 6.4).
+
+Gap A (Unit 9): prepare_task.py assembled identical task prompt sections for both project_context and project_profile sub-stages, with no mode signal. The CONTEXT value from the routing action block was never injected into the task prompt, so the setup agent had no authoritative instruction distinguishing Mode 1 (context) from Mode 2 (profile). With rich input, it pattern-matched and speculatively wrote both artifacts.
+
+Gap B (Unit 10): routing.py profile sub-stage guard (Bug 52/73 artifact-existence fallback) accepted any non-rejected, non-None last_status combined with profile file existence. When the agent speculatively wrote project_profile.json during context phase and the user approved at Gate 0.2, last_status became CONTEXT APPROVED -- which passed the guard, skipping the profile dialog entirely.
+
+**Fix:**
+- Fix A: Added --context CLI argument to prepare_task.py. When context is project_context or project_profile, a current_mode section is injected into the setup agent task prompt with an explicit mode number and instruction to execute only that mode.
+- Fix B: Tightened the profile sub-stage routing guard to only accept PROFILE_COMPLETE as the status that skips the dialog. Removed the artifact-existence fallback that allowed carry-over statuses to trigger the gate.
+- Updated Bug 73 regression test to reflect corrected behavior.
+
+**Pattern:** Cross-unit mode confusion -- when an agent operates in multiple modes but the mode signal is not communicated through the preparation pipeline, the agent may execute the wrong mode. Combined with a permissive routing guard, this allows speculative writes to bypass required interactions.
+
+**Prevention:**
+- When an agent has multiple operating modes, the routing-to-preparation pipeline must communicate which mode to execute, not just which agent to invoke.
+- Routing guards that check artifact existence as a fallback must be carefully scoped to prevent carry-over statuses from satisfying the condition.
+- Regression tests should test the exact scenario: artifact exists + wrong status = agent invoked (not gate presented).
+
+**Test:** `test_bug86_profile_dialog_skip.py`
 
 ---
 
