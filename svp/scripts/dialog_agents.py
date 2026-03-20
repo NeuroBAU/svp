@@ -92,9 +92,11 @@ schema before writing it.
    packaging, dependency format.
 4. **Documentation**: readme audience, sections,
    depth, docstring convention.
-5. **Quality Preferences** (NEW IN 2.1): linter,
-   formatter, type_checker, import_sorter,
-   line_length.
+5. **Quality Preferences** (NEW IN 2.1): Three paths:
+   (1) Use repo tooling — sets use_repo_tooling: true,
+   skips all tool questions. (2) Accept defaults.
+   (3) Configure individually: linter, formatter,
+   type_checker, import_sorter, line_length.
 
 ## Profile Schema
 
@@ -118,7 +120,7 @@ with canonical field names:
   `readable_test_names`, `readme_test_scenarios`)
 - `license` (with `type`, `holder`, `author`, `year`,
   `contact`, `spdx_headers`, `additional_metadata`)
-- `quality` (with `linter`, `formatter`,
+- `quality` (with `use_repo_tooling`, `linter`, `formatter`,
   `type_checker`, `import_sorter`, `line_length`)
 - `fixed` (with `language`, `pipeline_environment`,
   `test_framework`, `build_backend`, `vcs_system`,

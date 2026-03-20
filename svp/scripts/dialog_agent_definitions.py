@@ -142,7 +142,23 @@ Ask about:
 
 #### Area 5: Delivered Code Quality (NEW IN 2.1)
 
-Ask about the quality tools the human wants configured for their **delivered** project code:
+**First, offer three paths:**
+
+1. **Use repo tooling (NEW -- Bug 94 fix):** The human selects this when their repository already has its own tooling configuration (e.g., existing ruff.toml, pyproject.toml tool sections, .flake8, etc.). When selected, set `quality.use_repo_tooling: true` and skip all individual tool questions below. The delivered repository will keep its existing quality tool configuration unchanged.
+2. **Accept defaults:** Pre-populate with the Mode A defaults (ruff linter, ruff formatter, mypy type checker, ruff import sorter, line length 88).
+3. **Configure individually:** Walk through each tool choice below.
+
+If the human selects path 1 (use repo tooling), set:
+- `quality.use_repo_tooling: true`
+- `quality.linter: "repo"`
+- `quality.formatter: "repo"`
+- `quality.type_checker: "repo"`
+- `quality.import_sorter: "repo"`
+- `quality.line_length: null`
+
+Then skip to the contradiction check. Do NOT ask about individual tools.
+
+If the human selects path 2 or 3, ask about the quality tools the human wants configured for their **delivered** project code:
 
 - **Linter:** ruff, flake8, pylint, or none
 - **Formatter:** ruff, black, or none

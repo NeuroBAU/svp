@@ -281,6 +281,7 @@ DEFAULT_PROFILE: Dict[str, Any] = {
         },
     },
     "quality": {
+        "use_repo_tooling": False,
         "linter": "ruff",
         "formatter": "ruff",
         "type_checker": "none",
@@ -429,34 +430,41 @@ def validate_profile(profile: Dict[str, Any]) -> list[str]:
     # Quality section validation
     if "quality" in profile and isinstance(profile["quality"], dict):
         quality = profile["quality"]
-        valid_linters = {"ruff", "flake8", "pylint", "none"}
-        if "linter" in quality:
-            if quality["linter"] not in valid_linters:
-                errors.append(
-                    f"quality.linter must be one of {sorted(valid_linters)}"
-                )
-        valid_formatters = {"ruff", "black", "none"}
-        if "formatter" in quality:
-            if quality["formatter"] not in valid_formatters:
-                errors.append(
-                    f"quality.formatter must be one of {sorted(valid_formatters)}"
-                )
-        valid_type_checkers = {"mypy", "pyright", "none"}
-        if "type_checker" in quality:
-            if quality["type_checker"] not in valid_type_checkers:
-                errors.append(
-                    f"quality.type_checker must be one of {sorted(valid_type_checkers)}"
-                )
-        valid_import_sorters = {"ruff", "isort", "none"}
-        if "import_sorter" in quality:
-            if quality["import_sorter"] not in valid_import_sorters:
-                errors.append(
-                    f"quality.import_sorter must be one of {sorted(valid_import_sorters)}"
-                )
-        if "line_length" in quality:
-            ll = quality["line_length"]
-            if not isinstance(ll, int) or ll <= 0:
-                errors.append("quality.line_length must be a positive integer")
+        # Bug 94: When use_repo_tooling is true, tool values may be "repo"
+        # and line_length may be null -- skip individual tool validation.
+        use_repo = quality.get("use_repo_tooling", False)
+        if use_repo:
+            if not isinstance(use_repo, bool):
+                errors.append("quality.use_repo_tooling must be a boolean")
+        else:
+            valid_linters = {"ruff", "flake8", "pylint", "none"}
+            if "linter" in quality:
+                if quality["linter"] not in valid_linters:
+                    errors.append(
+                        f"quality.linter must be one of {sorted(valid_linters)}"
+                    )
+            valid_formatters = {"ruff", "black", "none"}
+            if "formatter" in quality:
+                if quality["formatter"] not in valid_formatters:
+                    errors.append(
+                        f"quality.formatter must be one of {sorted(valid_formatters)}"
+                    )
+            valid_type_checkers = {"mypy", "pyright", "none"}
+            if "type_checker" in quality:
+                if quality["type_checker"] not in valid_type_checkers:
+                    errors.append(
+                        f"quality.type_checker must be one of {sorted(valid_type_checkers)}"
+                    )
+            valid_import_sorters = {"ruff", "isort", "none"}
+            if "import_sorter" in quality:
+                if quality["import_sorter"] not in valid_import_sorters:
+                    errors.append(
+                        f"quality.import_sorter must be one of {sorted(valid_import_sorters)}"
+                    )
+            if "line_length" in quality:
+                ll = quality["line_length"]
+                if not isinstance(ll, int) or ll <= 0:
+                    errors.append("quality.line_length must be a positive integer")
 
     # Bug 90: Detect orphaned 'packaging' section (should be 'delivery' + 'license')
     if "packaging" in profile:

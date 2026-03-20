@@ -643,9 +643,17 @@ After project context approval, the setup agent conducts a second Socratic dialo
 
 **Area 5: Delivered Code Quality Preferences. (NEW IN 2.1)**
 
-The agent introduces this area with a plain-language framing: "Your project's code will be automatically formatted and checked for common problems during the build — that's a pipeline guarantee. For the delivered project, I can also include configuration so you or your contributors can run these same checks locally. I recommend including the same tools the pipeline uses. Should I set that up with the standard configuration, or would you like to go through the options?"
+The agent introduces this area with a three-path choice:
 
-If the human enters the detailed options, each tool category must be explained before choices are presented (per Rule 1). For example, "A linter is a tool that checks your code for common mistakes and style problems — think of it like a spell-checker for code. I recommend ruff, which is fast and catches the most issues."
+1. **Use repo tooling:** The human selects this when their repository already has its own tooling configuration (e.g., existing `ruff.toml`, `pyproject.toml` tool sections, `.flake8`, etc.). When selected, the agent sets `quality.use_repo_tooling: true` and skips all individual tool questions. The delivered repository keeps its existing quality tool configuration unchanged.
+2. **Accept defaults:** Pre-populate with the standard defaults (ruff linter, ruff formatter, mypy type checker, ruff import sorter, line length 88).
+3. **Configure individually:** Walk through each tool choice below.
+
+If the human selects path 1 (use repo tooling), the agent sets `quality.use_repo_tooling: true`, `quality.linter: "repo"`, `quality.formatter: "repo"`, `quality.type_checker: "repo"`, `quality.import_sorter: "repo"`, `quality.line_length: null`, and skips to the contradiction check. No individual tool questions are asked.
+
+If the human selects path 2 or 3, the agent frames the section with: "Your project's code will be automatically formatted and checked for common problems during the build — that's a pipeline guarantee. For the delivered project, I can also include configuration so you or your contributors can run these same checks locally."
+
+If the human enters the detailed options (path 3), each tool category must be explained before choices are presented (per Rule 1). For example, "A linter is a tool that checks your code for common mistakes and style problems — think of it like a spell-checker for code. I recommend ruff, which is fast and catches the most issues."
 
 - Linter for delivered project: ruff (default, recommended), flake8, pylint, or none.
 - Formatter for delivered project: ruff (default, recommended), black, or none.
