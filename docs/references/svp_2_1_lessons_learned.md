@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-86)
+## Part 1: Unified Bug Catalog (Bugs 1-91)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -1493,6 +1493,38 @@ Gap B (Unit 10): routing.py profile sub-stage guard (Bug 52/73 artifact-existenc
 **Prevention:** When injecting intermediate `run_command` actions into a routing flow that depends on a prior agent status, the POST must explicitly preserve the original `last_status.txt` content.
 
 **Test:** `test_bug89_sync_status_restore.py`
+
+---
+
+### Bug 90: Setup agent profile schema misaligned with DEFAULT_PROFILE
+
+**Date:** 2026-03-20
+**Classification:** cross_unit (setup agent definition vs svp_config.py)
+**Root cause:** P1 (Cross-Unit Contract Drift) -- The setup agent definition (Area 4) did not include explicit JSON templates for the `license` and `delivery` sections. Without templates, the LLM consolidated all Area 4 fields into a single `packaging` section that does not exist in `DEFAULT_PROFILE`. When `load_profile()` deep-merges the file profile with `DEFAULT_PROFILE`, the `delivery` and `license` sections retain their defaults while the `packaging` data is orphaned.
+
+**Fix:** (1) Added explicit JSON templates for `license` and `delivery` sections to the setup agent definition (Area 4), with a CRITICAL warning against creating a `packaging` section. (2) Added `validate_profile()` checks that flag orphaned `packaging` sections and missing `repo_url` for non-none GitHub modes. (3) Added a constraint line to the agent definition prohibiting the `packaging` key.
+
+**Pattern:** P1 (Cross-Unit Contract Drift) -- The setup agent (producer) and svp_config.py (consumer) had no shared schema definition. The agent definition listed field names without specifying which JSON section they belong to. Compare with Area 1 (vcs.github), which includes an explicit JSON template and works correctly.
+
+**Prevention:** Every agent that writes structured output (JSON, YAML) must include a verbatim template of the exact schema in its agent definition. Field names alone are insufficient; the section path must be explicit. Add `validate_profile()` checks for known invalid section names as a second line of defense.
+
+**Test:** `test_bug90_profile_schema_alignment.py`
+
+---
+
+### Bug 91: Setup agent missing conditional follow-up questions
+
+**Date:** 2026-03-20
+**Classification:** single_unit (setup agent definition)
+**Root cause:** P1 (Cross-Unit Contract Drift) -- The setup agent definition described conditional follow-up questions (ask for GitHub URL when mode is existing_branch/existing_force; ask for README path when mode is update) but these instructions were embedded in explanatory text rather than marked as mandatory steps. The LLM did not reliably follow conditional instructions that were not explicitly labeled as mandatory.
+
+**Fix:** Added MANDATORY FOLLOW-UP blocks to the setup agent definition for both scenarios: (1) GitHub URL must be asked when mode is existing_branch or existing_force, (2) README file must be collected when mode is update. These blocks use imperative language ("you MUST immediately ask") and include a gate ("Do NOT proceed to the next area until...").
+
+**Pattern:** P1 (Cross-Unit Contract Drift) -- Conditional logic in agent prompts must be marked with imperative gates, not embedded in descriptive text. The LLM treats descriptive text as optional guidance but respects imperative "MUST" + "Do NOT proceed" patterns.
+
+**Prevention:** When an agent definition includes conditional behavior ("if X then ask Y"), the conditional must be formatted as a MANDATORY FOLLOW-UP block with: (1) the condition stated explicitly, (2) "you MUST" imperative, (3) a gate ("Do NOT proceed until").
+
+**Test:** `test_bug90_profile_schema_alignment.py` (shared test file covers both bugs)
 
 ---
 

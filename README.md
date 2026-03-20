@@ -587,7 +587,7 @@ can.
 
 SVP itself was built by SVP. The lessons learned document
 (`docs/references/svp_2_1_lessons_learned.md` in the
-delivered repository) catalogs 89 bugs discovered across
+delivered repository) catalogs 91 bugs discovered across
 five build generations — from SVP 1.0 through SVP 2.1.
 Nearly every one traces back to something the stakeholder
 spec didn't say clearly enough. The checklist below is
@@ -796,7 +796,7 @@ caught every one during blueprint alignment.
 > path must document what happens to downstream units."
 
 These nine questions are not exhaustive, but they cover
-the patterns that produced 89 bugs across five build
+the patterns that produced 91 bugs across five build
 generations of SVP. The lessons learned document in the
 delivered repository contains the full catalog with root
 causes, patterns, and prevention rules. Bug 50 in
@@ -933,7 +933,7 @@ SVP 2.1.1 introduces a four-layer structural completeness defense: a project-agn
 - **SVP 1.2.1** — Further bug fixes and robustness improvements.
 - **SVP 2.0** — Project Profile (`project_profile.json`) for delivery preferences. Pipeline Toolchain Abstraction (`toolchain.json`). Profile-driven Stage 5 delivery. Delivery compliance scan. `/svp:redo` profile revision support.
 - **SVP 2.1** — Pipeline Quality Gates (A, B, C) as mandatory build-time checkpoints. Delivered quality configuration via `project_profile.json`. Blueprint prose/contracts split for token-efficient agent context. Universal two-branch routing invariant applied across all pipeline stages. 51 bug fixes (Bugs 17-58) spanning routing, dispatch, state persistence, dead code removal, and spec structural gaps. See CHANGELOG.md for detailed bug-by-bug history.
-- **SVP 2.1.1** — RFC-2: unit-level preference capture in blueprint dialog (Rules P1-P4, preference-contract consistency validation). Structural completeness checking system: four-layer defense with project-agnostic AST scanner, 14 automated declaration-vs-usage techniques, 163 structural tests (Bugs 71-72). Configurable agent models (`pipeline.agent_models` in profile -- opus/sonnet/haiku per agent). GitHub repository configuration (`vcs.github` in profile -- new/existing_force/existing_branch/none modes). README mode (`readme.mode` in profile -- generate or update existing). 37 additional bug fixes (Bugs 52-89) including full Stage 3 error handling, Stage 4 failure paths, debug loop gates, selective blueprint loading, routing dispatch loops (Bug 73), test target invariant (Bug 74), and regression test import adaptation (Bug 85). 89 total bugs cataloged across SVP 1.0 through 2.1.1.
+- **SVP 2.1.1** — RFC-2: unit-level preference capture in blueprint dialog (Rules P1-P4, preference-contract consistency validation). Structural completeness checking system: four-layer defense with project-agnostic AST scanner, 14 automated declaration-vs-usage techniques, 163 structural tests (Bugs 71-72). Configurable agent models (`pipeline.agent_models` in profile -- opus/sonnet/haiku per agent). GitHub repository configuration (`vcs.github` in profile -- new/existing_force/existing_branch/none modes). README mode (`readme.mode` in profile -- generate or update existing). 39 additional bug fixes (Bugs 52-91) including full Stage 3 error handling, Stage 4 failure paths, debug loop gates, selective blueprint loading, routing dispatch loops (Bug 73), test target invariant (Bug 74), and regression test import adaptation (Bug 85). 91 total bugs cataloged across SVP 1.0 through 2.1.1.
 
 ## License
 

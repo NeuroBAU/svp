@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Bug 90: Setup agent profile schema misaligned with DEFAULT_PROFILE -- writes orphaned `packaging` section instead of `delivery` + `license` sections. Added explicit JSON templates to agent definition and `validate_profile()` checks.
+- Bug 91: Setup agent missing mandatory follow-up questions for GitHub URL (existing repo modes) and existing README path (update mode). Added MANDATORY FOLLOW-UP blocks to agent definition.
+
 ## [2.1.1] - 2026-03-19
 
 ### Added
@@ -58,7 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - rollback_to_unit: delete instead of copy-to-backup (Bug 55)
 - Setup agent dialog expanded from five areas to six areas (Area 6: agent model configuration)
 - Profile schema gains `pipeline.agent_models`, `vcs.github`, `readme.mode`, and `readme.existing_path` fields
-- Bug count: 89 total bugs cataloged across SVP 1.0 through 2.1.1
+- Bug count: 91 total bugs cataloged across SVP 1.0 through 2.1.1
 - Spec version: v8.31 -> v8.33
 
 ## [2.1.0] - 2026-03-16
