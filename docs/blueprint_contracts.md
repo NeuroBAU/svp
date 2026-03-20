@@ -94,8 +94,14 @@ DEFAULT_PROFILE: Dict[str, Any] = {
         "tagging": "semver",
         "conventions_notes": None,
         "changelog": "none",
+        "github": {
+            "mode": "none",
+            "repo": None,
+        },
     },
     "readme": {
+        "mode": "generate",
+        "existing_path": None,
         "audience": "domain expert",
         "sections": [
             "Header", "What it does", "Who it's for", "Installation",
@@ -146,6 +152,9 @@ DEFAULT_PROFILE: Dict[str, Any] = {
         "vcs_system": "git",
         "source_layout_during_build": "svp_native",
         "pipeline_quality_tools": "ruff_mypy",
+    },
+    "pipeline": {
+        "agent_models": {},
     },
     "created_at": "",
 }
@@ -1573,7 +1582,7 @@ assert "Rule P4" in BLUEPRINT_AUTHOR_AGENT_MD_CONTENT
 
 ### Tier 3 -- Behavioral Contracts
 
-- **Setup Agent:** Operates in project context mode, project profile mode, and targeted revision mode. Profile dialog covers five areas including Area 5 (quality preferences, NEW IN 2.1) and changelog in Area 1. Writes files using `ARTIFACT_FILENAMES` constants. System prompt must include Rules 1-4 verbatim as numbered behavioral requirements. `SETUP_AGENT_MD_CONTENT` must embed the complete `project_profile.json` schema structure with exact canonical field names matching `DEFAULT_PROFILE` in Unit 1, so the agent's JSON output uses identical section and field names.
+- **Setup Agent:** Operates in project context mode, project profile mode, and targeted revision mode. Profile dialog covers six areas including Area 5 (quality preferences, NEW IN 2.1), Area 6 (agent model configuration, NEW IN 2.1.1), GitHub repository configuration in Area 1 (NEW IN 2.1.1), and README mode in Area 2 (NEW IN 2.1.1). Writes files using `ARTIFACT_FILENAMES` constants. System prompt must include Rules 1-4 verbatim as numbered behavioral requirements. `SETUP_AGENT_MD_CONTENT` must embed the complete `project_profile.json` schema structure with exact canonical field names matching `DEFAULT_PROFILE` in Unit 1 (including `pipeline.agent_models`, `vcs.github`, `readme.mode`, and `readme.existing_path`), so the agent's JSON output uses identical section and field names.
 - **Blueprint Author Agent:** Receives profile sections (`readme`, `vcs`, `delivery`, `quality`). Produces blueprint files in the `blueprint/` directory (currently `blueprint_prose.md` and `blueprint_contracts.md` as paired output, but the system is agnostic to the exact filenames). Encodes tool preferences as behavioral contracts (Layer 1). **Unit-level preference capture (RFC-2):** The blueprint author agent definition includes Rules P1-P4 for capturing domain preferences during the decomposition dialog:
   - **Rule P1 (Ask at the unit level):** After establishing each unit's Tier 1 description and before finalizing contracts, ask about domain conventions, preferences about output appearance, domain-specific choices that are not requirements but matter.
   - **Rule P2 (Domain language only):** Use the human's domain vocabulary, not engineering vocabulary. Right: "When this module saves your data, what file format do your collaborators' tools expect?" Wrong: "Do you have preferences for the serialization format?"

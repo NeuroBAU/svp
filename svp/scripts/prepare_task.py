@@ -592,7 +592,7 @@ def _assemble_sections_for_agent(
                 ref_readme = readme_files[-1]
                 sections["reference_readme"] = (
                     f"## Reference README (carry-forward base: {ref_readme.name})\n\n"
-                    "If the project profile has `readme.treatment: additive`, "
+                    "If the project profile has `readme.mode: update`, "
                     "you MUST preserve the full content of this reference README "
                     "and extend it with new sections for the current release. "
                     "Do NOT rewrite, reorganize, or summarize existing content.\n\n"

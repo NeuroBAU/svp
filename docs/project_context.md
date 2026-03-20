@@ -209,7 +209,7 @@ SVP processes text artifacts:
 20. Two-branch routing invariant applied universally to every agent-to-gate sub-stage transition (not just Stage 0).
 21. Profile canonical naming invariant: `DEFAULT_PROFILE`, setup agent output, and all consumers use identical section/field names from the canonical schema.
 22. Launcher fully specified: ordered pre-flight checks with specific error messages, three CLI modes (`svp new`, bare `svp`, `svp restore`), session launch via `subprocess.run` with `cwd`/`env`/restart-signal loop.
-23. Setup agent UX: four behavioral rules (plain-language explanations, best-option recommendations, sensible defaults, progressive disclosure) applied to all five dialog areas.
+23. Setup agent UX: four behavioral rules (plain-language explanations, best-option recommendations, sensible defaults, progressive disclosure) applied to all six dialog areas.
 24. All carry-forward regression tests pass (34 files total: 15 carry-forward from SVP 2.0, 7 carry-forward from SVP 2.1 prior builds, and 12 newly authored in this build).
 25. Route-level state persistence invariant: every `route()` branch that performs an in-memory state transition and recursively routes must persist state to disk before returning the action block. Exhaustive `dispatch_agent_status` coverage: every main-pipeline agent type must have an explicit state-advancing handler (not a bare `return state`).
 26. Redo-triggered re-delivery must not collide with existing delivered repo directory (repo collision avoidance mechanism, spec Section 12.1).

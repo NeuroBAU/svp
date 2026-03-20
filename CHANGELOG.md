@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Gate C unused function detection with Gate 5.3 human gate (Bugs 56-58)
 - Gate C stub import detection in test files (Bug 74) -- 5th structural check
 - Regression test import adaptation script (Bug 85) -- `adapt_regression_tests.py` with JSON mapping
+- **Configurable Agent Models**: `pipeline.agent_models` in `project_profile.json` -- human chooses opus/sonnet/haiku per agent during Setup Area 6. Routing emits MODEL field in invoke_agent action blocks. Claude Code maps short names to latest model versions automatically.
+- **GitHub Repository Configuration**: `vcs.github` in `project_profile.json` -- four modes (new, existing_force, existing_branch, none). Setup agent validates `gh` CLI installation and authentication. Git repo agent handles each mode during Stage 5.
+- **README Mode**: `readme.mode` in `project_profile.json` -- generate (new) or update (preserve existing). Setup agent collects existing README via @ command when update mode selected. Git repo agent uses existing README as base in update mode.
 
 ### Fixed
 
@@ -53,6 +56,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Structural check expanded from 4 to 5 checks (Bug 74: stub import detection)
 - Blueprint checker and reviewer checklists: added regression test target verification (Bug 74)
 - rollback_to_unit: delete instead of copy-to-backup (Bug 55)
+- Setup agent dialog expanded from five areas to six areas (Area 6: agent model configuration)
+- Profile schema gains `pipeline.agent_models`, `vcs.github`, `readme.mode`, and `readme.existing_path` fields
+- Bug count: 85 total bugs cataloged across SVP 1.0 through 2.1.1
 - Spec version: v8.31 -> v8.33
 
 ## [2.1.0] - 2026-03-16

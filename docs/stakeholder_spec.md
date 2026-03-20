@@ -585,7 +585,7 @@ After project context approval, the setup agent conducts a second Socratic dialo
 
 **Interaction pattern:** Ledger-based multi-turn on the same ledger (`ledgers/setup_dialog.jsonl`), continuing from the project context conversation.
 
-**Experience-aware dialog (CHANGED IN 2.1).** The setup agent is mindful that the human is a domain expert, not a software engineer. The following four rules govern every question the setup agent asks across all five dialog areas. These are not guidelines — they are behavioral requirements for the setup agent's system prompt.
+**Experience-aware dialog (CHANGED IN 2.1).** The setup agent is mindful that the human is a domain expert, not a software engineer. The following four rules govern every question the setup agent asks across all six dialog areas. These are not guidelines — they are behavioral requirements for the setup agent's system prompt.
 
 **Rule 1: Plain-language explanations required.** For every choice presented, the setup agent must explain what each alternative means in non-technical language that a domain expert can understand. No jargon without explanation. If a term is technical (e.g., "linter," "type checker," "semantic versioning," "docstring convention"), the agent must define it in one sentence before presenting it as an option. Example — wrong: "Docstring convention: Google, NumPy, or Sphinx?" Example — correct: "Docstrings are the help text inside your code that explain what each function does. There are different formatting styles — I recommend Google style, which is the most widely used and the easiest to read. Would you like to use that, or would you like to hear about the alternatives?"
 
@@ -601,7 +601,7 @@ After project context approval, the setup agent conducts a second Socratic dialo
 
 **Mode A awareness.** When the build type is Mode A (self-build), the setup agent pre-populates the profile with Mode A defaults: the 12-section README structure, conventional commits, Apache 2.0 license, `entry_points: true`, `source_layout: "conventional"`, `depth: "comprehensive"`, `audience: "developer"`. For Area 5, Mode A defaults are `quality.linter: "ruff"`, `quality.formatter: "ruff"`, `quality.type_checker: "mypy"`, `quality.import_sorter: "ruff"`, `quality.line_length: 88` — matching the pipeline tools, because SVP contributors should use the same quality tools the pipeline uses **(NEW IN 2.1)**. The human reviews and approves rather than answering from scratch. It only asks questions that are genuinely open even for a self-build — license holder name, author name, author contact.
 
-**Dialog areas.** The setup agent covers five areas. Each area corresponds to a set of forking points from the comprehensive enumeration (see Part III, Section 31).
+**Dialog areas.** The setup agent covers six areas. Each area corresponds to a set of forking points from the comprehensive enumeration (see Part III, Section 31).
 
 **Area 1: Version Control Preferences.**
 - Commit message style: Conventional Commits (default), free-form, or custom template. When "custom" is chosen, the human provides a `commit_template`.
@@ -610,8 +610,10 @@ After project context approval, the setup agent conducts a second Socratic dialo
 - Tagging convention: semantic versioning (default), calendar versioning, or none.
 - Team-specific conventions (free-text).
 - Changelog format: Keep a Changelog, Conventional Changelog, or none (default) **(NEW IN 2.1)**.
+- GitHub repository configuration: new (create new repo), existing_force (force-push to existing), existing_branch (push to a new branch on existing), or none (no remote). The setup agent validates `gh` CLI installation and authentication before offering GitHub options **(NEW IN 2.1.1)**.
 
 **Area 2: README and Documentation Preferences.**
+- README mode: generate (create new README from scratch, default) or update (preserve and extend an existing README provided via @ command). When "update" is selected, the setup agent collects the existing README content and records the path in `readme.existing_path` **(NEW IN 2.1.1)**.
 - Target audience: domain expert (default), developer, both, or custom description.
 - Section list: the agent presents the default list (Header, What it does, Who it's for, Installation, Configuration, Usage, Quick Tutorial, Examples, Project Structure, License) and asks for additions, removals, or reordering.
 - Documentation depth: minimal, standard (default), or comprehensive.
@@ -651,6 +653,16 @@ If the human enters the detailed options, each tool category must be explained b
 
 **Note on defaults:** The pipeline always uses ruff + mypy internally (the quality gate guarantee). The delivery defaults match the pipeline for formatter and linter (ruff) but default type checker to "none" because the end user may not want to maintain type annotations. The setup agent explains this distinction.
 
+**Area 6: Agent Model Configuration. (NEW IN 2.1.1)**
+
+The agent asks whether the human wants to configure which Claude model each agent uses, or accept the defaults. The three options per agent are opus (highest capability, default for most agents), sonnet (balanced), and haiku (fastest, lowest cost). Claude Code maps these short names to the latest available model versions automatically.
+
+- The setup agent presents the configurable agents and their default model assignments.
+- The human can override any agent's model assignment.
+- Only entries that differ from the default are recorded in the profile.
+
+The configuration is recorded in `project_profile.json` under `pipeline.agent_models`. The routing script emits a `MODEL` field in `invoke_agent` action blocks, and the orchestration layer passes this to the Agent tool's `model` parameter.
+
 **What the setup agent does NOT ask in SVP 2.1.** The following are pipeline-fixed (Tier A) and are not presented as choices:
 
 - Programming language (Python only).
@@ -689,8 +701,13 @@ project_profile.json
 │   ├── branch_strategy: "main-only" | string
 │   ├── tagging: "semver" | "calver" | "none"
 │   ├── conventions_notes: string | null
-│   └── changelog: "keep_a_changelog" | "conventional_changelog" | "none"  (NEW IN 2.1)
+│   ├── changelog: "keep_a_changelog" | "conventional_changelog" | "none"  (NEW IN 2.1)
+│   └── github:                                          (NEW IN 2.1.1)
+│       ├── mode: "new" | "existing_force" | "existing_branch" | "none"
+│       └── repo: string | null
 ├── readme:
+│   ├── mode: "generate" | "update"                      (NEW IN 2.1.1)
+│   ├── existing_path: string | null                     (NEW IN 2.1.1, set when mode="update")
 │   ├── audience: string
 │   ├── sections: list of strings
 │   ├── depth: "minimal" | "standard" | "comprehensive"
@@ -737,6 +754,8 @@ project_profile.json
 │   ├── vcs_system: "git"
 │   ├── source_layout_during_build: "svp_native"
 │   └── pipeline_quality_tools: "ruff_mypy"           (NEW IN 2.1)
+├── pipeline:                                            (NEW IN 2.1.1)
+│   └── agent_models: Dict[str, str]                     (maps agent type to "opus"|"sonnet"|"haiku")
 └── created_at: ISO timestamp
 ```
 
@@ -3059,7 +3078,7 @@ The profile says how the delivered project should look. The toolchain file says 
 
 **Unit 12 (hooks) (CHANGED IN 2.1):** Add write authorization for `project_profile.json`, `toolchain.json` **(CHANGED IN 2.0)**, `ruff.toml` **(NEW IN 2.1)**, delivered repo path during debug sessions **(NEW IN 2.1)**, and lessons learned document during debug sessions **(NEW IN 2.1)**. Add `PostToolUse` stub sentinel hook. Handler is a command hook (shell script). Matcher: Write tool calls to `src/unit_N/` paths. Behavior: grep written content for `__SVP_STUB__`; exit 2 with explanatory message if found.
 
-**Unit 13 (setup agent):** Expand dialog for Area 5 (quality preferences) **(NEW IN 2.1)**, changelog question in Area 1 **(NEW IN 2.1)**. Profile dialog and Gate 0.3. Targeted revision mode **(CHANGED IN 2.0)**. The setup agent's system prompt must include the complete `project_profile.json` schema with exact canonical field names (Section 6.4) so that the agent's JSON output uses the same section and field names as `DEFAULT_PROFILE` in Unit 1 **(NEW IN 2.1)**.
+**Unit 13 (setup agent):** Expand dialog for Area 5 (quality preferences) **(NEW IN 2.1)**, Area 6 (agent model configuration) **(NEW IN 2.1.1)**, changelog question in Area 1 **(NEW IN 2.1)**, GitHub repository configuration in Area 1 **(NEW IN 2.1.1)**, README mode in Area 2 **(NEW IN 2.1.1)**. Profile dialog and Gate 0.3. Targeted revision mode **(CHANGED IN 2.0)**. The setup agent's system prompt must include the complete `project_profile.json` schema with exact canonical field names (Section 6.4) so that the agent's JSON output uses the same section and field names as `DEFAULT_PROFILE` in Unit 1 **(NEW IN 2.1)**.
 
 **Unit 14 (blueprint checker) (CHANGED IN 2.1):** Add quality profile preference validation (Layer 2) **(NEW IN 2.1)**. Blueprint checker receives the pattern catalog section of `svp_2_1_lessons_learned.md` as an additional input. Checker produces a risk section in its output identifying structural features matching known failure patterns (P1-P9+). Advisory only — does not block approval.
 
@@ -3089,7 +3108,7 @@ The profile says how the delivered project should look. The toolchain file says 
 
 **Tier A (pipeline-fixed):** Language (Python), environment (conda), test framework (pytest), build backend (setuptools), VCS (git), source layout during build (SVP-native), quality tools during build (ruff + mypy). Recorded in profile `fixed` section. Not presented as choices.
 
-**Tier B (delivery-configurable):** Five dialog areas: version control (commit style, branch strategy, tagging, changelog), README and documentation (audience, sections, depth, optional content), testing (coverage, readable names), licensing and packaging (license, metadata, entry points, delivery environment, dependency format, source layout), delivered quality tools (linter, formatter, type checker, import sorter, line length). Captured in profile. Acted on by git repo agent.
+**Tier B (delivery-configurable):** Six dialog areas: version control (commit style, branch strategy, tagging, changelog, GitHub repository configuration), README and documentation (README mode, audience, sections, depth, optional content), testing (coverage, readable names), licensing and packaging (license, metadata, entry points, delivery environment, dependency format, source layout), delivered quality tools (linter, formatter, type checker, import sorter, line length), agent model configuration (opus/sonnet/haiku per agent). Captured in profile. Acted on by git repo agent and routing script.
 
 **Unsupported preferences.** If the human requests a delivery feature that SVP 2.1 does not support (CI templates, Docker, pre-commit hooks, documentation sites, etc.), the setup agent acknowledges the request, explains honestly that SVP does not handle it, and tells the human they will need to add it manually after delivery. Nothing is recorded in the profile. SVP 2.1 is the terminal release — there is no "future version" promise.
 

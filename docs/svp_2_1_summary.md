@@ -28,8 +28,8 @@ Each line is a verifiable contract. Section numbers reference Document 2.
 - ruff.toml copied to project root and set read-only immediately. Permanently read-only thereafter.
 - Hook activation requires human review via /hooks menu.
 - Setup agent creates project_context.md through Socratic dialog.
-- Setup agent creates project_profile.json through five-area dialog.
-- **Setup agent UX rules (§6.4):** Four behavioral requirements for all five dialog areas: (1) plain-language explanations for every choice -- no jargon without definition, (2) best-option recommendation for every choice -- clearly marked, (3) sensible defaults that always produce a correct project, (4) progressive disclosure -- lead with recommendation, details only on request. Area-level fast path: one accept/decline per area.
+- Setup agent creates project_profile.json through six-area dialog.
+- **Setup agent UX rules (§6.4):** Four behavioral requirements for all six dialog areas: (1) plain-language explanations for every choice -- no jargon without definition, (2) best-option recommendation for every choice -- clearly marked, (3) sensible defaults that always produce a correct project, (4) progressive disclosure -- lead with recommendation, details only on request. Area-level fast path: one accept/decline per area.
 - **Two-branch routing invariant (§3.6):** Applies universally to every sub-stage with an agent-to-gate or agent-to-command transition across all stages. route() checks last_status.txt to distinguish "agent not yet done" (invoke agent) from "agent done" (present gate or run command). Without this check, routing loops indefinitely. Structural invariant, not a per-stage fix (generalized Bug 21 fix). Must be applied universally in a single implementation pass, not incrementally as bugs are discovered (Bug 43 fix). Two sub-lists:
   - **Gate-presenting entries** (done branch emits human_gate): Stage 0 (project_context, project_profile), Stage 1 (stakeholder_spec_authoring), Stage 2 (blueprint_dialog, alignment_check), Stage 5, post-delivery debug loop (triage agent to Gate 6.2/6.4, repair agent to Gate 6.3, test agent in regression mode to Gate 6.1), redo profile sub-stages (redo_profile_delivery, redo_profile_blueprint).
   - **Command-presenting entries** (done branch emits run_command): Stage 3 quality_gate_a_retry (check for TEST_GENERATION_COMPLETE before re-running Gate A tools), Stage 3 quality_gate_b_retry (check for IMPLEMENTATION_COMPLETE before re-running Gate B tools), Stage 4 (check for INTEGRATION_TESTS_COMPLETE before running integration test suite).
@@ -289,7 +289,7 @@ Per-unit cycle (11 steps, Bug 36 fix adds stub generation):
 pipeline_toolchain, python_version, delivery{environment_recommendation,
 dependency_format, source_layout, entry_points}, vcs{commit_style,
 commit_template, issue_references, branch_strategy, tagging,
-conventions_notes, changelog}, readme{audience, sections, depth,
+conventions_notes, changelog, github{mode, repo}}, readme{mode, existing_path, audience, sections, depth,
 include_math_notation, include_glossary, include_data_formats,
 include_code_examples, code_example_focus, custom_sections,
 docstring_convention, citation_file, contributing_guide},
@@ -299,7 +299,7 @@ additional_metadata{citation, funding, acknowledgments}},
 quality{linter, formatter, type_checker, import_sorter, line_length},
 fixed{language, pipeline_environment, test_framework, build_backend,
 vcs_system, source_layout_during_build, pipeline_quality_tools},
-created_at
+pipeline{agent_models}, created_at
 ```
 
 ### toolchain.json
@@ -514,7 +514,7 @@ All regression tests live in `tests/regressions/`. Bugs 55–57 and 63 are docum
 ### Forking Points
 
 - **Tier A (Pipeline-Fixed):** Python, Conda, pytest, setuptools, Git, SVP-native layout during build, ruff + mypy during build. In profile fixed section.
-- **Tier B (Delivery-Configurable):** Five dialog areas. Captured in profile. Acted on by git repo agent.
+- **Tier B (Delivery-Configurable):** Six dialog areas. Captured in profile. Acted on by git repo agent.
 - **Unsupported Preferences:** Setup agent acknowledges but does not track. Human handles manually after delivery.
 
 ### Documents
