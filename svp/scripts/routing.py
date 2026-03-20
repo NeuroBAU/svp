@@ -18,8 +18,9 @@ diagnostic escalation, Gate 3.1/3.2 dispatch, coverage two-branch, red_run retri
 Bug 69 fix (debug loop gates: gate_6_0 triage_readonly/triage separation, gate_6_1
 regression_test phase routing, gate_6_3 RECLASSIFY BUG reset, gate_6_5 debug commit),
 Bug 70 fix (fix ladder routing at sub_stage=None, TESTS_ERROR infinite loop, dead phases),
-Bug 73 fix (Stage 0 PROFILE_COMPLETE routing loop, Gate 5.3 OVERRIDE CONTINUE loop,
-Gate 4.1 ASSEMBLY FIX loop — dispatch handlers returning unchanged state).
+Bug 52 fix (Stage 0 PROFILE_COMPLETE routing loop, Gate 5.3 OVERRIDE CONTINUE loop,
+Gate 4.1 ASSEMBLY FIX loop — dispatch handlers returning unchanged state),
+Bug 75 fix (coverage_review auto-format quality_gate dispatch when sub_stage != quality_gate_b).
 """
 
 import json
@@ -90,7 +91,6 @@ GATE_VOCABULARY: Dict[str, List[str]] = {
     "gate_hint_conflict": ["BLUEPRINT CORRECT", "HINT CORRECT"],
 }
 
-# Backward compatibility alias (stub name)
 GATE_RESPONSES = GATE_VOCABULARY
 
 # --- Data contract: terminal status line vocabulary ---
@@ -236,8 +236,7 @@ def _read_last_status(project_root: Path) -> Optional[str]:
     return None
 
 
-
-# Public alias (stub name)
+# Public alias for tests and external callers
 read_last_status = _read_last_status
 
 
@@ -357,7 +356,7 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             }
         elif sub_stage == "project_context":
             # Bug 21: two-branch routing
-            # Bug 73: also match PROFILE_COMPLETE (agent completed both artifacts)
+            # Bug 52: also match PROFILE_COMPLETE (agent completed both artifacts)
             last_status = _read_last_status(project_root)
             if last_status in ("PROJECT_CONTEXT_COMPLETE", "PROFILE_COMPLETE"):
                 return {
@@ -377,7 +376,7 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 }
         elif sub_stage == "project_profile":
             # Bug 21: two-branch routing
-            # Bug 73: also check artifact existence (profile may have been created
+            # Bug 52: also check artifact existence (profile may have been created
             # during the context phase, with last_status overwritten by Gate 0.2)
             last_status = _read_last_status(project_root)
             profile_exists = (project_root / "project_profile.json").exists()
@@ -1371,7 +1370,7 @@ def dispatch_gate_response(
 
     elif gate_id == "gate_4_1_integration_failure":
         if response == "ASSEMBLY FIX":
-            # Bug 73-B: reset sub_stage so integration_test_author is re-invoked;
+            # Bug 52-B: reset sub_stage so integration_test_author is re-invoked;
             # returning unchanged state loops gate_4_1
             new_state = advance_sub_stage(state, None, project_root)
             new_state.last_action = "Gate 4.1: ASSEMBLY FIX, re-invoking integration test author"
@@ -1455,7 +1454,7 @@ def dispatch_gate_response(
                 state,
             )
         else:  # OVERRIDE CONTINUE
-            # Bug 73-A: must advance sub_stage; returning unchanged state loops gate_5_3
+            # Bug 52-A: must advance sub_stage; returning unchanged state loops gate_5_3
             return advance_sub_stage(state, "repo_complete", project_root)
 
     elif gate_id == "gate_6_0_debug_permission":
@@ -1870,9 +1869,17 @@ def dispatch_command_status(
     elif phase == "quality_gate":
         # NEW IN 2.1: quality gate command status dispatch
         if status_line.startswith("COMMAND_SUCCEEDED"):
+            # Bug 75: coverage_review auto-format runs gate_b but state is still
+            # coverage_review, not quality_gate_b. Advance to unit_completion directly.
+            if state.sub_stage == "coverage_review":
+                return advance_sub_stage(state, "unit_completion", project_root)
             # Pass regardless of initial or retry sub-stage
             return quality_gate_pass(state)
         elif status_line.startswith("COMMAND_FAILED"):
+            # Bug 75: coverage_review auto-format failure — silently accept
+            # (formatting residuals deferred to Gate C per spec Section 10.7)
+            if state.sub_stage == "coverage_review":
+                return advance_sub_stage(state, "unit_completion", project_root)
             # Check current sub-stage to determine action
             if state.sub_stage in ("quality_gate_a", "quality_gate_b"):
                 # First run: advance to retry
