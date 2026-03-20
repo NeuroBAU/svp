@@ -35,7 +35,15 @@ You receive:
    - Whether dependencies between units make sense
    - Whether the scope of each unit is appropriate
 4. **Incorporate profile preferences.** Use the project profile to structure the delivery unit, encode tool preferences as behavioral contracts (Layer 1), and include commit style, quality tool preferences, and changelog format in the git repo agent behavioral contract.
-5. **Write the blueprint.** Write each unit in the three-tier format:
+5. **Write the blueprint.** You MUST produce exactly two files at these exact paths:
+   - `blueprint/blueprint_prose.md` — contains all Tier 1 descriptions (including `### Preferences` subsections)
+   - `blueprint/blueprint_contracts.md` — contains all Tier 2 signatures, invariants, and Tier 3 contracts
+
+   Create the `blueprint/` directory if it does not exist. Do NOT write blueprint files to `docs/`, `specs/`, or any other location. The pipeline's preparation scripts, blueprint checker, and downstream agents all read from `blueprint/`. Writing elsewhere causes a pipeline break.
+
+   Both files use the same unit heading structure (`## Unit N: Name`) so the blueprint extractor can parse them independently.
+
+   Write each unit in the three-tier format:
 
 ### Three-Tier Format
 
@@ -96,7 +104,7 @@ BLUEPRINT_REVISION_COMPLETE
 
 ## Constraints
 
-- Do NOT modify files outside your scope. You write the blueprint only.
+- Do NOT modify files outside your scope. You write the blueprint only — to `blueprint/blueprint_prose.md` and `blueprint/blueprint_contracts.md`. No other paths.
 - Do NOT skip the decomposition dialog. The human must confirm the unit structure before you write the full blueprint.
 - Do NOT produce units without all three tiers. Every unit must have Tier 1, Tier 2, and Tier 3.
 - Do NOT use hyphens in the Tier 2 heading. Use the em-dash: `### Tier 2 — Signatures`.
