@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69, 86 (43 of 86 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69, 86 (43 of 87 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 86 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 87 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -540,11 +540,23 @@ The spec provides a principle but not the granularity rules needed to operationa
 **Instances:** Bugs 65, 66, 67, 68, 69.
 Happy-path transitions are contracted and tested; error paths are described in spec prose but never converted to enumerable blueprint Tier 3 contracts. The implementation agent faithfully implements the contracted happy paths and produces no-op stubs for the uncontracted error paths, resulting in infinite loops on any failure. **Prevention:** Every dispatch function's (phase, sub_stage, status) combination must have a contracted behavior -- including error cases. Per-gate-option dispatch contracts must be applied strictly. Regression tests must cover error-path dispatch completeness.
 
+### P11 — Structural Completeness Gap (NEW — Bug 72)
+**Instances:** Bug 72.
+The system lacked a generalized, project-agnostic mechanism for detecting declaration-vs-usage gaps. The existing Bug 71 test suite was SVP-specific; the four-layer defense generalizes this to any project. **Prevention:** Structural completeness checks must be project-agnostic and automated via AST scanning.
+
+### P12 — Test Target Mismatch (NEW — Bug 74)
+**Instances:** Bug 74.
+Workspace regression test files imported from `src.unit_N.stub` instead of the real implementation modules. Stubs may diverge from the real scripts, causing false-pass scenarios. **Prevention:** Regression tests must import from the real script modules, not stubs. Structural checks must verify test import targets.
+
+### P13 — Documentation Sync Omission (NEW — Bug 87)
+**Instances:** Bug 87.
+Pipeline defines artifact synchronization invariants for code artifacts (source -> delivered via assembly mapping) but has no deterministic enforcement for documentation artifacts that exist in multiple locations. Agent instructions alone are insufficient to keep copies aligned -- agents may condense, reformat, or skip copies. **Prevention:** Every artifact that exists in N>1 locations must have a deterministic sync script, not rely on agent instructions to keep copies aligned.
+
 ---
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (43 of 86 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (43 of 87 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -1433,6 +1445,22 @@ Gap B (Unit 10): routing.py profile sub-stage guard (Bug 52/73 artifact-existenc
 - Regression tests should test the exact scenario: artifact exists + wrong status = agent invoked (not gate presented).
 
 **Test:** `test_bug86_profile_dialog_skip.py`
+
+---
+
+### Bug 87: Post-triage documentation sync gaps -- divergent copies, stale workspace, unstaged files
+
+**Date:** 2026-03-20
+**Classification:** pipeline tooling (routing.py, debug_loop_agent_definitions.py)
+**Root cause:** P13 (Documentation Sync Omission) -- The debug loop defines artifact sync invariants for code (Section 12.17.6) but has no deterministic enforcement for documentation artifacts. Three gaps: (1) triage agent writes to both docs/ and docs/references/ independently with no constraint they must match, (2) repo docs not synced back to workspace references/ so next triage gets stale lessons learned, (3) doc files (CHANGELOG, README, lessons_learned, summary) left unstaged after triage.
+
+**Fix:** Added `sync_debug_docs.py` -- deterministic post-triage sync that copies docs/ -> docs/references/ in repo, repo docs/ -> workspace references/, and commits all dirty doc files. Wired into routing.py as a run_command action after TRIAGE_COMPLETE, gated by a marker file. Updated triage agent definition to only write to docs/ (not docs/references/).
+
+**Pattern:** P13 (NEW) -- Documentation Sync Omission. Pipeline defines sync invariants for code artifacts but not for documentation artifacts that exist in multiple locations. Without deterministic sync, agent-written copies diverge and workspace copies become stale.
+
+**Prevention:** Every artifact that exists in N>1 locations must have a deterministic sync script, not rely on agent instructions to keep copies aligned.
+
+**Test:** (manual verification -- sync script is infrastructure, not unit-testable in the standard framework)
 
 ---
 
