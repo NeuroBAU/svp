@@ -755,9 +755,9 @@ class TestDefaultProfileKeyPaths:
         from svp_config import DEFAULT_PROFILE
 
         expected = {
-            "use_repo_tooling",
             "linter",
             "formatter",
+            "use_repo_tooling",
             "type_checker",
             "import_sorter",
             "line_length",

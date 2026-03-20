@@ -14,7 +14,10 @@ from unittest.mock import patch
 # ---------------------------------------------------------------------------
 # Path setup
 # ---------------------------------------------------------------------------
-SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "svp" / "scripts"
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+SCRIPTS_DIR = _PROJECT_ROOT / "scripts"
+if not SCRIPTS_DIR.is_dir():
+    SCRIPTS_DIR = _PROJECT_ROOT / "svp" / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 

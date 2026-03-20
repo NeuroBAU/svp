@@ -84,7 +84,7 @@ GATE_VOCABULARY: Dict[str, List[str]] = {
     "gate_5_3_unused_functions": ["FIX SPEC", "OVERRIDE CONTINUE"],
     "gate_6_0_debug_permission": ["AUTHORIZE DEBUG", "ABANDON DEBUG"],
     "gate_6_1_regression_test": ["TEST CORRECT", "TEST WRONG"],
-    "gate_6_2_debug_classification": ["FIX UNIT", "FIX BLUEPRINT", "FIX SPEC"],
+    "gate_6_2_debug_classification": ["FIX UNIT", "FIX BLUEPRINT", "FIX SPEC", "FIX IN PLACE"],
     "gate_6_3_repair_exhausted": ["RETRY REPAIR", "RECLASSIFY BUG", "ABANDON DEBUG"],
     "gate_6_4_non_reproducible": ["RETRY TRIAGE", "ABANDON DEBUG"],
     "gate_6_5_debug_commit": ["COMMIT APPROVED", "COMMIT REJECTED"],
@@ -364,7 +364,7 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             action = _invoke_agent_action(
                 "setup_agent", project_root,
                 context="targeted_profile_revision",
-                prepare_cmd=_prepare_cmd("setup_agent", context="targeted_profile_revision"),
+                prepare_cmd=_prepare_cmd("setup_agent"),
                 post_cmd=_post_cmd("setup"),
             )
             action["CLASSIFICATION"] = "profile_delivery"
@@ -384,7 +384,7 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             action = _invoke_agent_action(
                 "setup_agent", project_root,
                 context="targeted_profile_revision",
-                prepare_cmd=_prepare_cmd("setup_agent", context="targeted_profile_revision"),
+                prepare_cmd=_prepare_cmd("setup_agent"),
                 post_cmd=_post_cmd("setup"),
             )
             action["CLASSIFICATION"] = "profile_blueprint"
@@ -421,9 +421,12 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                     post_cmd=_post_cmd("setup"),
                 )
         elif sub_stage == "project_profile":
-            # Bug 86 fix: Only PROFILE_COMPLETE should trigger the gate.
-            # The artifact-existence fallback was too loose -- carry-over statuses
-            # like CONTEXT APPROVED could skip the profile dialog.
+            # Bug 21: two-branch routing
+            # Bug 86 fix: only skip dialog when PROFILE_COMPLETE was emitted
+            # during an actual profile-phase invocation.  The artifact-existence
+            # fallback (Bug 73) is removed because it allowed a speculative
+            # write during the context phase to bypass the spec-required
+            # five-area dialog (Section 6.4).
             last_status = _read_last_status(project_root)
             if last_status == "PROFILE_COMPLETE":
                 return {
@@ -852,6 +855,21 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                     "TRIAGE_NON_REPRODUCIBLE",
                     "TRIAGE_NEEDS_REFINEMENT",
                 ):
+                    # Bug 87: run doc sync before proceeding to gate
+                    # Bug 89: POST must restore last_status.txt so routing
+                    # sees the triage status on re-entry, not COMMAND_SUCCEEDED
+                    doc_sync_marker = project_root / ".svp" / "doc_sync_done"
+                    if not doc_sync_marker.exists():
+                        status_file = project_root / ".svp" / "last_status.txt"
+                        restore_cmd = f"touch {doc_sync_marker}"
+                        if status_file.exists():
+                            saved = status_file.read_text().strip()
+                            restore_cmd += f' && echo -n "{saved}" > {status_file}'
+                        return {
+                            "ACTION": "run_command",
+                            "COMMAND": "python scripts/sync_debug_docs.py --project-root .",
+                            "POST": restore_cmd,
+                        }
                     # Triage agent completed: present Gate 6.0 for authorization
                     return {
                         "ACTION": "human_gate",
@@ -872,6 +890,27 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             # Bug 69 E.1: triage -- authorized triage with write access
             elif debug_phase == "triage":
                 last_status = _read_last_status(project_root)
+                # Bug 87: run doc sync after triage completion, before gates
+                # Bug 89: POST must restore last_status.txt so routing
+                # sees the triage status on re-entry, not COMMAND_SUCCEEDED
+                if last_status in (
+                    "TRIAGE_COMPLETE: single_unit",
+                    "TRIAGE_COMPLETE: cross_unit",
+                    "TRIAGE_COMPLETE: build_env",
+                    "TRIAGE_NON_REPRODUCIBLE",
+                ):
+                    doc_sync_marker = project_root / ".svp" / "doc_sync_done"
+                    if not doc_sync_marker.exists():
+                        status_file = project_root / ".svp" / "last_status.txt"
+                        restore_cmd = f"touch {doc_sync_marker}"
+                        if status_file.exists():
+                            saved = status_file.read_text().strip()
+                            restore_cmd += f' && echo -n "{saved}" > {status_file}'
+                        return {
+                            "ACTION": "run_command",
+                            "COMMAND": "python scripts/sync_debug_docs.py --project-root .",
+                            "POST": restore_cmd,
+                        }
                 # Bug 55: exact status matching for build_env fast path
                 if last_status in ("TRIAGE_COMPLETE: single_unit", "TRIAGE_COMPLETE: cross_unit"):
                     return {
@@ -1507,7 +1546,12 @@ def dispatch_gate_response(
 
     elif gate_id == "gate_6_0_debug_permission":
         if response == "AUTHORIZE DEBUG":
-            return _try_transition(lambda: authorize_debug_session(state), state)
+            new_state = _try_transition(lambda: authorize_debug_session(state), state)
+            # Bug 92: reset doc sync marker so sync runs again after authorized triage
+            marker = project_root / ".svp" / "doc_sync_done"
+            if marker.exists():
+                marker.unlink()
+            return new_state
         else:  # ABANDON DEBUG
             return _try_transition(lambda: abandon_debug_session(state), state)
 
@@ -1560,12 +1604,27 @@ def dispatch_gate_response(
                 ),
                 state,
             )
-        else:  # FIX SPEC
+        elif response == "FIX SPEC":
             _version_spec(project_root, "Gate 6.2 FIX SPEC")
             return _try_transition(
                 lambda: restart_from_stage(state, "1", "debug: fix spec", project_root),
                 state,
             )
+        else:  # FIX IN PLACE
+            # Bug 96: lightweight fix path — skip rollback/rebuild, go straight to regression test
+            if state.debug_session is None:
+                return state
+            affected = state.debug_session.affected_units
+            classification = state.debug_session.classification or "single_unit"
+            new_state = _try_transition(
+                lambda: set_debug_classification(state, classification, affected),
+                state,
+            )
+            new_state = _try_transition(
+                lambda: update_debug_phase(new_state, "regression_test"),
+                new_state,
+            )
+            return new_state
 
     elif gate_id == "gate_6_3_repair_exhausted":
         if response == "RETRY REPAIR":

@@ -400,6 +400,16 @@ def _assemble_sections_for_agent(
     sections: Dict[str, str] = {}
 
     if agent_type == "setup_agent":
+        # Inject sub-stage mode signal so the agent knows which dialog to conduct.
+        # Without this, the agent may speculatively write both artifacts in one
+        # invocation, bypassing the spec-required five-area profile dialog (Section 6.4).
+        if context in ("project_context", "project_profile"):
+            mode_map = {"project_context": 1, "project_profile": 2}
+            sections["current_mode"] = (
+                f"You are in sub-stage: {context}. "
+                f"Execute Mode {mode_map[context]} only. "
+                f"Do NOT write artifacts for other modes."
+            )
         ctx = _safe_load_project_context(project_root)
         if ctx:
             sections["project_context"] = ctx
@@ -410,11 +420,6 @@ def _assemble_sections_for_agent(
             profile_str = load_full_profile(project_root)
             sections["current_profile"] = profile_str
             sections["revision_mode"] = f"Revision mode: {revision_mode}"
-        # Bug 86 Fix A: inject mode signal so setup agent knows which phase it is in
-        if context == "project_context":
-            sections["current_mode"] = "Mode 1: project_context -- Gather project context from the user."
-        elif context == "project_profile":
-            sections["current_mode"] = "Mode 2: project_profile -- Conduct the five-area profile dialog."
 
     elif agent_type == "stakeholder_dialog":
         ledger = _safe_load_ledger(project_root, "dialog")
@@ -598,7 +603,7 @@ def _assemble_sections_for_agent(
                 ref_readme = readme_files[-1]
                 sections["reference_readme"] = (
                     f"## Reference README (carry-forward base: {ref_readme.name})\n\n"
-                    "If the project profile has `readme.mode: update`, "
+                    "If the project profile has `readme.treatment: additive`, "
                     "you MUST preserve the full content of this reference README "
                     "and extend it with new sections for the current release. "
                     "Do NOT rewrite, reorganize, or summarize existing content.\n\n"
@@ -1099,6 +1104,9 @@ def prepare_gate_prompt(
         parts.append("- **FIX UNIT**: Fix the bug at the unit level.")
         parts.append("- **FIX BLUEPRINT**: The problem is in the blueprint.")
         parts.append("- **FIX SPEC**: The problem is in the stakeholder spec.")
+        parts.append(
+            "- **FIX IN PLACE**: Fix already applied to workspace and repo, proceed to regression test and commit."
+        )
 
     elif gate_id == "gate_6_3_repair_exhausted":
         parts.append("# Gate 6.3: Repair Exhausted")
@@ -1243,7 +1251,8 @@ def main() -> None:
         help="Quality report path or gate name",
     )
     parser.add_argument("--output", type=str, default=None, help="Override output path")
-    parser.add_argument("--context", type=str, default=None, help="Context mode for setup agent")
+
+    parser.add_argument("--context", type=str, default=None, help="Sub-stage context for mode-aware agents")
 
     args = parser.parse_args()
     project_root = Path(args.project_root)

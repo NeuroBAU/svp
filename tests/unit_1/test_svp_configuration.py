@@ -758,6 +758,41 @@ class TestValidateProfile:
         assert len(ll_errors) == 0
 
 
+    def test_validate_profile_use_repo_tooling_skips_tool_validation(self):
+        import copy
+
+        from svp_config import DEFAULT_PROFILE, validate_profile
+
+        profile = copy.deepcopy(DEFAULT_PROFILE)
+        profile["quality"]["use_repo_tooling"] = True
+        profile["quality"]["linter"] = "repo"
+        profile["quality"]["formatter"] = "repo"
+        profile["quality"]["type_checker"] = "repo"
+        profile["quality"]["import_sorter"] = "repo"
+        profile["quality"]["line_length"] = None
+        errors = validate_profile(profile)
+        quality_errors = [e for e in errors if "quality" in e.lower()]
+        assert len(quality_errors) == 0, f"Expected no quality errors but got: {quality_errors}"
+
+    def test_validate_profile_use_repo_tooling_false_rejects_repo_values(self):
+        import copy
+
+        from svp_config import DEFAULT_PROFILE, validate_profile
+
+        profile = copy.deepcopy(DEFAULT_PROFILE)
+        profile["quality"]["use_repo_tooling"] = False
+        profile["quality"]["linter"] = "repo"
+        errors = validate_profile(profile)
+        linter_errors = [e for e in errors if "linter" in e.lower()]
+        assert len(linter_errors) > 0, "Expected linter validation error for 'repo' when use_repo_tooling is False"
+
+    def test_validate_profile_default_has_use_repo_tooling_field(self):
+        from svp_config import DEFAULT_PROFILE
+
+        assert "use_repo_tooling" in DEFAULT_PROFILE["quality"]
+        assert DEFAULT_PROFILE["quality"]["use_repo_tooling"] is False
+
+
 class TestGetProfileSection:
     def test_get_profile_section_returns_section(self):
         from svp_config import DEFAULT_PROFILE, get_profile_section

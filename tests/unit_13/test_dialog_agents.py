@@ -104,6 +104,11 @@ class TestSetupAgentMdContent:
         content = SETUP_AGENT_MD_CONTENT.lower()
         assert "quality" in content
 
+    def test_mentions_use_repo_tooling_option(self):
+        content = SETUP_AGENT_MD_CONTENT.lower()
+        assert "use_repo_tooling" in content or "repo tooling" in content, \
+            "Setup agent must offer a 'use repo tooling' option in Area 5"
+
     def test_has_terminal_status_lines(self):
         assert "PROJECT_CONTEXT_COMPLETE" in (SETUP_AGENT_MD_CONTENT)
         assert "PROFILE_COMPLETE" in (SETUP_AGENT_MD_CONTENT)

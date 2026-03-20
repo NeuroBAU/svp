@@ -366,7 +366,7 @@ def remove_conda_env(env_name: str) -> bool:
 
 
 # ===========================================================================
-# cmd_*_main entry points (Unit 11 public API)
+# CLI entry-point wrappers
 # ===========================================================================
 
 

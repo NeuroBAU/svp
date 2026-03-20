@@ -1,0 +1,2264 @@
+# SVP -- Stratified Verification Pipeline
+
+## Technical Blueprint: Contracts (Tier 2 + Tier 3)
+
+**Date:** 2026-03-15
+**Decomposes:** Stakeholder Specification v8.29
+**Companion File:** The other `.md` file(s) in this blueprint directory (Tier 1 descriptions)
+
+---
+
+## Unit 1: SVP Configuration
+
+**Artifact category:** Python script
+
+### Tier 2 — Signatures
+
+```python
+from typing import Optional, Dict, Any, List, Tuple
+from pathlib import Path
+import json
+
+# ===========================================================================
+# Section 0: Canonical Pipeline Artifact Filenames (Bug 22 fix -- NEW IN 2.1)
+# ===========================================================================
+
+ARTIFACT_FILENAMES: Dict[str, str] = {
+    "stakeholder_spec": "stakeholder_spec.md",
+    "blueprint_dir": "blueprint",
+    "project_context": "project_context.md",
+    "project_profile": "project_profile.json",
+    "pipeline_state": "pipeline_state.json",
+    "svp_config": "svp_config.json",
+    "toolchain": "toolchain.json",
+    "ruff_config": "ruff.toml",
+    "docs_dir": "docs",
+    "lessons_learned": "svp_2_1_lessons_learned.md",
+}
+
+def discover_blueprint_files(project_root: Path) -> List[Path]:
+    """Discover all .md files in the blueprint directory, sorted by name."""
+    ...
+
+def load_blueprint_content(project_root: Path) -> str:
+    """Load and concatenate all blueprint .md files from the blueprint directory."""
+    ...
+
+# ===========================================================================
+# Section 1: SVP Configuration (svp_config.json)
+# ===========================================================================
+
+DEFAULT_CONFIG: Dict[str, Any] = {
+    "iteration_limit": 3,
+    "models": {
+        "test_agent": "claude-opus-4-6",
+        "implementation_agent": "claude-opus-4-6",
+        "help_agent": "claude-sonnet-4-6",
+        "default": "claude-opus-4-6",
+    },
+    "context_budget_override": None,
+    "context_budget_threshold": 65,
+    "compaction_character_threshold": 200,
+    "auto_save": True,
+    "skip_permissions": True,
+}
+
+def load_config(project_root: Path) -> Dict[str, Any]: ...
+
+def validate_config(config: Dict[str, Any]) -> list[str]: ...
+
+def get_model_for_agent(config: Dict[str, Any], agent_role: str) -> str: ...
+
+def get_effective_context_budget(config: Dict[str, Any]) -> int: ...
+
+def write_default_config(project_root: Path) -> Path: ...
+
+# ===========================================================================
+# Section 2: Project Profile (project_profile.json)
+# ===========================================================================
+
+DEFAULT_PROFILE: Dict[str, Any] = {
+    "pipeline_toolchain": "python_conda_pytest",
+    "python_version": "3.11",
+    "delivery": {
+        "environment_recommendation": "conda",
+        "dependency_format": "environment.yml",
+        "source_layout": "conventional",
+        "entry_points": False,
+    },
+    "vcs": {
+        "commit_style": "conventional",
+        "commit_template": None,
+        "issue_references": False,
+        "branch_strategy": "main-only",
+        "tagging": "semver",
+        "conventions_notes": None,
+        "changelog": "none",
+    },
+    "readme": {
+        "audience": "domain expert",
+        "sections": [
+            "Header", "What it does", "Who it's for", "Installation",
+            "Configuration", "Usage", "Quick Tutorial", "Examples",
+            "Project Structure", "License",
+        ],
+        "depth": "standard",
+        "include_math_notation": False,
+        "include_glossary": False,
+        "include_data_formats": False,
+        "include_code_examples": False,
+        "code_example_focus": None,
+        "custom_sections": None,
+        "docstring_convention": "google",
+        "citation_file": False,
+        "contributing_guide": False,
+    },
+    "testing": {
+        "coverage_target": None,
+        "readable_test_names": True,
+        "readme_test_scenarios": False,
+    },
+    "license": {
+        "type": "MIT",
+        "holder": "",
+        "author": "",
+        "year": "",
+        "contact": None,
+        "spdx_headers": False,
+        "additional_metadata": {
+            "citation": None,
+            "funding": None,
+            "acknowledgments": None,
+        },
+    },
+    "quality": {
+        "linter": "ruff",
+        "formatter": "ruff",
+        "type_checker": "none",
+        "import_sorter": "ruff",
+        "line_length": 88,
+    },
+    "fixed": {
+        "language": "python",
+        "pipeline_environment": "conda",
+        "test_framework": "pytest",
+        "build_backend": "setuptools",
+        "vcs_system": "git",
+        "source_layout_during_build": "svp_native",
+        "pipeline_quality_tools": "ruff_mypy",
+    },
+    "created_at": "",
+}
+
+def load_profile(project_root: Path) -> Dict[str, Any]: ...
+
+def validate_profile(profile: Dict[str, Any]) -> list[str]: ...
+
+def get_profile_section(profile: Dict[str, Any], section: str) -> Dict[str, Any]: ...
+
+def detect_profile_contradictions(profile: Dict[str, Any]) -> list[str]: ...
+
+# ===========================================================================
+# Section 3: Pipeline Toolchain (toolchain.json)
+# ===========================================================================
+
+def load_toolchain(project_root: Path) -> Dict[str, Any]: ...
+
+def validate_toolchain(toolchain: Dict[str, Any]) -> list[str]: ...
+
+def resolve_command(
+    toolchain: Dict[str, Any],
+    operation: str,
+    params: Optional[Dict[str, str]] = None,
+) -> str: ...
+
+def resolve_run_prefix(toolchain: Dict[str, Any], env_name: str) -> str: ...
+
+def get_framework_packages(toolchain: Dict[str, Any]) -> List[str]: ...
+
+def get_quality_packages(toolchain: Dict[str, Any]) -> List[str]: ...
+
+def get_collection_error_indicators(toolchain: Dict[str, Any]) -> List[str]: ...
+
+def get_quality_gate_operations(
+    toolchain: Dict[str, Any], gate: str
+) -> List[str]: ...
+
+def validate_python_version(
+    python_version: str, version_constraint: str
+) -> bool: ...
+
+# ===========================================================================
+# Section 4: Shared Utilities
+# ===========================================================================
+
+def derive_env_name(project_name: str) -> str: ...
+```
+
+### Tier 2 — Invariants
+
+```python
+# Pre-conditions
+assert project_root.is_dir(), "Project root must be an existing directory"
+
+# Post-conditions for load_config
+assert isinstance(result, dict), "Config must be a dict"
+assert "iteration_limit" in result, "Config must contain iteration_limit"
+assert "models" in result, "Config must contain models section"
+assert result["iteration_limit"] >= 1, "Iteration limit must be at least 1"
+assert 0 < result["context_budget_threshold"] <= 100, "Budget threshold must be 1-100"
+assert result["compaction_character_threshold"] >= 0, "Compaction threshold must be non-negative"
+assert isinstance(result["skip_permissions"], bool), "skip_permissions must be a boolean"
+
+# Post-conditions for load_profile
+assert isinstance(result, dict), "Profile must be a dict"
+assert "delivery" in result, "Profile must contain delivery section"
+assert "vcs" in result, "Profile must contain vcs section"
+assert "readme" in result, "Profile must contain readme section"
+assert "testing" in result, "Profile must contain testing section"
+assert "license" in result, "Profile must contain license section"
+assert "quality" in result, "Profile must contain quality section"
+assert "fixed" in result, "Profile must contain fixed section"
+
+# Post-conditions for load_toolchain
+assert isinstance(result, dict), "Toolchain must be a dict"
+assert "environment" in result, "Toolchain must contain environment section"
+assert "testing" in result, "Toolchain must contain testing section"
+assert "packaging" in result, "Toolchain must contain packaging section"
+assert "vcs" in result, "Toolchain must contain vcs section"
+assert "language" in result, "Toolchain must contain language section"
+assert "file_structure" in result, "Toolchain must contain file_structure section"
+assert "quality" in result, "Toolchain must contain quality section"
+
+# Post-conditions for resolve_command
+assert isinstance(result, str), "Resolved command must be a string"
+assert "{" not in result, "No unresolved placeholders in resolved command"
+
+# Post-conditions for derive_env_name
+assert result == project_name.lower().replace(" ", "_").replace("-", "_"), \
+    "Env name must follow the canonical derivation"
+assert " " not in result, "Env name must not contain spaces"
+assert "-" not in result, "Env name must not contain hyphens"
+
+# Artifact filename invariants (Bug 22, updated for directory-based blueprint discovery)
+assert ARTIFACT_FILENAMES["stakeholder_spec"] == "stakeholder_spec.md"
+assert ARTIFACT_FILENAMES["blueprint_dir"] == "blueprint"
+assert "blueprint_prose" not in ARTIFACT_FILENAMES, "No hardcoded blueprint filenames"
+assert "blueprint_contracts" not in ARTIFACT_FILENAMES, "No hardcoded blueprint filenames"
+assert ARTIFACT_FILENAMES["project_context"] == "project_context.md"
+
+# Model context window mapping (Bug 50 fix: contract sufficiency)
+# _MODEL_CONTEXT_WINDOWS: Dict[str, int] maps model ID to token count
+# Must include at minimum: "claude-opus-4-6", "claude-sonnet-4-6"
+# _CONTEXT_BUDGET_OVERHEAD: int = 20000
+# Fallback when model not found: 200000
+
+# Profile validation enum sets (Bug 50 fix: contract sufficiency)
+# Each set must match the spec's Section 6.4 enum definitions:
+# linter: "ruff", "flake8", "pylint", "none"
+# formatter: "ruff", "black", "none"
+# type_checker: "mypy", "pyright", "none"
+# import_sorter: "ruff", "isort", "none"
+# commit_style: "conventional", "freeform", "custom"
+# changelog: "keep_a_changelog", "conventional_changelog", "none"
+# environment_recommendation: "conda", "pyenv", "venv", "poetry", "none"
+# source_layout: "conventional", "flat", "svp_native"
+# readme.depth: "minimal", "standard", "comprehensive"
+
+# Toolchain recognized placeholders (Bug 50 fix: contract sufficiency)
+# _RECOGNIZED_PLACEHOLDERS: Set[str] = {
+#     "env_name", "python_version", "run_prefix", "target",
+#     "flags", "packages", "files", "message", "module",
+#     "test_path"
+# }
+```
+
+### Tier 3 -- Error Conditions
+
+- `FileNotFoundError`: "Config file not found at {path}" -- when `svp_config.json` does not exist at project root. `load_config` returns defaults when file is absent (no error for missing file on first load).
+- `json.JSONDecodeError`: "Config file is not valid JSON" -- when file exists but is malformed.
+- `ValueError`: "Invalid config: {details}" -- when `validate_config` finds a structural problem.
+- `RuntimeError`: "Project profile not found at {path}. Resume from Stage 0 or run /svp:redo to create it." -- when `load_profile` is called and `project_profile.json` does not exist.
+- `RuntimeError`: "Toolchain file not found at {path}. Re-run svp new or reinstall the plugin." -- when `load_toolchain` is called and `toolchain.json` does not exist. No fallback to hardcoded values.
+- `json.JSONDecodeError`: "Profile/Toolchain file is not valid JSON" -- when file exists but is malformed.
+- `ValueError`: "Invalid profile: {details}" -- when `validate_profile` finds a structural problem.
+- `ValueError`: "Invalid toolchain: {details}" -- when `validate_toolchain` finds a structural problem.
+- `ValueError`: "Python version {version} does not satisfy constraint {constraint}" -- when `validate_python_version` fails.
+- `ValueError`: "Unresolved placeholder in command template: {placeholder}" -- when `resolve_command` encounters a placeholder it cannot resolve.
+- `ValueError`: "Unknown quality gate: {gate}" -- when `get_quality_gate_operations` receives an unrecognized gate identifier.
+- `FileNotFoundError`: "Blueprint directory not found: {path}" -- when `discover_blueprint_files` is called and the blueprint directory does not exist.
+- `FileNotFoundError`: "No .md files found in blueprint directory: {path}" -- when `discover_blueprint_files` finds the directory but it contains no `.md` files.
+
+### Tier 3 -- Behavioral Contracts
+
+**Config loader (unchanged from v1.0):**
+- `load_config` returns the merged result of file content over defaults -- missing keys filled from defaults via recursive merge: for nested dicts, merge recursively; for non-dict values, override wins; base keys not in override are preserved.
+- `load_config` on a non-existent file returns a copy of `DEFAULT_CONFIG` without error.
+- `validate_config` returns an empty list when config is valid, a list of human-readable error strings for each violation found.
+- `get_model_for_agent` returns the agent-specific model if configured, otherwise the `models.default` value.
+- `get_effective_context_budget` returns `context_budget_override` if set and non-null. Otherwise: iterates all configured models in `config["models"]`, looks up each in `_MODEL_CONTEXT_WINDOWS`, finds the minimum context window, subtracts `_CONTEXT_BUDGET_OVERHEAD` (20000). If no model found in the mapping, uses fallback of 200000 minus overhead.
+- `write_default_config` writes `DEFAULT_CONFIG` as formatted JSON to `{project_root}/svp_config.json` and returns the path.
+- Config changes made by the human take effect on next load -- no caching across invocations.
+
+**Profile loader (CHANGED IN 2.1):**
+- `load_profile` reads `project_profile.json` from `project_root`, validates fields it uses against expected types. Unknown fields are ignored (forward compatibility). Missing keys filled from defaults via recursive merge: for nested dicts, merge recursively; for non-dict values, override wins; base keys not in override are preserved. Raises `RuntimeError` if the file is missing or fails JSON parsing.
+- `validate_profile` checks structural integrity: all required sections present, correct types for each field, `delivery.environment_recommendation` is one of `"conda"`, `"pyenv"`, `"venv"`, `"poetry"`, `"none"`, `delivery.source_layout` is one of `"conventional"`, `"flat"`, `"svp_native"`, `vcs.commit_style` is one of `"conventional"`, `"freeform"`, `"custom"`, `vcs.changelog` is one of `"keep_a_changelog"`, `"conventional_changelog"`, `"none"`, `readme.depth` is one of `"minimal"`, `"standard"`, `"comprehensive"`, `testing.coverage_target` is null or integer 0-100, `quality.linter` is one of `"ruff"`, `"flake8"`, `"pylint"`, `"none"`, `quality.formatter` is one of `"ruff"`, `"black"`, `"none"`, `quality.type_checker` is one of `"mypy"`, `"pyright"`, `"none"`, `quality.import_sorter` is one of `"ruff"`, `"isort"`, `"none"`, `quality.line_length` is a positive integer. Returns empty list when valid, list of error strings otherwise.
+- `get_profile_section` returns a specific top-level section of the profile. Raises `KeyError` if the section does not exist.
+- `detect_profile_contradictions` checks three specific patterns: (1) `delivery.environment_recommendation` differs from expected `delivery.dependency_format` (conda->environment.yml, pyenv/venv->requirements.txt, poetry->pyproject.toml); (2) `vcs.commit_style == "custom"` while `vcs.commit_template` is None; (3) `readme.depth == "minimal"` with more than 5 sections or custom_sections. Returns list of contradiction descriptions.
+
+**Toolchain reader (CHANGED IN 2.1):**
+- `load_toolchain` reads `toolchain.json` from `project_root`. Raises `RuntimeError` if missing or malformed. No fallback to hardcoded values.
+- `validate_toolchain` validates required sections present. Also recursively walks all command templates, extracts `{placeholder}` patterns via regex, and reports any placeholder not in `_RECOGNIZED_PLACEHOLDERS`. Returns empty list when valid.
+- `resolve_command` performs single-pass placeholder resolution. The recognized placeholder vocabulary is a closed set: `{env_name}`, `{python_version}`, `{run_prefix}`, `{target}`, `{flags}`, `{packages}`, `{files}`, `{message}`, `{module}`, `{test_path}`. Resolution order: first resolves `environment.run_prefix` by substituting `{env_name}` internally, then substitutes the resolved `run_prefix` value into all templates referencing `{run_prefix}`. **The canonical placeholder for file/directory paths is `{target}`, not `{path}` (Bug 33 fix).** No recursive resolution. Raises `ValueError` if any placeholder remains unresolved after substitution.
+- `resolve_run_prefix` is a convenience function: resolves `environment.run_prefix` template with the given `env_name`.
+- `get_framework_packages` returns `testing.framework_packages` from the toolchain.
+- `get_quality_packages` returns `quality.packages` from the toolchain.
+- `get_collection_error_indicators` returns `testing.collection_error_indicators` from the toolchain.
+- `get_quality_gate_operations` returns the operation list for the given gate identifier (`"gate_a"`, `"gate_b"`, or `"gate_c"`) from the toolchain's `quality` section. Gate C includes `"linter.unused_exports"` for dead code detection (Bug 56 fix).
+- `validate_python_version` checks whether a version string satisfies the constraint. Returns True if satisfied, False otherwise.
+- **Behavioral equivalence:** Every resolved command from the existing sections must produce identical behavior to SVP 1.2's hardcoded commands. The `quality` section is purely additive.
+
+**Shared utilities:**
+- `derive_env_name` applies the canonical derivation: `project_name.lower().replace(" ", "_").replace("-", "_")`. This is the single canonical implementation used by Units 7, 10, 11, and 24.
+
+**Artifact filenames (NEW IN 2.1 -- Bug 22 fix, updated for directory-based blueprint discovery):**
+- `ARTIFACT_FILENAMES` is a dict mapping logical artifact names to their canonical filenames or directory names. All components that produce or consume pipeline artifacts must import and use these constants. The `blueprint_dir` entry points to the blueprint directory (not individual files). Individual blueprint filenames are NOT listed in `ARTIFACT_FILENAMES` -- they are discovered dynamically by `discover_blueprint_files`.
+- `discover_blueprint_files(project_root)` returns a sorted list of `Path` objects for all `.md` files in `project_root / ARTIFACT_FILENAMES["blueprint_dir"]`. Raises `FileNotFoundError` if the blueprint directory does not exist or contains no `.md` files -- a missing blueprint directory is an error condition, not an empty result. Sorting is alphabetical by filename to ensure deterministic ordering.
+- `load_blueprint_content(project_root)` calls `discover_blueprint_files`, reads each file, and concatenates their contents separated by `\n\n---\n\n`. Raises `FileNotFoundError` if the blueprint directory does not exist or contains no `.md` files. This function is the single entry point for loading blueprint content -- all consumers use it instead of hardcoded file paths.
+- **Backward compatibility:** A single `blueprint.md` file in the blueprint directory is handled correctly -- `discover_blueprint_files` returns it as the sole entry. Multiple files (e.g., `blueprint_contracts.md` and `blueprint_prose.md`) are also handled. The system makes no assumption about the number or names of blueprint files.
+- **Spec v8.27 filename convention:** While the discovery mechanism is filename-agnostic at the code level (any `.md` files in the blueprint directory are discovered and loaded), spec v8.26 constrains this build to use `blueprint_prose.md` and `blueprint_contracts.md` as the actual blueprint filenames. These names appear in the project file tree, the bundled Game of Life example, and the `svp restore` workflow. The code must not hardcode these names, but the project's blueprint directory will contain exactly these two files.
+
+**DEFAULT_PROFILE key path regression test (spec Section 30):**
+- A Unit 1 unit test (in `tests/unit_1/`) must verify that every key path in `DEFAULT_PROFILE` matches the canonical profile schema defined in spec Section 6.4. This is a unit test of Unit 1's data contract, not a separate regression file.
+
+**Exhaustive Stage 3 dispatch_command_status contracts (Bug 65 fix).** dispatch_command_status for test_execution must handle ALL (sub_stage, status) combinations in Stage 3. The complete dispatch table:
+- At sub_stage == "red_run", TESTS_FAILED: advance sub_stage to "implementation" (happy path -- tests correctly fail against stubs).
+- At sub_stage == "red_run", TESTS_PASSED: increment red_run_retries. If retries < limit (default 2), set sub_stage to "test_generation" for test regeneration. If retries >= limit, set sub_stage to "gate_3_1" to present Gate 3.1 (test validation) for human decision.
+- At sub_stage == "green_run", TESTS_PASSED: advance sub_stage to "coverage_review" (happy path -- tests pass against implementation).
+- At sub_stage == "green_run", TESTS_FAILED: engage the fix ladder. If fix_ladder_position is None, advance to "fresh_impl" and set sub_stage to "implementation". If fix_ladder_position is "fresh_impl", advance to "diagnostic" and set sub_stage to "implementation". If fix_ladder_position is "diagnostic_impl", set sub_stage to "gate_3_2" to present Gate 3.2 (diagnostic decision) for human escalation.
+- At sub_stage == "stub_generation", COMMAND_SUCCEEDED: advance sub_stage to "test_generation".
+A regression test (test_bug65_stage3_error_handling.py) must verify all five dispatch paths.
+
+**Stage 3 fix_ladder_position conditional in route() (Bug 65 fix).** When route() dispatches sub_stage == "implementation", it must check fix_ladder_position to determine which agent to invoke:
+- fix_ladder_position in (None, "fresh_impl"): invoke implementation_agent (normal implementation path).
+- fix_ladder_position == "diagnostic": invoke diagnostic_agent. The diagnostic agent returns DIAGNOSIS_COMPLETE with a classification suffix. This is governed by the two-branch routing invariant (see gate-presenting entries above).
+- fix_ladder_position == "diagnostic_impl": invoke implementation_agent with diagnostic context (the diagnostic agent's output is forwarded as additional context to the implementation agent).
+
+**dispatch_agent_status for diagnostic_agent (Bug 65 fix).** dispatch_agent_status for diagnostic_agent must parse the DIAGNOSIS_COMPLETE status line and extract the classification suffix:
+- DIAGNOSIS_COMPLETE: implementation -- advance fix_ladder_position to "diagnostic_impl" and set sub_stage to "implementation" for implementation with diagnostic context.
+- DIAGNOSIS_COMPLETE: blueprint -- call restart_from_stage(state, "2", project_root) to restart from Stage 2 for blueprint revision.
+- DIAGNOSIS_COMPLETE: spec -- call restart_from_stage(state, "1", project_root) to restart from Stage 1 for spec revision.
+
+**Gate 3.1 per-option dispatch contracts (Bug 65 fix).** dispatch_gate_response for gate_3_1_test_validation:
+- TEST CORRECT: engage the fix ladder. Advance fix_ladder_position from None to "fresh_impl" (or from current position to next rung) and set sub_stage to "implementation". The human has confirmed the tests are correct, so the implementation must be fixed.
+- TEST WRONG: set sub_stage to "test_generation" for test regeneration. The human has determined the tests are defective. Reset red_run_retries to 0.
+
+**Gate 3.2 per-option dispatch contracts (Bug 65 fix).** dispatch_gate_response for gate_3_2_diagnostic_decision:
+- FIX IMPLEMENTATION: reset fix_ladder_position to None and set sub_stage to "implementation". The human has decided the implementation should be reattempted from scratch after diagnostic analysis.
+- FIX BLUEPRINT: call restart_from_stage(state, "2", project_root) to restart from Stage 2.
+- FIX SPEC: call restart_from_stage(state, "1", project_root) to restart from Stage 1.
+
+**Stage 3 gate sub-stage routing (Bug 65 fix).** route() must handle two gate-presenting sub-stages in Stage 3:
+- sub_stage == "gate_3_1": emit a human_gate action for gate_3_1_test_validation.
+- sub_stage == "gate_3_2": emit a human_gate action for gate_3_2_diagnostic_decision.
+These are deterministic gate presentations (not governed by the two-branch invariant) because they are reached only via explicit sub_stage assignment in dispatch_command_status or dispatch_gate_response.
+
+**Stage 3 coverage_review two-branch dispatch (Bug 65 fix, updating Bug 46).** The coverage_review two-branch in route() dispatches on last_status.txt content. If COVERAGE_COMPLETE: no gaps, route() advances directly to unit_completion (no agent re-invocation needed). If COVERAGE_COMPLETE: tests added, route() emits a run_command for auto-format on the new test files, then advances sub_stage to red_run for re-validation. dispatch_agent_status for coverage_review returns state unchanged (it does NOT advance sub_stage); the advancement is handled by route() reading last_status.txt. This corrects the Bug 46 contract which stated dispatch_agent_status advances to unit_completion -- dispatch_agent_status for coverage_review is now a no-op, and route() handles the two-branch logic.
+
+### Tier 3 -- Dependencies
+
+None. This is the most foundational unit.
+
+---
+
+## Unit 2: Pipeline State Schema and Core Operations
+
+**Artifact category:** Python script
+
+### Tier 2 — Signatures
+
+```python
+from typing import Optional, Dict, Any, List
+from pathlib import Path
+import json
+from datetime import datetime
+
+# --- Data contract: pipeline state schema ---
+
+STAGES: List[str] = ["0", "1", "2", "pre_stage_3", "3", "4", "5"]
+
+SUB_STAGES_STAGE_0: List[str] = ["hook_activation", "project_context", "project_profile"]
+
+STAGE_1_SUB_STAGES: List[Optional[str]] = [None]
+
+STAGE_2_SUB_STAGES: List[Optional[str]] = [None, "blueprint_dialog", "alignment_check"]
+
+STAGE_3_SUB_STAGES: List[Optional[str]] = [
+    None,
+    "stub_generation",
+    "test_generation",
+    "quality_gate_a",
+    "quality_gate_a_retry",
+    "red_run",
+    "implementation",
+    "quality_gate_b",
+    "quality_gate_b_retry",
+    "green_run",
+    "coverage_review",
+    "unit_completion",
+]
+
+STAGE_4_SUB_STAGES: List[Optional[str]] = [None]
+
+STAGE_5_SUB_STAGES: List[Optional[str]] = [None, "repo_test", "structural_check", "compliance_scan", "gate_5_3", "repo_complete"]
+
+QUALITY_GATE_SUB_STAGES: List[str] = [
+    "quality_gate_a", "quality_gate_b",
+    "quality_gate_a_retry", "quality_gate_b_retry",
+]
+
+REDO_PROFILE_SUB_STAGES: List[str] = ["redo_profile_delivery", "redo_profile_blueprint"]
+
+FIX_LADDER_POSITIONS: List[Optional[str]] = [
+    None, "fresh_test", "hint_test",
+    "fresh_impl", "diagnostic", "diagnostic_impl",
+]
+
+class DebugSession:
+    """Debug session state for post-delivery bug investigation."""
+    bug_id: int
+    description: str
+    classification: Optional[str]
+    affected_units: List[int]
+    regression_test_path: Optional[str]
+    phase: str
+    authorized: bool
+    triage_refinement_count: int
+    repair_retry_count: int
+    created_at: str
+    def __init__(self, **kwargs: Any) -> None: ...
+    def to_dict(self) -> Dict[str, Any]: ...
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "DebugSession": ...
+
+class PipelineState:
+    """Complete pipeline state. This is the schema contract."""
+    stage: str
+    sub_stage: Optional[str]
+    current_unit: Optional[int]
+    total_units: Optional[int]
+    fix_ladder_position: Optional[str]
+    red_run_retries: int
+    alignment_iteration: int
+    verified_units: List[Dict[str, Any]]
+    pass_history: List[Dict[str, Any]]
+    log_references: Dict[str, str]
+    project_name: Optional[str]
+    last_action: Optional[str]
+    debug_session: Optional[DebugSession]
+    debug_history: List[Dict[str, Any]]
+    redo_triggered_from: Optional[Dict[str, Any]]
+    delivered_repo_path: Optional[str]
+    created_at: str
+    updated_at: str
+    def __init__(self, **kwargs: Any) -> None: ...
+    def to_dict(self) -> Dict[str, Any]: ...
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PipelineState": ...
+
+def create_initial_state(project_name: str) -> PipelineState: ...
+
+def load_state(project_root: Path) -> PipelineState: ...
+
+def save_state(state: PipelineState, project_root: Path) -> None: ...
+
+def validate_state(state: PipelineState) -> list[str]: ...
+
+def recover_state_from_markers(project_root: Path) -> Optional[PipelineState]: ...
+
+def get_stage_display(state: PipelineState) -> str: ...
+```
+
+### Tier 2 — Invariants
+
+```python
+assert project_root.is_dir(), "Project root must exist"
+
+assert result.stage == "0", "Initial state must be Stage 0"
+assert result.sub_stage == "hook_activation", "Initial sub-stage must be hook_activation"
+assert result.red_run_retries == 0
+assert result.alignment_iteration == 0
+assert len(result.verified_units) == 0
+assert len(result.pass_history) == 0
+assert result.debug_session is None
+assert result.debug_history == []
+assert result.redo_triggered_from is None
+assert result.delivered_repo_path is None
+
+assert result.stage in STAGES, "Stage must be a valid stage identifier"
+assert result.red_run_retries >= 0
+assert result.alignment_iteration >= 0
+
+assert (project_root / "pipeline_state.json").exists(), "State file must exist after save"
+
+assert all(s in QUALITY_GATE_SUB_STAGES for s in ["quality_gate_a", "quality_gate_b",
+    "quality_gate_a_retry", "quality_gate_b_retry"])
+```
+
+### Tier 3 -- Error Conditions
+
+- `FileNotFoundError`: "State file not found at {path}" -- when `load_state` is called and `pipeline_state.json` does not exist.
+- `json.JSONDecodeError`: "State file is not valid JSON" -- when file is malformed.
+- `ValueError`: "Invalid state: {details}" -- when `validate_state` finds structural problems.
+
+### Tier 3 -- Behavioral Contracts
+
+- `create_initial_state` returns a `PipelineState` at `stage: "0"`, `sub_stage: "hook_activation"` with all counters at zero, `debug_session: None`, `debug_history: []`, `redo_triggered_from: None`, and `delivered_repo_path: None`.
+- `load_state` deserializes `pipeline_state.json` and returns a validated `PipelineState`, including deserialization of `debug_session`, `redo_triggered_from`, and `delivered_repo_path`. Missing fields filled with defaults.
+- `save_state` atomically writes the state (write to temp file, rename).
+- `validate_state` checks structural integrity: valid stage, valid sub-stage for the stage (Stage 0 from `SUB_STAGES_STAGE_0`, Stage 1 from `STAGE_1_SUB_STAGES` which is `[None]` only, Stage 2 from `STAGE_2_SUB_STAGES`, Stage 3 from `STAGE_3_SUB_STAGES`, Stage 4 from `STAGE_4_SUB_STAGES`, Stage 5 from `STAGE_5_SUB_STAGES`, and redo profile sub-stages from `REDO_PROFILE_SUB_STAGES` for any stage), non-negative counters, valid debug_session, valid redo_triggered_from snapshot, delivered_repo_path is either None or a non-empty string.
+- `recover_state_from_markers` scans for `<!-- SVP_APPROVED: ... -->` markers and `.svp/markers/unit_N_verified` files. Uses `ARTIFACT_FILENAMES` from Unit 1.
+- `get_stage_display` returns a human-readable string like "Stage 3, Unit 4 of 11 (pass 2)".
+- The `updated_at` field is set to current ISO timestamp on every `save_state` call.
+- Pass history and debug history entries are append-only.
+
+### Tier 3 -- Dependencies
+
+- **Unit 1 (SVP Configuration):** Uses `ARTIFACT_FILENAMES` for canonical filenames in `recover_state_from_markers`.
+
+---
+
+## Unit 3: State Transition Engine
+
+**Artifact category:** Python script
+
+### Tier 2 — Signatures
+
+```python
+from typing import Optional, Dict, Any, List, Tuple
+from pathlib import Path
+from pipeline_state import PipelineState, DebugSession
+
+class TransitionError(Exception):
+    """Raised when a state transition's preconditions are not met."""
+    ...
+
+def advance_stage(state: PipelineState, project_root: Path) -> PipelineState: ...
+def advance_sub_stage(state: PipelineState, sub_stage: str, project_root: Path) -> PipelineState: ...
+def complete_unit(state: PipelineState, unit_number: int, project_root: Path) -> PipelineState: ...
+def advance_fix_ladder(state: PipelineState, new_position: str) -> PipelineState: ...
+def increment_red_run_retries(state: PipelineState) -> PipelineState: ...
+def reset_red_run_retries(state: PipelineState) -> PipelineState: ...
+def increment_alignment_iteration(state: PipelineState) -> PipelineState: ...
+def rollback_to_unit(state: PipelineState, unit_number: int, project_root: Path) -> PipelineState: ...
+def restart_from_stage(state: PipelineState, target_stage: str, reason: str, project_root: Path) -> PipelineState: ...
+
+def version_document(
+    doc_path: Path, history_dir: Path, diff_summary: str, trigger_context: str,
+    companion_paths: Optional[List[Path]] = None,
+) -> Tuple[Path, Path]: ...
+
+def enter_debug_session(state: PipelineState, bug_description: str) -> PipelineState: ...
+def authorize_debug_session(state: PipelineState) -> PipelineState: ...
+def complete_debug_session(state: PipelineState, fix_summary: str) -> PipelineState: ...
+def abandon_debug_session(state: PipelineState) -> PipelineState: ...
+def update_debug_phase(state: PipelineState, phase: str) -> PipelineState: ...
+def set_debug_classification(state: PipelineState, classification: str, affected_units: List[int]) -> PipelineState: ...
+
+def enter_redo_profile_revision(state: PipelineState, classification: str) -> PipelineState: ...
+def complete_redo_profile_revision(state: PipelineState) -> PipelineState: ...
+
+def enter_alignment_check(state: PipelineState) -> PipelineState: ...
+def complete_alignment_check(state: PipelineState, project_root: Path) -> PipelineState: ...
+
+def enter_quality_gate(state: PipelineState, gate: str) -> PipelineState: ...
+def advance_quality_gate_to_retry(state: PipelineState) -> PipelineState: ...
+def quality_gate_pass(state: PipelineState) -> PipelineState: ...
+def _ladder_has_room(state: PipelineState) -> bool: ...
+def quality_gate_fail_to_ladder(state: PipelineState) -> PipelineState: ...
+
+def set_delivered_repo_path(state: PipelineState, repo_path: str) -> PipelineState: ...
+
+```
+
+### Tier 2 — Invariants
+
+```python
+# Pre-conditions for complete_unit
+assert state.stage == "3"
+assert state.current_unit == unit_number
+
+# Pre-conditions for advance_stage
+assert state.stage in ("0", "1", "2", "pre_stage_3", "3", "4"), "Cannot advance past Stage 5"
+
+# Pre-conditions for rollback_to_unit (Bug 55: accepts Stage 5 with active debug session)
+assert state.stage in ("3", "5"), "Rollback applies during Stage 3 or Stage 5 with active debug session"
+assert state.stage != "5" or state.debug_session is not None, "Stage 5 rollback requires active debug session"
+assert unit_number >= 1
+assert unit_number <= (state.current_unit or 0)
+
+# Pre-conditions for enter_debug_session
+assert state.stage == "5"
+assert state.debug_session is None
+
+# Pre-conditions for enter_alignment_check (Bug 23 fix)
+assert state.stage == "2"
+
+# Pre-conditions for complete_alignment_check (Bug 23 fix)
+assert state.stage == "2"
+assert state.sub_stage == "alignment_check"
+
+# Pre-conditions for enter_quality_gate
+assert state.stage == "3"
+assert gate in ("quality_gate_a", "quality_gate_b")
+
+# Pre-conditions for set_delivered_repo_path
+assert state.stage == "5"
+assert len(repo_path.strip()) > 0
+
+# Post-conditions for complete_unit
+assert result.fix_ladder_position is None
+assert result.red_run_retries == 0
+assert result.sub_stage is None
+
+# Post-conditions for enter_quality_gate
+assert result.sub_stage == gate
+
+# Post-conditions for advance_quality_gate_to_retry
+assert result.sub_stage.endswith("_retry")
+
+# Post-conditions for quality_gate_pass
+assert result.sub_stage not in ("quality_gate_a", "quality_gate_b",
+    "quality_gate_a_retry", "quality_gate_b_retry")
+
+# Post-conditions for set_delivered_repo_path
+assert result.delivered_repo_path == repo_path
+```
+
+### Tier 3 -- Error Conditions
+
+- `TransitionError`: "Cannot advance from stage {X}: preconditions not met -- {details}"
+- `TransitionError`: "Cannot complete unit {N}: tests have not passed"
+- `TransitionError`: "Cannot advance fix ladder to {position}: current position {current} does not permit this transition"
+- `TransitionError`: "Alignment iteration limit reached ({limit})"
+- `TransitionError`: "Cannot enter debug session: pipeline is not at Stage 5"
+- `TransitionError`: "Cannot enter alignment check: not in Stage 2"
+- `TransitionError`: "Cannot complete alignment check: not in alignment_check sub-stage"
+- `TransitionError`: "Cannot enter quality gate {gate}: not in Stage 3"
+- `FileNotFoundError`: "Document to version not found: {path}"
+
+### Tier 3 -- Behavioral Contracts
+
+- `advance_stage` moves the state to the next stage. Resets `sub_stage` to `None`. Validates exit criteria per stage (Stage 2 to Pre-Stage-3 requires `ALIGNMENT_CONFIRMED` and `alignment_check` sub-stage -- Bug 23 fix).
+- `complete_unit` writes marker file, updates `verified_units`, resets fix ladder, red_run_retries, and sub_stage to `None`. Advances `current_unit`. When `current_unit` exceeds `total_units`, advances to Stage 4.
+- `rollback_to_unit` deletes source and test directories for all units >= target (`shutil.rmtree`, no backup copy). Deletes completion markers matching `unit_N_verified` in `.svp/markers/`. Removes invalidated units from `verified_units`. Sets `current_unit` to the rollback target. When called from Stage 5 with an active debug session, transitions `stage` to `"3"` and `sub_stage` to `None`. Resets fix_ladder_position and red_run_retries. (Bug 55 correction: files are deleted, not copied to `logs/rollback/`.)
+- `version_document` copies document to history, writes diff summary. **When `companion_paths` is not None and non-empty (used for the blueprint directory -- the caller passes all discovered `.md` files), all files are versioned together atomically: produces versioned copies (e.g., `blueprint_prose_vN.md`, `blueprint_contracts_vN.md`) and diff summaries for each file. The files share a version number. When `companion_paths` is None, only the primary `doc_path` file is versioned. The caller (Unit 10's routing/update logic) uses `discover_blueprint_files` from Unit 1 to determine which files to pass as companions.**
+- `enter_alignment_check` sets `sub_stage` to `"alignment_check"`. Called after Gate 2.1 APPROVE.
+- `complete_alignment_check` calls `advance_stage` to transition Stage 2 to Pre-Stage-3.
+- `enter_quality_gate` sets `sub_stage` to the quality gate sub-stage.
+- `advance_quality_gate_to_retry` transitions from `quality_gate_a` to `quality_gate_a_retry` or `quality_gate_b` to `quality_gate_b_retry`.
+- `quality_gate_pass` advances past quality gate: from `quality_gate_a`/`quality_gate_a_retry` to `"red_run"`; from `quality_gate_b`/`quality_gate_b_retry` to `"green_run"`.
+- `quality_gate_fail_to_ladder` calls `advance_fix_ladder` internally. If ladder has room, sets `sub_stage` to `None`. If exhausted, preserves sub_stage for routing to present exhaustion gate.
+- `set_delivered_repo_path` records the absolute path to the delivered repository.
+- `update_debug_phase` validates the requested phase transition against a controlled transition table. Valid transitions (Bug 69 additions marked): `triage_readonly` -> [`triage`, `stage3_reentry`]; `triage` -> [`stage3_reentry`, `repair`, `regression_test`]; `stage3_reentry` -> [`regression_test`]; `repair` -> [**`triage`** (Bug 69 E.3), `complete`]; `regression_test` -> [`stage3_reentry`, `repair`, **`complete`** (Bug 69 E.2)]. Invalid transitions raise `TransitionError`. The `repair -> triage` transition enables RECLASSIFY BUG at Gate 6.3. The `regression_test -> complete` transition enables TEST CORRECT at Gate 6.1.
+- All transition functions return a new PipelineState via deep copy (to_dict -> deepcopy -> from_dict). Input state is never mutated. This is a structural invariant, not an implementation suggestion.
+
+### Tier 3 -- Dependencies
+
+- **Unit 1 (SVP Configuration):** Reads `iteration_limit` for alignment loop cap, reads `auto_save`.
+- **Unit 2 (Pipeline State Schema):** Uses `PipelineState` and `DebugSession` classes. Uses `save_state` after transitions.
+
+---
+
+## Unit 4: Ledger Manager
+
+**Artifact category:** Python script
+
+### Tier 2 — Signatures
+
+```python
+from typing import Optional, Dict, Any, List, Tuple
+from pathlib import Path
+from datetime import datetime
+import json
+
+class LedgerEntry:
+    role: str
+    content: str
+    timestamp: str
+    metadata: Optional[Dict[str, Any]]
+    def __init__(self, role: str, content: str, timestamp: Optional[str] = None,
+                 metadata: Optional[Dict[str, Any]] = None) -> None: ...
+    def to_dict(self) -> Dict[str, Any]: ...
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "LedgerEntry": ...
+
+def append_entry(ledger_path: Path, entry: LedgerEntry) -> None: ...
+def read_ledger(ledger_path: Path) -> List[LedgerEntry]: ...
+def clear_ledger(ledger_path: Path) -> None: ...
+def rename_ledger(ledger_path: Path, new_name: str) -> Path: ...
+def get_ledger_size_chars(ledger_path: Path) -> int: ...
+def check_ledger_capacity(ledger_path: Path, max_chars: int) -> Tuple[float, Optional[str]]: ...
+def compact_ledger(ledger_path: Path, character_threshold: int = 200) -> int: ...
+def write_hint_entry(ledger_path: Path, hint_content: str, gate_id: str,
+    unit_number: Optional[int], stage: str, decision: str) -> None: ...
+def extract_tagged_lines(content: str) -> List[Tuple[str, str]]: ...
+```
+
+### Tier 2 — Invariants
+
+```python
+assert ledger_path.suffix == ".jsonl"
+assert ledger_path.exists(), "Ledger file must exist after append"
+assert result >= 0, "Compaction must report non-negative bytes saved"
+assert all(isinstance(e, LedgerEntry) for e in result)
+```
+
+### Tier 3 -- Error Conditions
+
+- `FileNotFoundError`: "Ledger file not found: {path}" -- when `compact_ledger` is called on a non-existent file.
+- `json.JSONDecodeError`: "Malformed JSONL entry at line {N}"
+- `ValueError`: "Invalid ledger entry: missing required field '{field}'"
+
+### Tier 3 -- Behavioral Contracts
+
+- `append_entry` appends a single JSONL line. Creates the file if it does not exist.
+- `read_ledger` returns an empty list for a non-existent or empty file.
+- `compact_ledger` implements the compaction algorithm: tagged lines above threshold have bodies deleted; at or below, bodies preserved. `[HINT]` entries always preserved. Returns characters saved.
+- `write_hint_entry` creates a system-level `[HINT]` entry with full gate metadata.
+
+### Tier 3 -- Dependencies
+
+- **Unit 1 (SVP Configuration):** Indirect dependency. `compact_ledger` accepts `character_threshold` as a parameter (default 200); the caller reads `compaction_character_threshold` from Unit 1's config and passes it as an argument. Unit 4 does not import from Unit 1 directly.
+
+---
+
+## Unit 5: Blueprint Extractor
+
+**Artifact category:** Python script
+
+### Tier 2 — Signatures
+
+```python
+from typing import Optional, Dict, Any, List
+from pathlib import Path
+
+class UnitDefinition:
+    unit_number: int
+    unit_name: str
+    artifact_category: str
+    description: str
+    signatures: str
+    invariants: str
+    error_conditions: str
+    behavioral_contracts: str
+    dependencies: List[int]
+    def __init__(self, **kwargs: Any) -> None: ...
+
+def parse_blueprint(
+    blueprint_dir: Path,
+    include_tier1: bool = True,
+) -> List[UnitDefinition]: ...
+
+def extract_unit(
+    blueprint_dir: Path, unit_number: int,
+    include_tier1: bool = True,
+) -> UnitDefinition: ...
+
+def extract_upstream_contracts(
+    blueprint_dir: Path, unit_number: int,
+    include_tier1: bool = True,
+) -> List[Dict[str, Any]]: ...
+
+def build_unit_context(
+    blueprint_dir: Path, unit_number: int,
+    include_tier1: bool = True,
+) -> str: ...
+```
+
+### Tier 2 — Invariants
+
+```python
+assert blueprint_dir.is_dir(), "Blueprint directory must exist"
+assert unit_number >= 1
+assert len(result) > 0, "Blueprint must contain at least one unit"
+assert result.unit_number == unit_number
+assert len(result.signatures) > 0
+assert len(result) > 0, "Unit context must be non-empty"
+```
+
+### Tier 3 -- Error Conditions
+
+- `FileNotFoundError`: "Blueprint directory not found: {path}"
+- `FileNotFoundError`: "No .md files found in blueprint directory: {path}"
+- `ValueError`: "Unit {N} not found in blueprint"
+- `ValueError`: "Blueprint has no parseable unit definitions"
+
+### Tier 3 -- Behavioral Contracts
+
+- All Unit 5 functions accept a `blueprint_dir: Path` parameter. Internally, they find blueprint files by globbing `blueprint_dir / "*.md"` (sorted alphabetically by filename for deterministic ordering). There is no named discovery function in Unit 5 -- callers that need discovery as a standalone operation use `discover_blueprint_files` from Unit 1. Unit 5 raises `FileNotFoundError` if `blueprint_dir` does not exist or contains no `.md` files.
+- `parse_blueprint` globs `blueprint_dir` for all `.md` files, reads and concatenates them, and parses all unit definitions from the combined content. Tier identification is content-based: `### Tier 1` headings denote Tier 1 (description), `### Tier 2` headings denote Tier 2 (signatures/invariants), `### Tier 3` headings denote Tier 3 (error conditions/behavioral contracts). Content may be spread across multiple files or contained in a single file -- the parser is agnostic to file boundaries. Splits on `## Unit N:` heading patterns.
+- `extract_unit` returns a single unit's definition. When `include_tier1=False`, the `description` field of the returned `UnitDefinition` is set to an empty string.
+- `extract_upstream_contracts` returns Tier 2 signatures for upstream dependencies. When `include_tier1=False`, description content is excluded.
+- `build_unit_context` produces a formatted string for task prompt inclusion. When `include_tier1=False`, Tier 1 description content is omitted from the formatted output.
+- **Tier identification is content-based, not filename-based.** The parser determines which content is Tier 1 vs Tier 2/3 by matching `### Tier N` sub-heading patterns within each unit section. The blueprint uses em-dash (`—`) for Tier 2 headings and double-dash (`--`) for Tier 1 and Tier 3 headings; parsing matches on the `### Tier N` prefix only, so the dash style after the tier label is irrelevant to extraction correctness. This means `include_tier1=False` works correctly regardless of whether Tier 1 content lives in a separate file or the same file as Tier 2/3.
+- **Backward compatibility:** A single `blueprint.md` file in the directory is handled identically to the split-file case.
+
+### Tier 3 -- Dependencies
+
+None.
+
+---
+
+## Unit 6: Stub Generator
+
+**Artifact category:** Python script (library + CLI wrapper)
+
+### Tier 2 — Signatures
+
+```python
+import ast
+from typing import Optional, Dict, Any, List
+from pathlib import Path
+
+def parse_signatures(signature_block: str) -> ast.Module: ...
+def generate_stub_source(parsed_ast: ast.Module) -> str: ...
+def strip_module_level_asserts(tree: ast.Module) -> ast.Module: ...
+def generate_upstream_mocks(upstream_contracts: List[Dict[str, Any]]) -> Dict[str, str]: ...
+def write_stub_file(unit_number: int, signature_block: str, output_dir: Path) -> Path: ...
+def write_upstream_stubs(upstream_contracts: List[Dict[str, Any]], output_dir: Path) -> List[Path]: ...
+
+# CLI wrapper (generate_stubs.py)
+def main() -> None: ...
+```
+
+### Tier 2 — Invariants
+
+```python
+assert len(signature_block.strip()) > 0
+assert isinstance(result, ast.Module)
+assert "NotImplementedError" in result
+assert "__SVP_STUB__" in result, "Stub source must contain stub sentinel"
+assert result.exists()
+assert result.suffix == ".py"
+
+# CLI argument enumeration (Bug 49 fix):
+# main() uses argparse with:
+#   --blueprint  (required, type=Path) — path to blueprint file
+#   --unit       (required, type=int) — unit number to generate stub for
+#   --output-dir (required, type=Path) — output directory for stub file
+#   --upstream   (optional, flag) — also generate upstream mock files
+```
+
+### Tier 3 -- Error Conditions
+
+- `SyntaxError`: "Blueprint signature block is not valid Python: {details}"
+- `FileNotFoundError`: "Output directory does not exist: {path}"
+
+### Tier 3 -- Behavioral Contracts
+
+- `parse_signatures` calls `ast.parse()` on the signature block and returns the AST.
+- `generate_stub_source` transforms AST by replacing all function bodies with `raise NotImplementedError()`. Uses `ast.unparse()` to convert back to source. Prepends `STUB_SENTINEL` as the first non-import statement. The sentinel comment portion (after `True`) must be preserved in output -- `ast.unparse()` strips comments, so post-processing is required. Strips module-level `assert` statements. Preserves import statements and class definitions.
+- `strip_module_level_asserts` removes all `ast.Assert` nodes at the module level.
+- `write_stub_file` combines parsing, stripping, and stub generation to produce a stub file at `{output_dir}/stub.py`.
+- The generated stub must be importable without error (importability invariant).
+- The CLI wrapper `main()` emits `COMMAND_SUCCEEDED` on success or `COMMAND_FAILED: [details]` on failure.
+
+### Tier 3 -- Dependencies
+
+- **Unit 5 (Blueprint Extractor):** Uses `extract_upstream_contracts` to obtain upstream contract signatures.
+
+---
+
+## Unit 7: Dependency Extractor and Import Validator
+
+**Artifact category:** Python script (library + CLI wrapper)
+
+### Tier 2 — Signatures
+
+```python
+import ast
+from typing import Optional, Dict, Any, List, Tuple
+from pathlib import Path
+
+def extract_all_imports(blueprint_dir: Path) -> List[str]: ...
+def classify_import(import_stmt: str) -> str: ...
+def map_imports_to_packages(imports: List[str]) -> Dict[str, str]: ...
+def create_conda_environment(env_name: str, packages: Dict[str, str],
+    python_version: str = "3.11", toolchain: Optional[Dict[str, Any]] = None) -> bool: ...
+def validate_imports(env_name: str, imports: List[str],
+    toolchain: Optional[Dict[str, Any]] = None) -> List[Tuple[str, str]]: ...
+def create_project_directories(project_root: Path, total_units: int) -> None: ...
+def validate_dependency_dag(blueprint_dir: Path) -> List[str]: ...
+def derive_total_units(blueprint_dir: Path) -> int: ...
+def run_infrastructure_setup(project_root: Path,
+    toolchain: Optional[Dict[str, Any]] = None) -> None: ...
+
+# CLI wrapper (setup_infrastructure.py)
+def main() -> None: ...
+```
+
+### Tier 2 — Invariants
+
+```python
+assert blueprint_dir.is_dir(), "Blueprint directory must exist"
+assert all(isinstance(s, str) for s in result)
+assert result > 0, "total_units must be a positive integer, never None or zero"
+assert isinstance(total_units, int) and total_units > 0, \
+    "total_units must be a positive integer -- never None (Bug 24 guard)"
+
+# CLI argument enumeration (Bug 49 fix):
+# main() uses argparse with:
+#   --project-root (required, type=str) — project root directory
+```
+
+### Tier 3 -- Error Conditions
+
+- `FileNotFoundError`: "Blueprint directory not found: {path}"
+- `FileNotFoundError`: "No .md files found in blueprint directory: {path}"
+- `ValueError`: "No signature blocks found in blueprint"
+- `RuntimeError`: "Conda environment creation failed: {details}"
+- `RuntimeError`: "Import validation failed for: {import_list}"
+- `ValueError`: "DAG validation failed: forward dependency detected -- {details}"
+- `TypeError`: "total_units must be a positive integer, got {type}" (Bug 24 guard)
+
+### Tier 3 -- Behavioral Contracts
+
+- `extract_all_imports` takes `blueprint_dir` (the path to the blueprint directory) and uses `discover_blueprint_files` from Unit 1 to find all `.md` files, then reads and concatenates their content and parses every `### Tier 2 — Signatures` code block from the combined content. This replaces the prior approach of taking a single `contracts_path`. Uses `discover_blueprint_files` from Unit 1 (not independent globbing) for consistency with `derive_total_units` and `validate_dependency_dag` -- see design rationale below.
+- `create_conda_environment` creates the environment and installs packages. Always installs `testing.framework_packages` and `quality.packages` unconditionally (NEW IN 2.1). Always replaces any prior environment.
+- `create_project_directories` validates that `total_units` is a positive integer before use (Bug 24 fix).
+- `validate_dependency_dag` takes the blueprint directory path and uses `discover_blueprint_files` from Unit 1 to find all `.md` files, then reads and concatenates their content, parses each unit's dependency list, builds graph, verifies no forward edges, no cycles, all referenced units exist. Uses `discover_blueprint_files` from Unit 1 (not independent globbing) for consistency with `extract_all_imports` and `derive_total_units` -- see design rationale below.
+- `derive_total_units` takes the blueprint directory path and uses `discover_blueprint_files` from Unit 1 to find all `.md` files, then reads and concatenates their content and counts `## Unit N:` headings. This is the canonical source for `total_units`. The function is agnostic to how many files exist or what they are named. Uses `discover_blueprint_files` from Unit 1 (not independent globbing) for consistency with `extract_all_imports` and `validate_dependency_dag` -- see design rationale below.
+- `run_infrastructure_setup` orchestrates the full setup: validate DAG, extract imports, map packages, create environment, validate imports, derive `total_units` from blueprint directory (Bug 24 fix), create directories, write `total_units` to state. Uses `ARTIFACT_FILENAMES["blueprint_dir"]` to locate the blueprint directory.
+- The CLI wrapper emits `COMMAND_SUCCEEDED` or `COMMAND_FAILED: [details]`.
+- **Blueprint discovery design rationale:** Unit 7 uses `discover_blueprint_files` from Unit 1 (rather than globbing independently like Unit 5) because Unit 7 already depends on Unit 1 for `derive_env_name`, `load_toolchain`, `resolve_command`, `get_framework_packages`, `get_quality_packages`, etc. All three blueprint-reading functions in Unit 7 (`extract_all_imports`, `derive_total_units`, `validate_dependency_dag`) use `discover_blueprint_files` from Unit 1 for consistency. Unit 5, by contrast, globs independently to maintain its zero-dependency status -- Unit 5 has no dependencies on any other unit.
+
+### Tier 3 -- Dependencies
+
+- **Unit 1 (SVP Configuration):** Calls `derive_env_name`, `load_toolchain`, `resolve_command`, `get_framework_packages`, `get_quality_packages`, `discover_blueprint_files`.
+
+---
+
+## Unit 8: Hint Prompt Assembler
+
+**Artifact category:** Python script
+
+### Tier 2 — Signatures
+
+```python
+from typing import Optional, Dict, Any
+from pathlib import Path
+
+def assemble_hint_prompt(hint_content: str, gate_id: str, agent_type: str,
+    ladder_position: Optional[str] = None, unit_number: Optional[int] = None,
+    stage: str = "") -> str: ...
+def get_agent_type_framing(agent_type: str) -> str: ...
+def get_ladder_position_framing(ladder_position: Optional[str]) -> str: ...
+```
+
+### Tier 2 — Invariants
+
+```python
+assert len(hint_content.strip()) > 0
+assert agent_type in ("test", "implementation", "blueprint_author", "stakeholder_dialog", "diagnostic", "other")
+assert "## Human Domain Hint (via Help Agent)" in result
+assert hint_content in result
+```
+
+### Tier 3 -- Error Conditions
+
+- `ValueError`: "Empty hint content"
+- `ValueError`: "Unknown agent type: {type}"
+
+### Tier 3 -- Behavioral Contracts
+
+- `assemble_hint_prompt` produces the complete hint section using deterministic templates.
+- The output is pure text -- a Markdown section ready for inclusion in a task prompt.
+
+### Tier 3 -- Dependencies
+
+None.
+
+---
+
+## Unit 9: Preparation Script
+
+**Artifact category:** Python script
+
+### Tier 2 — Signatures
+
+```python
+from typing import Optional, Dict, Any, List
+from pathlib import Path
+
+KNOWN_AGENT_TYPES: List[str] = [
+    "setup_agent", "stakeholder_dialog", "stakeholder_reviewer",
+    "blueprint_author", "blueprint_checker", "blueprint_reviewer",
+    "test_agent", "implementation_agent", "coverage_review",
+    "diagnostic_agent", "integration_test_author", "git_repo_agent",
+    "help_agent", "hint_agent", "redo_agent",
+    "bug_triage", "repair_agent", "reference_indexing",
+]
+
+ALL_GATE_IDS: List[str] = [
+    "gate_0_1_hook_activation", "gate_0_2_context_approval",
+    "gate_0_3_profile_approval", "gate_0_3r_profile_revision",
+    "gate_1_1_spec_draft", "gate_1_2_spec_post_review",
+    "gate_2_1_blueprint_approval", "gate_2_2_blueprint_post_review",
+    "gate_2_3_alignment_exhausted",
+    "gate_3_1_test_validation", "gate_3_2_diagnostic_decision",
+    "gate_4_1_integration_failure", "gate_4_2_assembly_exhausted",
+    "gate_5_1_repo_test", "gate_5_2_assembly_exhausted",
+    "gate_5_3_unused_functions",
+    "gate_6_0_debug_permission", "gate_6_1_regression_test",
+    "gate_6_2_debug_classification", "gate_6_3_repair_exhausted",
+    "gate_6_4_non_reproducible", "gate_6_5_debug_commit",
+    "gate_hint_conflict",
+]
+
+def prepare_agent_task(project_root: Path, agent_type: str,
+    unit_number: Optional[int] = None, ladder_position: Optional[str] = None,
+    hint_content: Optional[str] = None, gate_id: Optional[str] = None,
+    extra_context: Optional[Dict[str, str]] = None,
+    revision_mode: Optional[str] = None) -> Path: ...
+
+def prepare_gate_prompt(project_root: Path, gate_id: str,
+    unit_number: Optional[int] = None,
+    extra_context: Optional[Dict[str, str]] = None) -> Path: ...
+
+def load_stakeholder_spec(project_root: Path) -> str: ...
+def load_blueprint(project_root: Path) -> str: ...
+def load_blueprint_contracts_only(project_root: Path) -> str: ...  # Bug 62
+def load_blueprint_prose_only(project_root: Path) -> str: ...  # Bug 62
+def load_reference_summaries(project_root: Path) -> str: ...
+def load_project_context(project_root: Path) -> str: ...
+def load_ledger_content(project_root: Path, ledger_name: str) -> str: ...
+def load_profile_sections(project_root: Path, sections: List[str]) -> str: ...
+def load_full_profile(project_root: Path) -> str: ...
+def load_quality_report(project_root: Path, gate: str) -> str: ...
+def load_lessons_learned_for_unit(project_root: Path, unit_number: int) -> str: ...
+def get_blueprint_dir(project_root: Path) -> Path: ...
+
+def build_task_prompt_content(agent_type: str, sections: Dict[str, str],
+    hint_block: Optional[str] = None) -> str: ...
+
+# CLI entry point
+def main() -> None: ...
+```
+
+### Tier 2 — Invariants
+
+```python
+assert project_root.is_dir()
+assert agent_type or gate_id
+assert result.exists(), "Task prompt file must exist after preparation"
+assert result.stat().st_size > 0
+# Bug 22: all artifact path construction must use ARTIFACT_FILENAMES from Unit 1
+# Bug 41: ALL_GATE_IDS must contain every gate ID in the pipeline
+
+# CLI argument enumeration (Bug 49 fix):
+# main() uses argparse with:
+#   --project-root   (default=".", type=str) — project root directory
+#   --agent          (optional, type=str) — agent type for task prompt
+#   --gate           (optional, type=str) — gate ID for gate prompt
+#   --unit           (optional, type=int) — unit number
+#   --output         (optional, type=str) — override output path
+#   --ladder         (optional, type=str) — fix ladder position
+#   --revision-mode  (optional, type=str) — revision mode
+#   --quality-report (optional, type=str) — quality report path
+# Invariant: exactly one of --agent or --gate must be provided
+```
+
+### Tier 3 -- Error Conditions
+
+- `ValueError`: "Unknown agent type: {type}"
+- `ValueError`: "Unknown gate ID: {gate_id}"
+- `FileNotFoundError`: "Required document not found: {path}"
+- `ValueError`: "Unit number required for agent type {type}"
+
+### Tier 3 -- Behavioral Contracts
+
+- `prepare_agent_task` assembles the task prompt file for the given agent type. **Blueprint directory discovery:** uses `get_blueprint_dir` to obtain the blueprint directory path, then passes it to `build_unit_context` (Unit 5). Passes `include_tier1=False` for `test_agent` and `implementation_agent`; passes `include_tier1=True` for all other agents.
+- **Selective blueprint loading (Bug 62 fix):** `load_blueprint_contracts_only` returns only `blueprint_contracts.md` content. `load_blueprint_prose_only` returns only `blueprint_prose.md` content. Both return empty string if the respective file does not exist. Per spec Section 3.16 agent matrix: `integration_test_author` and `git_repo_agent` use contracts-only; `help_agent` uses prose-only; `blueprint_checker`, `blueprint_reviewer`, `hint_agent`, and `bug_triage` receive both files.
+- `load_blueprint` uses `load_blueprint_content` from Unit 1 (which internally calls `discover_blueprint_files`) to load all blueprint files from the blueprint directory. No hardcoded blueprint filenames.
+- `get_blueprint_dir` returns `project_root / ARTIFACT_FILENAMES["blueprint_dir"]`. This is the single function that resolves the blueprint directory path from the artifact filename contract.
+- **Proactive lessons learned (NEW IN 2.1):** `load_lessons_learned_for_unit` reads the bug catalog from `svp_2_1_lessons_learned.md`, filters entries matching the current unit by unit number or pattern classification, and returns the filtered text. If no matches, returns empty string. Called during test agent task prompt assembly -- matched entries appended under heading "Historical failure patterns for this unit -- write tests that probe these behaviors."
+- `prepare_gate_prompt` assembles the gate prompt file. Raises `ValueError` for unrecognized gate IDs.
+- **Gate ID consistency (Bug 41 fix):** `ALL_GATE_IDS` must be identical to the set of gate IDs in `GATE_RESPONSES` in Unit 10. A structural test must verify this.
+- Profile sections extracted for agent task prompts: blueprint_author receives `readme`, `vcs`, `delivery`, `quality` sections.
+- Quality report loading for agent re-pass prompts (NEW IN 2.1): when agent type is `test_agent` or `implementation_agent` and `extra_context` contains a quality report path, loads and appends it.
+- All artifact paths constructed using `ARTIFACT_FILENAMES` from Unit 1 (Bug 22 fix). Blueprint paths use `ARTIFACT_FILENAMES["blueprint_dir"]` (directory), not individual filenames.
+
+### Tier 3 -- Dependencies
+
+- **Unit 1 (SVP Configuration):** `ARTIFACT_FILENAMES`, `load_profile`, `load_toolchain`.
+- **Unit 2 (Pipeline State Schema):** `load_state` for pipeline context.
+- **Unit 4 (Ledger Manager):** `read_ledger` for dialog agents.
+- **Unit 5 (Blueprint Extractor):** `extract_unit`, `extract_upstream_contracts`, `build_unit_context`.
+- **Unit 8 (Hint Prompt Assembler):** `assemble_hint_prompt` for hint injection.
+
+---
+
+## Unit 10: Routing Script and Update State
+
+**Artifact category:** Python script (library + 3 CLI wrappers)
+
+### Tier 2 — Signatures
+
+```python
+from typing import Optional, Dict, Any, List
+from pathlib import Path
+from pipeline_state import PipelineState
+
+# --- Agent status line vocabulary ---
+AGENT_STATUS_LINES: Dict[str, List[str]] = {
+    "setup_agent": ["PROJECT_CONTEXT_COMPLETE", "PROJECT_CONTEXT_REJECTED", "PROFILE_COMPLETE"],
+    "stakeholder_dialog": ["SPEC_DRAFT_COMPLETE", "SPEC_REVISION_COMPLETE"],
+    "stakeholder_reviewer": ["REVIEW_COMPLETE"],
+    "blueprint_author": ["BLUEPRINT_DRAFT_COMPLETE", "BLUEPRINT_REVISION_COMPLETE"],
+    "blueprint_checker": ["ALIGNMENT_CONFIRMED", "ALIGNMENT_FAILED: spec", "ALIGNMENT_FAILED: blueprint"],
+    "blueprint_reviewer": ["REVIEW_COMPLETE"],
+    "test_agent": ["TEST_GENERATION_COMPLETE", "REGRESSION_TEST_COMPLETE"],
+    "implementation_agent": ["IMPLEMENTATION_COMPLETE"],
+    "coverage_review": ["COVERAGE_COMPLETE: no gaps", "COVERAGE_COMPLETE: tests added"],
+    "diagnostic_agent": ["DIAGNOSIS_COMPLETE: implementation", "DIAGNOSIS_COMPLETE: blueprint", "DIAGNOSIS_COMPLETE: spec"],
+    "integration_test_author": ["INTEGRATION_TESTS_COMPLETE"],
+    "git_repo_agent": ["REPO_ASSEMBLY_COMPLETE"],
+    "help_agent": ["HELP_SESSION_COMPLETE: no hint", "HELP_SESSION_COMPLETE: hint forwarded"],
+    "hint_agent": ["HINT_ANALYSIS_COMPLETE"],
+    "redo_agent": ["REDO_CLASSIFIED: spec", "REDO_CLASSIFIED: blueprint", "REDO_CLASSIFIED: gate",
+                   "REDO_CLASSIFIED: profile_delivery", "REDO_CLASSIFIED: profile_blueprint"],
+    "bug_triage": ["TRIAGE_COMPLETE: build_env", "TRIAGE_COMPLETE: single_unit", "TRIAGE_COMPLETE: cross_unit",
+                   "TRIAGE_NEEDS_REFINEMENT", "TRIAGE_NON_REPRODUCIBLE"],
+    "repair_agent": ["REPAIR_COMPLETE", "REPAIR_FAILED", "REPAIR_RECLASSIFY"],
+    "reference_indexing": ["INDEXING_COMPLETE"],
+}
+
+# Cross-agent status line (not tied to a specific agent type)
+CROSS_AGENT_STATUS_LINES: Dict[str, str] = {
+    "HINT_BLUEPRINT_CONFLICT": "gate_hint_conflict",
+}
+
+COMMAND_STATUS_PATTERNS: List[str] = [
+    "TESTS_PASSED", "TESTS_FAILED", "TESTS_ERROR",
+    "COMMAND_SUCCEEDED", "COMMAND_FAILED",
+    "UNUSED_FUNCTIONS_DETECTED",  # Bug 67
+]
+
+GATE_RESPONSES: Dict[str, List[str]] = {
+    "gate_0_1_hook_activation": ["HOOKS ACTIVATED", "HOOKS FAILED"],
+    "gate_0_2_context_approval": ["CONTEXT APPROVED", "CONTEXT REJECTED", "CONTEXT NOT READY"],
+    "gate_0_3_profile_approval": ["PROFILE APPROVED", "PROFILE REJECTED"],
+    "gate_0_3r_profile_revision": ["PROFILE APPROVED", "PROFILE REJECTED"],
+    "gate_1_1_spec_draft": ["APPROVE", "REVISE", "FRESH REVIEW"],
+    "gate_1_2_spec_post_review": ["APPROVE", "REVISE", "FRESH REVIEW"],
+    "gate_2_1_blueprint_approval": ["APPROVE", "REVISE", "FRESH REVIEW"],
+    "gate_2_2_blueprint_post_review": ["APPROVE", "REVISE", "FRESH REVIEW"],
+    "gate_2_3_alignment_exhausted": ["REVISE SPEC", "RESTART SPEC", "RETRY BLUEPRINT"],
+    "gate_3_1_test_validation": ["TEST CORRECT", "TEST WRONG"],
+    "gate_3_2_diagnostic_decision": ["FIX IMPLEMENTATION", "FIX BLUEPRINT", "FIX SPEC"],
+    "gate_4_1_integration_failure": ["ASSEMBLY FIX", "FIX BLUEPRINT", "FIX SPEC"],
+    "gate_4_2_assembly_exhausted": ["FIX BLUEPRINT", "FIX SPEC"],
+    "gate_5_1_repo_test": ["TESTS PASSED", "TESTS FAILED"],
+    "gate_5_2_assembly_exhausted": ["RETRY ASSEMBLY", "FIX BLUEPRINT", "FIX SPEC"],
+    "gate_5_3_unused_functions": ["FIX SPEC", "OVERRIDE CONTINUE"],
+    "gate_6_0_debug_permission": ["AUTHORIZE DEBUG", "ABANDON DEBUG"],
+    "gate_6_1_regression_test": ["TEST CORRECT", "TEST WRONG"],
+    "gate_6_2_debug_classification": ["FIX UNIT", "FIX BLUEPRINT", "FIX SPEC"],
+    "gate_6_3_repair_exhausted": ["RETRY REPAIR", "RECLASSIFY BUG", "ABANDON DEBUG"],
+    "gate_6_4_non_reproducible": ["RETRY TRIAGE", "ABANDON DEBUG"],
+    "gate_6_5_debug_commit": ["COMMIT APPROVED", "COMMIT REJECTED"],
+    "gate_hint_conflict": ["BLUEPRINT CORRECT", "HINT CORRECT"],
+}
+
+def route(state: PipelineState, project_root: Path) -> Dict[str, str]: ...
+
+def dispatch_agent_status(state: PipelineState, agent_type: str,
+    status: str, project_root: Path) -> PipelineState: ...
+
+def dispatch_command_status(state: PipelineState, command_type: str,
+    status: str, project_root: Path) -> PipelineState: ...
+
+def dispatch_gate_response(state: PipelineState, gate_id: str,
+    response: str, project_root: Path) -> PipelineState: ...
+
+def read_last_status(project_root: Path) -> str: ...
+
+# CLI wrappers
+def update_state_main(argv: Optional[List[str]] = None) -> None: ...
+def run_tests_main(argv: Optional[List[str]] = None) -> None: ...
+def run_quality_gate_main(argv: Optional[List[str]] = None) -> None: ...
+```
+
+### Tier 2 — Invariants
+
+```python
+# route() must return a dict with at least ACTION and MESSAGE keys
+assert "ACTION" in result
+assert "MESSAGE" in result
+assert result["ACTION"] in ("invoke_agent", "run_command", "human_gate", "session_boundary", "pipeline_complete", "pipeline_held")
+
+# All COMMAND and POST fields must be fully resolved (Bug 35 fix)
+# No {env_name}, {N}, or other placeholders in emitted commands
+for key in ("COMMAND", "POST", "PREPARE"):
+    if key in result:
+        assert "{" not in result[key], f"Unresolved placeholder in {key}"
+
+# Gate ID consistency invariant (Bug 41 fix)
+assert set(GATE_RESPONSES.keys()) == set(ALL_GATE_IDS), \
+    "GATE_RESPONSES keys must match ALL_GATE_IDS"
+
+# Two-branch routing invariant: for every sub-stage with an agent-to-gate transition,
+# route() must check last_status.txt to distinguish agent-not-done from agent-done
+
+# Exhaustive dispatch_agent_status invariant (Bug 44, 46 fix):
+# dispatch_agent_status for test_agent must handle sub_stage in (None, "test_generation")
+# dispatch_agent_status for coverage_review must advance sub_stage to "unit_completion"
+
+# Exhaustive dispatch_command_status invariant (Bug 45 fix):
+# dispatch_command_status for test_execution at red_run must advance to implementation on TESTS_FAILED
+# dispatch_command_status for test_execution at green_run must advance to coverage_review on TESTS_PASSED
+
+# COMMAND/POST separation invariant (Bug 47 fix):
+# No COMMAND field may contain "update_state.py" -- state updates are POST-only
+
+# CLI argument enumeration (Bug 49 fix):
+# update_state_main(argv) uses argparse with:
+#   --project-root (default=".", type=str) — project root directory
+#   --gate-id      (optional, type=str) — gate ID for gate response dispatch
+#   --unit         (optional, type=int) — unit number
+#   --phase        (default="main", type=str) — pipeline phase
+#
+# run_tests_main(argv) uses argparse with:
+#   test_path      (positional, nargs="?", default="tests") — path to test dir
+#   --env-name     (default="default", type=str) — conda environment name
+#   --project-root (default=".", type=str) — project root directory
+#   --test-path    (optional, type=str) — alternative to positional
+#
+# run_quality_gate_main(argv) uses argparse with:
+#   gate_id        (positional, nargs="?", default="gate_a") — gate identifier
+#   --gate         (optional, type=str) — alternative to positional
+#   --target       (default="src", type=str) — target path for quality tools
+#   --env-name     (default="default", type=str) — conda environment name
+#   --project-root (default=".", type=str) — project root directory
+```
+
+### Tier 3 -- Error Conditions
+
+- `ValueError`: "Unknown agent status: {status}" -- when `dispatch_agent_status` receives an unrecognized status line.
+- `ValueError`: "Unknown gate response: {response} for gate {gate_id}" -- when `dispatch_gate_response` receives an invalid response.
+- `ValueError`: "Unknown command status: {status}" -- when `dispatch_command_status` receives an unrecognized command result.
+
+### Tier 3 -- Behavioral Contracts
+
+**Two-branch routing invariant (Bug 21 generalized fix).** `route()` must check `last_status.txt` for every sub-stage with an agent-to-gate transition. This is a structural invariant, not a per-stage fix. The complete list follows, in two groups distinguished by what the "done" branch emits.
+
+**Gate-presenting entries** -- the "done" branch emits a `human_gate` action:
+- Stage 0, `project_context`: check for `PROJECT_CONTEXT_COMPLETE` before presenting `gate_0_2_context_approval`
+- Stage 0, `project_profile`: check for `PROFILE_COMPLETE` before presenting `gate_0_3_profile_approval`
+- Stage 1, `sub_stage=None` (spec authoring): check for `SPEC_DRAFT_COMPLETE` or `SPEC_REVISION_COMPLETE` before presenting `gate_1_1_spec_draft` (Bug 41 fix)
+- Stage 1, `sub_stage=None` (reviewer completion): check for `REVIEW_COMPLETE` before presenting `gate_1_2_spec_post_review`. Disambiguation from dialog agent status is by prefix: `REVIEW_COMPLETE` routes to Gate 1.2, while `SPEC_DRAFT_COMPLETE`/`SPEC_REVISION_COMPLETE` route to Gate 1.1
+- Stage 2, `blueprint_dialog` (author completion): check for `BLUEPRINT_DRAFT_COMPLETE` or `BLUEPRINT_REVISION_COMPLETE` before presenting `gate_2_1_blueprint_approval`
+- Stage 2, `blueprint_dialog` (reviewer completion): check for `REVIEW_COMPLETE` before presenting `gate_2_2_blueprint_post_review`. Disambiguation from blueprint author status is by prefix: `REVIEW_COMPLETE` routes to Gate 2.2, while `BLUEPRINT_DRAFT_COMPLETE`/`BLUEPRINT_REVISION_COMPLETE` route to Gate 2.1. Stage-level disambiguation (Stage 1 vs Stage 2) uses the current stage number from `pipeline_state.json`
+- Stage 2, `alignment_check`: check for `ALIGNMENT_CONFIRMED` or `ALIGNMENT_FAILED:*` before dispatching alignment outcome. `ALIGNMENT_CONFIRMED` presents `gate_2_2_blueprint_post_review`. `ALIGNMENT_FAILED` increments iteration counter and re-enters blueprint dialog (or presents `gate_2_3_alignment_exhausted` on counter exhaustion).
+- Stage 5, `sub_stage=None`: check for `REPO_ASSEMBLY_COMPLETE` before advancing to `gate_5_1_repo_test`. When `REPO_ASSEMBLY_COMPLETE` is detected, `dispatch_agent_status` advances `sub_stage` to `"repo_test"`; the gate is presented on the next `route()` call at `sub_stage="repo_test"`
+- Stage 3, `fix_ladder_position == "diagnostic"`: check for `DIAGNOSIS_COMPLETE: implementation`, `DIAGNOSIS_COMPLETE: blueprint`, or `DIAGNOSIS_COMPLETE: spec` before presenting `gate_3_2_diagnostic_decision`. Diagnostic escalation is not keyed on a named sub-stage value; it is triggered when `fix_ladder_position` reaches `"diagnostic"`. The sub-stage may remain at `"green_run"` or `"implementation"` during the fix ladder; `route()` must check `fix_ladder_position` to determine whether the diagnostic agent should be invoked. When the diagnostic agent completes, the routing script must present Gate 3.2, not re-invoke the diagnostic agent.
+- Post-delivery debug loop, triage agent (reproducible): check for `TRIAGE_COMPLETE: single_unit` or `TRIAGE_COMPLETE: cross_unit` before presenting `gate_6_2_debug_classification`. Note: `TRIAGE_COMPLETE: build_env` does NOT present Gate 6.2 -- it routes directly to the build/environment repair agent via the fast path.
+- Post-delivery debug loop, triage agent (non-reproducible): check for `TRIAGE_NON_REPRODUCIBLE` before presenting `gate_6_4_non_reproducible`
+- Post-delivery debug loop, repair agent: check for `REPAIR_COMPLETE`, `REPAIR_RECLASSIFY`, or `REPAIR_FAILED` (with retries exhausted) before dispatching the repair outcome. `REPAIR_COMPLETE` routes to the success path (reassembly and debug completion) -- it does NOT present Gate 6.3. `REPAIR_RECLASSIFY` and `REPAIR_FAILED` (with retries exhausted) present `gate_6_3_repair_exhausted`.
+- Post-delivery debug loop, test agent (regression test mode): check for `REGRESSION_TEST_COMPLETE` before presenting `gate_6_1_regression_test`
+- Redo profile sub-stages (`redo_profile_delivery`): check for `PROFILE_COMPLETE` before presenting `gate_0_3r_profile_revision`
+- Redo profile sub-stages (`redo_profile_blueprint`): check for `PROFILE_COMPLETE` before presenting `gate_0_3r_profile_revision`
+
+**Command-presenting entries** -- the "done" branch emits a `run_command` action (a deterministic tool invocation, not a human gate):
+- Stage 3, `quality_gate_a_retry`: check for `TEST_GENERATION_COMPLETE` before re-running Gate A tools. If the test agent has not yet completed, re-invoke it; if it has, run the quality gate deterministic check.
+- Stage 3, `quality_gate_b_retry`: check for `IMPLEMENTATION_COMPLETE` before re-running Gate B tools. Same two-branch structure as Gate A retry.
+- Stage 3, `coverage_review`: check for `COVERAGE_COMPLETE` (either `no gaps` or `tests added`) before dispatching the coverage review completion flow. If the agent has not yet completed, invoke it; if it has completed with `tests added`, run auto-format commands; if `no gaps`, advance to `unit_completion`.
+- Stage 4, `sub_stage=None`: check for `INTEGRATION_TESTS_COMPLETE` before running the integration test suite. If the agent has not yet completed, re-invoke it; if it has, run the test command.
+
+**Gate 5.3 dispatch (`gate_5_3_unused_functions`, Bug 58 fix).** Presented when Gate C's `linter.unused_exports` step finds exported functions defined but never called. `dispatch_gate_response` for `gate_5_3_unused_functions`: `FIX SPEC` calls `_version_spec` then `restart_from_stage(state, "1", ...)` (full restart from Stage 1 to fix the spec/blueprint that produced the dead code). `OVERRIDE CONTINUE` sets `state.last_action` to record the human override and returns state unchanged (pipeline proceeds normally, dead code remains).
+
+**Gates NOT governed by the two-branch invariant.** Nine gate IDs are intentionally absent from the lists above: `gate_0_1_hook_activation` (presented unconditionally at session start), `gate_6_5_debug_commit` (presented after deterministic commit preparation), `gate_hint_conflict` (presented by hint system on conflict detection), `gate_2_3_alignment_exhausted` (presented on counter exhaustion after `ALIGNMENT_FAILED`), `gate_3_1_test_validation` (presented after deterministic test run command), `gate_4_1_integration_failure` (presented after integration test command fails), `gate_4_2_assembly_exhausted` (presented on retry counter exhaustion), `gate_5_2_assembly_exhausted` (presented on Stage 5 retry exhaustion), and `gate_6_0_debug_permission` (entry gate for debug loop via `/svp:bug`).
+
+**Stage 3 core sub-stage routing (Bug 25 fix).** `route()` must emit a distinct action for each sub-stage:
+- `None`: check `fix_ladder_position` (Bug 70 fix). If `fix_ladder_position` is `"fresh_test"` or `"hint_test"`, route to test agent. If `"fresh_impl"`, `"diagnostic_impl"`, route to implementation agent. If `"diagnostic"`, route to diagnostic agent. If `None`, route to stub generator (`run_command`).
+- `stub_generation`: `run_command` (stub generator script)
+- `test_generation`: `invoke_agent` (test agent) -- `dispatch_agent_status` handles the transition to `quality_gate_a` automatically on `TEST_GENERATION_COMPLETE`; no two-branch check needed (not in Section 3.6 exhaustive list)
+- `quality_gate_a`: `run_command` (Gate A tools)
+- `quality_gate_a_retry`: `invoke_agent` or `run_command` -- two-branch applies
+- `red_run`: `run_command` (pytest, expect failure)
+- `implementation`: `invoke_agent` (implementation agent) -- `dispatch_agent_status` handles the transition to `quality_gate_b` automatically on `IMPLEMENTATION_COMPLETE`; no two-branch check needed (not in Section 3.6 exhaustive list)
+- `quality_gate_b`: `run_command` (Gate B tools)
+- `quality_gate_b_retry`: `invoke_agent` or `run_command` -- two-branch applies
+- `green_run`: `run_command` (pytest, expect pass)
+- `coverage_review`: `invoke_agent` (coverage review agent) -- two-branch applies: `route()` reads `last_status.txt`. If no coverage status, invokes the coverage review agent. If `COVERAGE_COMPLETE: no gaps`, advances directly to `unit_completion`. If `COVERAGE_COMPLETE: tests added`, `dispatch_agent_status` handles the auto-format-then-advance flow within a single action cycle: it emits a compound `run_command` action that executes the Gate A quality tool operations (`ruff format`, `ruff check --select E,F,I --fix`, resolved from toolchain `gate_a` ops) on the new test files, then advances `sub_stage` to `"red_run"` for red-green re-validation. The auto-format commands execute within the `coverage_review` sub-stage's completion flow inside `dispatch_agent_status` -- they do NOT require separate action cycles or multiple sequential routing calls. After auto-format, the next `route()` call sees `sub_stage == "red_run"` and emits the red-run command.
+- `unit_completion`: `run_command` (complete_unit) + session boundary
+
+**Stage 5 full sub-stage routing (Bug 26 fix).**
+- `sub_stage=None`: uses the two-branch routing invariant. `route()` reads `last_status.txt`. If it contains `REPO_ASSEMBLY_COMPLETE`, this status was already processed by `dispatch_agent_status` which advanced `sub_stage` to `"repo_test"` -- so this branch is only reached when no relevant status exists, in which case it invokes `git_repo_agent`.
+- `sub_stage="repo_test"`: present `gate_5_1_repo_test`
+- `sub_stage="compliance_scan"`: run compliance scan script
+- `sub_stage="repo_complete"`: return `pipeline_complete`
+
+**`dispatch_agent_status` explicit transitions (Bug 50 fix: contract sufficiency).** Agent-type-keyed dispatch: help_agent/hint_agent -> no-op (clone only); test_agent -> sub_stage="quality_gate_a" (Bug 44: handles sub_stage None and "test_generation"); implementation_agent -> sub_stage="quality_gate_b"; coverage_review -> sub_stage="unit_completion" (Bug 46); reference_indexing -> stage="3", sub_stage=None, current_unit=1 if None; repair_agent -> on `REPAIR_COMPLETE` during an active debug session (`state.debug_session is not None`): set `stage = "5"`, `sub_stage = None` to trigger git_repo_agent reassembly, debug session remains active; on `REPAIR_FAILED` and `REPAIR_RECLASSIFY`: existing behavior (retry/reclassify/gate 6.3) (Bug 51 fix). All other agent types: clone and set last_action.
+
+**`dispatch_agent_status` for `setup_agent` -- `PROJECT_CONTEXT_REJECTED` handling:** When `dispatch_agent_status` receives `PROJECT_CONTEXT_REJECTED` from the setup agent, it does NOT advance the pipeline. The next `route()` call reads `PROJECT_CONTEXT_REJECTED` from `last_status.txt` and emits a `pipeline_held` action. This is distinct from `PROJECT_CONTEXT_COMPLETE`, which advances to the context approval gate. `pipeline_held` signals that the human cannot provide sufficient project context and the pipeline holds until the human re-engages (e.g., via a new session or by providing context externally and resuming).
+
+**Stage 0 routing.** `route()` dispatches on `sub_stage`:
+- `sub_stage == "hook_activation"`: emits a `human_gate` action for `gate_0_1_hook_activation`. Gate 0.1 may auto-approve (if hooks are already activated) or require manual activation. On `HOOKS ACTIVATED`, POST advances `sub_stage` to `"project_context"`. On `HOOKS FAILED`, presents error guidance.
+- `sub_stage == "project_context"`: uses the two-branch routing invariant. `route()` reads `last_status.txt`. If it contains `PROJECT_CONTEXT_COMPLETE`, emits a `human_gate` action for `gate_0_2_context_approval`. If it contains `PROJECT_CONTEXT_REJECTED`, emits a `pipeline_held` action (human cannot provide sufficient context; pipeline holds and awaits re-engagement). Otherwise, emits an `invoke_agent` action for the setup agent. Gate 0.2 dispatch: `CONTEXT APPROVED` advances `sub_stage` to `"project_profile"`. `CONTEXT REJECTED` re-invokes the setup agent (clears `last_status.txt`, deletes current `project_context.md`, keeps `sub_stage`). `CONTEXT NOT READY` re-invokes the setup agent for further dialog (clears `last_status.txt`, keeps `sub_stage`).
+- `sub_stage == "project_profile"`: uses the two-branch routing invariant. `route()` reads `last_status.txt`. If it contains `PROFILE_COMPLETE`, emits a `human_gate` action for `gate_0_3_profile_approval`. If not, emits an `invoke_agent` action for the setup agent. Gate 0.3 dispatch: `PROFILE APPROVED` calls `advance_stage` to transition to Stage 1. `PROFILE REJECTED` re-invokes the setup agent (clears `last_status.txt`, keeps `sub_stage`).
+
+**Stage 1 routing (Bug 41 fix).** Stage 1 uses `sub_stage: None` throughout -- the two-branch routing invariant uses `last_status.txt` for dispatch, not named sub-stages.
+- `sub_stage == None`: `route()` reads `last_status.txt`. If it contains `SPEC_DRAFT_COMPLETE` or `SPEC_REVISION_COMPLETE`, emits a `human_gate` action for `gate_1_1_spec_draft`. If it contains `REVIEW_COMPLETE` (from stakeholder spec reviewer), emits a `human_gate` action for `gate_1_2_spec_post_review`. Otherwise (no relevant status), emits an `invoke_agent` action for the `stakeholder_dialog` agent.
+- Gate 1.1 (`gate_1_1_spec_draft`) dispatch: `APPROVE` finalizes the spec (writes completion marker) and calls `advance_stage` to transition to Stage 2. `REVISE` re-invokes the stakeholder dialog agent in revision mode (clears `last_status.txt`, keeps `sub_stage` at `None`). `FRESH REVIEW` invokes the stakeholder spec reviewer agent; after `REVIEW_COMPLETE`, the next `route()` call reads `last_status.txt` and presents `gate_1_2_spec_post_review`.
+- Gate 1.2 (`gate_1_2_spec_post_review`) dispatch: `APPROVE` finalizes the spec and calls `advance_stage` to Stage 2. `REVISE` re-invokes the stakeholder dialog agent in revision mode (incorporates the reviewer's critique). `FRESH REVIEW` re-invokes the stakeholder spec reviewer for another cold review.
+
+**Stage 2 routing (Bug 23 fix).**
+- When `stage == "2"` and `sub_stage` is `None` or `"blueprint_dialog"`: uses the two-branch routing invariant. `route()` reads `last_status.txt`:
+  - If `last_status.txt` contains `BLUEPRINT_DRAFT_COMPLETE` or `BLUEPRINT_REVISION_COMPLETE`: emits a `human_gate` action for `gate_2_1_blueprint_approval`. Both statuses map to Gate 2.1 -- Gate 2.2 is only presented after a blueprint reviewer completes.
+  - If `last_status.txt` contains `REVIEW_COMPLETE` (from blueprint reviewer): emits a `human_gate` action for `gate_2_2_blueprint_post_review`.
+  - Otherwise (no relevant status): emits an `invoke_agent` action for the blueprint author.
+- Gate 2.1 (`gate_2_1_blueprint_approval`) dispatch: `APPROVE` calls `enter_alignment_check` (Unit 3) to transition `sub_stage` to `"alignment_check"` -- does NOT call `advance_stage`. `REVISE` resets `sub_stage` to `None` for fresh blueprint dialog. `FRESH REVIEW` invokes the blueprint reviewer; after `REVIEW_COMPLETE`, presents `gate_2_2_blueprint_post_review`.
+- When `stage == "2"` and `sub_stage == "alignment_check"`: uses the two-branch routing invariant. `route()` reads `last_status.txt`:
+  - If it contains `ALIGNMENT_CONFIRMED`: emits a `human_gate` action for `gate_2_2_blueprint_post_review` (human reviews alignment outcome). POST command for APPROVE calls `complete_alignment_check` (Unit 3) which calls `advance_stage` to Pre-Stage-3.
+  - If it contains `ALIGNMENT_FAILED: spec` or `ALIGNMENT_FAILED: blueprint`: checks alignment iteration count. If under limit, increments `alignment_iteration` and resets `sub_stage` to `None` (re-enter blueprint dialog). If at limit, presents `gate_2_3_alignment_exhausted`.
+  - Otherwise (no status yet): emits an `invoke_agent` action for the `blueprint_checker`.
+- Gate 2.2 (`gate_2_2_blueprint_post_review`) dispatch: `APPROVE` calls `complete_alignment_check` to advance to Pre-Stage-3. `REVISE` resets `sub_stage` to `None` for fresh blueprint dialog. `FRESH REVIEW` invokes the blueprint reviewer.
+- Gate 2.3 (`gate_2_3_alignment_exhausted`) dispatch: `RETRY BLUEPRINT` resets `alignment_iteration` and `sub_stage` to `None` (re-enter blueprint dialog). `REVISE SPEC` initiates targeted spec revision, then `restart_from_stage` to Stage 2. `RESTART SPEC` calls `restart_from_stage` to Stage 1.
+
+**Post-delivery debug loop routing.** When `stage == "5"` and `debug_session is not None`, `route()` dispatches on `debug_session.phase`:
+- **`triage_readonly`:** Emits an `invoke_agent` action for `bug_triage` in read-only mode. After triage agent completes, uses two-branch pattern: reads `last_status.txt`. If it contains `TRIAGE_COMPLETE: build_env`, `TRIAGE_COMPLETE: single_unit`, or `TRIAGE_COMPLETE: cross_unit`, presents `gate_6_0_debug_permission` for authorization. If it contains `TRIAGE_NEEDS_REFINEMENT`, re-invokes the triage agent with refinement context (bounded by `triage_refinement_count` in `debug_session`, default limit 2; if limit reached, presents `gate_6_4_non_reproducible`). `TRIAGE_NEEDS_REFINEMENT` is not governed by the two-branch invariant -- it triggers same-agent re-invocation. If it contains `TRIAGE_NON_REPRODUCIBLE`, presents `gate_6_4_non_reproducible`.
+- Gate 6.0 (`gate_6_0_debug_permission`) dispatch: `AUTHORIZE DEBUG` calls `authorize_debug_session` (Unit 3), advances phase to `"triage"`, activates debug write rules (delivered repo path, lessons learned writable). `ABANDON DEBUG` calls `abandon_debug_session` (Unit 3), returns to "Stage 5 complete."
+- **`triage`:** After authorization, triage agent runs with write access. After classification status, uses two-branch pattern: if `last_status.txt` contains `TRIAGE_COMPLETE: single_unit` or `TRIAGE_COMPLETE: cross_unit`, presents `gate_6_2_debug_classification`. If `TRIAGE_COMPLETE: build_env`, enters build/env fast path (repair agent, phase `"repair"`).
+- Gate 6.2 (`gate_6_2_debug_classification`) dispatch: `FIX UNIT` calls `set_debug_classification`, then `update_debug_phase("stage3_reentry")`, then `rollback_to_unit(state, N)` where N is the lowest affected unit -- this invalidates all verified units >= N, deletes their source/test files, sets stage to "3" with sub_stage None, and clears `last_status.txt` to prevent stale re-trigger after rebuild. `FIX BLUEPRINT` initiates targeted blueprint revision, restarts from Stage 2 (full pipeline re-entry). `FIX SPEC` initiates targeted spec revision, restarts from Stage 1.
+- **`stage3_reentry` phase routing:** When `debug_session.phase == "stage3_reentry"`, Gate 6.2 FIX UNIT has already called `rollback_to_unit` which set `stage: "3"`, `current_unit: N`, `sub_stage: None`, and invalidated all verified units >= N (removing them from `verified_units` and deleting their source/test files). The `route()` function falls through to normal Stage 5 routing (which now sees stage "3") and the pipeline rebuilds from unit N forward through all remaining units. Quality Gates A and B run normally during re-entry. After all units complete, `route()` transitions to the repair success path: reassembly and debug completion (Section 12.17.6), which runs all tests (unit, regression, integration), performs full Stage 5 repo reassembly, updates lessons learned, and presents `gate_6_5_debug_commit`. (Bug 55 correction: the original description incorrectly stated that verified_units was not modified and only the affected unit was reprocessed. The correct behavior is full rollback and rebuild from unit N forward.)
+- **`repair`:** Emits an `invoke_agent` action for `repair_agent`. After agent completes, uses two-branch pattern: if `last_status.txt` contains `REPAIR_COMPLETE`, routes to the success path -- reassembly and debug completion (Section 12.17.6), which runs all tests (unit, regression, integration), performs full Stage 5 repo reassembly, updates lessons learned, and then presents `gate_6_5_debug_commit` for commit approval. `REPAIR_COMPLETE` does NOT present Gate 6.3. If `REPAIR_FAILED`, checks repair attempt count -- if under limit, re-invokes repair agent; if exhausted, presents `gate_6_3_repair_exhausted`. If `REPAIR_RECLASSIFY`, presents `gate_6_3_repair_exhausted` for the human to decide (RETRY REPAIR, RECLASSIFY BUG, or ABANDON DEBUG).
+- Gate 6.3 (`gate_6_3_repair_exhausted`) dispatch: `RETRY REPAIR` resets repair counter and re-invokes repair agent. `RECLASSIFY BUG` resets debug phase to `"triage"` via `update_debug_phase` and clears `debug_session.classification` and `debug_session.affected_units`, allowing the triage agent to re-investigate with a fresh hypothesis (Bug 69 E.3 fix). `ABANDON DEBUG` calls `abandon_debug_session`, returns to "Stage 5 complete."
+- Gate 6.4 (`gate_6_4_non_reproducible`) dispatch: `RETRY TRIAGE` re-invokes triage agent. `ABANDON DEBUG` calls `abandon_debug_session`, returns to "Stage 5 complete."
+- **`regression_test`:** Uses two-branch routing invariant. Reads `last_status.txt`: if it does not contain `REGRESSION_TEST_COMPLETE`, emits an `invoke_agent` action for test agent in regression test mode. If it contains `REGRESSION_TEST_COMPLETE`, emits a `human_gate` action for `gate_6_1_regression_test`.
+- Gate 6.1 (`gate_6_1_regression_test`) dispatch: `TEST CORRECT` calls `update_debug_phase(state, "complete")` to advance to the commit preparation phase (Bug 69 E.2 fix). `TEST WRONG` is a no-op (returns state unchanged), allowing the test agent to be re-invoked on the next routing cycle.
+- Gate 6.5 (`gate_6_5_debug_commit`) dispatch: `COMMIT APPROVED` calls `complete_debug_session(state, "Debug fix committed and pushed")` to end the debug session (Bug 69 E.4 fix). `COMMIT REJECTED` is a no-op (returns state unchanged), allowing the human to edit or abort.
+
+**Redo profile sub-stage routing (Bug 43 fix).** When `sub_stage` is `"redo_profile_delivery"` or `"redo_profile_blueprint"`, `route()` uses the two-branch routing invariant. Reads `last_status.txt`: if it contains `PROFILE_COMPLETE`, emits a `human_gate` action for `gate_0_3r_profile_revision`. Otherwise, emits an `invoke_agent` action for the setup agent in targeted revision mode. Gate 0.3r dispatch: `PROFILE APPROVED` calls `complete_redo_profile_revision` (Unit 3) -- for `redo_profile_delivery`, restores snapshot position; for `redo_profile_blueprint`, restarts from Stage 2. `PROFILE REJECTED` re-invokes setup agent (clears `last_status.txt`, keeps sub_stage).
+
+**Gate ID consistency (Bug 41 fix).** The set of gate IDs in `GATE_RESPONSES` must be identical to `ALL_GATE_IDS` in Unit 9. A structural regression test must verify this. **Terminology note:** The spec uses the term `GATE_VOCABULARY` (Section 3.6, Bug 43) to refer to the routing module's gate dispatch table. In the blueprint and implementation, this is `GATE_RESPONSES`. These are the same artifact -- `GATE_VOCABULARY` is the spec-level name and `GATE_RESPONSES` is the implementation-level name. The universal compliance regression test (`test_bug43_stage2_blueprint_routing.py`) verifies cross-unit consistency using `GATE_RESPONSES` (from Unit 10) and `ALL_GATE_IDS` (from Unit 9).
+
+**Cross-agent status handling (`HINT_BLUEPRINT_CONFLICT`).** Any agent that receives a human domain hint may return `HINT_BLUEPRINT_CONFLICT: [details]` instead of its normal terminal status line. This is a cross-agent status -- it is not listed under any specific agent type in `AGENT_STATUS_LINES` but is recognized by `dispatch_agent_status` via prefix matching against `CROSS_AGENT_STATUS_LINES`. When detected, `dispatch_agent_status` does NOT perform a normal agent-type-specific transition. Instead, the next `route()` call reads `HINT_BLUEPRINT_CONFLICT` from `last_status.txt` and emits a `human_gate` action for `gate_hint_conflict`. Gate dispatch: `BLUEPRINT CORRECT` discards the hint and re-invokes the original agent (clears `last_status.txt`, preserves current pipeline position). `HINT CORRECT` initiates targeted document revision and restart.
+
+**Routing output resolution (Bug 35 fix).** All COMMAND, PREPARE, and POST fields must be fully resolved -- no placeholders.
+
+**Quality gate execution.** `run_quality_gate_main` reads the gate identifier (`gate_a`, `gate_b`, or `gate_c`) from CLI args, reads operations from toolchain, resolves each operation with `"quality."` prefix, executes sequentially. Emits `COMMAND_SUCCEEDED` or `COMMAND_FAILED: quality residuals`.
+
+**Repo collision avoidance (NEW IN 2.1).** When Stage 5 routing prepares the git repo agent invocation, the routing script must check if `delivered_repo_path` exists in `pipeline_state.json` and if that directory exists on disk. If the directory exists, it is renamed to `projectname-repo.bak.YYYYMMDD-HHMMSS` (using the current UTC timestamp) before the agent runs. This applies on every Stage 5 entry regardless of whether the current pass is the first pass or a redo pass. The `delivered_repo_path` persists in `pipeline_state.json` across redo restarts and is always checked. After rename, the git repo agent receives a clean target path. The `delivered_repo_path` in state is updated after successful assembly to reflect the new canonical path (`projectname-repo/`).
+
+**`dispatch_agent_status` null sub_stage handling for test_agent (Bug 44 fix).** `dispatch_agent_status` for `test_agent` must handle `sub_stage in (None, "test_generation")` when the status line is `TEST_GENERATION_COMPLETE`. Stage 3 routing normalizes `sub_stage=None` to `test_generation` for routing purposes, but the test agent may complete while `sub_stage` is still `None`. The dispatch must accept both values and produce the same state transition (advancing to `quality_gate_a`). If the dispatch only checks `sub_stage == "test_generation"` and ignores `None`, the pipeline loops indefinitely re-invoking the test agent. A regression test (`test_bug44_null_substage_dispatch.py`) must verify that `dispatch_agent_status` for `test_agent` produces a state transition when `sub_stage` is `None` and the status line is `TEST_GENERATION_COMPLETE`.
+
+**`dispatch_command_status` for test_execution state advancement (Bug 45 fix).** `dispatch_command_status` for `test_execution` must advance `sub_stage` for each expected status/sub_stage combination:
+- At `sub_stage == "red_run"`, `TESTS_FAILED` must advance `sub_stage` to `"implementation"`. A no-op return is invalid -- it causes an infinite loop re-running the red run.
+- At `sub_stage == "green_run"`, `TESTS_PASSED` must advance `sub_stage` to `"coverage_review"`. A no-op return is invalid -- it causes an infinite loop re-running the green run.
+- `TESTS_ERROR` at any sub_stage triggers the error handling flow (Bug 70 fix -- must never return state unchanged):
+  - At `sub_stage == "red_run"`: increment `red_run_retries`; if under limit (3), advance to `"test_generation"`; if at limit, advance to `"gate_3_1"`.
+  - At `sub_stage == "green_run"`: engage fix ladder (same as TESTS_FAILED): None -> fresh_impl, fresh_impl -> diagnostic, diagnostic_impl -> gate_3_2.
+  - At `stage == "4"`: increment `red_run_retries`; if under limit, advance to `"gate_4_1"`; if at limit, advance to `"gate_4_2"`.
+A regression test (`test_bug45_test_execution_dispatch.py`) must verify both advancement transitions.
+
+**`dispatch_agent_status` for coverage_review state advancement (Bug 46 fix).** `dispatch_agent_status` for `coverage_review` must advance `sub_stage` to `"unit_completion"` when `COVERAGE_COMPLETE` is received (either `COVERAGE_COMPLETE: no gaps` or `COVERAGE_COMPLETE: tests added`, after any post-completion auto-formatting). A bare `return state` is invalid -- it causes an infinite loop re-invoking the coverage review agent. This is an instance of the exhaustive dispatch_agent_status invariant (Section 3.6). A regression test (`test_bug46_coverage_dispatch.py`) must verify this advancement.
+
+**COMMAND/POST separation invariant (Bug 47 fix).** The `unit_completion` routing action's COMMAND field must not embed `update_state.py` calls or any other state update invocations. State updates are exclusively the responsibility of POST commands. If both COMMAND and POST invoke `update_state.py` for the same phase, the state update runs twice: the first call advances `current_unit`, and the second call raises `TransitionError` because the unit is no longer current. The COMMAND should only write the completion marker and status; the POST command handles the state transition via `update_state.py --phase unit_completion`. This invariant applies to all routing action blocks, not just `unit_completion` -- no COMMAND field may embed state update calls. A regression test (`test_bug47_unit_completion_double_dispatch.py`) must verify that the `unit_completion` routing action's COMMAND field does not contain `update_state.py` or any state update invocation, and that state updates are exclusively in the POST command.
+
+### Tier 3 -- Dependencies
+
+- **Unit 1 (SVP Configuration):** `derive_env_name`, `load_config`, `load_toolchain`, `resolve_command`, `get_quality_gate_operations`, `ARTIFACT_FILENAMES`.
+- **Unit 2 (Pipeline State Schema):** `load_state`, `save_state`, `PipelineState`.
+- **Unit 3 (State Transition Engine):** All transition functions.
+
+---
+
+## Unit 11: Command Logic Scripts
+
+**Artifact category:** Python script
+
+### Tier 2 — Signatures
+
+```python
+from typing import Optional, Dict, Any
+from pathlib import Path
+
+# cmd_save.py
+def cmd_save_main(project_root: Path) -> None: ...
+
+# cmd_quit.py
+def cmd_quit_main(project_root: Path) -> None: ...
+
+# cmd_status.py
+def cmd_status_main(project_root: Path) -> None: ...
+
+# cmd_clean.py
+def cmd_clean_main(project_root: Path) -> None: ...
+```
+
+### Tier 2 — Invariants
+
+```python
+assert project_root.is_dir()
+```
+
+### Tier 3 -- Error Conditions
+
+- `RuntimeError`: "Cannot clean: workspace not found at {path}"
+- `RuntimeError`: "Cannot clean: Stage 5 not complete"
+
+### Tier 3 -- Behavioral Contracts
+
+- `cmd_save_main` flushes state, verifies integrity, confirms.
+- `cmd_quit_main` runs save, then exits.
+- `cmd_status_main` reports: project name, pipeline toolchain, quality summary (pipeline and delivery), delivery summary, current stage/sub-stage/unit, pass history. Quality summary format: "Quality: ruff + mypy (pipeline), {profile_linter} + {profile_type_checker} (delivery)" (NEW IN 2.1).
+- `cmd_clean_main` offers archive, delete, or keep. Removes conda environment. Never touches delivered repo.
+
+### Tier 3 -- Dependencies
+
+- **Unit 1 (SVP Configuration):** `load_config`, `load_profile`, `derive_env_name`.
+- **Unit 2 (Pipeline State Schema):** `load_state`.
+- **Unit 4 (Ledger Manager):** For save operations.
+
+---
+
+## Unit 12: Hook Configurations
+
+**Artifact category:** JSON + Shell scripts (non-Python deliverables)
+
+### Tier 2 — Signatures
+
+```python
+from typing import Dict, Any, List
+import json
+
+HOOKS_JSON_SCHEMA: Dict[str, Any] = {
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Write",
+                "hooks": [{"type": "command", "command": ".claude/scripts/write_authorization.sh"}]
+            },
+            {
+                "matcher": "Bash",
+                "hooks": [{"type": "command", "command": ".claude/scripts/non_svp_protection.sh"}]
+            },
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Write",
+                "hooks": [{"type": "command", "command": ".claude/scripts/stub_sentinel_check.sh"}]
+            },
+        ]
+    }
+}
+
+def check_write_authorization(tool_name: str, file_path: str, pipeline_state_path: str) -> int: ...
+def check_svp_session(env_var_name: str) -> int: ...
+def check_stub_sentinel(file_path: str) -> int: ...
+
+SVP_ENV_VAR: str = "SVP_PLUGIN_ACTIVE"
+
+HOOKS_JSON_CONTENT: str
+WRITE_AUTHORIZATION_SH_CONTENT: str
+NON_SVP_PROTECTION_SH_CONTENT: str
+STUB_SENTINEL_CHECK_SH_CONTENT: str
+```
+
+### Tier 2 — Invariants
+
+```python
+assert SVP_ENV_VAR == "SVP_PLUGIN_ACTIVE"
+assert "hooks" in HOOKS_JSON_SCHEMA
+
+hooks_parsed = json.loads(HOOKS_JSON_CONTENT)
+assert "hooks" in hooks_parsed
+for entry in hooks_parsed["hooks"]["PreToolUse"]:
+    assert "matcher" in entry
+    assert "hooks" in entry
+    for handler in entry["hooks"]:
+        assert handler["type"] == "command"
+        assert "command" in handler
+
+# PostToolUse stub sentinel hook (NEW IN 2.1)
+assert "PostToolUse" in hooks_parsed["hooks"]
+
+assert WRITE_AUTHORIZATION_SH_CONTENT.startswith("#!/")
+assert NON_SVP_PROTECTION_SH_CONTENT.startswith("#!/")
+assert STUB_SENTINEL_CHECK_SH_CONTENT.startswith("#!/")
+assert SVP_ENV_VAR in NON_SVP_PROTECTION_SH_CONTENT
+assert "__SVP_STUB__" in STUB_SENTINEL_CHECK_SH_CONTENT
+
+assert "project_profile.json" in WRITE_AUTHORIZATION_SH_CONTENT
+assert "toolchain.json" in WRITE_AUTHORIZATION_SH_CONTENT
+assert "ruff.toml" in WRITE_AUTHORIZATION_SH_CONTENT
+assert "delivered_repo_path" in WRITE_AUTHORIZATION_SH_CONTENT
+```
+
+### Tier 3 -- Error Conditions
+
+- Exit code 2 from `write_authorization.sh`: blocks the write.
+- Exit code 2 from `non_svp_protection.sh`: blocks bash execution.
+- Exit code 2 from `stub_sentinel_check.sh`: "Write blocked: stub sentinel detected in implementation file {path}. Re-read the blueprint Tier 2 signatures and write the implementation, not the stub."
+
+### Tier 3 -- Behavioral Contracts
+
+- `hooks.json` uses the correct Claude Code hook configuration schema (Bug 17 fix). Note: `.claude/scripts/` paths in hook command fields are runtime paths after the launcher copies hooks from the plugin source at `svp/hooks/scripts/` into the project workspace.
+- `write_authorization.sh` implements two-tier path authorization with all SVP 2.1 additions: `ruff.toml` permanently read-only, delivered repo path writable during authorized debug sessions, lessons learned document writable during authorized debug sessions.
+- **Stub sentinel hook (NEW IN 2.1):** `PostToolUse` command hook. Matcher: Write tool calls. Handler: `stub_sentinel_check.sh`. The script checks if the written file is under `src/unit_N/` and is a `.py` file. If so, greps for `__SVP_STUB__`. If found, exits with code 2 and error message. This fires on `PostToolUse` (not `PreToolUse`) because it validates content that was written.
+- `non_svp_protection.sh` checks for `SVP_PLUGIN_ACTIVE`.
+- **Dual write-path:** Hooks only control agent writes through Claude Code's Write tool. Quality tool auto-fix and assembly scripts modify files via subprocess and bypass hooks. This is correct by design.
+
+### Tier 3 -- Dependencies
+
+- **Unit 2 (Pipeline State Schema):** `write_authorization.sh` reads `pipeline_state.json`.
+
+---
+
+## Unit 13: Dialog Agent Definitions
+
+**Artifact category:** Markdown (AGENT.md files)
+
+### Tier 2 — Signatures
+
+```python
+from typing import Dict, Any, List
+
+SETUP_AGENT_FRONTMATTER: Dict[str, Any] = {
+    "name": "setup_agent", "model": "claude-sonnet-4-6",
+    "tools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+}
+STAKEHOLDER_DIALOG_AGENT_FRONTMATTER: Dict[str, Any] = {
+    "name": "stakeholder_dialog_agent", "model": "claude-opus-4-6",
+    "tools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+}
+BLUEPRINT_AUTHOR_AGENT_FRONTMATTER: Dict[str, Any] = {
+    "name": "blueprint_author_agent", "model": "claude-opus-4-6",
+    "tools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+}
+
+SETUP_AGENT_STATUS: List[str] = ["PROJECT_CONTEXT_COMPLETE", "PROJECT_CONTEXT_REJECTED", "PROFILE_COMPLETE"]
+STAKEHOLDER_DIALOG_STATUS: List[str] = ["SPEC_DRAFT_COMPLETE", "SPEC_REVISION_COMPLETE"]
+BLUEPRINT_AUTHOR_STATUS: List[str] = ["BLUEPRINT_DRAFT_COMPLETE", "BLUEPRINT_REVISION_COMPLETE"]
+
+SETUP_AGENT_MD_CONTENT: str
+STAKEHOLDER_DIALOG_AGENT_MD_CONTENT: str
+BLUEPRINT_AUTHOR_AGENT_MD_CONTENT: str
+```
+
+### Tier 2 — Invariants
+
+```python
+# Setup Agent UX rules (spec Section 6.4)
+assert "Rule 1" in SETUP_AGENT_MD_CONTENT and "Plain-language" in SETUP_AGENT_MD_CONTENT
+assert "Rule 2" in SETUP_AGENT_MD_CONTENT and "recommendation" in SETUP_AGENT_MD_CONTENT.lower()
+assert "Rule 3" in SETUP_AGENT_MD_CONTENT and "defaults" in SETUP_AGENT_MD_CONTENT.lower()
+assert "Rule 4" in SETUP_AGENT_MD_CONTENT and "Progressive disclosure" in SETUP_AGENT_MD_CONTENT
+
+# Setup Agent must embed complete profile schema with canonical field names (spec Section 30)
+assert "delivery" in SETUP_AGENT_MD_CONTENT
+assert "environment_recommendation" in SETUP_AGENT_MD_CONTENT
+assert "quality" in SETUP_AGENT_MD_CONTENT
+
+# All *_MD_CONTENT must be valid Claude Code agent definitions
+```
+
+### Tier 3 -- Behavioral Contracts
+
+- **Setup Agent:** Operates in project context mode, project profile mode, and targeted revision mode. Profile dialog covers five areas including Area 5 (quality preferences, NEW IN 2.1) and changelog in Area 1. Writes files using `ARTIFACT_FILENAMES` constants. System prompt must include Rules 1-4 verbatim as numbered behavioral requirements. `SETUP_AGENT_MD_CONTENT` must embed the complete `project_profile.json` schema structure with exact canonical field names matching `DEFAULT_PROFILE` in Unit 1, so the agent's JSON output uses identical section and field names.
+- **Blueprint Author Agent:** Receives profile sections (`readme`, `vcs`, `delivery`, `quality`). Produces blueprint files in the `blueprint/` directory (currently `blueprint_prose.md` and `blueprint_contracts.md` as paired output, but the system is agnostic to the exact filenames). Encodes tool preferences as behavioral contracts (Layer 1). **Unit-level preference capture (RFC-2):** The blueprint author agent definition includes Rules P1-P4 for capturing domain preferences during the decomposition dialog:
+  - **Rule P1 (Ask at the unit level):** After establishing each unit's Tier 1 description and before finalizing contracts, ask about domain conventions, preferences about output appearance, domain-specific choices that are not requirements but matter.
+  - **Rule P2 (Domain language only):** Use the human's domain vocabulary, not engineering vocabulary. Right: "When this module saves your data, what file format do your collaborators' tools expect?" Wrong: "Do you have preferences for the serialization format?"
+  - **Rule P3 (Progressive disclosure):** One open question per unit. Follow-up only if the human indicates preferences. No menu of categories for every unit.
+  - **Rule P4 (Conflict detection at capture time):** If a preference contradicts a behavioral contract being developed, identify immediately and resolve during dialog.
+  Captured preferences are recorded as a `### Preferences` subsection within each unit's Tier 1 description in `blueprint_prose.md`. Absence of the subsection means "no preferences" -- no explicit marker needed.
+
+### Tier 3 -- Dependencies
+
+- **Unit 4 (Ledger Manager):** Dialog agents operate on conversation ledgers.
+- **Unit 9 (Preparation Script):** Task prompt content is assembled by Unit 9.
+
+---
+
+## Unit 14: Review and Checker Agent Definitions
+
+**Artifact category:** Markdown (AGENT.md files)
+
+### Tier 2 — Signatures
+
+```python
+from typing import Dict, Any, List
+
+STAKEHOLDER_REVIEWER_FRONTMATTER: Dict[str, Any] = {
+    "name": "stakeholder_reviewer", "model": "claude-opus-4-6",
+    "tools": ["Read", "Glob", "Grep"],
+}
+BLUEPRINT_CHECKER_FRONTMATTER: Dict[str, Any] = {
+    "name": "blueprint_checker", "model": "claude-opus-4-6",
+    "tools": ["Read", "Glob", "Grep", "Bash"],
+}
+BLUEPRINT_REVIEWER_FRONTMATTER: Dict[str, Any] = {
+    "name": "blueprint_reviewer", "model": "claude-opus-4-6",
+    "tools": ["Read", "Glob", "Grep"],
+}
+
+STAKEHOLDER_REVIEWER_STATUS: List[str] = ["REVIEW_COMPLETE"]
+BLUEPRINT_CHECKER_STATUS: List[str] = ["ALIGNMENT_CONFIRMED", "ALIGNMENT_FAILED: spec", "ALIGNMENT_FAILED: blueprint"]
+BLUEPRINT_REVIEWER_STATUS: List[str] = ["REVIEW_COMPLETE"]
+
+STAKEHOLDER_REVIEWER_MD_CONTENT: str
+BLUEPRINT_CHECKER_MD_CONTENT: str
+BLUEPRINT_REVIEWER_MD_CONTENT: str
+```
+
+### Tier 2 — Invariants
+
+```python
+# Blueprint Checker must validate internal consistency of prose/contracts split:
+# every unit in prose must have a corresponding contracts entry and vice versa
+```
+
+### Tier 3 -- Behavioral Contracts
+
+- **Blueprint Checker (EXPANDED for SVP 2.1, Bug 72 registry completeness):** Receives all blueprint files discovered from the blueprint directory (via Unit 9's task prompt assembly, which uses `discover_blueprint_files` from Unit 1). Validates internal consistency: every `## Unit N:` heading found across all files must have corresponding Tier 1, Tier 2, and Tier 3 content somewhere in the discovered files. Validates alignment, DAG acyclicity, Layer 2 preference coverage (including quality preferences). **Receives pattern catalog section of `svp_2_1_lessons_learned.md` -- produces advisory risk section identifying structural features matching known failure patterns (P1-P10). Advisory only -- does not block approval.** The checker is agnostic to the number or names of blueprint files -- it validates the combined content. **Preference-contract consistency (RFC-2):** For each unit that has a Preferences subsection in Tier 1, verify that no stated preference contradicts a Tier 2 signature or Tier 3 behavioral contract. Report as a non-blocking warning (not an alignment failure), since preferences are non-binding. **Gate reachability check (Bugs 65-69 P10 fix):** For every gate in GATE_VOCABULARY, verify there exists a `route()` code path in the blueprint's Unit 10 contracts that presents it. For every gate response option, verify `dispatch_gate_response` produces a state transition or is documented as an intentional two-branch no-op. This is an alignment condition, not advisory.
+- **Stakeholder Spec Reviewer (Bug 57 expansion, EXPANDED Bugs 65-69 P10 fix):** Agent definition includes a mandatory review checklist requiring explicit verification of: downstream dependency analysis for re-entry paths, Tier 3 contract requirements for exported functions, per-gate-option dispatch contract requirements, call-site traceability for specified functions, re-entry invalidation requirements, and gate reachability verification (every gate defined in GATE_VOCABULARY must have a route() path and every response must produce a state transition).
+- **Blueprint Reviewer (Bug 57 expansion, EXPANDED Bugs 65-69 P10 fix):** Agent definition includes a mandatory review checklist requiring explicit verification of: Tier 2/Tier 3 completeness, per-gate dispatch contracts, call-site traceability, re-entry downstream invalidation, contract sufficiency for reimplementation, and gate reachability (every gate in GATE_VOCABULARY must have a route() code path that presents it; every response option must produce a state transition or be documented as an intentional two-branch no-op).
+
+### Tier 3 -- Dependencies
+
+- **Unit 9 (Preparation Script):** Task prompt content is assembled by Unit 9.
+
+---
+
+## Unit 15: Construction Agent Definitions
+
+**Artifact category:** Markdown (AGENT.md files)
+
+### Tier 2 — Signatures
+
+```python
+from typing import Dict, Any, List
+
+TEST_AGENT_FRONTMATTER: Dict[str, Any] = {
+    "name": "test_agent", "model": "claude-opus-4-6",
+    "tools": ["Read", "Write", "Bash", "Glob", "Grep"],
+}
+IMPLEMENTATION_AGENT_FRONTMATTER: Dict[str, Any] = {
+    "name": "implementation_agent", "model": "claude-opus-4-6",
+    "tools": ["Read", "Write", "Bash", "Glob", "Grep"],
+}
+COVERAGE_REVIEW_FRONTMATTER: Dict[str, Any] = {
+    "name": "coverage_review_agent", "model": "claude-opus-4-6",
+    "tools": ["Read", "Write", "Bash", "Glob", "Grep"],
+}
+
+TEST_AGENT_STATUS: List[str] = ["TEST_GENERATION_COMPLETE", "REGRESSION_TEST_COMPLETE"]
+IMPLEMENTATION_AGENT_STATUS: List[str] = ["IMPLEMENTATION_COMPLETE"]
+COVERAGE_REVIEW_STATUS: List[str] = ["COVERAGE_COMPLETE: no gaps", "COVERAGE_COMPLETE: tests added"]
+
+TEST_AGENT_MD_CONTENT: str
+IMPLEMENTATION_AGENT_MD_CONTENT: str
+COVERAGE_REVIEW_AGENT_MD_CONTENT: str
+```
+
+### Tier 3 -- Behavioral Contracts
+
+- **Test Agent:** Receives blueprint content with `include_tier1=False` (no Tier 1 descriptions -- only Tier 2 signatures and Tier 3 contracts). System prompt states quality tools will auto-format output. Receives historical failure patterns for current unit when available.
+- **Implementation Agent:** Receives blueprint content with `include_tier1=False` (no Tier 1 descriptions -- only Tier 2 signatures and Tier 3 contracts). System prompt states quality tools will auto-format, lint, and type-check output.
+- **Coverage Review Agent:** Unchanged.
+
+### Tier 3 -- Dependencies
+
+- **Unit 6 (Stub Generator):** Stub generation produces files test agents write tests against.
+- **Unit 9 (Preparation Script):** Task prompt content assembled by Unit 9.
+
+---
+
+## Unit 16: Diagnostic and Classification Agent Definitions
+
+**Artifact category:** Markdown (AGENT.md files)
+
+### Tier 2 — Signatures
+
+```python
+from typing import Dict, Any, List
+
+DIAGNOSTIC_AGENT_FRONTMATTER: Dict[str, Any] = {
+    "name": "diagnostic_agent", "model": "claude-opus-4-6",
+    "tools": ["Read", "Glob", "Grep", "Bash"],
+}
+REDO_AGENT_FRONTMATTER: Dict[str, Any] = {
+    "name": "redo_agent", "model": "claude-opus-4-6",
+    "tools": ["Read", "Glob", "Grep", "Bash"],
+}
+
+DIAGNOSTIC_AGENT_STATUS: List[str] = [
+    "DIAGNOSIS_COMPLETE: implementation", "DIAGNOSIS_COMPLETE: blueprint", "DIAGNOSIS_COMPLETE: spec",
+]
+REDO_AGENT_STATUS: List[str] = [
+    "REDO_CLASSIFIED: spec", "REDO_CLASSIFIED: blueprint", "REDO_CLASSIFIED: gate",
+    "REDO_CLASSIFIED: profile_delivery", "REDO_CLASSIFIED: profile_blueprint",
+]
+
+DIAGNOSTIC_AGENT_MD_CONTENT: str
+REDO_AGENT_MD_CONTENT: str
+```
+
+### Tier 3 -- Behavioral Contracts
+
+- **Diagnostic Agent:** Three-hypothesis discipline. Dual-format output. Unchanged.
+- **Redo Agent:** Five classifications including `profile_delivery` and `profile_blueprint`. Unchanged from v2.0.
+
+### Tier 3 -- Dependencies
+
+- **Unit 9 (Preparation Script):** Task prompt content assembled by Unit 9.
+
+---
+
+## Unit 17: Support Agent Definitions
+
+**Artifact category:** Markdown (AGENT.md files)
+
+### Tier 2 — Signatures
+
+```python
+from typing import Dict, Any, List
+
+HELP_AGENT_FRONTMATTER: Dict[str, Any] = {
+    "name": "help_agent", "model": "claude-sonnet-4-6",
+    "tools": ["Read", "Glob", "Grep", "WebSearch"],
+}
+HINT_AGENT_FRONTMATTER: Dict[str, Any] = {
+    "name": "hint_agent", "model": "claude-opus-4-6",
+    "tools": ["Read", "Glob", "Grep", "Bash"],
+}
+
+HELP_AGENT_STATUS: List[str] = ["HELP_SESSION_COMPLETE: no hint", "HELP_SESSION_COMPLETE: hint forwarded"]
+HINT_AGENT_STATUS: List[str] = ["HINT_ANALYSIS_COMPLETE"]
+
+HELP_AGENT_MD_CONTENT: str
+HINT_AGENT_MD_CONTENT: str
+```
+
+### Tier 3 -- Behavioral Contracts
+
+- **Help Agent:** Read-only. Uses `claude-sonnet-4-6`. Unchanged.
+- **Hint Agent:** Reactive and proactive modes. Unchanged.
+
+### Tier 3 -- Dependencies
+
+- **Unit 9 (Preparation Script):** Task prompt content assembled by Unit 9.
+
+---
+
+## Unit 18: Utility Agent Definitions
+
+**Artifact category:** Markdown (AGENT.md files)
+
+### Tier 2 — Signatures
+
+```python
+from typing import Dict, Any, List
+
+REFERENCE_INDEXING_FRONTMATTER: Dict[str, Any] = {
+    "name": "reference_indexing_agent", "model": "claude-sonnet-4-6",
+    "tools": ["Read", "Glob", "Grep"],
+}
+INTEGRATION_TEST_AUTHOR_FRONTMATTER: Dict[str, Any] = {
+    "name": "integration_test_author", "model": "claude-opus-4-6",
+    "tools": ["Read", "Write", "Bash", "Glob", "Grep"],
+}
+GIT_REPO_AGENT_FRONTMATTER: Dict[str, Any] = {
+    "name": "git_repo_agent", "model": "claude-sonnet-4-6",
+    "tools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+}
+
+REFERENCE_INDEXING_STATUS: List[str] = ["INDEXING_COMPLETE"]
+INTEGRATION_TEST_AUTHOR_STATUS: List[str] = ["INTEGRATION_TESTS_COMPLETE"]
+GIT_REPO_AGENT_STATUS: List[str] = ["REPO_ASSEMBLY_COMPLETE"]
+
+REFERENCE_INDEXING_MD_CONTENT: str
+INTEGRATION_TEST_AUTHOR_MD_CONTENT: str
+GIT_REPO_AGENT_MD_CONTENT: str
+```
+
+### Tier 2 — Invariants
+
+```python
+# GIT_REPO_AGENT_MD_CONTENT must contain:
+assert "Repository Location" in GIT_REPO_AGENT_MD_CONTENT, \
+    "Must contain Repository Location section"
+assert "sibling" in GIT_REPO_AGENT_MD_CONTENT.lower() or "same level" in GIT_REPO_AGENT_MD_CONTENT.lower(), \
+    "Must specify sibling directory creation"
+assert "11" in GIT_REPO_AGENT_MD_CONTENT or "eleven" in GIT_REPO_AGENT_MD_CONTENT.lower(), \
+    "Must specify 11 sequential commits"
+assert "blueprint" in GIT_REPO_AGENT_MD_CONTENT.lower(), \
+    "Must reference blueprint directory discovery for docs/ delivery"
+assert "discover" in GIT_REPO_AGENT_MD_CONTENT.lower() or "glob" in GIT_REPO_AGENT_MD_CONTENT.lower() or "*.md" in GIT_REPO_AGENT_MD_CONTENT, \
+    "Must instruct discovery-based blueprint file delivery"
+assert "project_context.md" in GIT_REPO_AGENT_MD_CONTENT, \
+    "Must reference project_context.md for docs/ delivery"
+assert "stakeholder_spec.md" in GIT_REPO_AGENT_MD_CONTENT, \
+    "Must reference stakeholder_spec.md for docs/ delivery"
+assert "docs/history/" in GIT_REPO_AGENT_MD_CONTENT, \
+    "Must reference docs/history/ for version history delivery"
+assert "docs/references/" in GIT_REPO_AGENT_MD_CONTENT, \
+    "Must reference docs/references/ for reference delivery"
+assert "pyproject.toml" in GIT_REPO_AGENT_MD_CONTENT
+assert "pythonpath" in GIT_REPO_AGENT_MD_CONTENT.lower(), \
+    "Must specify pytest path configuration"
+assert "__SVP_STUB__" in GIT_REPO_AGENT_MD_CONTENT, \
+    "Must include stub sentinel validation instruction"
+assert "src.unit_" in GIT_REPO_AGENT_MD_CONTENT or "cross-unit import" in GIT_REPO_AGENT_MD_CONTENT.lower(), \
+    "Must include cross-unit import rewrite instruction"
+```
+
+### Tier 3 -- Behavioral Contracts
+
+- **Git Repo Agent (EXPANDED for SVP 2.1):** Creates the delivered git repository in `{project_name}-repo/` at the **same level as the project workspace** (sibling directory). The agent definition must contain a "Repository Location" section with this instruction: "`projectname-repo/` is created at the same level as the project workspace directory, not inside it. Working directory during assembly is the project workspace root -- the agent must construct the repo path as `../projectname-repo/` or as an absolute path derived from the workspace root's parent."
+
+  **11 sequential commits in order:** (1) Conda environment file, dependency list, directory structure. (2) Stakeholder spec. (3) Blueprint (all `.md` files discovered from the `blueprint/` directory). (4) Each unit with implementation and tests (sequential, topological). (5) Integration tests. (6) Project configuration (entry point, README). (7) Document version history (`docs/history/`). (8) Reference documents and summaries (`docs/references/`). (9) Project context (`docs/project_context.md`). (10) Quality tool configuration files. (11) Changelog (if `vcs.changelog` is not `"none"`).
+
+  **All `docs/` deliverables explicitly:** Deliver `stakeholder_spec.md` to `docs/stakeholder_spec.md`. Deliver all blueprint `.md` files from `blueprint/` to `docs/` (discovered dynamically -- e.g., `blueprint_prose.md` to `docs/blueprint_prose.md`, `blueprint_contracts.md` to `docs/blueprint_contracts.md`, or whatever files exist). Deliver version history to `docs/history/`. Deliver `project_context.md` to `docs/project_context.md`. Deliver references to `docs/references/`.
+
+  **Pytest path configuration:** The delivered `pyproject.toml` must contain `[tool.pytest.ini_options]` with appropriate `pythonpath` configuration.
+
+  **Cross-unit import rewrite:** Rewrite all cross-unit imports from `src.unit_N` form to final module paths as specified in the blueprint file tree.
+
+  **Stub sentinel validation:** After assembly, scan all Python source files for `__SVP_STUB__`. Any match is an immediate structural validation failure.
+
+  **Quality Gate C:** Runs during structural validation. `ruff format --check`, `ruff check`, `mypy` (without `--ignore-missing-imports`), then unused exported function detection via `ruff check --select F811` (Bug 56 fix). If unused exported functions are found, presents human gate `gate_5_3_unused_functions` with options FIX SPEC (strongly recommended) or OVERRIDE CONTINUE. Format/lint/type issues enter the bounded fix cycle as before.
+
+  **Delivered quality configuration:** Generates quality tool config from profile `quality` section. Changelog from `vcs.changelog`. Commit style from `vcs.commit_style`. README per profile preferences with carry-forward for Mode A (Bug 30 fix).
+
+  **Records `delivered_repo_path`:** `dispatch_agent_status` for `git_repo_agent` calls `set_delivered_repo_path`.
+
+  **Commit style and quality preferences** are encoded in the agent definition string as behavioral contracts (Layer 1 preference enforcement).
+
+  **Environment name derivation (Bug 27 fix):** Environment name in delivered `environment.yml` and `README.md` must use canonical `derive_env_name()` from Unit 1, not independent derivation.
+
+- **Integration Test Author (CHANGED IN 2.1):** Must cover all 11 integration test requirements including quality gate chains.
+
+### Tier 3 -- Dependencies
+
+- **Unit 9 (Preparation Script):** Task prompt content assembled by Unit 9.
+
+---
+
+## Unit 19: Debug Loop Agent Definitions
+
+**Artifact category:** Markdown (AGENT.md files)
+
+### Tier 2 — Signatures
+
+```python
+from typing import Dict, Any, List
+
+BUG_TRIAGE_FRONTMATTER: Dict[str, Any] = {
+    "name": "bug_triage_agent", "model": "claude-opus-4-6",
+    "tools": ["Read", "Write", "Bash", "Glob", "Grep"],
+}
+REPAIR_AGENT_FRONTMATTER: Dict[str, Any] = {
+    "name": "repair_agent", "model": "claude-sonnet-4-6",
+    "tools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+}
+
+BUG_TRIAGE_STATUS: List[str] = [
+    "TRIAGE_COMPLETE: build_env", "TRIAGE_COMPLETE: single_unit", "TRIAGE_COMPLETE: cross_unit",
+    "TRIAGE_NEEDS_REFINEMENT", "TRIAGE_NON_REPRODUCIBLE",
+]
+REPAIR_AGENT_STATUS: List[str] = ["REPAIR_COMPLETE", "REPAIR_FAILED", "REPAIR_RECLASSIFY"]
+
+BUG_TRIAGE_AGENT_MD_CONTENT: str
+REPAIR_AGENT_MD_CONTENT: str
+```
+
+### Tier 2 — Invariants
+
+```python
+# Bug Triage Agent must contain Step 7 commit instructions (spec Section 12.17.4)
+assert "[SVP-DEBUG]" in BUG_TRIAGE_AGENT_MD_CONTENT, \
+    "Must contain debug commit format"
+assert "COMMIT APPROVED" in BUG_TRIAGE_AGENT_MD_CONTENT, \
+    "Must contain commit gate response option"
+assert "COMMIT REJECTED" in BUG_TRIAGE_AGENT_MD_CONTENT, \
+    "Must contain commit gate response option"
+assert "delivered_repo_path" in BUG_TRIAGE_AGENT_MD_CONTENT.lower() or \
+    "delivered repo" in BUG_TRIAGE_AGENT_MD_CONTENT.lower(), \
+    "Must reference delivered repo path"
+```
+
+### Tier 3 -- Behavioral Contracts
+
+- **Bug Triage Agent (CHANGED IN 2.1, Bug 72 structural pre-check):** Step 0 structural pre-check + seven-step workflow. Receives `structural_check_results` from task prompt for accelerated diagnosis. Includes Registry Diagnosis Recipe. Receives `delivered_repo_path` from task prompt. Step 7 -- commit and push: prepares commit using fixed debug commit message format (`[SVP-DEBUG] Bug NNN: <summary>` with structured body) regardless of `vcs.commit_style`. Presents to human for approval. Gate response options: **COMMIT APPROVED** or **COMMIT REJECTED**. The `BUG_TRIAGE_AGENT_MD_CONTENT` must contain Step 7 instructions verbatim.
+- **Repair Agent:** Unchanged.
+
+### Tier 3 -- Dependencies
+
+- **Unit 9 (Preparation Script):** Task prompt content assembled by Unit 9.
+
+---
+
+## Unit 20: Slash Command Files
+
+**Artifact category:** Markdown (command .md files)
+
+### Tier 2 — Signatures
+
+```python
+from typing import Dict, Any, List
+
+COMMAND_FILES: Dict[str, str] = {
+    "save": "save.md", "quit": "quit.md", "help": "help.md",
+    "hint": "hint.md", "status": "status.md", "ref": "ref.md",
+    "redo": "redo.md", "bug": "bug.md", "clean": "clean.md",
+}
+
+SAVE_MD_CONTENT: str
+QUIT_MD_CONTENT: str
+HELP_MD_CONTENT: str
+HINT_MD_CONTENT: str
+STATUS_MD_CONTENT: str
+REF_MD_CONTENT: str
+REDO_MD_CONTENT: str
+BUG_MD_CONTENT: str
+CLEAN_MD_CONTENT: str
+```
+
+### Tier 2 — Invariants
+
+```python
+# Group B commands must include the complete action cycle (Bug 38 fix)
+for cmd_content in [HELP_MD_CONTENT, HINT_MD_CONTENT, REF_MD_CONTENT, REDO_MD_CONTENT, BUG_MD_CONTENT]:
+    assert "prepare_task.py" in cmd_content, "Must reference prepare_task.py"
+    assert "last_status.txt" in cmd_content, "Must reference status file"
+    assert "update_state.py" in cmd_content, "Must reference update_state.py"
+    assert "--phase" in cmd_content, "Must include --phase argument"
+    assert "routing" in cmd_content.lower(), "Must reference routing script"
+```
+
+### Tier 3 -- Behavioral Contracts
+
+- Group A commands (`save`, `quit`, `status`, `clean`) instruct the main session to run `cmd_*.py` directly.
+- Group B commands (`help`, `hint`, `ref`, `redo`, `bug`) instruct the main session to complete the full action cycle with the correct `--phase` values: `help`, `hint`, `reference_indexing`, `redo`, `bug_triage`.
+- Prohibited scripts: `cmd_help.py`, `cmd_hint.py`, `cmd_ref.py`, `cmd_redo.py`, `cmd_bug.py` must NOT exist.
+
+### Tier 3 -- Dependencies
+
+- **Unit 10 (Routing Script):** Command files reference the routing script.
+- **Unit 11 (Command Logic Scripts):** Group A commands delegate to `cmd_*.py`.
+
+---
+
+## Unit 21: Orchestration Skill
+
+**Artifact category:** Markdown (SKILL.md)
+
+### Tier 2 — Signatures
+
+```python
+from typing import Dict, Any
+
+SKILL_MD_CONTENT: str
+```
+
+### Tier 2 — Invariants
+
+```python
+assert len(SKILL_MD_CONTENT) > 500
+# Must include slash-command action cycle section (Bug 39 fix)
+assert "slash" in SKILL_MD_CONTENT.lower() or "Group B" in SKILL_MD_CONTENT, \
+    "Must include slash-command-initiated action cycle guidance"
+assert "--phase" in SKILL_MD_CONTENT, "Must reference --phase values for Group B commands"
+```
+
+### Tier 3 -- Behavioral Contracts
+
+- `SKILL_MD_CONTENT` contains the complete orchestration protocol: six-step action cycle, action type handling, status line construction, gate presentation rules, session boundary handling.
+- **Slash-command-initiated action cycles (Bug 39 fix):** Includes a section explaining that Group B commands bypass the routing script -- the command definition substitutes for the routing script's action block. The skill explains that the same six-step cycle applies, with the command definition providing the PREPARE command, agent type, and POST command.
+
+### Tier 3 -- Dependencies
+
+- **Unit 10 (Routing Script):** The skill's protocol is designed around the routing script's output format.
+
+---
+
+## Unit 22: Project Templates
+
+**Artifact category:** Python script + JSON + TOML + Markdown templates
+
+### Tier 2 — Signatures
+
+```python
+from typing import Dict, Any
+from pathlib import Path
+
+def generate_claude_md(project_name: str, project_root: Path) -> str: ...
+
+DEFAULT_CONFIG_TEMPLATE: str = "templates/svp_config_default.json"
+INITIAL_STATE_TEMPLATE: str = "templates/pipeline_state_initial.json"
+README_SVP_TEMPLATE: str = "templates/readme_svp.txt"
+TOOLCHAIN_DEFAULT_TEMPLATE: str = "toolchain_defaults/python_conda_pytest.json"
+RUFF_CONFIG_TEMPLATE: str = "toolchain_defaults/ruff.toml"
+
+CLAUDE_MD_PY_CONTENT: str
+SVP_CONFIG_DEFAULT_JSON_CONTENT: str
+PIPELINE_STATE_INITIAL_JSON_CONTENT: str
+README_SVP_TXT_CONTENT: str
+TOOLCHAIN_DEFAULT_JSON_CONTENT: str
+RUFF_CONFIG_TOML_CONTENT: str
+
+GOL_STAKEHOLDER_SPEC_CONTENT: str
+GOL_BLUEPRINT_PROSE_CONTENT: str
+GOL_BLUEPRINT_CONTRACTS_CONTENT: str
+GOL_PROJECT_CONTEXT_CONTENT: str
+```
+
+### Tier 2 — Invariants
+
+```python
+assert "def generate_claude_md" in CLAUDE_MD_PY_CONTENT
+assert '"stage"' in PIPELINE_STATE_INITIAL_JSON_CONTENT
+assert '"skip_permissions"' in SVP_CONFIG_DEFAULT_JSON_CONTENT
+assert "SVP-MANAGED" in README_SVP_TXT_CONTENT
+assert '"quality"' in TOOLCHAIN_DEFAULT_JSON_CONTENT
+assert '"gate_a"' in TOOLCHAIN_DEFAULT_JSON_CONTENT
+assert '"gate_b"' in TOOLCHAIN_DEFAULT_JSON_CONTENT
+assert '"gate_c"' in TOOLCHAIN_DEFAULT_JSON_CONTENT
+assert '"unused_exports"' in TOOLCHAIN_DEFAULT_JSON_CONTENT  # Bug 56: Gate C dead code detection
+assert "line-length" in RUFF_CONFIG_TOML_CONTENT
+assert "[lint]" in RUFF_CONFIG_TOML_CONTENT
+assert '"delivered_repo_path"' in PIPELINE_STATE_INITIAL_JSON_CONTENT
+# Bug 34 fix: run_prefix must not contain version-specific flags
+```
+
+### Tier 3 -- Behavioral Contracts
+
+- `generate_claude_md` produces a complete CLAUDE.md with the six-step action cycle.
+- Default config template matches `DEFAULT_CONFIG` from Unit 1 (verified by structural test).
+- Initial state template matches `create_initial_state` from Unit 2 (verified by structural test).
+- `TOOLCHAIN_DEFAULT_JSON_CONTENT` matches complete toolchain schema including `quality` section.
+- `RUFF_CONFIG_TOML_CONTENT` specifies `line-length = 88` and uses default ruff rule set.
+- `GOL_BLUEPRINT_PROSE_CONTENT` and `GOL_BLUEPRINT_CONTRACTS_CONTENT` -- carry-forward artifacts updated for the two-file split.
+
+### Tier 3 -- Dependencies
+
+- **Unit 1 (SVP Configuration):** Default config template must match Unit 1's `DEFAULT_CONFIG`.
+- **Unit 2 (Pipeline State Schema):** Initial state template must match Unit 2's `create_initial_state`.
+- **Unit 10 (Routing Script):** CLAUDE.md references the routing script.
+
+---
+
+## Unit 23: Plugin Manifest, Structural Validation, and Compliance Scan
+
+**Artifact category:** JSON + Python script (compliance_scan.py)
+
+### Tier 2 — Signatures
+
+```python
+from typing import Dict, Any, List
+from pathlib import Path
+
+PLUGIN_JSON: Dict[str, Any] = {
+    "name": "svp", "version": "2.1.0",
+    "description": "Stratified Verification Pipeline - deterministically orchestrated software development",
+}
+MARKETPLACE_JSON: Dict[str, Any] = {
+    "name": "svp", "owner": {"name": "SVP"},
+    "plugins": [{"name": "svp", "source": "./svp", "version": "2.1.0",
+        "description": "Stratified Verification Pipeline", "author": {"name": "SVP"}}]
+}
+
+def validate_plugin_structure(repo_root: Path) -> List[str]: ...
+
+PLUGIN_JSON_CONTENT: str
+MARKETPLACE_JSON_CONTENT: str
+
+def run_compliance_scan(project_root: Path, delivered_src_dir: Path,
+    delivered_tests_dir: Path, profile: Dict[str, Any]) -> List[Dict[str, Any]]: ...
+def _get_banned_patterns(environment_recommendation: str) -> List[Dict[str, str]]: ...
+def _scan_file_ast(file_path: Path, banned_patterns: List[Dict[str, str]]) -> List[Dict[str, Any]]: ...
+def compliance_scan_main() -> None: ...
+```
+
+### Tier 2 — Invariants
+
+```python
+assert (repo_root / ".claude-plugin" / "marketplace.json").exists()
+assert (repo_root / "svp" / ".claude-plugin" / "plugin.json").exists()
+for component in ["agents", "commands", "hooks", "scripts", "skills"]:
+    assert (repo_root / "svp" / component).is_dir()
+assert (repo_root / "svp" / "scripts" / "toolchain_defaults" / "ruff.toml").exists()
+# Structural validation must check that docs/ contains at least one blueprint .md file
+assert any((repo_root / "docs").glob("*.md")), "docs/ must contain at least one .md file (blueprint files are discovered, not hardcoded by name)"
+# Stub sentinel check
+# No delivered Python source file may contain __SVP_STUB__
+
+# CLI argument enumeration (Bug 49 fix):
+# compliance_scan_main() uses argparse with:
+#   --project-root (default=Path("."), type=Path) — project root directory
+#   --src-dir      (optional, type=Path) — delivered source directory
+#   --tests-dir    (optional, type=Path) — delivered tests directory
+```
+
+### Tier 3 -- Behavioral Contracts
+
+- `validate_plugin_structure` checks all structural requirements including `toolchain_defaults/` directory, `quality` section in toolchain JSON, at least one blueprint `.md` file in `docs/` (discovered dynamically, not by hardcoded filenames), no `__SVP_STUB__` sentinel in delivered source, commit count validation, tests pass in delivered layout, pytest path config present, README carry-forward (Mode A).
+- `run_compliance_scan` scans delivered Python source for preference violations.
+- `compliance_scan_main` emits `COMMAND_SUCCEEDED` or `COMMAND_FAILED: {count} violations found`.
+
+### Tier 3 -- Dependencies
+
+- **Unit 1 (SVP Configuration):** Reads profile via `load_profile`.
+- All preceding units (for structural validation).
+
+---
+
+## Unit 24: SVP Launcher
+
+**Artifact category:** Python script (standalone CLI tool)
+
+### Tier 2 — Signatures
+
+```python
+#!/usr/bin/env python3
+from typing import Optional, List, Tuple, Dict, Any
+from pathlib import Path
+from datetime import datetime, timezone
+import subprocess, sys, argparse, shutil, os, json, stat, time
+
+RESTART_SIGNAL_FILE: str = ".svp/restart_signal"
+STATE_FILE: str = "pipeline_state.json"
+CONFIG_FILE: str = "svp_config.json"
+TOOLCHAIN_FILE: str = "toolchain.json"
+RUFF_CONFIG_FILE: str = "ruff.toml"
+SVP_DIR: str = ".svp"
+MARKERS_DIR: str = ".svp/markers"
+CLAUDE_MD_FILE: str = "CLAUDE.md"
+README_SVP_FILE: str = "README_SVP.txt"
+SVP_ENV_VAR: str = "SVP_PLUGIN_ACTIVE"
+PROFILE_FILE: str = "project_profile.json"
+
+_DEFAULT_PROFILE: Dict[str, Any] = { ... }  # same structure as Unit 1 DEFAULT_PROFILE
+
+PROJECT_DIRS: List[str] = [
+    ".svp", ".svp/markers", ".claude", "scripts", "ledgers",
+    "logs", "logs/rollback", "specs", "specs/history",
+    "blueprint", "blueprint/history", "references", "references/index",
+    "src", "tests", "tests/regressions", "data",
+]
+
+def _find_plugin_root() -> Optional[Path]: ...
+def _is_svp_plugin_dir(path: Path) -> bool: ...
+def _print_header(text: str) -> None: ...
+def _print_status(name: str, passed: bool, message: str) -> None: ...
+def _print_transition(message: str) -> None: ...
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace: ...
+
+def check_claude_code() -> Tuple[bool, str]: ...
+def check_svp_plugin() -> Tuple[bool, str]: ...
+def check_api_credentials() -> Tuple[bool, str]: ...
+def check_conda() -> Tuple[bool, str]: ...
+def check_python() -> Tuple[bool, str]: ...
+def check_pytest() -> Tuple[bool, str]: ...
+def check_git() -> Tuple[bool, str]: ...
+def check_network() -> Tuple[bool, str]: ...
+def run_all_prerequisites() -> List[Tuple[str, bool, str]]: ...
+
+def create_project_directory(project_name: str, parent_dir: Path) -> Path: ...
+def copy_scripts_to_workspace(plugin_root: Path, project_root: Path) -> None: ...
+def copy_toolchain_default(plugin_root: Path, project_root: Path) -> None: ...
+def copy_ruff_config(plugin_root: Path, project_root: Path) -> None: ...
+def copy_regression_tests(plugin_root: Path, project_root: Path) -> None: ...
+def copy_hooks(plugin_root: Path, project_root: Path) -> None: ...
+def generate_claude_md(project_root: Path, project_name: str) -> None: ...
+def _generate_claude_md_fallback(project_name: str) -> str: ...
+def write_initial_state(project_root: Path, project_name: str) -> None: ...
+def write_default_config(project_root: Path) -> None: ...
+def write_readme_svp(project_root: Path) -> None: ...
+
+def set_filesystem_permissions(project_root: Path, read_only: bool) -> None: ...
+def _load_launch_config(project_root: Path) -> Dict[str, Any]: ...
+
+def launch_claude_code(project_root: Path, plugin_dir: Path) -> int: ...
+def detect_restart_signal(project_root: Path) -> Optional[str]: ...
+def clear_restart_signal(project_root: Path) -> None: ...
+def run_session_loop(project_root: Path, plugin_dir: Path) -> int: ...
+
+def detect_existing_project(directory: Path) -> bool: ...
+def resume_project(project_root: Path, plugin_dir: Path) -> int: ...
+
+def _handle_new_project(args: argparse.Namespace, plugin_dir: Path) -> int: ...
+def _handle_restore(args: argparse.Namespace, plugin_dir: Path) -> int: ...
+
+def main(argv: Optional[List[str]] = None) -> int: ...
+```
+
+### Tier 2 — Invariants
+
+```python
+assert SVP_ENV_VAR == "SVP_PLUGIN_ACTIVE"
+assert len(run_all_prerequisites()) == 8
+assert ".svp" in PROJECT_DIRS
+assert "scripts" in PROJECT_DIRS
+assert "tests/regressions" in PROJECT_DIRS
+# Self-containment: no imports from other SVP modules
+# SVP_PLUGIN_ACTIVE must be set in subprocess environment, never on launcher's own os.environ
+#
+# CLI argument enumeration invariant (Bug 48 fix):
+# parse_args argparse arguments:
+#   new subcommand:
+#     project_name (positional, required)
+#     --parent-dir (optional, type=str/Path)
+#   restore subcommand:
+#     project_name (positional, required)
+#     --spec (required, type=str/Path)
+#     --blueprint-dir (required, directory path)
+#     --profile (required, type=str/Path)
+#     --context (optional, type=str/Path)
+#     --scripts-source (optional, type=str/Path)
+#     --parent-dir (optional, type=str/Path)
+#   Default (no subcommand):
+#     args.command defaults to "resume"
+assert parse_args([]).command == "resume"
+assert parse_args(["new", "p"]).command == "new"
+```
+
+### Tier 3 -- Error Conditions
+
+- `FileExistsError`: "Project directory already exists: {path}"
+- `RuntimeError`: "Plugin scripts directory not found at {path}"
+- `RuntimeError`: "Ruff config file not found at {path}" (NEW IN 2.1)
+- `RuntimeError`: "Session launch failed: Claude Code executable not found"
+- `RuntimeError`: "Session launch failed: {details}"
+
+### Tier 3 -- Behavioral Contracts
+
+**Plugin discovery:** `_find_plugin_root()` checks `SVP_PLUGIN_ROOT` env var first, then searches 5 paths. `_is_svp_plugin_dir` validates by reading `.claude-plugin/plugin.json` and checking `name == "svp"`. Must NOT rely on directory-existence checks alone.
+
+**CLI parsing (Bug 32 fix, Bug 48 fix):** Two subcommands: `new` and `restore`. No `resume` subcommand. `svp restore` accepts `--blueprint-dir` pointing to a directory containing one or more `.md` blueprint files; validates that the directory exists and contains at least one `.md` file before proceeding. `--profile` is a required restore argument pointing to a valid `project_profile.json`. No assumption about the number or names of blueprint files. Running bare `svp` with no arguments must set `args.command = "resume"` before returning — `args.command` must never be `None` after `parse_args` returns.
+
+**Project setup:** `copy_ruff_config` copies `ruff.toml` and sets read-only via `os.chmod`.
+
+**Hook copying (Bug 50 fix: contract sufficiency).** `copy_hooks` (aliased from `_copy_hooks`): copies `hooks/hooks.json` and all files from `hooks/scripts/` to project's `.claude/` equivalent. Creates directories with exist_ok=True. Gracefully returns if hooks directory doesn't exist.
+
+**Filesystem permissions (Bug 50 fix: contract sufficiency).** `set_filesystem_permissions`: when `read_only=True`, removes write permissions from project files. No action when `read_only=False` (best-effort permission management).
+
+**Session lifecycle (Bug 31, 34 fix):** `launch_claude_code` copies os.environ, injects SVP_PLUGIN_ACTIVE=1. Reads `skip_permissions` from svp_config.json -- if true, adds `--dangerously-skip-permissions` flag. Command: `["claude", ...]` with `--prompt "run the routing script"`. Uses `subprocess.run` with `cwd=str(project_root)`. Returns subprocess return code. Catches exceptions, raises RuntimeError. No `--project-dir` flag.
+
+**Restore mode:** `_handle_restore` copies all files from `--blueprint-dir` into the project's `blueprint/` directory, preserving their original filenames. Copies `--profile` to `project_profile.json`. Writes state at `pre_stage_3`. No assumption about the number or names of blueprint files -- all files in the source directory are copied.
+
+**`_DEFAULT_PROFILE` structural match invariant:** `_DEFAULT_PROFILE` in Unit 24 must have the same key structure (all nested keys at all levels) as `DEFAULT_PROFILE` in Unit 1. Because Unit 24 is self-contained (no imports from other SVP units), it maintains its own copy. A Unit 24 unit test must verify that the key paths of `_DEFAULT_PROFILE` match the key paths of Unit 1's `DEFAULT_PROFILE`. Any structural divergence between the two is a contract violation.
+
+### Tier 3 -- Dependencies
+
+- **Unit 12 (Hook Configurations):** Copies hook files. `SVP_PLUGIN_ACTIVE` must match.
+- **Unit 22 (Project Templates):** Template files loaded from `scripts/templates/` and `scripts/toolchain_defaults/`.
+
+Note: Unit 24 does NOT depend on Units 2 or 3 at the Python import level (self-containment invariant).
+
+---
+
+*End of blueprint contracts.*

@@ -343,10 +343,14 @@ def validate_state(state: PipelineState) -> list[str]:
             ds = state.debug_session
             if not ds.description:
                 errors.append("debug_session missing 'description'")
-            if ds.classification is None:
-                errors.append("debug_session missing 'classification'")
-            if not ds.affected_units:
-                errors.append("debug_session missing 'affected_units'")
+            # Bug 88: classification and affected_units are legitimately unset
+            # during triage_readonly and triage phases (set by set_debug_classification
+            # after triage completes). Only validate in post-triage phases.
+            if ds.phase not in ("triage_readonly", "triage"):
+                if ds.classification is None:
+                    errors.append("debug_session missing 'classification'")
+                if not ds.affected_units:
+                    errors.append("debug_session missing 'affected_units'")
 
     # debug_history entries have required fields
     debug_history_required = ["bug_id", "resolution"]

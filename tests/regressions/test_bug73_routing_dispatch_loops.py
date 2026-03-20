@@ -15,7 +15,7 @@ Bug 73-B: Gate 4.1 ASSEMBLY FIX returns state unchanged. Since sub_stage
 
 Verifies that:
 1. route() at Stage 0 project_context with PROFILE_COMPLETE presents Gate 0.2
-2. route() at Stage 0 project_profile with artifact present presents Gate 0.3
+2. route() at Stage 0 project_profile with artifact present invokes agent (Bug 86 fix)
 3. dispatch_gate_response for gate_5_3 OVERRIDE CONTINUE advances to repo_complete
 4. dispatch_gate_response for gate_4_1 ASSEMBLY FIX resets sub_stage to None
 """
@@ -86,13 +86,18 @@ class TestBug73ProfileCompleteAtProjectContext(unittest.TestCase):
 
 
 class TestBug73ProfileArtifactFallback(unittest.TestCase):
-    """Stage 0 project_profile must present Gate 0.3 when artifact exists."""
+    """Stage 0 project_profile routing after Gate 0.2.
+
+    Bug 86 fix: The artifact-existence fallback (Bug 73) was removed because
+    it allowed a speculative profile write during the context phase to bypass
+    the spec-required five-area dialog.  Now only PROFILE_COMPLETE (emitted
+    during an actual profile-phase invocation) skips the dialog.
+    """
 
     def test_profile_exists_after_gate_0_2_invokes_agent(self):
         """After Gate 0.2 CONTEXT APPROVED, last_status is overwritten.
-        Bug 86 fix: artifact-existence fallback removed. Only PROFILE_COMPLETE
-        triggers the gate. CONTEXT APPROVED should invoke setup_agent for
-        the profile dialog even if project_profile.json exists."""
+        Even if project_profile.json exists, the agent must be invoked to
+        conduct the five-area profile dialog (Bug 86 fix)."""
         from routing import route
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -105,6 +110,7 @@ class TestBug73ProfileArtifactFallback(unittest.TestCase):
             state = _make_state(stage="0", sub_stage="project_profile")
             result = route(state, project_root)
 
+            # Bug 86 fix: agent invoked, not gate presented
             self.assertEqual(result["ACTION"], "invoke_agent")
             self.assertEqual(result["AGENT"], "setup_agent")
 
