@@ -51,14 +51,16 @@ Ask about:
 - **Changelog format (NEW IN 2.1):** keep_a_changelog, conventional_changelog, or none
 - **GitHub repository (NEW IN 2.1.1):** Ask the human how they want to handle the remote repository. Present these four options clearly:
 
-  1. **Create new** — SVP will create a new GitHub repository during delivery (Stage 5). Ask for the desired repo name (default: project name). Requires `gh` CLI to be authenticated.
-  2. **Existing repo, force push** — The human has an existing GitHub repo they want to overwrite with the delivered project. Ask for the repo URL (e.g., `https://github.com/user/repo.git`). The git repo agent will push with `--force`. **Warn the human:** this destroys all existing content in the repo.
-  3. **Existing repo, new branch** — The human has an existing GitHub repo and wants the delivered project on a separate branch. Ask for the repo URL and branch name (default: `svp-delivery`). Non-destructive.
-  4. **No GitHub** — Local repository only. No remote is configured. The human can push manually later.
+  1. **Create new** -- SVP will create a new GitHub repository during delivery (Stage 5). Ask for the desired repo name (default: project name). Requires `gh` CLI to be authenticated.
+  2. **Existing repo, force push** -- The human has an existing GitHub repo they want to overwrite with the delivered project. **You MUST ask for the repo URL** (e.g., `https://github.com/user/repo.git`). The git repo agent will push with `--force`. **Warn the human:** this destroys all existing content in the repo.
+  3. **Existing repo, new branch** -- The human has an existing GitHub repo and wants the delivered project on a separate branch. **You MUST ask for the repo URL** and branch name (default: `svp-delivery`). Non-destructive.
+  4. **No GitHub** -- Local repository only. No remote is configured. The human can push manually later.
+
+  **MANDATORY FOLLOW-UP (Bug 90 fix):** If the human selects option 2 (`existing_force`) or option 3 (`existing_branch`), you MUST immediately ask: "What is the GitHub repository URL? (e.g., `https://github.com/user/repo.git`)" Do NOT proceed to the next area until you have received and recorded the URL. A null `repo_url` with a non-`none` mode is a profile error.
 
   **If the human selects any option other than "No GitHub", immediately verify the prerequisites using Bash:**
 
-  **Step 1 — Check `gh` CLI is installed:** Run `which gh` or `gh --version`. If not found, tell the human:
+  **Step 1 -- Check `gh` CLI is installed:** Run `which gh` or `gh --version`. If not found, tell the human:
   > "The GitHub CLI (`gh`) is not installed. You need it for GitHub integration. Install it with:
   > - **macOS:** `brew install gh`
   > - **Linux:** `sudo apt install gh` or `sudo dnf install gh`
@@ -69,7 +71,7 @@ Ask about:
 
   Wait for the human to confirm, then re-check with `gh --version`.
 
-  **Step 2 — Check `gh` authentication:** Run `gh auth status`. If not authenticated, tell the human:
+  **Step 2 -- Check `gh` authentication:** Run `gh auth status`. If not authenticated, tell the human:
   > "The GitHub CLI is installed but not authenticated. Let's set it up:
   > 1. Run `gh auth login` in your terminal
   > 2. Choose **GitHub.com**
@@ -80,7 +82,7 @@ Ask about:
 
   Wait for the human to confirm, then re-check with `gh auth status`. Show the authenticated user/org to confirm.
 
-  **Step 3 — For "existing" modes, validate the repo URL:** Run `gh repo view <repo_url> --json name` to verify the repo exists and is accessible. If it fails, tell the human the URL might be wrong or they might not have access.
+  **Step 3 -- For "existing" modes, validate the repo URL:** Run `gh repo view <repo_url> --json name` to verify the repo exists and is accessible. If it fails, tell the human the URL might be wrong or they might not have access.
 
   Only proceed with recording the GitHub configuration after all checks pass. If the human can't or won't install/authenticate `gh`, suggest falling back to **No GitHub** and record `mode: "none"`.
 
@@ -92,20 +94,20 @@ Ask about:
     "branch": "main" | "svp-delivery" | null
   }
   ```
-  Default recommendation: **No GitHub** (safest — the human can always push later).
+  Default recommendation: **No GitHub** (safest -- the human can always push later).
 
 #### Area 2: README and Documentation
 
 **First, ask about README mode (NEW IN 2.1.1):**
 
-1. **Generate new** — The pipeline generates a complete README from scratch based on the project's spec, blueprint, and the preferences gathered below. This is the default for new projects.
-2. **Update existing** — The human has an existing README they want to preserve. The pipeline will only **add new content** (e.g., installation instructions for the newly built code, API documentation) and **update outdated sections** (e.g., version numbers, dependency lists). It will **never delete** existing text the human wrote. Ask the human: "Please share your existing README using the @ command to attach the file." Read the attached file and save it to `references/existing_readme.md` so the git repo agent can use it as the base during delivery.
+1. **Generate new** -- The pipeline generates a complete README from scratch based on the project's spec, blueprint, and the preferences gathered below. This is the default for new projects.
+2. **Update existing** -- The human has an existing README they want to preserve. The pipeline will only **add new content** (e.g., installation instructions for the newly built code, API documentation) and **update outdated sections** (e.g., version numbers, dependency lists). It will **never delete** existing text the human wrote.
+
+**MANDATORY FOLLOW-UP (Bug 90 fix):** If the human selects "Update existing", you MUST immediately ask: "Please share your existing README using the @ command to attach the file, or tell me the file path." Read the attached/specified file and save it to `references/existing_readme.md` so the git repo agent can use it as the base during delivery. Do NOT proceed to the next README question until you have received the file and saved it. Record `readme.existing_path`: `"references/existing_readme.md"`.
 
 Record in `project_profile.json` under `readme.mode`: `"generate"` or `"update"`.
 
-If `"update"`, also record `readme.existing_path`: `"references/existing_readme.md"`.
-
-**Then ask the remaining README preferences** (these apply to both modes — for "update" mode they guide what content gets added):
+**Then ask the remaining README preferences** (these apply to both modes -- for "update" mode they guide what content gets added):
 - Target audience (domain expert, developer, end user)
 - README depth (minimal, standard, comprehensive)
 - README sections to include
@@ -120,16 +122,47 @@ Ask about:
 - Readable test names (yes/no)
 - README test scenarios (yes/no)
 
-#### Area 4: Licensing, Metadata, and Packaging
+#### Area 4: Licensing, Metadata, and Delivery
 
-Ask about:
+**CRITICAL (Bug 90 fix): The profile schema uses two SEPARATE sections for this area: `license` and `delivery`. Do NOT create a `packaging` section. The `packaging` key does not exist in the profile schema and any data written there will be silently ignored by the pipeline.**
+
+Ask about licensing:
 - License type (MIT, Apache-2.0, GPL-3.0, BSD-3-Clause, etc.)
 - License holder, author, year, contact
 - SPDX headers (yes/no)
+
+Record in `project_profile.json` under `license`:
+```json
+{
+  "type": "MIT",
+  "holder": "Name or Organization",
+  "author": "Author Name",
+  "year": 2026,
+  "contact": "email@example.com",
+  "spdx_headers": false,
+  "additional_metadata": {
+    "citation": null,
+    "funding": null,
+    "acknowledgments": null
+  }
+}
+```
+
+Ask about delivery preferences:
 - Delivery environment recommendation (conda, pyenv, venv, poetry, none)
 - Dependency format (environment.yml, requirements.txt, pyproject.toml)
 - Source layout (conventional, flat)
 - Entry points (yes/no)
+
+Record in `project_profile.json` under `delivery`:
+```json
+{
+  "environment_recommendation": "conda",
+  "dependency_format": "environment.yml",
+  "source_layout": "conventional",
+  "entry_points": false
+}
+```
 
 #### Area 5: Delivered Code Quality (NEW IN 2.1)
 
@@ -147,9 +180,9 @@ Ask about the quality tools the human wants configured for their **delivered** p
 
 Ask about which AI model each pipeline agent should use. This controls the cost/quality tradeoff:
 
-- **opus** — Most capable. Best for design-critical tasks (specification, blueprint, implementation, diagnosis).
-- **sonnet** — Fast and capable. Good for mechanical tasks (tests, setup, reference indexing, repair, git assembly).
-- **haiku** — Fastest and cheapest. Suitable for simple utility tasks.
+- **opus** -- Most capable. Best for design-critical tasks (specification, blueprint, implementation, diagnosis).
+- **sonnet** -- Fast and capable. Good for mechanical tasks (tests, setup, reference indexing, repair, git assembly).
+- **haiku** -- Fastest and cheapest. Suitable for simple utility tasks.
 
 **Present the default configuration** (recommended for most projects):
 
@@ -176,7 +209,7 @@ Ask about which AI model each pipeline agent should use. This controls the cost/
 
 **Ask the human:** "The default assigns opus to design-critical agents and sonnet to mechanical ones. Would you like to change any of these? Common adjustments: use sonnet for all agents (lower cost), or opus for test_agent (higher quality tests)."
 
-Record the configuration in `project_profile.json` under the `pipeline.agent_models` section. Only record entries that differ from the default — the pipeline fills in defaults for any missing entries.
+Record the configuration in `project_profile.json` under the `pipeline.agent_models` section. Only record entries that differ from the default -- the pipeline fills in defaults for any missing entries.
 
 **Context budget.** Also ask: "Do you want to set a custom context budget (token limit) for agent task prompts? The default is computed automatically from model context windows. Most projects don't need to change this."
 
@@ -222,3 +255,4 @@ PROFILE_COMPLETE
 - Do NOT skip dialog areas in profile mode. Cover all six areas.
 - Do NOT proceed without human confirmation at each decision point.
 - Do NOT assume defaults without explaining them to the human first.
+- Do NOT create a `packaging` section in the profile. Use `license` and `delivery` sections (Bug 90 fix).

@@ -458,6 +458,28 @@ def validate_profile(profile: Dict[str, Any]) -> list[str]:
             if not isinstance(ll, int) or ll <= 0:
                 errors.append("quality.line_length must be a positive integer")
 
+    # Bug 90: Detect orphaned 'packaging' section (should be 'delivery' + 'license')
+    if "packaging" in profile:
+        errors.append(
+            "Profile contains a 'packaging' section which is not part of the "
+            "profile schema. License fields belong in the 'license' section and "
+            "delivery fields belong in the 'delivery' section. The setup agent "
+            "must write to 'license' and 'delivery', not 'packaging'."
+        )
+
+    # Bug 90: Warn if GitHub mode requires a repo_url but none is set
+    if "vcs" in profile and isinstance(profile["vcs"], dict):
+        github = profile["vcs"].get("github", {})
+        if isinstance(github, dict):
+            mode = github.get("mode")
+            repo_url = github.get("repo_url")
+            if mode in ("existing_force", "existing_branch", "new") and not repo_url:
+                errors.append(
+                    f"vcs.github.mode is '{mode}' but vcs.github.repo_url is "
+                    "null or empty. The setup agent must ask for the repository URL "
+                    "when the GitHub mode requires one."
+                )
+
     return errors
 
 

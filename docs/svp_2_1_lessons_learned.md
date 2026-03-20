@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-91)
+## Part 1: Unified Bug Catalog (Bugs 1-93)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -501,11 +501,11 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69, 86, 89 (44 of 89 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69, 86, 89, 93 (45 of 93 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
-**Instances:** Bugs 2, 11, 12, 20, 42.
+**Instances:** Bugs 2, 11, 12, 20, 42, 92.
 A transition function assumes a precondition or forgets a reset. **Prevention:** Exhaustive post-conditions for ALL fields. Multi-step sequence tests.
 
 ### P3 — Implicit Resolution Assumption
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 89 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 93 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -556,7 +556,7 @@ Pipeline defines artifact synchronization invariants for code artifacts (source 
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (44 of 89 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (45 of 93 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -659,6 +659,22 @@ Pipeline defines artifact synchronization invariants for code artifacts (source 
 | 67 |  | Post-delivery (debug loop) |
 | 68 |  | Post-delivery (debug loop) |
 | 69 |  | Post-delivery (debug loop) |
+| 70 | `test_bug70_ladder_routing_tests_error.py` | Post-delivery (debug loop) |
+| 71 | `test_bug71_structural_completeness.py` | Post-delivery (debug loop) |
+| 72 | `test_bug72_structural_check.py` | Post-delivery (debug loop) |
+| 73 | `test_bug73_routing_dispatch_loops.py` | Post-delivery (debug loop) |
+| 74 | (structural check: stub imports in tests) | Post-delivery (debug loop) |
+| 75 | `test_bug75_coverage_autoformat_gate.py` | Post-delivery (debug loop) |
+| 76 | `test_bug76_pre_stage3_infrastructure.py` | Post-delivery (debug loop) |
+| 77-85 | (no dedicated regression test files) | Post-delivery (debug loop) |
+| 86 | `test_bug86_profile_dialog_skip.py` | Post-delivery (debug loop) |
+| 87 | `test_bug87_doc_sync_routing.py` | Post-delivery (debug loop) |
+| 88 | `test_bug88_debug_session_validator.py` | Post-delivery (debug loop) |
+| 89 | `test_bug89_sync_status_restore.py` | Post-delivery (debug loop) |
+| 90 | `test_bug90_profile_schema_alignment.py` | Post-delivery (debug loop) |
+| 91 | `test_bug90_profile_schema_alignment.py` (shared) | Post-delivery (debug loop) |
+| 92 | `test_bug92_doc_sync_marker_reset.py` | Post-delivery (debug loop) |
+| 93 | `test_bug93_triage_result_json.py` | Post-delivery (debug loop) |
 
 Note: Regression test file names (test_bug2 through test_bug62) use either the original post-delivery numbering or the unified catalog numbering. This document's unified Bug 1-64 numbering includes blueprint-era, post-delivery, and rebuild preparation bugs chronologically. The mapping table provides the cross-reference.
 
@@ -1525,6 +1541,38 @@ Gap B (Unit 10): routing.py profile sub-stage guard (Bug 52/73 artifact-existenc
 **Prevention:** When an agent definition includes conditional behavior ("if X then ask Y"), the conditional must be formatted as a MANDATORY FOLLOW-UP block with: (1) the condition stated explicitly, (2) "you MUST" imperative, (3) a gate ("Do NOT proceed until").
 
 **Test:** `test_bug90_profile_schema_alignment.py` (shared test file covers both bugs)
+
+---
+
+### Bug 92: Doc sync marker not reset on phase transition
+
+**Date:** 2026-03-20
+**Classification:** pipeline tooling (routing.py)
+**Root cause:** P2 (State Management Assumptions) -- `authorize_debug_session` resets the phase from `triage_readonly` to `triage` but doesn't reset the `.svp/doc_sync_done` marker. The marker is session-scoped (created during `triage_readonly` when the sync runs after initial triage) but not phase-scoped. When the authorized triage agent writes new content (e.g., new bug entries to lessons learned), the sync doesn't run again because the marker still exists, leaving workspace `references/` stale.
+
+**Fix:** Gate 6.0 `AUTHORIZE DEBUG` dispatch now deletes `.svp/doc_sync_done` after calling `authorize_debug_session`. This ensures the sync runs again after authorized triage makes changes.
+
+**Pattern:** P2 (State Management Assumptions) -- A transition function resets the phase but forgets to reset a correlated marker file. The marker's lifecycle was implicitly assumed to be session-scoped but needed to be phase-scoped.
+
+**Prevention:** When a phase transition changes what an agent is allowed to modify, all idempotency markers that gate post-agent actions must be reset as part of the transition.
+
+**Test:** `test_bug92_doc_sync_marker_reset.py`
+
+---
+
+### Bug 93: Triage agent doesn't write triage_result.json
+
+**Date:** 2026-03-20
+**Classification:** cross_unit (debug_loop_agent_definitions.py vs routing.py)
+**Root cause:** P1 (Cross-Unit Contract Drift) -- `_read_triage_affected_units` (routing.py:244) expects `.svp/triage_result.json` to communicate which units are affected by the bug. `dispatch_gate_response` at Gate 6.2 `FIX UNIT` reads `state.debug_session.affected_units`, which is populated by `set_debug_classification` using the data from this file. But the triage agent definition (Unit 19, `debug_loop_agent_definitions.py`) never instructs the agent to write it. When Gate 6.2 `FIX UNIT` fires, `affected_units` is empty, so dispatch silently no-ops (`if not affected: return state`), leaving the phase stuck in `triage`.
+
+**Fix:** Added instruction to the triage agent definition step 4 (Classify the bug) to write `.svp/triage_result.json` with `affected_units` and `classification` after classification.
+
+**Pattern:** P1 (Cross-Unit Contract Drift) -- The routing dispatch (consumer) expects a file that the agent definition (producer) never instructs the agent to create. The file was documented in code comments but not in the agent's behavioral instructions.
+
+**Prevention:** When routing dispatch reads data from a file produced by an agent, the agent definition must explicitly instruct the agent to write that file. Cross-reference all `_read_*` helper functions in routing with the corresponding agent definitions.
+
+**Test:** `test_bug93_triage_result_json.py`
 
 ---
 
