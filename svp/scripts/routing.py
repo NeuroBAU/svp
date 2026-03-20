@@ -292,6 +292,50 @@ def _post_cmd(
     return cmd
 
 
+def _get_agent_model(project_root: Path, agent_type: str) -> Optional[str]:
+    """Look up agent model from project_profile.json.
+
+    Returns "opus", "sonnet", or "haiku" for the Agent tool's model parameter.
+    Returns None if no preference set (agent uses its .md frontmatter default).
+    """
+    try:
+        from svp_config import load_profile, get_agent_model_from_profile
+        profile = load_profile(project_root)
+        return get_agent_model_from_profile(profile, agent_type)
+    except Exception:
+        return None
+
+
+def _invoke_agent_action(
+    agent_type: str,
+    project_root: Path,
+    context: Optional[str] = None,
+    unit: Optional[int] = None,
+    prepare_cmd: Optional[str] = None,
+    post_cmd: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build an invoke_agent action block with optional model override from profile."""
+    action: Dict[str, Any] = {
+        "ACTION": "invoke_agent",
+        "AGENT": agent_type,
+    }
+    if context is not None:
+        action["CONTEXT"] = context
+    if unit is not None:
+        action["UNIT"] = unit
+
+    # Look up model preference from project profile
+    model = _get_agent_model(project_root, agent_type)
+    if model:
+        action["MODEL"] = model
+
+    if prepare_cmd is not None:
+        action["PREPARE"] = prepare_cmd
+    if post_cmd is not None:
+        action["POST"] = post_cmd
+    return action
+
+
 # --- Routing functions ---
 
 
@@ -315,15 +359,15 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 "POST": _post_cmd("gate", gate_id="gate_0_3r_profile_revision"),
             }
         else:
-            return {
-                "ACTION": "invoke_agent",
-                "AGENT": "setup_agent",
-                "CONTEXT": "targeted_profile_revision",
-                "CLASSIFICATION": "profile_delivery",
-                "REVISION_MODE": True,
-                "PREPARE": _prepare_cmd("setup_agent"),
-                "POST": _post_cmd("setup"),
-            }
+            action = _invoke_agent_action(
+                "setup_agent", project_root,
+                context="targeted_profile_revision",
+                prepare_cmd=_prepare_cmd("setup_agent"),
+                post_cmd=_post_cmd("setup"),
+            )
+            action["CLASSIFICATION"] = "profile_delivery"
+            action["REVISION_MODE"] = True
+            return action
     if sub_stage == "redo_profile_blueprint":
         last_status = _read_last_status(project_root)
         if last_status == "PROFILE_COMPLETE":
@@ -335,15 +379,15 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 "POST": _post_cmd("gate", gate_id="gate_0_3r_profile_revision"),
             }
         else:
-            return {
-                "ACTION": "invoke_agent",
-                "AGENT": "setup_agent",
-                "CONTEXT": "targeted_profile_revision",
-                "CLASSIFICATION": "profile_blueprint",
-                "REVISION_MODE": True,
-                "PREPARE": _prepare_cmd("setup_agent"),
-                "POST": _post_cmd("setup"),
-            }
+            action = _invoke_agent_action(
+                "setup_agent", project_root,
+                context="targeted_profile_revision",
+                prepare_cmd=_prepare_cmd("setup_agent"),
+                post_cmd=_post_cmd("setup"),
+            )
+            action["CLASSIFICATION"] = "profile_blueprint"
+            action["REVISION_MODE"] = True
+            return action
 
     # Stage 0
     if stage == "0":
@@ -368,13 +412,12 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                     "POST": _post_cmd("gate", gate_id="gate_0_2_context_approval"),
                 }
             else:
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "setup_agent",
-                    "CONTEXT": "project_context",
-                    "PREPARE": _prepare_cmd("setup_agent"),
-                    "POST": _post_cmd("setup"),
-                }
+                return _invoke_agent_action(
+                    "setup_agent", project_root,
+                    context="project_context",
+                    prepare_cmd=_prepare_cmd("setup_agent"),
+                    post_cmd=_post_cmd("setup"),
+                )
         elif sub_stage == "project_profile":
             # Bug 21: two-branch routing
             # Bug 52: also check artifact existence (profile may have been created
@@ -393,13 +436,12 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                     "POST": _post_cmd("gate", gate_id="gate_0_3_profile_approval"),
                 }
             else:
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "setup_agent",
-                    "CONTEXT": "project_profile",
-                    "PREPARE": _prepare_cmd("setup_agent"),
-                    "POST": _post_cmd("setup"),
-                }
+                return _invoke_agent_action(
+                    "setup_agent", project_root,
+                    context="project_profile",
+                    prepare_cmd=_prepare_cmd("setup_agent"),
+                    post_cmd=_post_cmd("setup"),
+                )
 
     # Stage 1 (Bug 41: two-branch routing for spec authoring)
     if stage == "1":
@@ -424,22 +466,20 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             }
         elif last_status == "FRESH REVIEW":
             # Gate response was FRESH REVIEW: invoke stakeholder_reviewer
-            return {
-                "ACTION": "invoke_agent",
-                "AGENT": "stakeholder_reviewer",
-                "CONTEXT": "spec_review",
-                "PREPARE": _prepare_cmd("stakeholder_reviewer"),
-                "POST": _post_cmd("spec_review"),
-            }
+            return _invoke_agent_action(
+                "stakeholder_reviewer", project_root,
+                context="spec_review",
+                prepare_cmd=_prepare_cmd("stakeholder_reviewer"),
+                post_cmd=_post_cmd("spec_review"),
+            )
         else:
             # No status or agent not done: invoke stakeholder_dialog
-            return {
-                "ACTION": "invoke_agent",
-                "AGENT": "stakeholder_dialog",
-                "CONTEXT": "spec_draft",
-                "PREPARE": _prepare_cmd("stakeholder_dialog"),
-                "POST": _post_cmd("spec_draft"),
-            }
+            return _invoke_agent_action(
+                "stakeholder_dialog", project_root,
+                context="spec_draft",
+                prepare_cmd=_prepare_cmd("stakeholder_dialog"),
+                post_cmd=_post_cmd("spec_draft"),
+            )
 
     # Stage 2 (Bug 23: alignment check routing)
     if stage == "2":
@@ -467,13 +507,12 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 }
             else:
                 # No status yet: invoke blueprint checker
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "blueprint_checker",
-                    "CONTEXT": "alignment_check",
-                    "PREPARE": _prepare_cmd("blueprint_checker"),
-                    "POST": _post_cmd("alignment_check"),
-                }
+                return _invoke_agent_action(
+                    "blueprint_checker", project_root,
+                    context="alignment_check",
+                    prepare_cmd=_prepare_cmd("blueprint_checker"),
+                    post_cmd=_post_cmd("alignment_check"),
+                )
         else:
             # sub_stage is None or "blueprint_dialog": two-branch pattern (Bug 43)
             last_status = _read_last_status(project_root)
@@ -500,22 +539,20 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 }
             elif last_status == "FRESH REVIEW":
                 # Gate response was FRESH REVIEW: invoke blueprint_reviewer
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "blueprint_reviewer",
-                    "CONTEXT": "blueprint_review",
-                    "PREPARE": _prepare_cmd("blueprint_reviewer"),
-                    "POST": _post_cmd("blueprint_review"),
-                }
+                return _invoke_agent_action(
+                    "blueprint_reviewer", project_root,
+                    context="blueprint_review",
+                    prepare_cmd=_prepare_cmd("blueprint_reviewer"),
+                    post_cmd=_post_cmd("blueprint_review"),
+                )
             else:
                 # No status or agent not done: invoke blueprint_author
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "blueprint_author",
-                    "CONTEXT": "blueprint_draft",
-                    "PREPARE": _prepare_cmd("blueprint_author"),
-                    "POST": _post_cmd("blueprint_draft"),
-                }
+                return _invoke_agent_action(
+                    "blueprint_author", project_root,
+                    context="blueprint_draft",
+                    prepare_cmd=_prepare_cmd("blueprint_author"),
+                    post_cmd=_post_cmd("blueprint_draft"),
+                )
 
     # Pre-Stage 3 (Bug 76: infrastructure setup must run before reference indexing)
     if stage == "pre_stage_3":
@@ -530,13 +567,12 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                     "POST": _post_cmd("reference_indexing"),
                 }
             else:
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "reference_indexing",
-                    "CONTEXT": "reference_indexing",
-                    "PREPARE": _prepare_cmd("reference_indexing"),
-                    "POST": _post_cmd("reference_indexing"),
-                }
+                return _invoke_agent_action(
+                    "reference_indexing", project_root,
+                    context="reference_indexing",
+                    prepare_cmd=_prepare_cmd("reference_indexing"),
+                    post_cmd=_post_cmd("reference_indexing"),
+                )
         else:
             # sub_stage is None: run infrastructure setup first
             return {
@@ -558,37 +594,34 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             ladder_pos = state.fix_ladder_position
             if ladder_pos in ("fresh_test", "hint_test"):
                 # Test ladder: re-invoke test agent
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "test_agent",
-                    "CONTEXT": "test_generation",
-                    "UNIT": unit,
-                    "PREPARE": _prepare_cmd("test_agent", unit=unit),
-                    "POST": _post_cmd("test_generation", unit=unit),
-                }
+                return _invoke_agent_action(
+                    "test_agent", project_root,
+                    context="test_generation",
+                    unit=unit,
+                    prepare_cmd=_prepare_cmd("test_agent", unit=unit),
+                    post_cmd=_post_cmd("test_generation", unit=unit),
+                )
             elif ladder_pos in ("fresh_impl", "diagnostic_impl"):
                 # Impl ladder: re-invoke implementation agent
-                context = "implementation"
+                impl_context = "implementation"
                 if ladder_pos == "diagnostic_impl":
-                    context = "diagnostic_impl"
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "implementation_agent",
-                    "CONTEXT": context,
-                    "UNIT": unit,
-                    "PREPARE": _prepare_cmd("implementation_agent", unit=unit),
-                    "POST": _post_cmd("implementation", unit=unit),
-                }
+                    impl_context = "diagnostic_impl"
+                return _invoke_agent_action(
+                    "implementation_agent", project_root,
+                    context=impl_context,
+                    unit=unit,
+                    prepare_cmd=_prepare_cmd("implementation_agent", unit=unit),
+                    post_cmd=_post_cmd("implementation", unit=unit),
+                )
             elif ladder_pos == "diagnostic":
                 # Diagnostic ladder: invoke diagnostic agent
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "diagnostic_agent",
-                    "CONTEXT": "diagnostic",
-                    "UNIT": unit,
-                    "PREPARE": _prepare_cmd("diagnostic_agent", unit=unit),
-                    "POST": _post_cmd("diagnostic", unit=unit),
-                }
+                return _invoke_agent_action(
+                    "diagnostic_agent", project_root,
+                    context="diagnostic",
+                    unit=unit,
+                    prepare_cmd=_prepare_cmd("diagnostic_agent", unit=unit),
+                    post_cmd=_post_cmd("diagnostic", unit=unit),
+                )
             else:
                 # No ladder position (fresh start): generate stubs
                 return {
@@ -598,14 +631,13 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 }
 
         elif sub_stage == "test_generation":
-            return {
-                "ACTION": "invoke_agent",
-                "AGENT": "test_agent",
-                "CONTEXT": "test_generation",
-                "UNIT": unit,
-                "PREPARE": _prepare_cmd("test_agent", unit=unit),
-                "POST": _post_cmd("test_generation", unit=unit),
-            }
+            return _invoke_agent_action(
+                "test_agent", project_root,
+                context="test_generation",
+                unit=unit,
+                prepare_cmd=_prepare_cmd("test_agent", unit=unit),
+                post_cmd=_post_cmd("test_generation", unit=unit),
+            )
 
         elif sub_stage == "quality_gate_a":
             return {
@@ -626,14 +658,13 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 }
             else:
                 # No agent status: invoke test agent to fix
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "test_agent",
-                    "CONTEXT": "quality_gate_retry",
-                    "UNIT": unit,
-                    "PREPARE": _prepare_cmd("test_agent", unit=unit),
-                    "POST": _post_cmd("test_generation", unit=unit),
-                }
+                return _invoke_agent_action(
+                    "test_agent", project_root,
+                    context="quality_gate_retry",
+                    unit=unit,
+                    prepare_cmd=_prepare_cmd("test_agent", unit=unit),
+                    post_cmd=_post_cmd("test_generation", unit=unit),
+                )
 
         elif sub_stage == "red_run":
             return {
@@ -647,27 +678,25 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             ladder_pos = state.fix_ladder_position
             if ladder_pos == "diagnostic":
                 # Invoke diagnostic agent instead of implementation agent
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "diagnostic_agent",
-                    "CONTEXT": "diagnostic",
-                    "UNIT": unit,
-                    "PREPARE": _prepare_cmd("diagnostic_agent", unit=unit),
-                    "POST": _post_cmd("diagnostic", unit=unit),
-                }
+                return _invoke_agent_action(
+                    "diagnostic_agent", project_root,
+                    context="diagnostic",
+                    unit=unit,
+                    prepare_cmd=_prepare_cmd("diagnostic_agent", unit=unit),
+                    post_cmd=_post_cmd("diagnostic", unit=unit),
+                )
             else:
                 # Normal implementation or fresh_impl or diagnostic_impl
-                context = "implementation"
+                impl_context = "implementation"
                 if ladder_pos == "diagnostic_impl":
-                    context = "diagnostic_impl"
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "implementation_agent",
-                    "CONTEXT": context,
-                    "UNIT": unit,
-                    "PREPARE": _prepare_cmd("implementation_agent", unit=unit),
-                    "POST": _post_cmd("implementation", unit=unit),
-                }
+                    impl_context = "diagnostic_impl"
+                return _invoke_agent_action(
+                    "implementation_agent", project_root,
+                    context=impl_context,
+                    unit=unit,
+                    prepare_cmd=_prepare_cmd("implementation_agent", unit=unit),
+                    post_cmd=_post_cmd("implementation", unit=unit),
+                )
 
         elif sub_stage == "quality_gate_b":
             return {
@@ -688,14 +717,13 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 }
             else:
                 # No agent status: invoke implementation agent to fix
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "implementation_agent",
-                    "CONTEXT": "quality_gate_retry",
-                    "UNIT": unit,
-                    "PREPARE": _prepare_cmd("implementation_agent", unit=unit),
-                    "POST": _post_cmd("implementation", unit=unit),
-                }
+                return _invoke_agent_action(
+                    "implementation_agent", project_root,
+                    context="quality_gate_retry",
+                    unit=unit,
+                    prepare_cmd=_prepare_cmd("implementation_agent", unit=unit),
+                    post_cmd=_post_cmd("implementation", unit=unit),
+                )
 
         elif sub_stage == "green_run":
             return {
@@ -723,14 +751,13 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 }
             else:
                 # No status yet: invoke coverage_review agent
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "coverage_review",
-                    "CONTEXT": "coverage_review",
-                    "UNIT": unit,
-                    "PREPARE": _prepare_cmd("coverage_review", unit=unit),
-                    "POST": _post_cmd("coverage_review", unit=unit),
-                }
+                return _invoke_agent_action(
+                    "coverage_review", project_root,
+                    context="coverage_review",
+                    unit=unit,
+                    prepare_cmd=_prepare_cmd("coverage_review", unit=unit),
+                    post_cmd=_post_cmd("coverage_review", unit=unit),
+                )
 
         elif sub_stage == "unit_completion":
             return {
@@ -760,14 +787,13 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
             }
 
         # Fallback for Stage 3 with unrecognized sub_stage
-        return {
-            "ACTION": "invoke_agent",
-            "AGENT": "implementation_agent",
-            "CONTEXT": "implementation",
-            "UNIT": unit,
-            "PREPARE": _prepare_cmd("implementation_agent", unit=unit),
-            "POST": _post_cmd("implementation", unit=unit),
-        }
+        return _invoke_agent_action(
+            "implementation_agent", project_root,
+            context="implementation",
+            unit=unit,
+            prepare_cmd=_prepare_cmd("implementation_agent", unit=unit),
+            post_cmd=_post_cmd("implementation", unit=unit),
+        )
 
     # Stage 4 (Bug 43: two-branch routing)
     # Bug 71: Added sub_stage handling for gate_4_1, gate_4_2.
@@ -798,13 +824,12 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                 "POST": _post_cmd("test_execution"),
             }
         else:
-            return {
-                "ACTION": "invoke_agent",
-                "AGENT": "integration_test_author",
-                "CONTEXT": "integration_test",
-                "PREPARE": _prepare_cmd("integration_test_author"),
-                "POST": _post_cmd("integration_test"),
-            }
+            return _invoke_agent_action(
+                "integration_test_author", project_root,
+                context="integration_test",
+                prepare_cmd=_prepare_cmd("integration_test_author"),
+                post_cmd=_post_cmd("integration_test"),
+            )
 
     # Stage 5
     if stage == "5":
@@ -839,13 +864,12 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                     }
                 else:
                     # Triage agent not yet completed: invoke in read-only mode
-                    return {
-                        "ACTION": "invoke_agent",
-                        "AGENT": "bug_triage",
-                        "CONTEXT": "debug",
-                        "PREPARE": _prepare_cmd("bug_triage"),
-                        "POST": _post_cmd("debug"),
-                    }
+                    return _invoke_agent_action(
+                        "bug_triage", project_root,
+                        context="debug",
+                        prepare_cmd=_prepare_cmd("bug_triage"),
+                        post_cmd=_post_cmd("debug"),
+                    )
 
             # Bug 69 E.1: triage -- authorized triage with write access
             elif debug_phase == "triage":
@@ -861,13 +885,12 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                     }
                 elif last_status == "TRIAGE_COMPLETE: build_env":
                     # Bug 55: build_env fast path -- route directly to repair agent
-                    return {
-                        "ACTION": "invoke_agent",
-                        "AGENT": "repair_agent",
-                        "CONTEXT": "repair",
-                        "PREPARE": _prepare_cmd("repair_agent"),
-                        "POST": _post_cmd("repair"),
-                    }
+                    return _invoke_agent_action(
+                        "repair_agent", project_root,
+                        context="repair",
+                        prepare_cmd=_prepare_cmd("repair_agent"),
+                        post_cmd=_post_cmd("repair"),
+                    )
                 elif last_status == "TRIAGE_NON_REPRODUCIBLE":
                     return {
                         "ACTION": "human_gate",
@@ -877,13 +900,12 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                         "POST": _post_cmd("gate", gate_id="gate_6_4_non_reproducible"),
                     }
                 else:
-                    return {
-                        "ACTION": "invoke_agent",
-                        "AGENT": "bug_triage",
-                        "CONTEXT": "debug",
-                        "PREPARE": _prepare_cmd("bug_triage"),
-                        "POST": _post_cmd("debug"),
-                    }
+                    return _invoke_agent_action(
+                        "bug_triage", project_root,
+                        context="debug",
+                        prepare_cmd=_prepare_cmd("bug_triage"),
+                        post_cmd=_post_cmd("debug"),
+                    )
 
             # Repair phase or other active debug phases: invoke repair agent
             elif debug_phase == "repair":
@@ -899,13 +921,12 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                         "POST": _post_cmd("gate", gate_id="gate_6_3_repair_exhausted"),
                     }
                 else:
-                    return {
-                        "ACTION": "invoke_agent",
-                        "AGENT": "repair_agent",
-                        "CONTEXT": "repair",
-                        "PREPARE": _prepare_cmd("repair_agent"),
-                        "POST": _post_cmd("repair"),
-                    }
+                    return _invoke_agent_action(
+                        "repair_agent", project_root,
+                        context="repair",
+                        prepare_cmd=_prepare_cmd("repair_agent"),
+                        post_cmd=_post_cmd("repair"),
+                    )
 
             # Bug 69 E.2: regression_test phase handler
             elif debug_phase == "regression_test":
@@ -919,13 +940,12 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                         "POST": _post_cmd("gate", gate_id="gate_6_1_regression_test"),
                     }
                 else:
-                    return {
-                        "ACTION": "invoke_agent",
-                        "AGENT": "test_agent",
-                        "CONTEXT": "regression_test",
-                        "PREPARE": _prepare_cmd("test_agent"),
-                        "POST": _post_cmd("regression_test"),
-                    }
+                    return _invoke_agent_action(
+                        "test_agent", project_root,
+                        context="regression_test",
+                        prepare_cmd=_prepare_cmd("test_agent"),
+                        post_cmd=_post_cmd("regression_test"),
+                    )
 
             # Bug 69 E.4: complete phase handler
             elif debug_phase == "complete":
@@ -949,13 +969,12 @@ def route(state: PipelineState, project_root: Path) -> Dict[str, Any]:
                     "POST": _post_cmd("gate", gate_id="gate_5_1_repo_test"),
                 }
             else:
-                return {
-                    "ACTION": "invoke_agent",
-                    "AGENT": "git_repo_agent",
-                    "CONTEXT": "repo_assembly",
-                    "PREPARE": _prepare_cmd("git_repo_agent"),
-                    "POST": _post_cmd("repo_assembly"),
-                }
+                return _invoke_agent_action(
+                    "git_repo_agent", project_root,
+                    context="repo_assembly",
+                    prepare_cmd=_prepare_cmd("git_repo_agent"),
+                    post_cmd=_post_cmd("repo_assembly"),
+                )
 
         if sub_stage == "repo_test":
             # Human runs tests in delivered repo

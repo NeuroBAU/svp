@@ -668,6 +668,7 @@ class TestDefaultProfileKeyPaths:
             "testing",
             "license",
             "quality",
+            "pipeline",
             "fixed",
             "created_at",
         }

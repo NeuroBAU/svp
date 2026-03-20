@@ -121,6 +121,18 @@ def _extract_agent_strings_from_route_source() -> Set[str]:
                     and isinstance(value.value, str)
                 ):
                     agents.add(value.value)
+        # Match _invoke_agent_action("agent_type", ...) calls
+        if isinstance(node, ast.Call):
+            func = node.func
+            func_name = None
+            if isinstance(func, ast.Name):
+                func_name = func.id
+            elif isinstance(func, ast.Attribute):
+                func_name = func.attr
+            if func_name == "_invoke_agent_action" and node.args:
+                first_arg = node.args[0]
+                if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
+                    agents.add(first_arg.value)
     return agents
 
 

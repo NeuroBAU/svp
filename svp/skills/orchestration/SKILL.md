@@ -23,6 +23,7 @@ The routing script outputs a structured action block with the following fields:
 - **ACTION**: The action type. One of: `invoke_agent`, `run_command`, `human_gate`.
 - **AGENT_TYPE**: (for `invoke_agent`) The agent type identifier (e.g., `test_agent`, `implementation_agent`).
 - **TASK_PROMPT_FILE**: (for `invoke_agent`) Path to the task prompt file to relay to the agent.
+- **MODEL**: (for `invoke_agent`, optional) Model override — one of `"opus"`, `"sonnet"`, `"haiku"`. When present, pass this to the Agent tool's `model` parameter. Claude Code maps these to the latest version automatically. When absent, the agent uses its default from the `.md` frontmatter.
 - **COMMAND**: (for `run_command`) The shell command to execute.
 - **GATE_ID**: (for `human_gate`) The gate identifier.
 - **GATE_PROMPT_FILE**: (for `human_gate`) Path to the gate prompt file to present.
@@ -35,8 +36,9 @@ The routing script outputs a structured action block with the following fields:
 
 1. Read the task prompt file specified in `TASK_PROMPT_FILE`.
 2. Pass the task prompt content to the agent **verbatim**. Do not summarize, annotate, or rephrase. The task prompt was assembled by a deterministic preparation script and contains exactly the context the agent needs.
-3. The agent will produce a terminal status line as its final output.
-4. Write the terminal status line to `.svp/last_status.txt`.
+3. **If the action block includes a `MODEL` field**, pass it to the Agent tool's `model` parameter. This overrides the agent's `.md` frontmatter model. Valid values: `"opus"`, `"sonnet"`, `"haiku"`. Claude Code automatically maps these to the latest model version (e.g., `"opus"` → `claude-opus-4-6`). **Do not hardcode model IDs** — always use the short names so Claude Code resolves to the latest version.
+4. The agent will produce a terminal status line as its final output.
+5. Write the terminal status line to `.svp/last_status.txt`.
 
 ### run_command
 

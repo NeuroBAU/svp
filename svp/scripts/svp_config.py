@@ -194,6 +194,27 @@ def write_default_config(project_root: Path) -> Path:
     return config_path
 
 
+# Valid model short names accepted by Claude Code's Agent tool
+_VALID_AGENT_MODELS = {"opus", "sonnet", "haiku"}
+
+
+def get_agent_model_from_profile(profile: Dict[str, Any], agent_type: str) -> Optional[str]:
+    """Return the model short name for an agent from the project profile.
+
+    Returns "opus", "sonnet", or "haiku" — these are passed directly to
+    Claude Code's Agent tool `model` parameter, which maps them to the
+    latest version internally (e.g., "opus" -> claude-opus-4-6).
+
+    Returns None if no preference is set (agent uses its default from the .md frontmatter).
+    """
+    pipeline = profile.get("pipeline", {})
+    agent_models = pipeline.get("agent_models", {})
+    model = agent_models.get(agent_type)
+    if model and model in _VALID_AGENT_MODELS:
+        return model
+    return None
+
+
 # ===========================================================================
 # Section 2: Project Profile (project_profile.json)
 # ===========================================================================
@@ -258,6 +279,30 @@ DEFAULT_PROFILE: Dict[str, Any] = {
         "type_checker": "none",
         "import_sorter": "ruff",
         "line_length": 88,
+    },
+    "pipeline": {
+        "agent_models": {
+            "stakeholder_dialog": "opus",
+            "stakeholder_reviewer": "opus",
+            "blueprint_author": "opus",
+            "blueprint_checker": "opus",
+            "blueprint_reviewer": "opus",
+            "test_agent": "sonnet",
+            "implementation_agent": "opus",
+            "coverage_review": "sonnet",
+            "diagnostic_agent": "opus",
+            "integration_test_author": "opus",
+            "git_repo_agent": "sonnet",
+            "bug_triage": "opus",
+            "repair_agent": "sonnet",
+            "reference_indexing": "sonnet",
+            "setup_agent": "sonnet",
+            "help_agent": "sonnet",
+            "hint_agent": "opus",
+            "redo_agent": "opus",
+        },
+        "context_budget_override": None,
+        "context_budget_threshold": 65,
     },
     "fixed": {
         "language": "python",
