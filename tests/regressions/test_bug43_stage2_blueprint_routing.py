@@ -50,7 +50,8 @@ def _route_with_status(state, status_value):
     from routing import route
     project_root = Path("/tmp/fake_project")
     with patch("routing._read_last_status", return_value=status_value), \
-         patch("pathlib.Path.is_dir", return_value=True):
+         patch("pathlib.Path.is_dir", return_value=True), \
+         patch("pathlib.Path.exists", return_value=True):
         return route(state, project_root)
 
 

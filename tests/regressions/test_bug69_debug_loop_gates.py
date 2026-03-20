@@ -265,6 +265,7 @@ class TestBug69WorkspaceRouting(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             pr = Path(tmpdir)
             self._make_status_file(pr, "TRIAGE_COMPLETE: single_unit")
+            (pr / ".svp" / "doc_sync_done").touch()
             action = route(state, pr)
             self.assertEqual(action["ACTION"], "human_gate")
             self.assertEqual(action["GATE_ID"], "gate_6_0_debug_permission")
@@ -294,6 +295,7 @@ class TestBug69WorkspaceRouting(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             pr = Path(tmpdir)
             self._make_status_file(pr, "TRIAGE_COMPLETE: single_unit")
+            (pr / ".svp" / "doc_sync_done").touch()
             action = route(state, pr)
             self.assertEqual(action["ACTION"], "human_gate")
             self.assertEqual(action["GATE_ID"], "gate_6_2_debug_classification")

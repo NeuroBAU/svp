@@ -347,6 +347,7 @@ class TestBuildEnvFastPath:
         svp_dir = tmp_path / ".svp"
         svp_dir.mkdir(parents=True, exist_ok=True)
         (svp_dir / "last_status.txt").write_text("TRIAGE_COMPLETE: build_env")
+        (svp_dir / "doc_sync_done").touch()
 
         action = route(state, tmp_path)
         assert action["ACTION"] == "invoke_agent"
@@ -362,6 +363,7 @@ class TestBuildEnvFastPath:
         svp_dir = tmp_path / ".svp"
         svp_dir.mkdir(parents=True, exist_ok=True)
         (svp_dir / "last_status.txt").write_text("TRIAGE_COMPLETE: single_unit")
+        (svp_dir / "doc_sync_done").touch()
 
         action = route(state, tmp_path)
         assert action["ACTION"] == "human_gate"
