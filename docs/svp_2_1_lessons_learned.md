@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69, 86 (43 of 88 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69, 86, 89 (44 of 89 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 88 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 89 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -556,7 +556,7 @@ Pipeline defines artifact synchronization invariants for code artifacts (source 
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (43 of 88 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (44 of 89 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -1477,6 +1477,22 @@ Gap B (Unit 10): routing.py profile sub-stage guard (Bug 52/73 artifact-existenc
 **Prevention:** State validators must account for the lifecycle of composite state objects. When a state object is populated in stages, validation rules must be phase-aware.
 
 **Test:** `test_bug88_debug_session_validator.py`
+
+---
+
+### Bug 89: Doc sync command clobbers last_status.txt, breaks routing re-entry
+
+**Date:** 2026-03-20
+**Classification:** pipeline tooling (routing.py)
+**Root cause:** P1 (Cross-Unit Contract Drift) -- The Bug 87 doc sync `run_command` action follows the standard action cycle, which writes `COMMAND_SUCCEEDED` to `last_status.txt` in step 2. This clobbers the original triage status (e.g. `TRIAGE_COMPLETE: cross_unit`) that routing needs on re-entry to present the correct gate. The action cycle protocol and the routing two-branch pattern have conflicting assumptions about `last_status.txt` ownership when a non-agent command is injected between agent completion and gate presentation.
+
+**Fix:** The POST command for the sync action now restores the original triage status to `last_status.txt` after creating the marker file. The status is captured at route-time and embedded in the POST command string.
+
+**Pattern:** P1 (Cross-Unit Contract Drift) -- The action cycle protocol assumes every action's result should be written to `last_status.txt`. But routing's two-branch pattern assumes `last_status.txt` retains the agent's terminal status until the next agent invocation. Injecting a `run_command` between agent completion and gate presentation violates this assumption.
+
+**Prevention:** When injecting intermediate `run_command` actions into a routing flow that depends on a prior agent status, the POST must explicitly preserve the original `last_status.txt` content.
+
+**Test:** `test_bug89_sync_status_restore.py`
 
 ---
 
