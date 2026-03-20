@@ -345,6 +345,28 @@ def _safe_load_reference_summaries(project_root: Path) -> Optional[str]:
         return None
 
 
+def _safe_load_lessons_learned(project_root: Path) -> Optional[str]:
+    """Bug 84: Load the lessons learned document if it exists.
+
+    Checks multiple locations: project root, references/, docs/, docs/references/.
+    Returns the full content or None if not found.
+    """
+    ll_fname = ARTIFACT_FILENAMES.get("lessons_learned", "svp_2_1_lessons_learned.md")
+    candidates = [
+        project_root / ll_fname,
+        project_root / "references" / ll_fname,
+        project_root / "docs" / ll_fname,
+        project_root / "docs" / "references" / ll_fname,
+    ]
+    for path in candidates:
+        if path.exists():
+            try:
+                return path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+    return None
+
+
 def _get_unit_context(project_root: Path, unit_number: int, include_tier1: bool = True) -> str:
     """Get unit context via Unit 5 blueprint extractor.
 
@@ -422,6 +444,10 @@ def _assemble_sections_for_agent(
         )
         if profile_sections:
             sections["profile_sections"] = profile_sections
+        # Bug 84: lessons learned for pattern-aware contract design
+        ll = _safe_load_lessons_learned(project_root)
+        if ll:
+            sections["lessons_learned"] = ll
 
     elif agent_type == "blueprint_checker":
         sections["stakeholder_spec"] = load_stakeholder_spec(project_root)
@@ -433,6 +459,10 @@ def _assemble_sections_for_agent(
         full_profile = load_full_profile(project_root)
         if full_profile:
             sections["full_profile"] = full_profile
+        # Bug 84: full lessons learned for pattern catalog (P1-P12) advisory risk analysis
+        ll = _safe_load_lessons_learned(project_root)
+        if ll:
+            sections["lessons_learned"] = ll
 
     elif agent_type == "blueprint_reviewer":
         bp = _safe_load_blueprint(project_root)
@@ -447,6 +477,10 @@ def _assemble_sections_for_agent(
         refs = _safe_load_reference_summaries(project_root)
         if refs:
             sections["reference_summaries"] = refs
+        # Bug 84: lessons learned for pattern-aware review
+        ll = _safe_load_lessons_learned(project_root)
+        if ll:
+            sections["lessons_learned"] = ll
 
     elif agent_type == "stakeholder_reviewer":
         spec = _safe_load_spec(project_root)
@@ -462,6 +496,10 @@ def _assemble_sections_for_agent(
     elif agent_type == "test_agent":
         if unit_number is not None:
             sections["unit_context"] = _get_unit_context(project_root, unit_number, include_tier1=False)
+            # Bug 84: filtered lessons learned for unit-specific failure patterns
+            ll = filter_lessons_learned(project_root, unit_number, [])
+            if ll:
+                sections["lessons_learned"] = ll
         # testing.readable_test_names from profile
         profile_sections = load_profile_sections(project_root, ["testing"])
         if profile_sections:
@@ -475,6 +513,10 @@ def _assemble_sections_for_agent(
     elif agent_type == "implementation_agent":
         if unit_number is not None:
             sections["unit_context"] = _get_unit_context(project_root, unit_number, include_tier1=False)
+            # Bug 84: filtered lessons learned for unit-specific failure patterns
+            ll = filter_lessons_learned(project_root, unit_number, [])
+            if ll:
+                sections["lessons_learned"] = ll
         # In fix ladder positions: add diagnostic guidance, prior failure output
         if ladder_position:
             diag_path = project_root / ".svp" / "diagnostic_guidance.md"

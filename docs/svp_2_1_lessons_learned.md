@@ -16,7 +16,7 @@ This document is updated during post-delivery debug sessions. When `/svp:bug` re
 
 ---
 
-## Part 1: Unified Bug Catalog (Bugs 1-82)
+## Part 1: Unified Bug Catalog (Bugs 1-84)
 
 Bugs are numbered sequentially in chronological order of discovery. Each entry notes how it was caught (blueprint-era or post-delivery) and where its test lives (unit test assertions or regression test file).
 
@@ -501,7 +501,7 @@ Without stubs, the red run fails with `ModuleNotFoundError` (collection error) i
 ## Part 2: Pattern Catalog
 
 ### P1 — Cross-Unit Contract Drift
-**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69 (42 of 82 bugs).
+**Instances:** Bugs 1, 3, 5, 6, 7, 8, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 31, 33, 37, 38, 40, 41, 43, 44, 47, 48, 49, 51, 52, 53, 54, 55, 56, 58, 64, 65, 66, 67, 68, 69 (42 of 84 bugs).
 Two units must agree on something. The implementation agent misses the detail. **Prevention:** Structural (AST-based) tests at every cross-unit boundary.
 
 ### P2 — State Management Assumptions
@@ -525,7 +525,7 @@ Broad indicator matches both target and expected conditions. **Prevention:** Enu
 Two dispatchers use different matching strategies for the same format. **Prevention:** Specify strategy as cross-cutting contract. Test with/without trailing context.
 
 ### P7 — Spec Completeness
-**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 82 bugs).
+**Instances:** Bugs 15, 28, 30, 32, 34, 36, 38, 39, 41, 43, 48, 49, 50, 62, 65 (15 of 84 bugs).
 Spec enumeration is incomplete or terminology is undefined; implementation faithfully follows the gap. **Prevention:** Structural tests verify enumerations. Path coverage checks. Validation steps must cover all prescribed structural properties, including commit ordering. Terms like "carry-forward" must be defined operationally, not assumed.
 
 ### P8 — Version Upgrade Regression
@@ -544,7 +544,7 @@ Happy-path transitions are contracted and tested; error paths are described in s
 
 ## Part 3: General Principles
 
-1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (42 of 82 bugs). AST-based tests are the primary defense.
+1. **Every cross-unit interface needs a structural test.** P1 is the most common pattern (42 of 84 bugs). AST-based tests are the primary defense.
 2. **State transitions need exhaustive post-conditions.** Not just the primary field but every secondary field that should reset.
 3. **Error classifiers need negative test cases.** Expected-during-normal-operation patterns are the most dangerous false positives.
 4. **Path strings must be verified against resolution context.** Works in dev, fails at runtime.
@@ -1369,6 +1369,16 @@ Built a project-agnostic structural completeness checking system that works for 
 **Root cause:** The delivered plugin's `python_conda_pytest.json` was missing `linter.unused_exports` and Gate C's composition didn't include it. Projects created from the plugin defaults would skip the unused-function detection at Gate C (Bugs 56/58 feature).
 
 **Fix:** Added `"unused_exports": "{run_prefix} ruff check {target} --select F811"` to linter section and `"linter.unused_exports"` to gate_c composition in both workspace and delivered defaults.
+
+### Bug 84: Lessons learned not injected into agent task prompts
+
+**Date:** 2026-03-20
+**Classification:** single_unit (prepare_task.py)
+**Root cause:** P7 (Spec Completeness) — `filter_lessons_learned()` and `load_lessons_learned_for_unit()` were defined but never called from `_assemble_sections_for_agent()`. No agent — Stage 2 or Stage 3 — received the lessons learned document. The spec (Section 3.22) requires the blueprint checker to receive the pattern catalog, and proactive lessons learned is a documented SVP 2.1 feature.
+
+**Fix:** Added `_safe_load_lessons_learned()` helper (checks multiple paths). Wired full lessons learned into blueprint_author, blueprint_checker, and blueprint_reviewer. Wired filtered (per-unit) lessons learned into test_agent and implementation_agent.
+
+**Pattern:** Functions defined but never called from the assembly point are equivalent to dead code. The structural completeness checker should detect exported functions with no call sites (check 3: `check_unused_exports`), but `_assemble_sections_for_agent` is a single function with internal branch logic — the missing call is inside a branch, not a missing function reference.
 
 ---
 
