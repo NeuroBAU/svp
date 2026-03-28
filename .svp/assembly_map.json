@@ -1,0 +1,351 @@
+{
+  "workspace_to_repo": {
+    "src/unit_28/stub.py": [
+      ".claude-plugin/marketplace.json",
+      "svp/.claude-plugin/plugin.json",
+      "svp/scripts/structural_check.py",
+      "tests/regressions/test_assembly_map_generation.py",
+      "tests/regressions/test_dispatch_exhaustiveness.py"
+    ],
+    "src/unit_18/stub.py": [
+      "svp/agents/setup_agent.md"
+    ],
+    "src/unit_20/stub.py": [
+      "svp/agents/stakeholder_dialog.md",
+      "svp/agents/stakeholder_reviewer.md",
+      "svp/agents/blueprint_author.md",
+      "svp/agents/blueprint_reviewer.md",
+      "svp/agents/test_agent.md",
+      "svp/agents/implementation_agent.md",
+      "svp/agents/coverage_review_agent.md",
+      "svp/agents/integration_test_author.md"
+    ],
+    "src/unit_19/stub.py": [
+      "svp/agents/blueprint_checker.md"
+    ],
+    "src/unit_21/stub.py": [
+      "svp/agents/diagnostic_agent.md",
+      "svp/agents/redo_agent.md"
+    ],
+    "src/unit_23/stub.py": [
+      "svp/agents/git_repo_agent.md",
+      "svp/agents/checklist_generation.md",
+      "svp/agents/regression_adaptation.md",
+      "svp/agents/oracle_agent.md",
+      "svp/scripts/adapt_regression_tests.py",
+      "svp/scripts/generate_assembly_map.py"
+    ],
+    "src/unit_22/stub.py": [
+      "svp/agents/help_agent.md",
+      "svp/agents/hint_agent.md",
+      "svp/agents/reference_indexing.md"
+    ],
+    "src/unit_24/stub.py": [
+      "svp/agents/bug_triage_agent.md",
+      "svp/agents/repair_agent.md"
+    ],
+    "src/unit_25/stub.py": [
+      "svp/commands/svp_help.md",
+      "svp/commands/svp_hint.md",
+      "svp/commands/svp_ref.md",
+      "svp/commands/svp_redo.md",
+      "svp/commands/svp_bug.md",
+      "svp/commands/svp_oracle.md",
+      "svp/commands/svp_save.md",
+      "svp/commands/svp_quit.md",
+      "svp/commands/svp_status.md",
+      "svp/commands/svp_clean.md",
+      "svp/commands/svp_visual_verify.md"
+    ],
+    "src/unit_17/stub.py": [
+      "svp/hooks/hooks.json",
+      "svp/hooks/write_authorization.sh",
+      "svp/hooks/non_svp_protection.sh",
+      "svp/hooks/stub_sentinel_check.sh",
+      "svp/hooks/monitoring_reminder.sh"
+    ],
+    "src/unit_1/stub.py": [
+      "svp/scripts/svp_config.py"
+    ],
+    "src/unit_2/stub.py": [
+      "svp/scripts/language_registry.py"
+    ],
+    "src/unit_3/stub.py": [
+      "svp/scripts/profile_schema.py",
+      "tests/regressions/test_profile_migration.py"
+    ],
+    "src/unit_4/stub.py": [
+      "svp/scripts/toolchain_reader.py",
+      "tests/regressions/test_three_layer_separation.py"
+    ],
+    "src/unit_5/stub.py": [
+      "svp/scripts/pipeline_state.py"
+    ],
+    "src/unit_6/stub.py": [
+      "svp/scripts/state_transitions.py"
+    ],
+    "src/unit_7/stub.py": [
+      "svp/scripts/ledger_manager.py"
+    ],
+    "src/unit_8/stub.py": [
+      "svp/scripts/blueprint_extractor.py"
+    ],
+    "src/unit_9/stub.py": [
+      "svp/scripts/signature_parser.py"
+    ],
+    "src/unit_10/stub.py": [
+      "svp/scripts/stub_generator.py"
+    ],
+    "src/unit_11/stub.py": [
+      "svp/scripts/infrastructure_setup.py"
+    ],
+    "src/unit_12/stub.py": [
+      "svp/scripts/hint_prompt_assembler.py"
+    ],
+    "src/unit_13/stub.py": [
+      "svp/scripts/prepare_task.py"
+    ],
+    "src/unit_14/stub.py": [
+      "svp/scripts/routing.py",
+      "svp/scripts/run_tests.py",
+      "svp/scripts/update_state.py",
+      "tests/regressions/test_r_test_output_parsing.py",
+      "tests/regressions/test_behavioral_equivalence.py"
+    ],
+    "src/unit_15/stub.py": [
+      "svp/scripts/quality_gate.py"
+    ],
+    "src/unit_16/stub.py": [
+      "svp/scripts/cmd_save.py",
+      "svp/scripts/cmd_quit.py",
+      "svp/scripts/cmd_status.py",
+      "svp/scripts/cmd_clean.py",
+      "svp/scripts/sync_debug_docs.py"
+    ],
+    "src/unit_27/stub.py": [
+      "svp/scripts/toolchain_defaults/python_conda_pytest.json",
+      "svp/scripts/toolchain_defaults/r_renv_testthat.json",
+      "svp/scripts/toolchain_defaults/ruff.toml"
+    ],
+    "src/unit_29/stub.py": [
+      "svp/scripts/svp_launcher.py"
+    ],
+    "src/unit_26/stub.py": [
+      "svp/skills/orchestration/SKILL.md"
+    ]
+  },
+  "repo_to_workspace": {
+    ".claude-plugin/marketplace.json": "src/unit_28/stub.py",
+    "svp/.claude-plugin/plugin.json": "src/unit_28/stub.py",
+    "svp/agents/setup_agent.md": "src/unit_18/stub.py",
+    "svp/agents/stakeholder_dialog.md": "src/unit_20/stub.py",
+    "svp/agents/stakeholder_reviewer.md": "src/unit_20/stub.py",
+    "svp/agents/blueprint_author.md": "src/unit_20/stub.py",
+    "svp/agents/blueprint_checker.md": "src/unit_19/stub.py",
+    "svp/agents/blueprint_reviewer.md": "src/unit_20/stub.py",
+    "svp/agents/test_agent.md": "src/unit_20/stub.py",
+    "svp/agents/implementation_agent.md": "src/unit_20/stub.py",
+    "svp/agents/coverage_review_agent.md": "src/unit_20/stub.py",
+    "svp/agents/diagnostic_agent.md": "src/unit_21/stub.py",
+    "svp/agents/redo_agent.md": "src/unit_21/stub.py",
+    "svp/agents/integration_test_author.md": "src/unit_20/stub.py",
+    "svp/agents/git_repo_agent.md": "src/unit_23/stub.py",
+    "svp/agents/help_agent.md": "src/unit_22/stub.py",
+    "svp/agents/hint_agent.md": "src/unit_22/stub.py",
+    "svp/agents/reference_indexing.md": "src/unit_22/stub.py",
+    "svp/agents/bug_triage_agent.md": "src/unit_24/stub.py",
+    "svp/agents/repair_agent.md": "src/unit_24/stub.py",
+    "svp/agents/checklist_generation.md": "src/unit_23/stub.py",
+    "svp/agents/regression_adaptation.md": "src/unit_23/stub.py",
+    "svp/agents/oracle_agent.md": "src/unit_23/stub.py",
+    "svp/commands/svp_help.md": "src/unit_25/stub.py",
+    "svp/commands/svp_hint.md": "src/unit_25/stub.py",
+    "svp/commands/svp_ref.md": "src/unit_25/stub.py",
+    "svp/commands/svp_redo.md": "src/unit_25/stub.py",
+    "svp/commands/svp_bug.md": "src/unit_25/stub.py",
+    "svp/commands/svp_oracle.md": "src/unit_25/stub.py",
+    "svp/commands/svp_save.md": "src/unit_25/stub.py",
+    "svp/commands/svp_quit.md": "src/unit_25/stub.py",
+    "svp/commands/svp_status.md": "src/unit_25/stub.py",
+    "svp/commands/svp_clean.md": "src/unit_25/stub.py",
+    "svp/commands/svp_visual_verify.md": "src/unit_25/stub.py",
+    "svp/hooks/hooks.json": "src/unit_17/stub.py",
+    "svp/hooks/write_authorization.sh": "src/unit_17/stub.py",
+    "svp/hooks/non_svp_protection.sh": "src/unit_17/stub.py",
+    "svp/hooks/stub_sentinel_check.sh": "src/unit_17/stub.py",
+    "svp/hooks/monitoring_reminder.sh": "src/unit_17/stub.py",
+    "svp/scripts/svp_config.py": "src/unit_1/stub.py",
+    "svp/scripts/language_registry.py": "src/unit_2/stub.py",
+    "svp/scripts/profile_schema.py": "src/unit_3/stub.py",
+    "svp/scripts/toolchain_reader.py": "src/unit_4/stub.py",
+    "svp/scripts/pipeline_state.py": "src/unit_5/stub.py",
+    "svp/scripts/state_transitions.py": "src/unit_6/stub.py",
+    "svp/scripts/ledger_manager.py": "src/unit_7/stub.py",
+    "svp/scripts/blueprint_extractor.py": "src/unit_8/stub.py",
+    "svp/scripts/signature_parser.py": "src/unit_9/stub.py",
+    "svp/scripts/stub_generator.py": "src/unit_10/stub.py",
+    "svp/scripts/infrastructure_setup.py": "src/unit_11/stub.py",
+    "svp/scripts/hint_prompt_assembler.py": "src/unit_12/stub.py",
+    "svp/scripts/prepare_task.py": "src/unit_13/stub.py",
+    "svp/scripts/routing.py": "src/unit_14/stub.py",
+    "svp/scripts/run_tests.py": "src/unit_14/stub.py",
+    "svp/scripts/quality_gate.py": "src/unit_15/stub.py",
+    "svp/scripts/update_state.py": "src/unit_14/stub.py",
+    "svp/scripts/cmd_save.py": "src/unit_16/stub.py",
+    "svp/scripts/cmd_quit.py": "src/unit_16/stub.py",
+    "svp/scripts/cmd_status.py": "src/unit_16/stub.py",
+    "svp/scripts/cmd_clean.py": "src/unit_16/stub.py",
+    "svp/scripts/structural_check.py": "src/unit_28/stub.py",
+    "svp/scripts/adapt_regression_tests.py": "src/unit_23/stub.py",
+    "svp/scripts/generate_assembly_map.py": "src/unit_23/stub.py",
+    "svp/scripts/sync_debug_docs.py": "src/unit_16/stub.py",
+    "svp/scripts/toolchain_defaults/python_conda_pytest.json": "src/unit_27/stub.py",
+    "svp/scripts/toolchain_defaults/r_renv_testthat.json": "src/unit_27/stub.py",
+    "svp/scripts/toolchain_defaults/ruff.toml": "src/unit_27/stub.py",
+    "svp/scripts/svp_launcher.py": "src/unit_29/stub.py",
+    "svp/skills/orchestration/SKILL.md": "src/unit_26/stub.py",
+    "tests/regressions/test_assembly_map_generation.py": "src/unit_28/stub.py",
+    "tests/regressions/test_dispatch_exhaustiveness.py": "src/unit_28/stub.py",
+    "tests/regressions/test_three_layer_separation.py": "src/unit_4/stub.py",
+    "tests/regressions/test_profile_migration.py": "src/unit_3/stub.py",
+    "tests/regressions/test_r_test_output_parsing.py": "src/unit_14/stub.py",
+    "tests/regressions/test_behavioral_equivalence.py": "src/unit_14/stub.py"
+  },
+  "unit_to_files": {
+    "28": [
+      ".claude-plugin/marketplace.json",
+      "svp/.claude-plugin/plugin.json",
+      "svp/scripts/structural_check.py",
+      "tests/regressions/test_assembly_map_generation.py",
+      "tests/regressions/test_dispatch_exhaustiveness.py"
+    ],
+    "18": [
+      "svp/agents/setup_agent.md"
+    ],
+    "20": [
+      "svp/agents/stakeholder_dialog.md",
+      "svp/agents/stakeholder_reviewer.md",
+      "svp/agents/blueprint_author.md",
+      "svp/agents/blueprint_reviewer.md",
+      "svp/agents/test_agent.md",
+      "svp/agents/implementation_agent.md",
+      "svp/agents/coverage_review_agent.md",
+      "svp/agents/integration_test_author.md"
+    ],
+    "19": [
+      "svp/agents/blueprint_checker.md"
+    ],
+    "21": [
+      "svp/agents/diagnostic_agent.md",
+      "svp/agents/redo_agent.md"
+    ],
+    "23": [
+      "svp/agents/git_repo_agent.md",
+      "svp/agents/checklist_generation.md",
+      "svp/agents/regression_adaptation.md",
+      "svp/agents/oracle_agent.md",
+      "svp/scripts/adapt_regression_tests.py",
+      "svp/scripts/generate_assembly_map.py"
+    ],
+    "22": [
+      "svp/agents/help_agent.md",
+      "svp/agents/hint_agent.md",
+      "svp/agents/reference_indexing.md"
+    ],
+    "24": [
+      "svp/agents/bug_triage_agent.md",
+      "svp/agents/repair_agent.md"
+    ],
+    "25": [
+      "svp/commands/svp_help.md",
+      "svp/commands/svp_hint.md",
+      "svp/commands/svp_ref.md",
+      "svp/commands/svp_redo.md",
+      "svp/commands/svp_bug.md",
+      "svp/commands/svp_oracle.md",
+      "svp/commands/svp_save.md",
+      "svp/commands/svp_quit.md",
+      "svp/commands/svp_status.md",
+      "svp/commands/svp_clean.md",
+      "svp/commands/svp_visual_verify.md"
+    ],
+    "17": [
+      "svp/hooks/hooks.json",
+      "svp/hooks/write_authorization.sh",
+      "svp/hooks/non_svp_protection.sh",
+      "svp/hooks/stub_sentinel_check.sh",
+      "svp/hooks/monitoring_reminder.sh"
+    ],
+    "1": [
+      "svp/scripts/svp_config.py"
+    ],
+    "2": [
+      "svp/scripts/language_registry.py"
+    ],
+    "3": [
+      "svp/scripts/profile_schema.py",
+      "tests/regressions/test_profile_migration.py"
+    ],
+    "4": [
+      "svp/scripts/toolchain_reader.py",
+      "tests/regressions/test_three_layer_separation.py"
+    ],
+    "5": [
+      "svp/scripts/pipeline_state.py"
+    ],
+    "6": [
+      "svp/scripts/state_transitions.py"
+    ],
+    "7": [
+      "svp/scripts/ledger_manager.py"
+    ],
+    "8": [
+      "svp/scripts/blueprint_extractor.py"
+    ],
+    "9": [
+      "svp/scripts/signature_parser.py"
+    ],
+    "10": [
+      "svp/scripts/stub_generator.py"
+    ],
+    "11": [
+      "svp/scripts/infrastructure_setup.py"
+    ],
+    "12": [
+      "svp/scripts/hint_prompt_assembler.py"
+    ],
+    "13": [
+      "svp/scripts/prepare_task.py"
+    ],
+    "14": [
+      "svp/scripts/routing.py",
+      "svp/scripts/run_tests.py",
+      "svp/scripts/update_state.py",
+      "tests/regressions/test_r_test_output_parsing.py",
+      "tests/regressions/test_behavioral_equivalence.py"
+    ],
+    "15": [
+      "svp/scripts/quality_gate.py"
+    ],
+    "16": [
+      "svp/scripts/cmd_save.py",
+      "svp/scripts/cmd_quit.py",
+      "svp/scripts/cmd_status.py",
+      "svp/scripts/cmd_clean.py",
+      "svp/scripts/sync_debug_docs.py"
+    ],
+    "27": [
+      "svp/scripts/toolchain_defaults/python_conda_pytest.json",
+      "svp/scripts/toolchain_defaults/r_renv_testthat.json",
+      "svp/scripts/toolchain_defaults/ruff.toml"
+    ],
+    "29": [
+      "svp/scripts/svp_launcher.py"
+    ],
+    "26": [
+      "svp/skills/orchestration/SKILL.md"
+    ]
+  },
+  "generated_by": "git_repo_agent",
+  "svp_version": "2.2.0"
+}

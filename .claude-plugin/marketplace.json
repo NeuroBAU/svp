@@ -1,0 +1,15 @@
+{
+  "name": "",
+  "owner": {
+    "name": ""
+  },
+  "plugins": [
+    {
+      "name": "",
+      "source": "./",
+      "description": "",
+      "version": "0.1.0",
+      "author": ""
+    }
+  ]
+}
