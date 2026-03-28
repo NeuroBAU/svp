@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "svp"
+version = "2.2.0"
+description = "Stratified Verification Pipeline -- a Claude Code plugin for verified software delivery"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Carlo Fusco", email = "carlo.fusco@unil.ch"},
+    {name = "Leonardo Restivo", email = "leonardo.restivo@unil.ch"},
+]
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+svp = "svp_launcher:main"
+
+[tool.setuptools.packages.find]
+where = ["svp/scripts"]
+
+[tool.pytest.ini_options]
+pythonpath = ["svp/scripts"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["svp_config", "language_registry", "profile_schema", "toolchain_reader", "pipeline_state", "state_transitions", "ledger_manager", "blueprint_extractor", "signature_parser", "stub_generator", "infrastructure_setup", "hint_prompt_assembler", "prepare_task", "routing", "quality_gate", "cmd_save", "structural_check", "adapt_regression_tests", "svp_launcher"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
