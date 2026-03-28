@@ -1,0 +1,3 @@
+[tool.black]
+line-length = {{line_length}}
+target-version = ["py311"]
