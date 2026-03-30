@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "svp"
+version = "2.2.0-pass2"
+description = "Stratified Verification Pipeline -- a Claude Code plugin for verified software delivery (Pass 2)"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Carlo Fusco", email = "carlo.fusco@unil.ch"},
+    {name = "Leonardo Restivo", email = "leonardo.restivo@unil.ch"},
+]
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

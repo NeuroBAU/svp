@@ -1,0 +1,70 @@
+{
+  "toolchain_id": "r_renv_testthat",
+  "environment": {
+    "tool": "renv",
+    "run_prefix": "Rscript -e",
+    "create_command": "Rscript -e 'renv::init()'",
+    "install_command": "Rscript -e 'renv::install(\"{package}\")'",
+    "cleanup_command": "Rscript -e \"renv::deactivate()\""
+  },
+  "quality": {
+    "formatter": {
+      "tool": "styler",
+      "format": "Rscript -e 'styler::style_dir(\"R/\")'",
+      "check": "Rscript -e 'styler::style_dir(\"R/\", dry=\"check\")'"
+    },
+    "linter": {
+      "tool": "lintr",
+      "light": "Rscript -e 'lintr::lint_dir(\"R/\")'",
+      "heavy": "Rscript -e 'lintr::lint_dir(\"R/\")'",
+      "check": "Rscript -e 'lintr::lint_dir(\"R/\")'"
+    },
+    "type_checker": {
+      "tool": "none"
+    },
+    "packages": [
+      "lintr",
+      "styler"
+    ],
+    "gate_a": [
+      "formatter.format"
+    ],
+    "gate_b": [
+      "formatter.format",
+      "linter.light"
+    ],
+    "gate_c": [
+      "formatter.check",
+      "linter.check"
+    ]
+  },
+  "testing": {
+    "tool": "testthat",
+    "run_command": "Rscript -e 'testthat::test_dir(\"tests/testthat\")'",
+    "run_coverage": "Rscript -e 'covr::package_coverage()'",
+    "framework_packages": [
+      "testthat",
+      "covr"
+    ],
+    "file_pattern": "test-*.R",
+    "collection_error_indicators": [
+      "Error in library",
+      "there is no package called",
+      "could not find function"
+    ],
+    "unit_flags": "",
+    "project_flags": ""
+  },
+  "language": {
+    "name": "r",
+    "extension": ".R",
+    "version_constraint": ">=4.0",
+    "stub_body": "stop('Not implemented')"
+  },
+  "file_structure": {
+    "source_dir_pattern": "R",
+    "test_dir_pattern": "tests/testthat",
+    "source_extension": ".R",
+    "test_extension": ".R"
+  }
+}
