@@ -4769,6 +4769,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P7 (Specification Omission). The spec stated the entry is hardcoded (Section 35.6) but the routing script's reminder text contradicted this by referencing `docs/`. **Detection:** Manual testing of `/svp:oracle`.
 
+### 24.89 oracle_select_test_project Action Type Missing From Orchestration Skill (Post-delivery — Bug S3-74, NEW IN 2.2)
+
+**Orchestration skill action type coverage (NEW IN 2.2 -- Bug S3-74).** The orchestration skill (Unit 26) listed six action types in its "Action Type Handling" section (`invoke_agent`, `human_gate`, `run_command`, `advance_stage`, `break_glass`, `pipeline_complete`) but did not include `oracle_select_test_project`. When the routing script emitted this action type, the orchestrator had no handler and improvised — scanning directories instead of presenting the hardcoded list from the reminder text. Fix: add `oracle_select_test_project` to the orchestration skill's action type handling section with explicit instructions to present the list from the reminder text verbatim, including the hardcoded F-mode entry, without scanning any directories.
+
+**Pattern:** P20 (NEW — Incomplete Action Type Dispatch). Prevention: Every `action_type` value that `_make_action_block()` can produce in `routing.py` must have a corresponding handler in the orchestration skill. **Detection:** Cross-reference routing script action types against orchestration skill handlers.
+
 ---
 
 ## 25. Test Data

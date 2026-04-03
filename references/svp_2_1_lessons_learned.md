@@ -482,3 +482,9 @@
 - **Bug:** S3-73 (routing reminder referenced "docs/" for F-mode, causing orchestrator to scan for a nonexistent directory and omit F-mode entirely)
 - **Root cause:** The reminder text contradicted the spec. Section 35.6 states the SVP Pipeline entry is hardcoded, but the reminder said "docs/ is ONE project" which led the orchestrator to look for `docs/`. When it didn't exist, F-mode was dropped.
 - **Prevention:** P7 applies: when a routing reminder describes UI behavior, it must match the spec exactly. Hardcoded entries must be explicitly marked as such, with explicit prohibitions against directory scanning.
+
+### Lesson: oracle_select_test_project Action Type Missing From Orchestration Skill (Bug S3-74)
+
+- **Bug:** S3-74 (orchestration skill had no handler for `oracle_select_test_project`, causing the orchestrator to improvise by scanning directories instead of presenting the hardcoded list)
+- **Root cause:** The routing script introduced a new action type (`oracle_select_test_project`) but the orchestration skill's Action Type Handling section only listed six types. The orchestrator had no instructions for this type and fell back to directory scanning.
+- **Prevention pattern P20 (NEW):** Every `action_type` value that `_make_action_block()` can produce in `routing.py` must have a corresponding handler in the orchestration skill. Cross-reference all action types at delivery time.

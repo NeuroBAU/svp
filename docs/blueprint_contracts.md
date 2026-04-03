@@ -1120,7 +1120,7 @@ def run_tests_main(argv: list = None) -> None: ...
 **route():**
 - Reads `pipeline_state.json` and `last_status.txt`.
 - Returns action block dict with keys: `action_type` (str), `agent_type` (str, optional), `command` (str, optional), `gate_id` (str, optional), `prepare` (str, optional), `post` (str, optional), `reminder` (str).
-- Valid `action_type` values: `"invoke_agent"`, `"run_command"`, `"human_gate"`, `"session_boundary"`, `"pipeline_complete"`, `"pipeline_held"`, `"break_glass"`.
+- Valid `action_type` values: `"invoke_agent"`, `"run_command"`, `"human_gate"`, `"session_boundary"`, `"pipeline_complete"`, `"pipeline_held"`, `"break_glass"`, `"oracle_select_test_project"` **(Bug S3-74)**.
 - Two-branch routing invariant: for every sub-stage in the exhaustive list (Section 3.6), checks `last_status.txt` to distinguish "agent not done" from "agent done".
 - Route-level state persistence invariant: calls `save_state()` before any recursive `route()` call.
 - Orchestrator Pipeline Fidelity: emits exactly one action block per call.

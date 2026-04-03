@@ -287,6 +287,7 @@ The routing script emits action blocks with specific action types. The orchestra
 - **`advance_stage`**: The routing script has determined a stage transition. Execute the POST command to update state.
 - **`break_glass`**: Enter break-glass mode (see Section 11 above).
 - **`pipeline_complete`**: The pipeline has finished. Present the completion summary to the human.
+- **`oracle_select_test_project`**: Present the test project list to the human exactly as described in the `reminder` field. **Do NOT scan directories.** The F-mode entry ("SVP Pipeline") is hardcoded and always present — it is not discovered from any `docs/` directory. E-mode entries are discovered by reading `oracle_manifest.json` from each `examples/` subdirectory. Present the list and wait for the human to select a number.
 
 ---
 
