@@ -792,17 +792,21 @@ def _route_oracle(
             return _make_action_block(
                 action_type="oracle_select_test_project",
                 reminder=(
-                    "Present the test project list to the human. Format:\n"
+                    "Present this EXACT test project list to the human.\n"
+                    "Item 1 is ALWAYS present — it is hardcoded, not discovered from any directory.\n"
+                    "Items 2+ are discovered from examples/ subdirectories.\n"
+                    "\n"
+                    "Available test projects for /svp:oracle:\n"
                     "\n"
                     "  F-mode (Machinery Testing):\n"
-                    "  1. SVP Pipeline (docs/) — rebuilds the SVP project itself\n"
+                    "  1. SVP Pipeline — rebuilds the SVP project itself [F-mode]\n"
                     "\n"
-                    "  E-mode (Product Testing) — one entry per examples/ subdirectory:\n"
-                    "  2. <name from oracle_manifest.json> (examples/<dir>/)\n"
-                    "  ...\n"
+                    "  E-mode (Product Testing):\n"
+                    "  2. <name from oracle_manifest.json> (examples/<dir>/) [E-mode]\n"
+                    "  ... (one entry per examples/ subdirectory)\n"
                     "\n"
-                    "docs/ is ONE project ('SVP Pipeline'), not individual files. "
-                    "Read oracle_manifest.json from each examples/ subdirectory for the project name."
+                    "Do NOT scan docs/ for F-mode projects. "
+                    "The SVP Pipeline entry is always present regardless of directory structure."
                 ),
             )
         if last_status.startswith("ORACLE_DRY_RUN_COMPLETE"):
