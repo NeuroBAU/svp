@@ -476,3 +476,9 @@
 - **Bug:** S3-72 (`restore_project()` did not copy `sync_workspace.sh` or `examples/` to the restored workspace)
 - **Root cause:** The spec did not enumerate all workspace artifacts that must be present after restore. `sync_workspace.sh` was added post-delivery and `examples/` was only in the repo.
 - **Prevention:** P7 applies: when adding new workspace artifacts (scripts, directories), verify they are included in all workspace creation paths (`create_new_project`, `restore_project`).
+
+### Lesson: Oracle F-mode Entry Treated as Discoverable Instead of Hardcoded (Bug S3-73)
+
+- **Bug:** S3-73 (routing reminder referenced "docs/" for F-mode, causing orchestrator to scan for a nonexistent directory and omit F-mode entirely)
+- **Root cause:** The reminder text contradicted the spec. Section 35.6 states the SVP Pipeline entry is hardcoded, but the reminder said "docs/ is ONE project" which led the orchestrator to look for `docs/`. When it didn't exist, F-mode was dropped.
+- **Prevention:** P7 applies: when a routing reminder describes UI behavior, it must match the spec exactly. Hardcoded entries must be explicitly marked as such, with explicit prohibitions against directory scanning.

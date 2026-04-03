@@ -4763,6 +4763,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P7 (Specification Omission). The spec did not enumerate all workspace artifacts that must be restored. **Detection:** Code audit of restore_project after adding sync_workspace.sh and examples/ to the repo.
 
+### 24.88 Oracle F-mode Entry Treated as Discoverable Instead of Hardcoded (Post-delivery — Bug S3-73, NEW IN 2.2)
+
+**Oracle F-mode hardcoded entry (NEW IN 2.2 -- Bug S3-73).** The routing script's `oracle_select_test_project` reminder referenced "docs/" as the source for F-mode projects, causing the orchestrator to scan for a `docs/` directory. When no `docs/` directory existed in the workspace, the orchestrator reported "No docs/ projects found" and omitted the F-mode option entirely. Per Section 35.6 (line 5304), the SVP Pipeline F-mode entry is **hardcoded** — it does not have an `oracle_manifest.json` and is always available regardless of directory structure. Fix: rewrite the reminder to state that item 1 is always present and hardcoded, and explicitly prohibit scanning `docs/` for F-mode projects.
+
+**Pattern:** P7 (Specification Omission). The spec stated the entry is hardcoded (Section 35.6) but the routing script's reminder text contradicted this by referencing `docs/`. **Detection:** Manual testing of `/svp:oracle`.
+
 ---
 
 ## 25. Test Data
