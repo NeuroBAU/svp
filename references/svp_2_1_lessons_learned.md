@@ -488,3 +488,9 @@
 - **Bug:** S3-74 (orchestration skill had no handler for `oracle_select_test_project`, causing the orchestrator to improvise by scanning directories instead of presenting the hardcoded list)
 - **Root cause:** The routing script introduced a new action type (`oracle_select_test_project`) but the orchestration skill's Action Type Handling section only listed six types. The orchestrator had no instructions for this type and fell back to directory scanning.
 - **Prevention pattern P20 (NEW):** Every `action_type` value that `_make_action_block()` can produce in `routing.py` must have a corresponding handler in the orchestration skill. Cross-reference all action types at delivery time.
+
+### Lesson: pipeline_held Action Type Missing From Orchestration Skill (Bug S3-75)
+
+- **Bug:** S3-75 (`pipeline_held` emitted 6 times in routing.py but orchestration skill had no handler)
+- **Root cause:** Same as S3-74 — the orchestration skill's Action Type Handling section was not exhaustive. `pipeline_held` was in the blueprint's valid action_type list but not in the skill.
+- **Prevention:** P20 applies. At delivery time, grep all `action_type=` values in routing.py and verify each has a handler in the orchestration skill.

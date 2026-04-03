@@ -296,6 +296,7 @@ The routing script emits action blocks with specific action types. The orchestra
 - **`break_glass`**: Enter break-glass mode (see Section 11 above).
 - **`pipeline_complete`**: The pipeline has finished. Present the completion summary to the human.
 - **`oracle_select_test_project`**: Present the test project list to the human exactly as described in the `reminder` field. **Do NOT scan directories.** The F-mode entry ("SVP Pipeline") is hardcoded and always present — it is not discovered from any `docs/` directory. E-mode entries are discovered by reading `oracle_manifest.json` from each `examples/` subdirectory. Present the list and wait for the human to select a number.
+- **`pipeline_held`**: The pipeline is waiting for an external condition (e.g., oracle session active, debug session active). Present the `reminder` text to the human. No gate response is required — this is informational. Write `PIPELINE_HELD` to `.svp/last_status.txt`, then run the POST command if present and re-run the routing script.
 
 ---
 

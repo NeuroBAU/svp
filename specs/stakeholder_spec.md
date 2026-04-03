@@ -4775,6 +4775,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P20 (NEW — Incomplete Action Type Dispatch). Prevention: Every `action_type` value that `_make_action_block()` can produce in `routing.py` must have a corresponding handler in the orchestration skill. **Detection:** Cross-reference routing script action types against orchestration skill handlers.
 
+### 24.90 pipeline_held Action Type Missing From Orchestration Skill (Post-delivery — Bug S3-75, NEW IN 2.2)
+
+**Orchestration skill pipeline_held handler (NEW IN 2.2 -- Bug S3-75).** The routing script emits `pipeline_held` in 6 locations (oracle session active, debug session active, etc.) but the orchestration skill had no handler for it. Same class of bug as S3-74 (P20). The orchestrator must present the reminder text to the human and wait — similar to `human_gate` but informational (no gate response required). Fix: add `pipeline_held` handler to the orchestration skill's Action Type Handling section.
+
+**Pattern:** P20 (Incomplete Action Type Dispatch). **Detection:** Cross-reference audit of routing.py action types vs orchestration skill handlers.
+
 ---
 
 ## 25. Test Data
