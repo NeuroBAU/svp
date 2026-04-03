@@ -4,8 +4,6 @@ Provides the complete markdown agent definition for the blueprint checker agent,
 including baked checklist items, terminal statuses, and alignment validation rules.
 """
 
-
-
 BLUEPRINT_CHECKER_DEFINITION: str = """\
 # Blueprint Checker Agent
 

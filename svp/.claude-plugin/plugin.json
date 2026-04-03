@@ -1,0 +1,9 @@
+{
+  "name": "svp",
+  "description": "Stratified Verification Pipeline",
+  "version": "2.2.0",
+  "author": {
+    "name": "Carlo Fusco and Leonardo Restivo",
+    "email": "carlo.fusco@unil.ch"
+  }
+}

@@ -2,11 +2,11 @@
 
 Synthetic data assumptions:
 - ORCHESTRATION_SKILL is a str containing the complete SKILL.md markdown content
-  for the svp-orchestration skill. All structural tests inspect this string for
+  for the svp:orchestration skill. All structural tests inspect this string for
   keywords, phrases, and patterns specified in the behavioral contracts.
 - The content begins with YAML frontmatter delimited by '---' lines, containing
   fields: name, description, argument-hint, allowed-tools, model, effort, context.
-- The frontmatter field 'name' must have value "svp-orchestration".
+- The frontmatter field 'name' must have value "svp:orchestration".
 - The body contains markdown sections describing the six-step mechanical action
   cycle, REMINDER block template, three-layer model, language context flow,
   per-stage orchestrator oversight checklists, pipeline fidelity invariant,
@@ -119,9 +119,9 @@ class TestFrontmatterStructure:
         )
 
     def test_frontmatter_name_value_is_svp_orchestration(self):
-        """Frontmatter name must be 'svp-orchestration'."""
+        """Frontmatter name must be 'svp:orchestration'."""
         fm = extract_frontmatter()
-        assert "svp-orchestration" in fm, "Frontmatter name must be 'svp-orchestration'"
+        assert "svp:orchestration" in fm, "Frontmatter name must be 'svp:orchestration'"
 
     def test_frontmatter_contains_description_field(self):
         """Frontmatter must contain a 'description' field."""

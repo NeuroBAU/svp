@@ -595,18 +595,29 @@ class TestLaunchSession:
 
     @patch("subprocess.run")
     def test_launch_session_includes_prompt_arg(self, mock_run, tmp_path):
-        """Should include --prompt 'run the routing script'."""
+        """Should include 'run the routing script' as positional argument."""
         mock_run.return_value = MagicMock(returncode=0)
         launch_session(tmp_path)
         call_args = mock_run.call_args
         cmd = call_args.args[0] if call_args.args else call_args.kwargs.get("args", [])
-        cmd_str = (
-            " ".join(str(c) for c in cmd)
-            if isinstance(cmd, (list, tuple))
-            else str(cmd)
+        cmd_list = list(cmd) if isinstance(cmd, (list, tuple)) else cmd.split()
+        assert "run the routing script" in cmd_list
+        assert "routing" in " ".join(str(c) for c in cmd_list).lower()
+
+    @patch("subprocess.run")
+    def test_launch_session_prompt_is_positional_not_flag(self, mock_run, tmp_path):
+        """Bug S3-68: prompt must be positional, --prompt flag does not exist."""
+        mock_run.return_value = MagicMock(returncode=0)
+        launch_session(tmp_path)
+        call_args = mock_run.call_args
+        cmd = call_args.args[0] if call_args.args else call_args.kwargs.get("args", [])
+        cmd_list = list(cmd) if isinstance(cmd, (list, tuple)) else cmd.split()
+        assert "--prompt" not in cmd_list, (
+            "Bug S3-68: claude CLI has no --prompt flag; prompt must be positional"
         )
-        assert "prompt" in cmd_str
-        assert "routing" in cmd_str.lower()
+        assert cmd_list[-1] == "run the routing script", (
+            "Prompt should be the last (positional) argument"
+        )
 
     @patch("subprocess.run")
     def test_launch_session_with_plugin_path_sets_env(self, mock_run, tmp_path):

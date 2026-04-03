@@ -222,7 +222,8 @@ def sync_debug_docs(project_root: Path) -> None:
 
 
 if __name__ == "__main__":
-    import sys
-
-    project_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
-    print(cmd_save(project_root))
+    import argparse
+    parser = argparse.ArgumentParser(description="SVP Save Command")
+    parser.add_argument("--project-root", type=str, default=".")
+    args = parser.parse_args()
+    print(cmd_save(Path(args.project_root).resolve()))

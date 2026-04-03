@@ -33,8 +33,8 @@ VALID_SUB_STAGES: Dict[str, Set[Optional[str]]] = {
         "coverage_review",
         "unit_completion",
     },
-    "4": {None, "regression_adaptation"},
-    "5": {None, "repo_test", "compliance_scan", "repo_complete"},
+    "4": {None, "regression_adaptation", "gate_4_1", "gate_4_1a", "gate_4_2"},
+    "5": {None, "repo_test", "compliance_scan", "repo_complete", "gate_5_2", "gate_5_3"},
 }
 
 VALID_FIX_LADDER_POSITIONS: List[Optional[str]] = [
@@ -52,6 +52,7 @@ VALID_DEBUG_PHASES: Set[str] = {
     "lessons_learned",
     "reassembly",
     "stage3_reentry",
+    "stage3_rebuild_active",
     "commit",
 }
 
@@ -95,6 +96,7 @@ class PipelineState:
     oracle_phase: Optional[str] = None
     oracle_run_count: int = 0
     oracle_nested_session_path: Optional[str] = None
+    oracle_modification_count: int = 0
     state_hash: Optional[str] = None
     spec_revision_count: int = 0
     pass_: Optional[int] = None  # serialized as "pass" in JSON
@@ -115,6 +117,7 @@ _SVP22_FIELD_DEFAULTS: Dict[str, Any] = {
     "oracle_phase": None,
     "oracle_run_count": 0,
     "oracle_nested_session_path": None,
+    "oracle_modification_count": 0,
     "state_hash": None,
     "spec_revision_count": 0,
     "pass": None,
@@ -171,6 +174,7 @@ def load_state(project_root: Path) -> PipelineState:
         oracle_phase=data.get("oracle_phase", None),
         oracle_run_count=data.get("oracle_run_count", 0),
         oracle_nested_session_path=data.get("oracle_nested_session_path", None),
+        oracle_modification_count=data.get("oracle_modification_count", 0),
         state_hash=data.get("state_hash", None),
         spec_revision_count=data.get("spec_revision_count", 0),
         pass_=pass_val,
@@ -199,8 +203,13 @@ def _state_to_json_dict(state: PipelineState) -> Dict[str, Any]:
 
 
 def save_state(project_root: Path, state: PipelineState) -> None:
-    """Validate and persist *state* as formatted JSON, computing state_hash."""
-    # Validate current_unit/sub_stage co-invariant
+    """Validate and persist *state* as formatted JSON, computing state_hash.
+
+    The state_hash is the SHA-256 hex digest of the *previous* file on disk
+    (before the current write). If no prior file exists, state_hash is None.
+    This avoids self-referential hashing (Bug S3-1, S3-5 clarification).
+    """
+    # Validate current_unit/sub_stage co-invariant BEFORE any file I/O
     if state.current_unit is not None and state.sub_stage is None:
         raise ValueError(
             "current_unit is set but sub_stage is None; "
@@ -209,21 +218,21 @@ def save_state(project_root: Path, state: PipelineState) -> None:
 
     state_path = project_root / ARTIFACT_FILENAMES["pipeline_state"]
 
-    # Convert to JSON dict
-    data = _state_to_json_dict(state)
+    # Compute state_hash from the previous file's raw bytes (if it exists)
+    if state_path.exists():
+        previous_bytes = state_path.read_bytes()
+        hash_hex = hashlib.sha256(previous_bytes).hexdigest()
+    else:
+        hash_hex = None
 
-    # Write state as formatted JSON (first write includes current state_hash)
-    json_text = json.dumps(data, indent=2)
-    state_path.write_text(json_text, encoding="utf-8")
-
-    # Read file bytes back and compute SHA-256 hex digest
-    file_bytes = state_path.read_bytes()
-    hash_hex = hashlib.sha256(file_bytes).hexdigest()
-
-    # Store in state.state_hash
+    # Store the computed hash in the state object
     state.state_hash = hash_hex
 
-    # Re-write file with updated state_hash
-    data["state_hash"] = hash_hex
+    # Convert to JSON dict and write
+    data = _state_to_json_dict(state)
+
+    # Ensure parent directory exists
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+
     json_text = json.dumps(data, indent=2)
     state_path.write_text(json_text, encoding="utf-8")

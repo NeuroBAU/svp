@@ -7,7 +7,6 @@ aggregate result.
 """
 
 import argparse
-import json
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Dict, List
@@ -20,6 +19,11 @@ from toolchain_reader import get_gate_composition, load_toolchain, resolve_comma
 # ---------------------------------------------------------------------------
 
 
+def _tool_is_none(command_template: str) -> bool:
+    """Check if a tool command is 'none', meaning it should be skipped."""
+    return command_template.strip().lower() == "none"
+
+
 def _get_env_name(toolchain_config: Dict[str, Any]) -> str:
     """Extract env_name from toolchain config, falling back to empty string."""
     return toolchain_config.get("env_name", "")
@@ -29,26 +33,6 @@ def _get_run_prefix(toolchain_config: Dict[str, Any]) -> str:
     """Extract run_prefix template from toolchain environment section."""
     env = toolchain_config.get("environment", {})
     return env.get("run_prefix", "")
-
-
-def _tool_is_none(toolchain_config: Dict[str, Any], operation: str) -> bool:
-    """Check if the tool for a given operation is configured as 'none'.
-
-    operation is like "quality.formatter.check" -- we strip the "quality."
-    prefix and check the tool key of the first segment.
-    """
-    quality = toolchain_config.get("quality", {})
-    # Strip "quality." prefix
-    op = operation
-    if op.startswith("quality."):
-        op = op[len("quality.") :]
-    # Get tool category (e.g., "formatter", "linter", "type_checker")
-    parts = op.split(".", 1)
-    tool_key = parts[0]
-    tool_config = quality.get(tool_key, {})
-    if isinstance(tool_config, dict):
-        return tool_config.get("tool", "") == "none"
-    return False
 
 
 def _run_command(cmd: str) -> subprocess.CompletedProcess:
@@ -67,6 +51,7 @@ def _execute_gate_operations(
     toolchain_config: Dict[str, Any],
     env_name: str,
     allow_auto_fix: bool = True,
+    pass_fail_only: bool = False,
 ) -> QualityResult:
     """Core logic shared by most runners: get composition, resolve, execute.
 
@@ -82,6 +67,8 @@ def _execute_gate_operations(
         Environment name for command resolution.
     allow_auto_fix : bool
         Whether auto-fix is possible for this language type.
+    pass_fail_only : bool
+        If True, only QUALITY_CLEAN or QUALITY_ERROR are valid statuses.
 
     Returns
     -------
@@ -100,37 +87,60 @@ def _execute_gate_operations(
         command_template = op.get("command", "")
 
         # Skip operations whose tool is "none"
-        if _tool_is_none(toolchain_config, operation_name):
+        if _tool_is_none(command_template):
             continue
 
-        # Resolve command using positional args
+        # Resolve command
         cmd = resolve_command(command_template, env_name, run_prefix, str(target_path))
 
-        # Execute
-        result = _run_command(cmd)
-        output = result.stdout + result.stderr
-        all_outputs.append(f"[{operation_name}]\n{output}")
+        # Capture file content before execution for auto-fix detection
+        content_before = None
+        if target_path.is_file() and allow_auto_fix:
+            try:
+                content_before = target_path.read_bytes()
+            except OSError:
+                pass
 
-        if result.returncode != 0:
-            # Non-zero return code means issues found
-            residuals.append(f"{operation_name}: {output.strip()}")
+        # Execute
+        try:
+            result = _run_command(cmd)
+            output = result.stdout + result.stderr
+            all_outputs.append(f"[{operation_name}]\n{output}")
+
+            # Detect auto-fix: file was modified by the tool
+            if content_before is not None and target_path.is_file():
+                try:
+                    content_after = target_path.read_bytes()
+                    if content_after != content_before:
+                        auto_fixed = True
+                except OSError:
+                    pass
+
+            if result.returncode != 0:
+                if pass_fail_only:
+                    had_error = True
+                else:
+                    residuals.append(f"{operation_name}: {output.strip()}")
+        except Exception as exc:
+            had_error = True
+            all_outputs.append(f"[{operation_name}]\nError: {exc}")
 
     report = "\n".join(all_outputs)
 
     # Classify result
     if had_error:
         status = "QUALITY_ERROR"
-    elif not residuals:
-        status = "QUALITY_CLEAN"
     elif auto_fixed and allow_auto_fix:
         status = "QUALITY_AUTO_FIXED"
+    elif not residuals:
+        status = "QUALITY_CLEAN"
     else:
         status = "QUALITY_RESIDUAL"
 
     return QualityResult(
         status=status,
-        auto_fixed=auto_fixed,
-        residuals=residuals,
+        auto_fixed=auto_fixed if not pass_fail_only else False,
+        residuals=residuals if not pass_fail_only else [],
         report=report,
     )
 
@@ -174,50 +184,13 @@ def _run_stan_syntax_check(
 ) -> QualityResult:
     """Stan syntax check: compiler validation. Pass/fail only, auto_fixed always False."""
     env_name = _get_env_name(toolchain_config)
-    run_prefix = _get_run_prefix(toolchain_config)
-
-    try:
-        operations = get_gate_composition(toolchain_config, gate_id)
-    except KeyError:
-        # No gate composition for Stan -- return clean
-        return QualityResult(
-            status="QUALITY_CLEAN",
-            auto_fixed=False,
-            residuals=[],
-            report="No gate composition found for Stan.",
-        )
-
-    all_outputs: List[str] = []
-    residuals: List[str] = []
-
-    for op in operations:
-        operation_name = op.get("operation", "")
-        command_template = op.get("command", "")
-
-        if _tool_is_none(toolchain_config, operation_name):
-            continue
-
-        cmd = resolve_command(command_template, env_name, run_prefix, str(target_path))
-
-        result = _run_command(cmd)
-        output = result.stdout + result.stderr
-        all_outputs.append(f"[{operation_name}]\n{output}")
-
-        if result.returncode != 0:
-            residuals.append(f"{operation_name}: {output.strip()}")
-
-    report = "\n".join(all_outputs)
-
-    if residuals:
-        status = "QUALITY_RESIDUAL"
-    else:
-        status = "QUALITY_CLEAN"
-
-    return QualityResult(
-        status=status,
-        auto_fixed=False,
-        residuals=residuals,
-        report=report,
+    return _execute_gate_operations(
+        target_path,
+        gate_id,
+        toolchain_config,
+        env_name,
+        allow_auto_fix=False,
+        pass_fail_only=True,
     )
 
 
@@ -229,52 +202,8 @@ def _run_plugin_markdown(
 ) -> QualityResult:
     """Markdown format check with auto-fix support."""
     env_name = _get_env_name(toolchain_config)
-
-    try:
-        operations = get_gate_composition(toolchain_config, gate_id)
-    except KeyError:
-        return QualityResult(
-            status="QUALITY_CLEAN",
-            auto_fixed=False,
-            residuals=[],
-            report="No gate composition found for markdown.",
-        )
-
-    run_prefix = _get_run_prefix(toolchain_config)
-    all_outputs: List[str] = []
-    residuals: List[str] = []
-    auto_fixed = False
-
-    for op in operations:
-        operation_name = op.get("operation", "")
-        command_template = op.get("command", "")
-
-        if _tool_is_none(toolchain_config, operation_name):
-            continue
-
-        cmd = resolve_command(command_template, env_name, run_prefix, str(target_path))
-
-        result = _run_command(cmd)
-        output = result.stdout + result.stderr
-        all_outputs.append(f"[{operation_name}]\n{output}")
-
-        if result.returncode != 0:
-            residuals.append(f"{operation_name}: {output.strip()}")
-
-    report = "\n".join(all_outputs)
-
-    if not residuals:
-        status = "QUALITY_CLEAN"
-    elif auto_fixed:
-        status = "QUALITY_AUTO_FIXED"
-    else:
-        status = "QUALITY_RESIDUAL"
-
-    return QualityResult(
-        status=status,
-        auto_fixed=auto_fixed,
-        residuals=residuals,
-        report=report,
+    return _execute_gate_operations(
+        target_path, gate_id, toolchain_config, env_name, allow_auto_fix=True
     )
 
 
@@ -286,60 +215,13 @@ def _run_plugin_bash(
 ) -> QualityResult:
     """Bash syntax validation via bash -n. Pass/fail only, auto_fixed always False."""
     env_name = _get_env_name(toolchain_config)
-
-    try:
-        operations = get_gate_composition(toolchain_config, gate_id)
-    except KeyError:
-        # Fallback: run bash -n directly
-        cmd = f"bash -n {target_path}"
-        result = _run_command(cmd)
-        output = result.stdout + result.stderr
-        if result.returncode != 0:
-            return QualityResult(
-                status="QUALITY_RESIDUAL",
-                auto_fixed=False,
-                residuals=[output.strip()],
-                report=output,
-            )
-        return QualityResult(
-            status="QUALITY_CLEAN",
-            auto_fixed=False,
-            residuals=[],
-            report=output,
-        )
-
-    run_prefix = _get_run_prefix(toolchain_config)
-    all_outputs: List[str] = []
-    residuals: List[str] = []
-
-    for op in operations:
-        operation_name = op.get("operation", "")
-        command_template = op.get("command", "")
-
-        if _tool_is_none(toolchain_config, operation_name):
-            continue
-
-        cmd = resolve_command(command_template, env_name, run_prefix, str(target_path))
-
-        result = _run_command(cmd)
-        output = result.stdout + result.stderr
-        all_outputs.append(f"[{operation_name}]\n{output}")
-
-        if result.returncode != 0:
-            residuals.append(f"{operation_name}: {output.strip()}")
-
-    report = "\n".join(all_outputs)
-
-    if residuals:
-        status = "QUALITY_RESIDUAL"
-    else:
-        status = "QUALITY_CLEAN"
-
-    return QualityResult(
-        status=status,
-        auto_fixed=False,
-        residuals=residuals,
-        report=report,
+    return _execute_gate_operations(
+        target_path,
+        gate_id,
+        toolchain_config,
+        env_name,
+        allow_auto_fix=False,
+        pass_fail_only=True,
     )
 
 
@@ -349,74 +231,10 @@ def _run_plugin_json(
     language_config: Dict[str, Any],
     toolchain_config: Dict[str, Any],
 ) -> QualityResult:
-    """JSON validation and formatting check with auto-fix (pretty-print normalization)."""
+    """JSON validation and formatting check with auto-fix support (pretty-print normalization)."""
     env_name = _get_env_name(toolchain_config)
-
-    try:
-        operations = get_gate_composition(toolchain_config, gate_id)
-    except KeyError:
-        # Fallback: validate JSON directly
-        try:
-            content = target_path.read_text(encoding="utf-8")
-            parsed = json.loads(content)
-            normalized = json.dumps(parsed, indent=2) + "\n"
-            if content != normalized:
-                target_path.write_text(normalized, encoding="utf-8")
-                return QualityResult(
-                    status="QUALITY_AUTO_FIXED",
-                    auto_fixed=True,
-                    residuals=[],
-                    report="JSON reformatted to standard pretty-print.",
-                )
-            return QualityResult(
-                status="QUALITY_CLEAN",
-                auto_fixed=False,
-                residuals=[],
-                report="JSON is valid and properly formatted.",
-            )
-        except (json.JSONDecodeError, OSError) as exc:
-            return QualityResult(
-                status="QUALITY_RESIDUAL",
-                auto_fixed=False,
-                residuals=[str(exc)],
-                report=f"JSON validation failed: {exc}",
-            )
-
-    run_prefix = _get_run_prefix(toolchain_config)
-    all_outputs: List[str] = []
-    residuals: List[str] = []
-    auto_fixed = False
-
-    for op in operations:
-        operation_name = op.get("operation", "")
-        command_template = op.get("command", "")
-
-        if _tool_is_none(toolchain_config, operation_name):
-            continue
-
-        cmd = resolve_command(command_template, env_name, run_prefix, str(target_path))
-
-        result = _run_command(cmd)
-        output = result.stdout + result.stderr
-        all_outputs.append(f"[{operation_name}]\n{output}")
-
-        if result.returncode != 0:
-            residuals.append(f"{operation_name}: {output.strip()}")
-
-    report = "\n".join(all_outputs)
-
-    if not residuals:
-        status = "QUALITY_CLEAN"
-    elif auto_fixed:
-        status = "QUALITY_AUTO_FIXED"
-    else:
-        status = "QUALITY_RESIDUAL"
-
-    return QualityResult(
-        status=status,
-        auto_fixed=auto_fixed,
-        residuals=residuals,
-        report=report,
+    return _execute_gate_operations(
+        target_path, gate_id, toolchain_config, env_name, allow_auto_fix=True
     )
 
 
@@ -450,8 +268,9 @@ def run_quality_gate(
 ) -> QualityResult:
     """Dispatch quality-gate execution through QUALITY_RUNNERS.
 
-    Looks up the ``quality_runner_key`` from *language_config*, finds the
-    corresponding runner in ``QUALITY_RUNNERS``, and delegates execution.
+    Looks up the ``quality_runner_key`` from *language_config*, falling back
+    to the *language* parameter itself.  Finds the corresponding runner in
+    ``QUALITY_RUNNERS`` and delegates execution.
 
     Parameters
     ----------
@@ -545,7 +364,7 @@ def run_quality_gate_main(argv: list = None) -> None:
     target_path = Path(args.target)
 
     # Load language config
-    language_config = get_language_config(args.language)
+    lang_config = get_language_config(args.language)
 
     # Load toolchain (pipeline or language-specific)
     toolchain_config = _load_toolchain_for_cli(project_root, args.language)
@@ -561,9 +380,9 @@ def run_quality_gate_main(argv: list = None) -> None:
     # Inject env_name into toolchain_config so runners can access it
     toolchain_config["env_name"] = env_name
 
-    # Run the quality gate (positional args for mockability)
+    # Run the quality gate
     result = run_quality_gate(
-        target_path, args.gate, args.language, language_config, toolchain_config
+        target_path, args.gate, args.language, lang_config, toolchain_config
     )
 
     # Print status to stdout

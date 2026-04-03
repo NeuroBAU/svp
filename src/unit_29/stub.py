@@ -10,6 +10,13 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
+# Ensure sibling scripts are importable when running as pip entry point.
+# When invoked via `svp` CLI, Python resolves this file as svp.scripts.svp_launcher
+# but bare imports like `from language_registry import ...` need svp/scripts on sys.path.
+_scripts_dir = str(Path(__file__).resolve().parent)
+if _scripts_dir not in sys.path:
+    sys.path.insert(0, _scripts_dir)
+
 from src.unit_2.stub import LANGUAGE_REGISTRY
 
 # ---------------------------------------------------------------------------
@@ -95,7 +102,21 @@ def parse_args(argv: list = None) -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 
-def preflight_check(project_root: Optional[Path] = None) -> List[str]:
+def _check(label: str, passed: bool, detail: str = "", verbose: bool = True) -> Optional[str]:
+    """Print a preflight check result and return error string if failed."""
+    if passed:
+        if verbose:
+            print(f"  \u2713 {label}")
+        return None
+    msg = f"{label}: {detail}" if detail else label
+    if verbose:
+        print(f"  \u2717 {label} -- {detail}")
+    return msg
+
+
+def preflight_check(
+    project_root: Optional[Path] = None, verbose: bool = True,
+) -> List[str]:
     """Validate that required tools and runtimes are available.
 
     Checks in order:
@@ -108,45 +129,72 @@ def preflight_check(project_root: Optional[Path] = None) -> List[str]:
       7. git installed
       8. Language runtime checks from LANGUAGE_REGISTRY
 
+    When verbose=True, prints each check result to stdout.
     Returns a list of error messages (empty if all pass).
     """
+    if verbose:
+        print("\nSVP 2.2 -- Preflight checks\n")
+
     errors: List[str] = []
 
     # 1. Claude Code installed
-    if shutil.which("claude") is None:
-        errors.append("Claude Code is not installed or not on PATH")
+    claude_ok = shutil.which("claude") is not None
+    err = _check("Claude Code installed", claude_ok,
+                 "not installed or not on PATH", verbose)
+    if err:
+        errors.append(err)
 
     # 2. SVP plugin loaded
+    plugin_ok = True
     try:
         _find_plugin_root()
     except FileNotFoundError:
-        errors.append("SVP plugin not found in any standard location")
+        plugin_ok = False
+    err = _check("SVP plugin loaded", plugin_ok,
+                 "not found in any standard location", verbose)
+    if err:
+        errors.append(err)
 
-    # 3. API credentials valid
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        # Check if claude is configured (best-effort)
-        pass  # Advisory: no easy way to check without calling API
+    # 3. API credentials valid (advisory only)
+    has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    if verbose:
+        if has_key:
+            print("  \u2713 API credentials (ANTHROPIC_API_KEY set)")
+        else:
+            print("  - API credentials (relying on Claude Code auth)")
 
     # 4. conda installed
-    if shutil.which("conda") is None:
-        errors.append("conda is not installed or not on PATH")
+    conda_ok = shutil.which("conda") is not None
+    err = _check("conda installed", conda_ok,
+                 "not installed or not on PATH", verbose)
+    if err:
+        errors.append(err)
 
     # 5. Python >= 3.11
-    if sys.version_info < (3, 11):
-        errors.append(
-            f"Python >= 3.11 required, found "
-            f"{sys.version_info.major}.{sys.version_info.minor}"
-        )
+    py_ok = sys.version_info >= (3, 11)
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+    err = _check(f"Python >= 3.11 (found {py_ver})", py_ok,
+                 f"found {py_ver}", verbose)
+    if err:
+        errors.append(err)
 
     # 6. pytest importable
+    pytest_ok = True
     try:
         import pytest  # noqa: F401
     except ImportError:
-        errors.append("pytest is not importable")
+        pytest_ok = False
+    err = _check("pytest importable", pytest_ok,
+                 "not importable", verbose)
+    if err:
+        errors.append(err)
 
     # 7. git installed
-    if shutil.which("git") is None:
-        errors.append("git is not installed or not on PATH")
+    git_ok = shutil.which("git") is not None
+    err = _check("git installed", git_ok,
+                 "not installed or not on PATH", verbose)
+    if err:
+        errors.append(err)
 
     # 8. Language runtime pre-flight from LANGUAGE_REGISTRY
     for lang_key, entry in LANGUAGE_REGISTRY.items():
@@ -154,6 +202,7 @@ def preflight_check(project_root: Optional[Path] = None) -> List[str]:
             continue
         version_cmd = entry.get("version_check_command")
         if version_cmd:
+            lang_ok = True
             try:
                 subprocess.run(
                     version_cmd.split(),
@@ -161,10 +210,15 @@ def preflight_check(project_root: Optional[Path] = None) -> List[str]:
                     timeout=10,
                 )
             except (subprocess.TimeoutExpired, FileNotFoundError):
-                errors.append(
-                    f"{entry.get('display_name', lang_key)} runtime check failed: "
-                    f"'{version_cmd}' not available"
-                )
+                lang_ok = False
+            display = entry.get("display_name", lang_key)
+            err = _check(f"{display} runtime", lang_ok,
+                         f"'{version_cmd}' not available", verbose)
+            if err:
+                errors.append(err)
+
+    if verbose:
+        print()  # blank line after checks
 
     return errors
 
@@ -304,9 +358,10 @@ def create_new_project(
         _rewrite_hook_paths(hooks_dst, plugin_root, project_root)
 
     # Create initial pipeline_state.json
+    # Bug S3-38: sub_stage must start as "hook_activation", not None
     initial_state = {
         "stage": "0",
-        "sub_stage": None,
+        "sub_stage": "hook_activation",
         "current_unit": None,
         "total_units": 0,
         "verified_units": [],
@@ -442,6 +497,14 @@ def restore_project(
     # Copy profile
     _copy_artifact(profile_path, project_root / "project_profile.json")
 
+    # Bug S3-43: copy references directory from source workspace if present
+    source_workspace = blueprint_dir.parent
+    src_refs = source_workspace / "references"
+    if src_refs.is_dir():
+        dst_refs = project_root / "references"
+        if not dst_refs.exists():
+            shutil.copytree(str(src_refs), str(dst_refs))
+
     # Create initial pipeline state
     initial_state = {
         "stage": "0",
@@ -507,7 +570,7 @@ def launch_session(
 
     - Uses subprocess.run with cwd=project_root
     - Arguments: optional --dangerously-skip-permissions,
-      --prompt "run the routing script"
+      positional prompt "run the routing script" (Bug S3-68)
     - Environment: SVP_PLUGIN_ACTIVE=1. If plugin_path: SVP_PLUGIN_ROOT=<path>
     - Restart loop: after exit, checks .svp/restart_signal.
       If present, removes signal and relaunches.
@@ -516,7 +579,7 @@ def launch_session(
     cmd = ["claude"]
     if skip_permissions:
         cmd.append("--dangerously-skip-permissions")
-    cmd.extend(["--prompt", "run the routing script"])
+    cmd.append("run the routing script")
 
     env = os.environ.copy()
     env["SVP_PLUGIN_ACTIVE"] = "1"
@@ -546,11 +609,13 @@ def main(argv: list = None) -> None:
     args = parse_args(argv)
 
     # Run preflight checks
-    errors = preflight_check()
+    errors = preflight_check(verbose=True)
     if errors:
-        for err in errors:
-            print(f"Pre-flight error: {err}", file=sys.stderr)
+        print(f"{len(errors)} pre-flight error(s). Cannot continue.",
+              file=sys.stderr)
         sys.exit(1)
+
+    print(f"Launching SVP session ({args.command})...\n")
 
     if args.command == "new":
         plugin_root = _find_plugin_root()

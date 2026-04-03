@@ -33,8 +33,8 @@ VALID_SUB_STAGES: Dict[str, Set[Optional[str]]] = {
         "coverage_review",
         "unit_completion",
     },
-    "4": {None, "regression_adaptation"},
-    "5": {None, "repo_test", "compliance_scan", "repo_complete"},
+    "4": {None, "regression_adaptation", "gate_4_1", "gate_4_1a", "gate_4_2"},
+    "5": {None, "repo_test", "compliance_scan", "repo_complete", "gate_5_2", "gate_5_3"},
 }
 
 VALID_FIX_LADDER_POSITIONS: List[Optional[str]] = [
@@ -52,6 +52,7 @@ VALID_DEBUG_PHASES: Set[str] = {
     "lessons_learned",
     "reassembly",
     "stage3_reentry",
+    "stage3_rebuild_active",
     "commit",
 }
 
@@ -95,6 +96,7 @@ class PipelineState:
     oracle_phase: Optional[str] = None
     oracle_run_count: int = 0
     oracle_nested_session_path: Optional[str] = None
+    oracle_modification_count: int = 0
     state_hash: Optional[str] = None
     spec_revision_count: int = 0
     pass_: Optional[int] = None  # serialized as "pass" in JSON
@@ -115,6 +117,7 @@ _SVP22_FIELD_DEFAULTS: Dict[str, Any] = {
     "oracle_phase": None,
     "oracle_run_count": 0,
     "oracle_nested_session_path": None,
+    "oracle_modification_count": 0,
     "state_hash": None,
     "spec_revision_count": 0,
     "pass": None,
@@ -171,6 +174,7 @@ def load_state(project_root: Path) -> PipelineState:
         oracle_phase=data.get("oracle_phase", None),
         oracle_run_count=data.get("oracle_run_count", 0),
         oracle_nested_session_path=data.get("oracle_nested_session_path", None),
+        oracle_modification_count=data.get("oracle_modification_count", 0),
         state_hash=data.get("state_hash", None),
         spec_revision_count=data.get("spec_revision_count", 0),
         pass_=pass_val,

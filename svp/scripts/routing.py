@@ -14,18 +14,32 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+_scripts_dir = str(Path(__file__).resolve().parent)
+if _scripts_dir not in sys.path:
+    sys.path.insert(0, _scripts_dir)
+
+from svp_config import (
+    ARTIFACT_FILENAMES,
+    DEFAULT_CONFIG,
+    derive_env_name,
+    load_config,
+)
 from language_registry import LANGUAGE_REGISTRY, RunResult
+from toolchain_reader import load_toolchain, resolve_command
 from pipeline_state import PipelineState, load_state, save_state
 from state_transitions import (
+    abandon_debug_session,
+    abandon_oracle_session,
     advance_fix_ladder,
     advance_stage,
     advance_sub_stage,
     authorize_debug_session,
-    abandon_debug_session,
     complete_debug_session,
+    complete_oracle_session,
     complete_redo_profile_revision,
     complete_unit,
     enter_debug_session,
+    enter_oracle_session,
     enter_pass_2,
     enter_redo_profile_revision,
     increment_alignment_iteration,
@@ -35,13 +49,6 @@ from state_transitions import (
     set_debug_classification,
     update_debug_phase,
 )
-from svp_config import (
-    ARTIFACT_FILENAMES,
-    DEFAULT_CONFIG,
-    derive_env_name,
-    load_config,
-)
-from toolchain_reader import load_toolchain, resolve_command
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -159,16 +166,20 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
     "test_agent": [
         "TEST_GENERATION_COMPLETE",
         "REGRESSION_TEST_COMPLETE",
+        "HINT_BLUEPRINT_CONFLICT",
     ],
     "implementation_agent": [
         "IMPLEMENTATION_COMPLETE",
+        "HINT_BLUEPRINT_CONFLICT",
     ],
     "coverage_review_agent": [
         "COVERAGE_COMPLETE: no gaps",
         "COVERAGE_COMPLETE: tests added",
+        "HINT_BLUEPRINT_CONFLICT",
     ],
     "diagnostic_agent": [
         "DIAGNOSIS_COMPLETE",
+        "HINT_BLUEPRINT_CONFLICT",
     ],
     "integration_test_author": [
         "INTEGRATION_TESTS_COMPLETE",
@@ -480,9 +491,7 @@ def _parse_json_validation_output(
         )
 
 
-TEST_OUTPUT_PARSERS: Dict[
-    str, Callable[[str, str, int, Dict[str, Any]], RunResult]
-] = {
+TEST_OUTPUT_PARSERS: Dict[str, Callable[[str, str, int, Dict[str, Any]], RunResult]] = {
     "python": _parse_pytest_output,
     "r": _parse_testthat_output,
     "plugin_markdown": _parse_markdown_lint_output,
@@ -499,6 +508,46 @@ TEST_OUTPUT_PARSERS: Dict[
 def _copy(state: Any) -> Any:
     """Return a deep copy of state. Works with PipelineState and MagicMock."""
     return copy.deepcopy(state)
+
+
+def _bootstrap_oracle_nested_session(
+    state: Any, project_root: Path
+) -> Any:
+    """Create a nested session workspace for oracle green_run execution.
+
+    Creates workspace directory, copies project files, stores path in state.
+    """
+    import shutil
+
+    run_count = state.oracle_run_count or 1
+    workspace_name = f"oracle-session-{run_count}"
+    workspace = project_root.parent / workspace_name
+
+    # Clean up existing workspace
+    if workspace.exists():
+        shutil.rmtree(str(workspace))
+
+    workspace.mkdir(parents=True)
+
+    # Copy essential files for the nested session
+    for item in ["specs", "blueprint", ".svp"]:
+        src = project_root / item
+        if src.exists():
+            if src.is_dir():
+                shutil.copytree(str(src), str(workspace / item))
+            else:
+                shutil.copy2(str(src), str(workspace / item))
+
+    # Copy project_profile.json and svp_config.json
+    for fname in ["project_profile.json", "svp_config.json", "project_context.md"]:
+        src = project_root / fname
+        if src.is_file():
+            shutil.copy2(str(src), str(workspace / fname))
+
+    # Update state with nested session path
+    new = _copy(state)
+    new.oracle_nested_session_path = str(workspace)
+    return new
 
 
 def _read_last_status(project_root: Path) -> str:
@@ -606,6 +655,7 @@ def _load_state_from_dict(data: Dict[str, Any]) -> PipelineState:
         oracle_phase=data.get("oracle_phase", None),
         oracle_run_count=data.get("oracle_run_count", 0),
         oracle_nested_session_path=data.get("oracle_nested_session_path", None),
+        oracle_modification_count=data.get("oracle_modification_count", 0),
         state_hash=data.get("state_hash", None),
         spec_revision_count=data.get("spec_revision_count", 0),
         pass_=pass_val,
@@ -674,7 +724,11 @@ def route(project_root: Path) -> Dict[str, Any]:
     config = _load_config_safe(project_root)
     iteration_limit = config.get("iteration_limit", 3)
 
-    # Oracle routing takes priority
+    # Debug session routing takes highest priority (including oracle-initiated debug)
+    if state.debug_session is not None:
+        return _route_debug(state, project_root, last_status, iteration_limit)
+
+    # Oracle routing (resumes after debug completes since oracle_session_active persists)
     if state.oracle_session_active:
         return _route_oracle(state, project_root, last_status, iteration_limit)
 
@@ -688,10 +742,6 @@ def route(project_root: Path) -> Dict[str, Any]:
 
     stage = state.stage
     sub_stage = state.sub_stage
-
-    # Debug session routing
-    if state.debug_session is not None:
-        return _route_debug(state, project_root, last_status, iteration_limit)
 
     # Stage 0
     if stage == "0":
@@ -737,6 +787,12 @@ def _route_oracle(
     phase = state.oracle_phase
 
     if phase == "dry_run":
+        if not state.oracle_test_project:
+            # Present test project selection before proceeding
+            return _make_action_block(
+                action_type="oracle_select_test_project",
+                reminder="Select a test project for the oracle. List projects from examples/ and docs/.",
+            )
         if last_status.startswith("ORACLE_DRY_RUN_COMPLETE"):
             return _make_action_block(
                 action_type="human_gate",
@@ -750,23 +806,68 @@ def _route_oracle(
         )
 
     if phase == "gate_a":
+        mod_count = getattr(state, "oracle_modification_count", 0)
+        reminder = "Review oracle trajectory plan."
+        if mod_count >= 3:
+            reminder += (
+                f" WARNING: Modification count is {mod_count} (limit: 3)."
+                " Consider approving or aborting rather than modifying again."
+            )
         return _make_action_block(
             action_type="human_gate",
             gate_id="gate_7_a_trajectory_review",
-            reminder="Review oracle trajectory plan.",
+            reminder=reminder,
         )
 
     if phase == "green_run":
-        if last_status in ("ORACLE_FIX_APPLIED", "ORACLE_ALL_CLEAR"):
+        if not state.oracle_nested_session_path:
+            # Bootstrap nested session on first green_run entry
+            state = _bootstrap_oracle_nested_session(state, project_root)
+            save_state(project_root, state)
+
+        # Check if we just completed a fix (debug_session was active, now cleared)
+        if state.oracle_nested_session_path and last_status.startswith(
+            "REPO_ASSEMBLY_COMPLETE"
+        ):
+            # Tear down stale nested session and recreate with fixed code
+            import shutil
+
+            stale_path = Path(state.oracle_nested_session_path)
+            if stale_path.exists():
+                shutil.rmtree(str(stale_path))
+            state = _bootstrap_oracle_nested_session(state, project_root)
+            save_state(project_root, state)
+
+        if last_status == "ORACLE_ALL_CLEAR":
+            state = complete_oracle_session(state, "all_clear")
+            save_state(project_root, state)
+            return _make_action_block(
+                action_type="pipeline_complete",
+                reminder="Oracle all clear - no issues found.",
+            )
+        if last_status == "ORACLE_FIX_APPLIED":
             return _make_action_block(
                 action_type="human_gate",
                 gate_id="gate_7_b_fix_plan_review",
                 reminder="Review oracle fix plan.",
             )
         if last_status == "ORACLE_HUMAN_ABORT":
-            state.oracle_session_active = False
-            state.oracle_phase = None
+            state = abandon_oracle_session(state)
             save_state(project_root, state)
+            try:
+                from ledger_manager import append_oracle_run_entry
+
+                append_oracle_run_entry(
+                    project_root,
+                    {
+                        "run_number": state.oracle_run_count,
+                        "test_project": state.oracle_test_project,
+                        "exit_reason": "abort",
+                        "oracle_phase": phase,
+                    },
+                )
+            except (ImportError, Exception):
+                pass
             return _make_action_block(
                 action_type="pipeline_complete",
                 reminder="Oracle session aborted by human.",
@@ -785,12 +886,39 @@ def _route_oracle(
         )
 
     if phase == "exit":
-        state.oracle_session_active = False
-        state.oracle_phase = None
+        # Clean up nested session workspace (unless E-mode keeps artifacts)
+        if state.oracle_nested_session_path:
+            nested_path = Path(state.oracle_nested_session_path)
+            test_project = state.oracle_test_project or ""
+            # E-mode: keep GoL project for human inspection
+            # F-mode: clean up (SVP docs are disposable)
+            if "examples/" not in test_project and nested_path.exists():
+                import shutil
+
+                shutil.rmtree(str(nested_path))
+
+        # Record run in oracle run ledger
+        try:
+            from ledger_manager import append_oracle_run_entry
+
+            append_oracle_run_entry(
+                project_root,
+                {
+                    "run_number": state.oracle_run_count,
+                    "test_project": state.oracle_test_project,
+                    "exit_reason": "complete",
+                    "oracle_phase": "exit",
+                },
+            )
+        except (ImportError, Exception):
+            pass  # Best-effort ledger recording
+
+        # Complete oracle session via Unit 6
+        state = complete_oracle_session(state, "exit")
         save_state(project_root, state)
         return _make_action_block(
             action_type="pipeline_complete",
-            reminder="Oracle session exited.",
+            reminder="Oracle session complete. Stage 6 and Stage 7 available.",
         )
 
     return _make_action_block(
@@ -877,11 +1005,9 @@ def _route_debug(
 
     if phase == "repair":
         if last_status == "REPAIR_COMPLETE":
-            return _make_action_block(
-                action_type="invoke_agent",
-                agent_type="git_repo_agent",
-                reminder="Reassembly after repair.",
-            )
+            new_state = update_debug_phase(state, "reassembly")
+            save_state(project_root, new_state)
+            return _route_debug(new_state, project_root, "", iteration_limit)
         if last_status == "REPAIR_RECLASSIFY":
             return _make_action_block(
                 action_type="human_gate",
@@ -907,6 +1033,9 @@ def _route_debug(
             reminder="Invoke repair agent.",
         )
 
+    if phase == "stage3_rebuild_active":
+        return _route_stage_3(state, project_root, last_status, iteration_limit)
+
     if phase == "stage3_reentry":
         return _make_action_block(
             action_type="run_command",
@@ -922,6 +1051,10 @@ def _route_debug(
         )
 
     if phase == "reassembly":
+        if last_status == "REPO_ASSEMBLY_COMPLETE":
+            new_state = update_debug_phase(state, "regression_test")
+            save_state(project_root, new_state)
+            return _route_debug(new_state, project_root, "", iteration_limit)
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="git_repo_agent",
@@ -1190,6 +1323,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="run_command",
             command="stub_generation",
+            post="python scripts/update_state.py --command stub_generation --project-root .",
             reminder=f"Generate stub for unit {state.current_unit}.",
         )
 
@@ -1208,6 +1342,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="run_command",
             command="quality_gate",
+            post="python scripts/update_state.py --command quality_gate --project-root .",
             reminder=f"Run quality gate A for unit {state.current_unit}.",
         )
 
@@ -1215,6 +1350,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="run_command",
             command="test_execution",
+            post="python scripts/update_state.py --command test_execution --project-root .",
             reminder=f"Red run for unit {state.current_unit}.",
         )
 
@@ -1225,6 +1361,12 @@ def _route_stage_3(
             return route(project_root)
         fl = state.fix_ladder_position
         if fl == "diagnostic":
+            if last_status == "DIAGNOSIS_COMPLETE":
+                return _make_action_block(
+                    action_type="human_gate",
+                    gate_id="gate_3_2_diagnostic_decision",
+                    reminder=f"Diagnostic decision for unit {state.current_unit}.",
+                )
             return _make_action_block(
                 action_type="invoke_agent",
                 agent_type="diagnostic_agent",
@@ -1246,6 +1388,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="run_command",
             command="quality_gate",
+            post="python scripts/update_state.py --command quality_gate --project-root .",
             reminder=f"Run quality gate B for unit {state.current_unit}.",
         )
 
@@ -1253,6 +1396,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="run_command",
             command="test_execution",
+            post="python scripts/update_state.py --command test_execution --project-root .",
             reminder=f"Green run for unit {state.current_unit}.",
         )
 
@@ -1274,6 +1418,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="run_command",
             command="unit_completion",
+            post="python scripts/update_state.py --command unit_completion --project-root .",
             reminder=f"Complete unit {state.current_unit}.",
         )
 
@@ -1328,10 +1473,32 @@ def _route_stage_4(
             reminder="Run regression adaptation.",
         )
 
+    if sub == "gate_4_1":
+        return _make_action_block(
+            action_type="human_gate",
+            gate_id="gate_4_1_integration_failure",
+            reminder="Integration test failure.",
+        )
+
+    if sub == "gate_4_1a":
+        return _make_action_block(
+            action_type="human_gate",
+            gate_id="gate_4_1a",
+            reminder="Human fix or escalate.",
+        )
+
+    if sub == "gate_4_2":
+        return _make_action_block(
+            action_type="human_gate",
+            gate_id="gate_4_2_assembly_exhausted",
+            reminder="Assembly retries exhausted.",
+        )
+
     if last_status == "INTEGRATION_TESTS_COMPLETE":
         return _make_action_block(
             action_type="run_command",
             command="test_execution",
+            post="python scripts/update_state.py --command test_execution --project-root .",
             reminder="Run integration tests.",
         )
 
@@ -1352,6 +1519,11 @@ def _route_stage_5(
     sub = state.sub_stage
 
     if sub == "repo_complete":
+        pass_val = getattr(state, 'pass_', None)
+        if pass_val in (1, 2):
+            new = advance_sub_stage(state, "pass_transition")
+            save_state(project_root, new)
+            return route(project_root)
         return _make_action_block(
             action_type="pipeline_complete",
             reminder="Repository assembly complete.",
@@ -1361,6 +1533,7 @@ def _route_stage_5(
         return _make_action_block(
             action_type="run_command",
             command="compliance_scan",
+            post="python scripts/update_state.py --command compliance_scan --project-root .",
             reminder="Run compliance scan.",
         )
 
@@ -1369,6 +1542,46 @@ def _route_stage_5(
             action_type="human_gate",
             gate_id="gate_5_1_repo_test",
             reminder="Review repository test results.",
+        )
+
+    if sub == "gate_5_2":
+        return _make_action_block(
+            action_type="human_gate",
+            gate_id="gate_5_2_assembly_exhausted",
+            reminder="Assembly retries exhausted.",
+        )
+
+    if sub == "gate_5_3":
+        return _make_action_block(
+            action_type="human_gate",
+            gate_id="gate_5_3_unused_functions",
+            reminder="Unused functions detected.",
+        )
+
+    # Bug S3-54: pass_transition must be handled in Stage 5, not only Stage 3
+    if sub == "pass_transition":
+        if state.pass_ == 1:
+            return _make_action_block(
+                action_type="human_gate",
+                gate_id="gate_pass_transition_post_pass1",
+                reminder="Pass 1 complete. Choose next action.",
+            )
+        if state.pass_ == 2:
+            # Bug S3-55: sync Pass 1 artifacts before presenting gate
+            from sync_debug_docs import sync_pass1_artifacts
+            sync_result = sync_pass1_artifacts(project_root)
+            reminder = "Pass 2 complete. Choose next action."
+            if sync_result["synced_files"] or sync_result["merged_files"]:
+                n = len(sync_result["synced_files"]) + len(sync_result["merged_files"])
+                reminder += f" (Synced {n} artifacts from Pass 1.)"
+            return _make_action_block(
+                action_type="human_gate",
+                gate_id="gate_pass_transition_post_pass2",
+                reminder=reminder,
+            )
+        return _make_action_block(
+            action_type="pipeline_complete",
+            reminder="Pass transition without pass number.",
         )
 
     if last_status == "REPO_ASSEMBLY_COMPLETE":
@@ -1399,6 +1612,7 @@ def dispatch_gate_response(
     """Dispatch a gate response to the appropriate state transition.
 
     For ALL 31 gates and all response options, produces specific state transitions.
+    Uses Unit 6 transition functions (Bug S3-8 fix) instead of direct field assignment.
     No bare return state for main pipeline gates.
     """
     project_root = Path(project_root)
@@ -1415,24 +1629,23 @@ def dispatch_gate_response(
 
     # Gate 0.1: Hook activation
     if gate_id == "gate_0_1_hook_activation":
-        new = _copy(state)
         if response == "HOOKS ACTIVATED":
-            new.sub_stage = "project_context"
+            new = advance_sub_stage(state, "project_context")
         else:  # HOOKS FAILED
+            new = _copy(state)
             new.sub_stage = "hook_activation"
         return new
 
     # Gate 0.2: Context approval
     if gate_id == "gate_0_2_context_approval":
-        new = _copy(state)
         if response == "CONTEXT APPROVED":
-            new.sub_stage = "project_profile"
+            new = advance_sub_stage(state, "project_profile")
         elif response == "CONTEXT REJECTED":
             _clear_last_status(project_root)
-            new.sub_stage = "project_context"
+            new = advance_sub_stage(state, "project_context")
         else:  # CONTEXT NOT READY
             _clear_last_status(project_root)
-            new.sub_stage = "project_context"
+            new = advance_sub_stage(state, "project_context")
         return new
 
     # Gate 0.3: Profile approval
@@ -1441,14 +1654,12 @@ def dispatch_gate_response(
             new = advance_stage(state, "1")
         else:  # PROFILE REJECTED
             _clear_last_status(project_root)
-            new = _copy(state)
-            new.sub_stage = "project_profile"
+            new = advance_sub_stage(state, "project_profile")
         return new
 
     # Gate 0.3r: Redo profile revision
     if gate_id == "gate_0_3r_profile_revision":
         if response == "PROFILE APPROVED":
-            # Complete redo profile revision: restore from snapshot
             if hasattr(state, "redo_triggered_from") and state.redo_triggered_from:
                 new = complete_redo_profile_revision(state)
             else:
@@ -1461,41 +1672,40 @@ def dispatch_gate_response(
 
     # Gate 1.1: Spec draft
     if gate_id == "gate_1_1_spec_draft":
-        new = _copy(state)
         if response == "APPROVE":
-            new.sub_stage = "checklist_generation"
+            new = advance_sub_stage(state, "checklist_generation")
         elif response == "REVISE":
             _clear_last_status(project_root)
+            new = _copy(state)
             # Re-invoke stakeholder dialog in revision mode (stay in stage 1)
         else:  # FRESH REVIEW
             _clear_last_status(project_root)
-            # Invoke stakeholder reviewer
+            new = advance_sub_stage(state, "spec_review")
         return new
 
     # Gate 1.2: Spec post-review
     if gate_id == "gate_1_2_spec_post_review":
-        new = _copy(state)
         if response == "APPROVE":
-            new.sub_stage = "checklist_generation"
+            new = advance_sub_stage(state, "checklist_generation")
         elif response == "REVISE":
             _clear_last_status(project_root)
+            new = _copy(state)
             # version_document for spec
         else:  # FRESH REVIEW
             _clear_last_status(project_root)
-            # Re-invoke reviewer
+            new = advance_sub_stage(state, "spec_review")
         return new
 
     # Gate 2.1: Blueprint approval
     if gate_id == "gate_2_1_blueprint_approval":
-        new = _copy(state)
         if response == "APPROVE":
-            new.sub_stage = "alignment_check"
+            new = advance_sub_stage(state, "alignment_check")
         elif response == "REVISE":
             _clear_last_status(project_root)
-            new.sub_stage = "blueprint_dialog"
+            new = advance_sub_stage(state, "blueprint_dialog")
         else:  # FRESH REVIEW
             _clear_last_status(project_root)
-            new.sub_stage = "alignment_check"
+            new = advance_sub_stage(state, "alignment_check")
         return new
 
     # Gate 2.2: Blueprint post-review
@@ -1504,26 +1714,22 @@ def dispatch_gate_response(
             new = advance_stage(state, "pre_stage_3")
         elif response == "REVISE":
             _clear_last_status(project_root)
-            new = _copy(state)
-            new.sub_stage = "blueprint_dialog"
+            new = advance_sub_stage(state, "blueprint_dialog")
         else:  # FRESH REVIEW
             _clear_last_status(project_root)
-            new = _copy(state)
-            new.sub_stage = "alignment_check"
+            new = advance_sub_stage(state, "alignment_check")
         return new
 
     # Gate 2.3: Alignment exhausted
     if gate_id == "gate_2_3_alignment_exhausted":
         if response == "REVISE SPEC":
-            new = _copy(state)
+            new = advance_sub_stage(state, "targeted_spec_revision")
             new.alignment_iterations = 0
-            new.sub_stage = "targeted_spec_revision"
         elif response == "RESTART SPEC":
             new = advance_stage(state, "1")
         else:  # RETRY BLUEPRINT
             _clear_last_status(project_root)
-            new = _copy(state)
-            new.sub_stage = "blueprint_dialog"
+            new = advance_sub_stage(state, "blueprint_dialog")
         return new
 
     # Gate 3.1: Test validation (autonomous)
@@ -1538,8 +1744,7 @@ def dispatch_gate_response(
     # Gate 3.2: Diagnostic decision
     if gate_id == "gate_3_2_diagnostic_decision":
         if response == "FIX IMPLEMENTATION":
-            new = _copy(state)
-            new.sub_stage = "implementation"
+            new = advance_sub_stage(state, "implementation")
         elif response == "FIX BLUEPRINT":
             new = restart_from_stage(state, "2")
         else:  # FIX SPEC
@@ -1553,7 +1758,7 @@ def dispatch_gate_response(
         elif response == "FORCE ADVANCE":
             new = advance_stage(state, "4")
         else:  # RESTART STAGE 3
-            new = advance_stage(state, "3")
+            new = restart_from_stage(state, "3")
         return new
 
     # Gate 4.1: Integration failure
@@ -1564,16 +1769,17 @@ def dispatch_gate_response(
         elif response == "FIX BLUEPRINT":
             new = restart_from_stage(state, "2")
         else:  # FIX SPEC
-            new = advance_stage(state, "1")
+            new = restart_from_stage(state, "1")
         return new
 
     # Gate 4.1a
     if gate_id == "gate_4_1a":
-        new = _copy(state)
         if response == "HUMAN FIX":
-            pass  # Re-invoke integration test author with human guidance
+            new = _copy(state)
+            new.sub_stage = None
+            new.red_run_retries = 0
         else:  # ESCALATE
-            pass  # Will route to gate_4_2 on next cycle
+            new = advance_sub_stage(state, "gate_4_2")
         return new
 
     # Gate 4.2: Assembly exhausted
@@ -1581,7 +1787,7 @@ def dispatch_gate_response(
         if response == "FIX BLUEPRINT":
             new = restart_from_stage(state, "2")
         else:  # FIX SPEC
-            new = advance_stage(state, "1")
+            new = restart_from_stage(state, "1")
         return new
 
     # Gate 4.3: Adaptation review
@@ -1590,19 +1796,18 @@ def dispatch_gate_response(
             new = advance_stage(state, "5")
         elif response == "MODIFY TEST":
             _clear_last_status(project_root)
-            new = _copy(state)
-            new.sub_stage = "regression_adaptation"
+            new = advance_sub_stage(state, "regression_adaptation")
         else:  # REMOVE TEST
             new = advance_stage(state, "5")
         return new
 
     # Gate 5.1: Repo test
     if gate_id == "gate_5_1_repo_test":
-        new = _copy(state)
         if response == "TESTS PASSED":
-            new.sub_stage = "compliance_scan"
+            new = advance_sub_stage(state, "compliance_scan")
         else:  # TESTS FAILED
-            new.sub_stage = "repo_test"
+            new = _copy(state)
+            new.sub_stage = None
         return new
 
     # Gate 5.2: Assembly exhausted
@@ -1614,7 +1819,7 @@ def dispatch_gate_response(
         elif response == "FIX BLUEPRINT":
             new = restart_from_stage(state, "2")
         else:  # FIX SPEC
-            new = advance_stage(state, "1")
+            new = restart_from_stage(state, "1")
         return new
 
     # Gate 5.3: Unused functions
@@ -1622,8 +1827,7 @@ def dispatch_gate_response(
         if response == "FIX SPEC":
             new = advance_stage(state, "1")
         else:  # OVERRIDE CONTINUE
-            new = _copy(state)
-            new.sub_stage = "repo_complete"
+            new = advance_sub_stage(state, "repo_complete")
         return new
 
     # Gate 6.0: Debug permission
@@ -1685,7 +1889,7 @@ def dispatch_gate_response(
         elif response == "FIX BLUEPRINT":
             new = restart_from_stage(state, "2")
         elif response == "FIX SPEC":
-            new = advance_stage(state, "1")
+            new = restart_from_stage(state, "1")
         else:  # FIX IN PLACE
             if state.debug_session is not None:
                 new = update_debug_phase(state, "repair")
@@ -1703,9 +1907,12 @@ def dispatch_gate_response(
         elif response == "RECLASSIFY BUG":
             if state.debug_session is not None:
                 triage_count = state.debug_session.get("triage_refinement_count", 0)
+                new = _copy(state)
+                new.debug_session = dict(new.debug_session)
+                new.debug_session["triage_refinement_count"] = triage_count + 1
                 if triage_count < iteration_limit:
                     _clear_last_status(project_root)
-                    new = update_debug_phase(state, "triage")
+                    new.debug_session["phase"] = "triage"
         else:  # ABANDON DEBUG
             if state.debug_session is not None:
                 new = abandon_debug_session(state)
@@ -1733,9 +1940,8 @@ def dispatch_gate_response(
     # Gate 6.5: Debug commit
     if gate_id == "gate_6_5_debug_commit":
         if response == "COMMIT APPROVED":
-            if (
-                state.debug_session is not None
-                and state.debug_session.get("authorized")
+            if state.debug_session is not None and state.debug_session.get(
+                "authorized"
             ):
                 new = complete_debug_session(state)
             else:
@@ -1760,29 +1966,64 @@ def dispatch_gate_response(
 
     # Gate 7a: Trajectory review
     if gate_id == "gate_7_a_trajectory_review":
-        new = _copy(state)
         if response == "APPROVE TRAJECTORY":
+            new = _copy(state)
             new.oracle_phase = "green_run"
         elif response == "MODIFY TRAJECTORY":
+            new = _copy(state)
             new.oracle_phase = "dry_run"
+            new.oracle_modification_count = getattr(state, "oracle_modification_count", 0) + 1
         else:  # ABORT
-            new.oracle_session_active = False
-            new.oracle_phase = None
+            new = abandon_oracle_session(state)
+            try:
+                from ledger_manager import append_oracle_run_entry
+
+                append_oracle_run_entry(
+                    project_root,
+                    {
+                        "run_number": state.oracle_run_count,
+                        "test_project": state.oracle_test_project,
+                        "exit_reason": "abort",
+                        "oracle_phase": state.oracle_phase,
+                    },
+                )
+            except (ImportError, Exception):
+                pass
         return new
 
     # Gate 7b: Fix plan review
     if gate_id == "gate_7_b_fix_plan_review":
-        new = _copy(state)
         if response == "APPROVE FIX":
-            pass  # Oracle calls /svp:bug internally
+            # Enter debug session — oracle "pauses" while /svp:bug runs
+            new = enter_debug_session(state, state.oracle_run_count or 1)
+            # oracle_session_active stays True — after debug completes,
+            # routing returns to _route_oracle
         else:  # ABORT
-            new.oracle_session_active = False
-            new.oracle_phase = None
+            new = abandon_oracle_session(state)
+            try:
+                from ledger_manager import append_oracle_run_entry
+
+                append_oracle_run_entry(
+                    project_root,
+                    {
+                        "run_number": state.oracle_run_count,
+                        "test_project": state.oracle_test_project,
+                        "exit_reason": "abort",
+                        "oracle_phase": state.oracle_phase,
+                    },
+                )
+            except (ImportError, Exception):
+                pass
         return new
 
     # Gate pass transition post pass1
     if gate_id == "gate_pass_transition_post_pass1":
         if response == "PROCEED TO PASS 2":
+            deferred = getattr(state, "deferred_broken_units", [])
+            if deferred:
+                raise ValueError(
+                    f"Cannot proceed to Pass 2 with deferred broken units: {deferred}"
+                )
             nested_path = str(project_root / ".svp" / "pass2_session")
             new = enter_pass_2(state, nested_path)
         else:  # FIX BUGS
@@ -1794,9 +2035,7 @@ def dispatch_gate_response(
         if response == "FIX BUGS":
             new = enter_debug_session(state, 0)
         else:  # RUN ORACLE
-            new = _copy(state)
-            new.oracle_session_active = True
-            new.oracle_phase = "dry_run"
+            new = enter_oracle_session(state, "")
         return new
 
     # Fallback
@@ -1812,6 +2051,7 @@ def dispatch_agent_status(
     """Dispatch an agent status line to the appropriate state transition.
 
     For ALL agent types and status lines, produces specific state transitions.
+    Uses Unit 6 transition functions (Bug S3-8 fix) instead of direct field assignment.
     No bare return state for main pipeline agents.
     """
     project_root = Path(project_root)
@@ -1855,20 +2095,19 @@ def dispatch_agent_status(
     # blueprint_checker
     if agent_type == "blueprint_checker":
         if status_line == "ALIGNMENT_CONFIRMED":
-            new = _copy(state)
-            new.sub_stage = "alignment_confirmed"
+            new = advance_sub_stage(state, "alignment_confirmed")
             return new
         if status_line == "ALIGNMENT_FAILED: blueprint":
             new = increment_alignment_iteration(state)
             if new.alignment_iterations >= iteration_limit:
                 return new  # Route will present gate_2_3
-            new.sub_stage = "blueprint_dialog"
+            new = advance_sub_stage(new, "blueprint_dialog")
             return new
         if status_line == "ALIGNMENT_FAILED: spec":
             new = increment_alignment_iteration(state)
             if new.alignment_iterations >= iteration_limit:
                 return new  # Route will present gate_2_3
-            new.sub_stage = "targeted_spec_revision"
+            new = advance_sub_stage(new, "targeted_spec_revision")
             return new
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 
@@ -1882,11 +2121,15 @@ def dispatch_agent_status(
     if agent_type == "test_agent":
         if status_line in ("TEST_GENERATION_COMPLETE", "REGRESSION_TEST_COMPLETE"):
             return _copy(state)
+        if status_line.startswith("HINT_BLUEPRINT_CONFLICT"):
+            return _copy(state)
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 
     # implementation_agent
     if agent_type == "implementation_agent":
         if status_line == "IMPLEMENTATION_COMPLETE":
+            return _copy(state)
+        if status_line.startswith("HINT_BLUEPRINT_CONFLICT"):
             return _copy(state)
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 
@@ -1897,11 +2140,15 @@ def dispatch_agent_status(
             "COVERAGE_COMPLETE: tests added",
         ):
             return _copy(state)
+        if status_line.startswith("HINT_BLUEPRINT_CONFLICT"):
+            return _copy(state)
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 
     # diagnostic_agent
     if agent_type == "diagnostic_agent":
         if status_line.startswith("DIAGNOSIS_COMPLETE"):
+            return _copy(state)
+        if status_line.startswith("HINT_BLUEPRINT_CONFLICT"):
             return _copy(state)
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 
@@ -1968,12 +2215,30 @@ def dispatch_agent_status(
     if agent_type == "oracle_agent":
         if status_line == "ORACLE_DRY_RUN_COMPLETE":
             return _copy(state)
-        if status_line in ("ORACLE_FIX_APPLIED", "ORACLE_ALL_CLEAR"):
-            return _copy(state)
-        if status_line == "ORACLE_HUMAN_ABORT":
+        if status_line == "ORACLE_ALL_CLEAR":
             new = _copy(state)
-            new.oracle_session_active = False
-            new.oracle_phase = None
+            new.oracle_phase = "exit"
+            return new
+        if status_line == "ORACLE_FIX_APPLIED":
+            new = _copy(state)
+            new.oracle_phase = "gate_b"
+            return new
+        if status_line == "ORACLE_HUMAN_ABORT":
+            new = abandon_oracle_session(state)
+            try:
+                from ledger_manager import append_oracle_run_entry
+
+                append_oracle_run_entry(
+                    project_root,
+                    {
+                        "run_number": state.oracle_run_count,
+                        "test_project": state.oracle_test_project,
+                        "exit_reason": "abort",
+                        "oracle_phase": state.oracle_phase,
+                    },
+                )
+            except (ImportError, Exception):
+                pass
             return new
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 
@@ -2003,8 +2268,7 @@ def dispatch_agent_status(
     # redo_agent
     if agent_type == "redo_agent":
         if status_line == "REDO_CLASSIFIED: spec":
-            new = _copy(state)
-            new.sub_stage = "targeted_spec_revision"
+            new = advance_sub_stage(state, "targeted_spec_revision")
             return new
         if status_line == "REDO_CLASSIFIED: blueprint":
             new = restart_from_stage(state, "2")
@@ -2034,6 +2298,7 @@ def dispatch_command_status(
 
     Handles Stage 3 (red_run, green_run, quality gates, unit_completion)
     and Stage 4 (integration tests).
+    Uses Unit 6 transition functions (Bug S3-8 fix).
     No bare return state for any entry.
     """
     effective_sub_stage = (
@@ -2042,11 +2307,11 @@ def dispatch_command_status(
 
     # stub_generation
     if command_type == "stub_generation":
-        new = _copy(state)
         if status_line == "COMMAND_SUCCEEDED":
-            new.sub_stage = "test_generation"
+            new = advance_sub_stage(state, "test_generation")
         elif status_line == "COMMAND_FAILED":
-            pass  # Present error to human -- state still changes (new copy)
+            new = _copy(state)
+            # Present error to human -- state still changes (new copy)
         else:
             raise ValueError(f"Unknown status for {command_type}: {status_line}")
         return new
@@ -2058,28 +2323,37 @@ def dispatch_command_status(
         # Stage 4 integration tests
         if stage == "4":
             if status_line == "TESTS_PASSED":
-                new = _copy(state)
-                new.sub_stage = "regression_adaptation"
-            elif status_line in ("TESTS_FAILED", "TESTS_ERROR"):
+                new = advance_sub_stage(state, "regression_adaptation")
+                return new
+            if status_line == "TESTS_FAILED":
                 new = increment_red_run_retries(state)
-            else:
-                raise ValueError(
-                    f"Unknown status for test_execution at Stage 4: {status_line}"
-                )
-            return new
+                if new.red_run_retries >= 3:
+                    new = advance_sub_stage(new, "gate_4_2")
+                else:
+                    new = advance_sub_stage(new, "gate_4_1")
+                return new
+            if status_line == "TESTS_ERROR":
+                new = increment_red_run_retries(state)
+                if new.red_run_retries >= 3:
+                    new = advance_sub_stage(new, "gate_4_2")
+                else:
+                    new.sub_stage = None
+                return new
+            raise ValueError(
+                f"Unknown status for test_execution at Stage 4: {status_line}"
+            )
 
         # Stage 3 red_run
         if effective_sub_stage == "red_run":
             if status_line == "TESTS_FAILED":
-                new = _copy(state)
-                new.sub_stage = "implementation"
+                new = advance_sub_stage(state, "implementation")
             elif status_line in ("TESTS_PASSED", "TESTS_ERROR"):
                 new = increment_red_run_retries(state)
                 limit = 3
                 if new.red_run_retries >= limit:
-                    new.sub_stage = "implementation"
+                    new = advance_sub_stage(new, "implementation")
                 else:
-                    new.sub_stage = "test_generation"
+                    new = advance_sub_stage(new, "test_generation")
             else:
                 raise ValueError(
                     f"Unknown status for test_execution at red_run: {status_line}"
@@ -2089,8 +2363,7 @@ def dispatch_command_status(
         # Stage 3 green_run
         if effective_sub_stage == "green_run":
             if status_line == "TESTS_PASSED":
-                new = _copy(state)
-                new.sub_stage = "coverage_review"
+                new = advance_sub_stage(state, "coverage_review")
             elif status_line in ("TESTS_FAILED", "TESTS_ERROR"):
                 new = advance_fix_ladder(state)
             else:
@@ -2104,11 +2377,10 @@ def dispatch_command_status(
     # quality_gate
     if command_type == "quality_gate":
         if effective_sub_stage == "quality_gate_a":
-            new = _copy(state)
             if status_line == "COMMAND_SUCCEEDED":
-                new.sub_stage = "red_run"
+                new = advance_sub_stage(state, "red_run")
             elif status_line == "COMMAND_FAILED":
-                new.sub_stage = "quality_gate_a_retry"
+                new = advance_sub_stage(state, "quality_gate_a_retry")
             else:
                 raise ValueError(
                     f"Unknown status for quality_gate at quality_gate_a: {status_line}"
@@ -2116,11 +2388,10 @@ def dispatch_command_status(
             return new
 
         if effective_sub_stage == "quality_gate_b":
-            new = _copy(state)
             if status_line == "COMMAND_SUCCEEDED":
-                new.sub_stage = "green_run"
+                new = advance_sub_stage(state, "green_run")
             elif status_line == "COMMAND_FAILED":
-                new.sub_stage = "quality_gate_b_retry"
+                new = advance_sub_stage(state, "quality_gate_b_retry")
             else:
                 raise ValueError(
                     f"Unknown status for quality_gate at quality_gate_b: {status_line}"
@@ -2129,8 +2400,7 @@ def dispatch_command_status(
 
         if effective_sub_stage == "quality_gate_a_retry":
             if status_line == "COMMAND_SUCCEEDED":
-                new = _copy(state)
-                new.sub_stage = "red_run"
+                new = advance_sub_stage(state, "red_run")
             elif status_line == "COMMAND_FAILED":
                 new = advance_fix_ladder(state)
             else:
@@ -2141,8 +2411,7 @@ def dispatch_command_status(
 
         if effective_sub_stage == "quality_gate_b_retry":
             if status_line == "COMMAND_SUCCEEDED":
-                new = _copy(state)
-                new.sub_stage = "green_run"
+                new = advance_sub_stage(state, "green_run")
             elif status_line == "COMMAND_FAILED":
                 new = advance_fix_ladder(state)
             else:
@@ -2161,6 +2430,79 @@ def dispatch_command_status(
             new = _copy(state)
         else:
             raise ValueError(f"Unknown status for {command_type}: {status_line}")
+        return new
+
+    # compliance_scan
+    if command_type == "compliance_scan":
+        if "SUCCEEDED" in status_line:
+            new = advance_sub_stage(state, "repo_complete")
+        elif "FAILED" in status_line:
+            new = _copy(state)
+            new.sub_stage = None
+        else:
+            raise ValueError(f"Unknown status for {command_type}: {status_line}")
+        return new
+
+    # structural_check
+    if command_type == "structural_check":
+        if "SUCCEEDED" in status_line:
+            new = advance_sub_stage(state, "compliance_scan")
+        elif "FAILED" in status_line:
+            new = _copy(state)
+        else:
+            raise ValueError(f"Unknown status for {command_type}: {status_line}")
+        return new
+
+    # lessons_learned
+    if command_type == "lessons_learned":
+        if "SUCCEEDED" in status_line:
+            new = _copy(state)
+            if new.debug_session:
+                new.debug_session = dict(new.debug_session)
+                new.debug_session["phase"] = "commit"
+        elif "FAILED" in status_line:
+            new = _copy(state)
+        else:
+            raise ValueError(f"Unknown status for {command_type}: {status_line}")
+        return new
+
+    # debug_commit
+    if command_type == "debug_commit":
+        if "SUCCEEDED" in status_line:
+            return complete_debug_session(state)
+        elif "FAILED" in status_line:
+            return _copy(state)
+        else:
+            raise ValueError(f"Unknown status for {command_type}: {status_line}")
+
+    # stage3_reentry
+    if command_type == "stage3_reentry":
+        if "SUCCEEDED" in status_line:
+            new = _copy(state)
+            if new.debug_session:
+                new.debug_session = dict(new.debug_session)
+                new.debug_session["phase"] = "stage3_rebuild_active"
+            new.sub_stage = "stub_generation"
+        elif "FAILED" in status_line:
+            new = _copy(state)
+        else:
+            raise ValueError(f"Unknown status for {command_type}: {status_line}")
+        return new
+
+    # oracle_start
+    if command_type == "oracle_start":
+        # The test_project path is passed via the status_line (written by the command skill)
+        test_project = status_line.strip()
+        if not test_project:
+            return _copy(state)
+        new = enter_oracle_session(state, test_project)
+        return new
+
+    # oracle_test_project_selection
+    if command_type == "oracle_test_project_selection":
+        # status_line contains the selected test project path
+        new = _copy(state)
+        new.oracle_test_project = status_line.strip()
         return new
 
     raise ValueError(f"Unknown command_type: {command_type}")
@@ -2254,14 +2596,34 @@ def run_tests_main(argv: list = None) -> None:
 def update_state_main(argv: list = None) -> None:
     """CLI entry point for update_state.py."""
     parser = argparse.ArgumentParser(description="Update pipeline state")
-    parser.add_argument("--phase", type=str, required=True)
+    parser.add_argument("--phase", type=str, default=None)
     parser.add_argument("--project-root", type=str, default=".")
     parser.add_argument("--status", type=str, default=None)
     parser.add_argument("--gate-id", type=str, default=None)
     parser.add_argument("--unit", type=int, default=None)
+    parser.add_argument("--command", type=str, default=None)
 
     args = parser.parse_args(argv)
     project_root = Path(args.project_root).resolve()
+
+    # --command path: dispatch command status
+    if args.command:
+        state = load_state(project_root)
+        last_status = _read_last_status(project_root)
+        new_state = dispatch_command_status(state, args.command, last_status)
+        save_state(project_root, new_state)
+        _append_build_log(
+            project_root,
+            source="update_state",
+            event_type="command_dispatch",
+            command=args.command,
+            status=last_status,
+        )
+        return
+
+    if args.phase is None:
+        print("ERROR: --phase or --command required", file=sys.stderr)
+        sys.exit(1)
 
     if args.phase not in PHASE_TO_AGENT:
         print(f"ERROR: Unknown phase '{args.phase}'", file=sys.stderr)
@@ -2312,3 +2674,7 @@ def main(argv: list = None) -> None:
         event_type="action_emitted",
         action_type=action_block.get("action_type", ""),
     )
+
+
+if __name__ == "__main__":
+    main()

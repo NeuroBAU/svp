@@ -1,0 +1,5 @@
+{
+  "passes": ["happy_path", "revision_paths", "error_paths"],
+  "timeout_minutes": 60,
+  "max_bugs": 1
+}

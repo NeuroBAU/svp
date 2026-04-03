@@ -212,6 +212,28 @@ Both redo profile sub-stages are governed by the two-branch routing invariant: w
 last_status.txt contains PROFILE_COMPLETE, the routing script must emit a human_gate \
 action for Gate 0.3r (gate_0_3r_profile_revision), not re-invoke the setup agent.
 
+## Dual-Format Output
+
+Your output MUST contain both formats:
+
+### 1. Prose Analysis
+
+Provide a human-readable prose explanation of your classification reasoning. Explain \
+which level of the document hierarchy the issue originates from, what evidence supports \
+your classification, and why alternative classifications were ruled out.
+
+### 2. Structured Block
+
+After the prose analysis, emit a machine-parseable structured block with the following \
+format:
+
+```
+[STRUCTURED]
+CLASSIFICATION: <spec|blueprint|gate|profile_delivery|profile_blueprint>
+AFFECTED_LEVEL: <description of the affected document hierarchy level>
+REMEDY: <description of the required remedy>
+```
+
 ## Terminal Status Lines
 
 Your final output must be exactly one terminal status line on its own line:

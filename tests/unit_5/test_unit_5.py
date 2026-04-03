@@ -234,11 +234,11 @@ class TestValidSubStages:
         assert VALID_SUB_STAGES["3"] == expected
 
     def test_valid_sub_stages_stage_4_values(self):
-        expected = {None, "regression_adaptation"}
+        expected = {None, "regression_adaptation", "gate_4_1", "gate_4_1a", "gate_4_2"}
         assert VALID_SUB_STAGES["4"] == expected
 
     def test_valid_sub_stages_stage_5_values(self):
-        expected = {None, "repo_test", "compliance_scan", "repo_complete"}
+        expected = {None, "repo_test", "compliance_scan", "repo_complete", "gate_5_2", "gate_5_3"}
         assert VALID_SUB_STAGES["5"] == expected
 
     def test_valid_sub_stages_values_are_sets(self):
@@ -292,6 +292,7 @@ class TestValidDebugPhases:
             "lessons_learned",
             "reassembly",
             "stage3_reentry",
+            "stage3_rebuild_active",
             "commit",
         }
         assert VALID_DEBUG_PHASES == expected

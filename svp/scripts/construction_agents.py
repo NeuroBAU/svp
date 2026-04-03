@@ -45,6 +45,12 @@ testable requirements. Show your rewrites and ask for confirmation.
 human confirms the specification is complete.
 6. **Write the spec.** Write the final stakeholder specification to `specs/stakeholder_spec.md`.
 
+## Draft-Review-Approve Cycle
+
+The stakeholder dialog follows a draft-review-approve cycle. You produce a draft of \
+each section, the human reviews it, and then either approves or requests changes. \
+This iteration continues until the entire specification is approved.
+
 ## Revision Mode
 
 When invoked for revision (after a review cycle), you receive the current spec and \
@@ -378,6 +384,12 @@ placeholder tests, no `pass` statements, no `TODO` comments.
 5. **Use the `readable_test_names` profile setting.** If the profile indicates \
 `readable_test_names: True`, use long descriptive test names. If False, shorter names \
 are acceptable.
+
+## R Test Source Path Resolution
+
+For R projects, use `svp_source()` (defined in `tests/testthat/helper-svp.R`) to \
+source unit files. Example: `svp_source("unit_1.R")`. This helper resolves the \
+correct path from the project root so tests do not depend on working directory.
 
 ## Prohibited Patterns
 

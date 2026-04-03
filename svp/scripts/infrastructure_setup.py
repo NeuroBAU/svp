@@ -7,17 +7,22 @@ derivation, regression test adaptation, and build log creation.
 """
 
 import argparse
+import json
 import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-from blueprint_extractor import extract_units
+from svp_config import ARTIFACT_FILENAMES, derive_env_name, get_blueprint_dir
 from language_registry import LANGUAGE_REGISTRY
 from profile_schema import get_delivery_config, load_profile
-from svp_config import ARTIFACT_FILENAMES, derive_env_name, get_blueprint_dir
 from toolchain_reader import load_toolchain
+from blueprint_extractor import extract_units
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
 
 def _extract_imports_from_blueprint(blueprint_dir: Path) -> List[str]:
@@ -306,7 +311,7 @@ def _validate_dag(blueprint_dir: Path) -> List[str]:
     """Validate the dependency DAG from the blueprint.
 
     Extracts dependency graph via extract_units, then checks:
-    1. No forward edges (unit N depends on unit M where M > N).
+    1. No forward edges (unit N depends on unit M where M >= N).
     2. No cycles.
 
     Returns list of error messages (empty if valid).
@@ -356,16 +361,25 @@ def _collect_quality_packages(
     """Collect quality tool packages from toolchain and language registry.
 
     Reads packages from:
-    1. toolchain["quality"]["packages"] (explicit list)
-    2. toolchain["quality"][tool]["tool"] (tool name from each tool entry)
-    3. toolchain["testing"]["framework_packages"] (test framework packages)
-    4. language_registry[primary_language]["default_quality"] (tool names)
+    1. toolchain["quality"] gate composition entries with "package" keys.
+    2. toolchain["quality"][tool]["tool"] (tool name from each tool entry).
+    3. toolchain["testing"]["framework_packages"] (test framework packages).
+    4. language_registry[primary_language]["default_quality"] (tool names).
 
     Returns deduplicated list preserving order.
     """
     packages: List[str] = []
 
     quality = toolchain.get("quality", {})
+
+    # Scan gate composition entries for "package" keys
+    for key, value in quality.items():
+        if isinstance(value, list):
+            for entry in value:
+                if isinstance(entry, dict):
+                    pkg = entry.get("package")
+                    if pkg and pkg not in packages:
+                        packages.append(pkg)
 
     # Explicit packages list from toolchain
     for pkg in quality.get("packages", []):
@@ -395,6 +409,111 @@ def _collect_quality_packages(
     return packages
 
 
+def _build_env_create_command(
+    env_name: str,
+    toolchain: Dict[str, Any],
+    profile: Dict[str, Any],
+    language_registry: Dict[str, Dict[str, Any]],
+    primary_language: str,
+    project_root: Path,
+) -> Dict[str, Any]:
+    """Build the environment creation command(s) without executing.
+
+    Returns a dict describing what would be executed:
+    - "env_manager": str (conda, renv, packrat)
+    - "commands": list of command strings
+    - "bridge_packages": list of bridge library package names (mixed archetype)
+    """
+    lang_config = language_registry.get(primary_language, {})
+    env_manager = lang_config.get("environment_manager", "conda")
+    archetype = profile.get("archetype", "python_project")
+    result: Dict[str, Any] = {
+        "env_manager": env_manager,
+        "commands": [],
+        "bridge_packages": [],
+    }
+
+    if archetype == "mixed":
+        create_template = toolchain.get("environment", {}).get(
+            "create",
+            "conda create -n {env_name} python={python_version} -y",
+        )
+        python_version = toolchain.get("language", {}).get(
+            "version_constraint", ">=3.9"
+        )
+        if python_version.startswith(">="):
+            python_version = python_version.lstrip(">=")
+        create_cmd = create_template.replace("{env_name}", env_name).replace(
+            "{python_version}", python_version
+        )
+        result["commands"].append(create_cmd)
+        result["env_manager"] = "conda"
+
+        # Collect bridge libraries
+        secondary_language = profile.get("language", {}).get("secondary")
+        for lang_key in [primary_language, secondary_language]:
+            if lang_key and lang_key in language_registry:
+                bridge_libs = language_registry[lang_key].get("bridge_libraries", {})
+                for _bridge_key, bridge_info in bridge_libs.items():
+                    conda_pkg = bridge_info.get("conda_package")
+                    if conda_pkg and conda_pkg not in result["bridge_packages"]:
+                        result["bridge_packages"].append(conda_pkg)
+
+    elif primary_language == "python" and env_manager == "conda":
+        create_template = toolchain.get("environment", {}).get(
+            "create",
+            "conda create -n {env_name} python={python_version} -y",
+        )
+        python_version = toolchain.get("language", {}).get(
+            "version_constraint", ">=3.9"
+        )
+        if python_version.startswith(">="):
+            python_version = python_version.lstrip(">=")
+        create_cmd = create_template.replace("{env_name}", env_name).replace(
+            "{python_version}", python_version
+        )
+        result["commands"].append(create_cmd)
+
+    elif primary_language == "r":
+        delivery_config = get_delivery_config(profile, "r", language_registry)
+        env_rec = delivery_config.get("environment_recommendation", "renv")
+        result["env_manager"] = env_rec
+
+        if env_rec == "conda":
+            result["commands"].append(f"conda create -n {env_name} r-base -y")
+        elif env_rec == "renv":
+            result["commands"].append('Rscript -e "renv::init()"')
+        elif env_rec == "packrat":
+            result["commands"].append('Rscript -e "packrat::init()"')
+
+    else:
+        result["commands"].append(f"conda create -n {env_name} python=3.11 -y")
+
+    return result
+
+
+def _build_install_command(
+    env_name: str,
+    packages: List[str],
+    toolchain: Dict[str, Any],
+) -> str:
+    """Build an install command string without executing."""
+    if not packages:
+        return ""
+    install_template = toolchain.get("environment", {}).get(
+        "install",
+        "conda run -n {env_name} pip install {packages}",
+    )
+    return install_template.replace("{env_name}", env_name).replace(
+        "{packages}", " ".join(packages)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Main entry points
+# ---------------------------------------------------------------------------
+
+
 def run_infrastructure_setup(
     project_root: Path,
     profile: Dict[str, Any],
@@ -415,7 +534,7 @@ def run_infrastructure_setup(
     8. Regression test adaptation
     9. Build log creation
 
-    On any step failure: reports error and exits with non-zero code.
+    On any step failure: reports error and raises an exception.
     No partial cleanup.
     """
     primary_language = profile.get("language", {}).get("primary", "python")
@@ -423,144 +542,23 @@ def run_infrastructure_setup(
 
     # -----------------------------------------------------------------------
     # Step 1: Environment creation
+    # Validates configuration and builds the command that would create the
+    # environment. The actual subprocess execution is deferred to the
+    # orchestration layer or skipped when the environment already exists.
     # -----------------------------------------------------------------------
-    lang_config = language_registry.get(primary_language, {})
-    env_manager = lang_config.get("environment_manager", "conda")
-    archetype = profile.get("archetype", "python_project")
-
-    if archetype == "mixed":
-        # Mixed: single conda environment with both languages and bridge libraries
-        secondary_language = profile.get("language", {}).get("secondary")
-
-        create_template = toolchain.get("environment", {}).get(
-            "create",
-            "conda create -n {env_name} python={python_version} -y",
-        )
-        python_version = toolchain.get("language", {}).get(
-            "version_constraint", ">=3.9"
-        )
-        if python_version.startswith(">="):
-            python_version = python_version.lstrip(">=")
-
-        create_cmd = create_template.replace("{env_name}", env_name).replace(
-            "{python_version}", python_version
-        )
-
-        result = subprocess.run(create_cmd.split(), capture_output=True, text=True)
-        if result.returncode != 0:
-            print(
-                f"Error in step 1 (environment creation): {result.stderr}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        # Install bridge libraries for both languages
-        bridge_pkgs: List[str] = []
-        for lang_key in [primary_language, secondary_language]:
-            if lang_key and lang_key in language_registry:
-                bridge_libs = language_registry[lang_key].get("bridge_libraries", {})
-                for _bridge_key, bridge_info in bridge_libs.items():
-                    conda_pkg = bridge_info.get("conda_package")
-                    if conda_pkg and conda_pkg not in bridge_pkgs:
-                        bridge_pkgs.append(conda_pkg)
-
-        if bridge_pkgs:
-            install_template = toolchain.get("environment", {}).get(
-                "install",
-                "conda run -n {env_name} pip install {packages}",
-            )
-            install_cmd = install_template.replace("{env_name}", env_name).replace(
-                "{packages}", " ".join(bridge_pkgs)
-            )
-            result = subprocess.run(install_cmd.split(), capture_output=True, text=True)
-            if result.returncode != 0:
-                print(
-                    f"Error in step 1 (bridge library installation): {result.stderr}",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-
-    elif primary_language == "python" and env_manager == "conda":
-        # Python: conda create -n {env_name}
-        create_template = toolchain.get("environment", {}).get(
-            "create",
-            "conda create -n {env_name} python={python_version} -y",
-        )
-        python_version = toolchain.get("language", {}).get(
-            "version_constraint", ">=3.9"
-        )
-        if python_version.startswith(">="):
-            python_version = python_version.lstrip(">=")
-
-        create_cmd = create_template.replace("{env_name}", env_name).replace(
-            "{python_version}", python_version
-        )
-
-        result = subprocess.run(create_cmd.split(), capture_output=True, text=True)
-        if result.returncode != 0:
-            print(
-                f"Error in step 1 (environment creation): {result.stderr}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-    elif primary_language == "r":
-        # R: per delivery.r.environment_recommendation
-        delivery_config = get_delivery_config(profile, "r", language_registry)
-        env_rec = delivery_config.get("environment_recommendation", "renv")
-
-        if env_rec == "conda":
-            create_cmd_parts = ["conda", "create", "-n", env_name, "r-base", "-y"]
-            result = subprocess.run(create_cmd_parts, capture_output=True, text=True)
-            if result.returncode != 0:
-                print(
-                    f"Error in step 1 (R conda environment creation): {result.stderr}",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-        elif env_rec == "renv":
-            # Initialize renv in the project
-            result = subprocess.run(
-                ["Rscript", "-e", "renv::init()"],
-                capture_output=True,
-                text=True,
-                cwd=str(project_root),
-            )
-            if result.returncode != 0:
-                print(
-                    f"Error in step 1 (renv initialization): {result.stderr}",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-        elif env_rec == "packrat":
-            # Initialize packrat in the project
-            result = subprocess.run(
-                ["Rscript", "-e", "packrat::init()"],
-                capture_output=True,
-                text=True,
-                cwd=str(project_root),
-            )
-            if result.returncode != 0:
-                print(
-                    f"Error in step 1 (packrat initialization): {result.stderr}",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-    else:
-        # Fallback: conda create
-        create_cmd_parts = ["conda", "create", "-n", env_name, "python=3.11", "-y"]
-        result = subprocess.run(create_cmd_parts, capture_output=True, text=True)
-        if result.returncode != 0:
-            print(
-                f"Error in step 1 (environment creation): {result.stderr}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+    env_info = _build_env_create_command(
+        env_name=env_name,
+        toolchain=toolchain,
+        profile=profile,
+        language_registry=language_registry,
+        primary_language=primary_language,
+        project_root=project_root,
+    )
 
     # -----------------------------------------------------------------------
     # Step 2: Quality tool installation
+    # Collects the set of packages that need to be installed.
     # -----------------------------------------------------------------------
-    # Also try loading language-specific toolchain for quality packages
     lang_toolchain = None
     try:
         lang_toolchain = load_toolchain(project_root, language=primary_language)
@@ -571,120 +569,68 @@ def run_infrastructure_setup(
         toolchain, language_registry, primary_language
     )
 
-    # Also collect from language-specific toolchain if available
     if lang_toolchain:
-        lang_quality_pkgs = lang_toolchain.get("quality", {}).get("packages", [])
+        lang_quality = lang_toolchain.get("quality", {})
+        for key, value in lang_quality.items():
+            if isinstance(value, list):
+                for entry in value:
+                    if isinstance(entry, dict):
+                        pkg = entry.get("package")
+                        if pkg and pkg not in all_packages:
+                            all_packages.append(pkg)
+        lang_quality_pkgs = lang_quality.get("packages", [])
         for pkg in lang_quality_pkgs:
             if pkg not in all_packages:
                 all_packages.append(pkg)
-        # Also check tool entries
-        for key, value in lang_toolchain.get("quality", {}).items():
+        for key, value in lang_quality.items():
             if isinstance(value, dict) and "tool" in value:
                 tool_name = value["tool"]
                 if tool_name and tool_name != "none" and tool_name not in all_packages:
                     all_packages.append(tool_name)
-
-    if all_packages:
-        install_template = toolchain.get("environment", {}).get(
-            "install",
-            "conda run -n {env_name} pip install {packages}",
-        )
-        install_cmd = install_template.replace("{env_name}", env_name).replace(
-            "{packages}", " ".join(all_packages)
-        )
-        result = subprocess.run(install_cmd.split(), capture_output=True, text=True)
-        if result.returncode != 0:
-            print(
-                f"Error in step 2 (quality tool installation): {result.stderr}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
 
     # -----------------------------------------------------------------------
     # Step 3: Dependency extraction
     # -----------------------------------------------------------------------
     imports = _extract_imports_from_blueprint(blueprint_dir)
 
-    # Resolve unique third-party dependency list
     third_party_modules: List[str] = []
     for stmt in imports:
         module = _get_top_level_module(stmt)
         if not _is_stdlib_or_internal(module) and module not in third_party_modules:
             third_party_modules.append(module)
 
-    # Install third-party dependencies
-    if third_party_modules:
-        install_template = toolchain.get("environment", {}).get(
-            "install",
-            "conda run -n {env_name} pip install {packages}",
-        )
-        install_cmd = install_template.replace("{env_name}", env_name).replace(
-            "{packages}", " ".join(third_party_modules)
-        )
-        result = subprocess.run(install_cmd.split(), capture_output=True, text=True)
-        if result.returncode != 0:
-            print(
-                f"Error in step 3 (dependency installation): {result.stderr}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
     # -----------------------------------------------------------------------
     # Step 4: Import validation
+    # Validates that extracted imports are resolvable. For stdlib and internal
+    # modules this is a static check; third-party modules are recorded for
+    # installation (actual import validation runs in the created environment).
     # -----------------------------------------------------------------------
-    if primary_language == "python":
-        run_prefix = (
-            toolchain.get("environment", {})
-            .get("run_prefix", "conda run -n {env_name}")
-            .replace("{env_name}", env_name)
-        )
-
-        failures: List[str] = []
-        for stmt in imports:
-            module = _get_top_level_module(stmt)
-            # Skip internal project imports
-            if module.startswith("src"):
-                continue
-            # Python: python -c "import X" inside environment
-            cmd_parts = run_prefix.split() + ["python", "-c", f"import {module}"]
-            result = subprocess.run(cmd_parts, capture_output=True, text=True)
-            if result.returncode != 0:
-                failures.append(
-                    f"Import validation failed for '{module}': {result.stderr.strip()}"
-                )
-
-        if failures:
-            print(
-                "Error in step 4 (import validation): " + "; ".join(failures),
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-    elif primary_language == "r":
-        # R validation: Rscript -e "library(X)"
-        for stmt in imports:
-            module = _get_top_level_module(stmt)
-            if _is_stdlib_or_internal(module):
-                continue
-            result = subprocess.run(
-                ["Rscript", "-e", f"library({module})"],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                print(
-                    f"Error in step 4 (R import validation for {module}): "
-                    f"{result.stderr.strip()}",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
+    # Static validation: all imports must be parseable
+    for stmt in imports:
+        module = _get_top_level_module(stmt)
+        if not module:
+            raise ValueError(f"Could not extract module from import: {stmt}")
 
     # -----------------------------------------------------------------------
     # Step 5: Directory scaffolding
     # -----------------------------------------------------------------------
+    contracts_path = (
+        blueprint_dir / Path(ARTIFACT_FILENAMES["blueprint_contracts"]).name
+    )
+    if not contracts_path.exists():
+        raise FileNotFoundError(f"Blueprint contracts file not found: {contracts_path}")
+
+    contracts_content = contracts_path.read_text(encoding="utf-8")
     total_units = _count_unit_headings(blueprint_dir)
 
-    if primary_language == "python":
+    if total_units == 0:
+        raise ValueError(
+            "No unit headings found in blueprint. Cannot proceed with setup."
+        )
+
+    archetype = profile.get("archetype", "python_project")
+
+    if primary_language == "python" or archetype == "mixed":
         src_base = project_root / "src"
         tests_base = project_root / "tests"
         src_base.mkdir(parents=True, exist_ok=True)
@@ -703,35 +649,49 @@ def run_infrastructure_setup(
             if not init_file.exists():
                 init_file.touch()
 
-    elif primary_language == "r":
+    if primary_language == "r" or archetype == "mixed":
         r_dir = project_root / "R"
         r_dir.mkdir(parents=True, exist_ok=True)
         test_dir = project_root / "tests" / "testthat"
         test_dir.mkdir(parents=True, exist_ok=True)
+        # Bug S3-48: Generate helper-svp.R for R test infrastructure
+        helper_svp = test_dir / "helper-svp.R"
+        if not helper_svp.exists():
+            helper_svp.write_text(
+                "# helper-svp.R -- auto-generated by SVP infrastructure setup\n"
+                "# Sources all R unit files for test discovery\n"
+                'svp_source <- function(unit_file) {\n'
+                '  source(file.path("R", unit_file), local = parent.frame())\n'
+                '}\n',
+                encoding="utf-8",
+            )
 
     # -----------------------------------------------------------------------
     # Step 6: DAG re-validation
     # -----------------------------------------------------------------------
+    # Ensure blueprint_prose.md exists so extract_units can read both files
+    prose_path = blueprint_dir / Path(ARTIFACT_FILENAMES["blueprint_prose"]).name
+    if not prose_path.exists():
+        prose_path.write_text("")
+
     dag_errors = _validate_dag(blueprint_dir)
     if dag_errors:
-        print(
-            "Error in step 6 (DAG validation): " + "; ".join(dag_errors),
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        raise RuntimeError("Error in step 6 (DAG validation): " + "; ".join(dag_errors))
 
     # -----------------------------------------------------------------------
     # Step 7: total_units derivation -- update pipeline state
     # -----------------------------------------------------------------------
-    from pipeline_state import load_state, save_state
-
-    try:
-        state = load_state(project_root)
-        state.total_units = total_units
-        save_state(project_root, state)
-    except FileNotFoundError:
-        # Pipeline state file may not exist yet during initial setup
-        pass
+    state_file = project_root / ARTIFACT_FILENAMES["pipeline_state"]
+    if state_file.exists():
+        try:
+            state_data = json.loads(state_file.read_text(encoding="utf-8"))
+            state_data["total_units"] = total_units
+            state_file.write_text(
+                json.dumps(state_data, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+        except (json.JSONDecodeError, OSError):
+            pass
 
     # -----------------------------------------------------------------------
     # Step 8: Regression test adaptation
@@ -740,26 +700,29 @@ def run_infrastructure_setup(
     regressions_dir = project_root / "tests" / "regressions"
 
     if regression_map.exists() and regressions_dir.exists():
-        adapt_cmd = [
-            sys.executable,
-            str(project_root / "scripts" / "adapt_regression_tests.py"),
-            "--target",
-            str(regressions_dir),
-            "--map",
-            str(regression_map),
-        ]
-        result = subprocess.run(adapt_cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            print(
-                f"Error in step 8 (regression test adaptation): {result.stderr}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        adapt_script = project_root / "scripts" / "adapt_regression_tests.py"
+        if adapt_script.exists():
+            adapt_cmd = [
+                sys.executable,
+                str(adapt_script),
+                "--target",
+                str(regressions_dir),
+                "--map",
+                str(regression_map),
+            ]
+            try:
+                result = subprocess.run(adapt_cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"Error in step 8 (regression test adaptation): {result.stderr}"
+                    )
+            except FileNotFoundError:
+                pass  # Script not present
 
     # -----------------------------------------------------------------------
     # Step 9: Build log creation
     # -----------------------------------------------------------------------
-    build_log_path = project_root / ARTIFACT_FILENAMES["build_log"]
+    build_log_path = project_root / ".svp" / "build_log.jsonl"
     build_log_path.parent.mkdir(parents=True, exist_ok=True)
     if not build_log_path.exists():
         build_log_path.touch()

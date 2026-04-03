@@ -281,10 +281,11 @@ def validate_registry_entry(entry: Dict[str, Any]) -> List[str]:
     """
     errors: List[str] = []
 
-    # Check all required keys are present
-    missing_keys = FULL_REQUIRED_KEYS - set(entry.keys())
-    if missing_keys:
-        errors.append(f"Missing required keys: {sorted(missing_keys)}")
+    # Check each required key individually
+    entry_keys = set(entry.keys())
+    for key in sorted(FULL_REQUIRED_KEYS):
+        if key not in entry_keys:
+            errors.append(f"Missing required key: {key}")
 
     # Check default_delivery fields
     if "default_delivery" in entry:
@@ -296,10 +297,8 @@ def validate_registry_entry(entry: Dict[str, Any]) -> List[str]:
             "entry_points",
         }
         missing_delivery = required_delivery_fields - set(dd.keys())
-        if missing_delivery:
-            errors.append(
-                f"default_delivery missing fields: {sorted(missing_delivery)}"
-            )
+        for field in sorted(missing_delivery):
+            errors.append(f"default_delivery missing field: {field}")
 
     # Check default_quality fields
     if "default_quality" in entry:
@@ -309,8 +308,8 @@ def validate_registry_entry(entry: Dict[str, Any]) -> List[str]:
         if entry.get("id") == "python":
             required_quality_fields.add("import_sorter")
         missing_quality = required_quality_fields - set(dq.keys())
-        if missing_quality:
-            errors.append(f"default_quality missing fields: {sorted(missing_quality)}")
+        for field in sorted(missing_quality):
+            errors.append(f"default_quality missing field: {field}")
 
     return errors
 
@@ -322,10 +321,11 @@ def validate_component_entry(entry: Dict[str, Any]) -> List[str]:
     """
     errors: List[str] = []
 
-    # Check all component required keys are present
-    missing_keys = COMPONENT_REQUIRED_KEYS - set(entry.keys())
-    if missing_keys:
-        errors.append(f"Missing required keys: {sorted(missing_keys)}")
+    # Check each component required key individually
+    entry_keys = set(entry.keys())
+    for key in sorted(COMPONENT_REQUIRED_KEYS):
+        if key not in entry_keys:
+            errors.append(f"Missing required key: {key}")
 
     # Check is_component_only is True
     if "is_component_only" in entry and entry["is_component_only"] is not True:
@@ -370,18 +370,18 @@ def _validate_registry_at_import() -> None:
     """Validate all built-in registry entries at import time."""
     for lang_key, entry in LANGUAGE_REGISTRY.items():
         if entry.get("is_component_only", False):
-            errors = validate_component_entry(entry)
-            if errors:
+            errs = validate_component_entry(entry)
+            if errs:
                 raise ValueError(
                     f"Component registry entry '{lang_key}' is invalid: "
-                    + "; ".join(errors)
+                    + "; ".join(errs)
                 )
         else:
-            errors = validate_registry_entry(entry)
-            if errors:
+            errs = validate_registry_entry(entry)
+            if errs:
                 raise ValueError(
                     f"Full-language registry entry '{lang_key}' is invalid: "
-                    + "; ".join(errors)
+                    + "; ".join(errs)
                 )
 
 

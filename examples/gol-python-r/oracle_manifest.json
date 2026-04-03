@@ -1,0 +1,15 @@
+{
+  "name": "GoL Python-R Mixed",
+  "description": "Python GUI + R GoL engine via rpy2 — exercises dual-language dispatch and bridge.",
+  "archetype": "mixed",
+  "oracle_mode": "product",
+  "languages": ["python", "r"],
+  "key_paths": [
+    "Option D setup dialog",
+    "Dual-language Stage 3 dispatch",
+    "rpy2 bridge integration",
+    "Cross-language tests",
+    "Two-phase assembly"
+  ],
+  "trajectory_config": "oracle_trajectory.json"
+}

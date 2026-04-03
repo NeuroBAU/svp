@@ -153,6 +153,21 @@ R_TOOLCHAIN: Dict[str, Any] = {
         "unit_flags": "",
         "project_flags": "",
     },
+    "packaging": {
+        "tool": "devtools",
+        "manifest_file": "DESCRIPTION",
+        "build_backend": "devtools::build",
+        "validate_command": "Rscript -e 'devtools::check()'",
+    },
+    "vcs": {
+        "tool": "git",
+        "commands": {
+            "init": "git init",
+            "add": "git add {files}",
+            "commit": 'git commit -m "{message}"',
+            "status": "git status",
+        },
+    },
     "language": {
         "name": "r",
         "extension": ".R",

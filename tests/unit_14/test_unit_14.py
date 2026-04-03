@@ -77,6 +77,7 @@ def _make_state(**overrides):
         "oracle_phase": None,
         "oracle_run_count": 0,
         "oracle_nested_session_path": None,
+        "oracle_modification_count": 0,
         "state_hash": None,
         "spec_revision_count": 0,
         "pass_": None,
@@ -862,12 +863,13 @@ class TestRoute:
     # -- Oracle routing --
 
     def test_oracle_dry_run_routes_to_invoke_agent(self, tmp_path):
-        """When oracle_session_active and oracle_phase=='dry_run', emits invoke_agent with oracle_agent."""
+        """When oracle_session_active and oracle_phase=='dry_run' with test project set, emits invoke_agent with oracle_agent."""
         state = _make_state(
             stage="5",
             sub_stage="repo_complete",
             oracle_session_active=True,
             oracle_phase="dry_run",
+            oracle_test_project="examples/demo",
         )
         _write_state_file(tmp_path, state)
         _write_last_status(tmp_path, "")

@@ -5,25 +5,38 @@ upstream contracts, and per-unit metadata.
 """
 
 import re
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Set
 
 from svp_config import ARTIFACT_FILENAMES
 
 
-@dataclass
 class UnitDefinition:
-    number: int
-    name: str
-    tier1: str
-    tier2: str
-    tier3: str
-    dependencies: List[int]
-    languages: Set[str]
-    machinery: (
-        bool  # True for units whose contracts affect pipeline mechanisms (5, 6, 14, 15)
-    )
+    """Holds extracted metadata for a single blueprint unit.
+
+    Supports both attribute-assignment construction (UnitDefinition() then set fields)
+    and keyword construction.
+    """
+
+    def __init__(
+        self,
+        number: int = None,
+        name: str = None,
+        tier1: str = None,
+        tier2: str = None,
+        tier3: str = None,
+        dependencies: List[int] = None,
+        languages: Set[str] = None,
+        machinery: bool = None,
+    ):
+        self.number = number
+        self.name = name
+        self.tier1 = tier1
+        self.tier2 = tier2
+        self.tier3 = tier3
+        self.dependencies = dependencies
+        self.languages = languages
+        self.machinery = machinery
 
 
 # ---------------------------------------------------------------------------
@@ -136,23 +149,33 @@ def _detect_languages_in_text(text: str) -> Set[str]:
 
     Returns set of language strings. Untagged fences get mapped to project's
     primary language (python).
+    Properly tracks open/close fence state so that closing ``` lines are not
+    counted as untagged opening fences.
     """
     languages: Set[str] = set()
     # Known language mappings
     lang_map = {"python": "python", "r": "r", "stan": "stan"}
 
-    for m in _CODE_FENCE_OPEN_RE.finditer(text):
-        tag = m.group(1)
-        if tag is None:
-            # Untagged fence defaults to project's primary language
-            languages.add("python")
-        else:
-            tag_lower = tag.lower()
-            if tag_lower in lang_map:
-                languages.add(lang_map[tag_lower])
+    in_fence = False
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if not in_fence and re.match(r"^```(\w+)?\s*$", stripped):
+            in_fence = True
+            # Extract the language tag from the opening fence
+            m = re.match(r"^```(\w+)?\s*$", stripped)
+            tag = m.group(1)
+            if tag is None:
+                # Untagged fence defaults to project's primary language
+                languages.add("python")
             else:
-                # Unknown tag - still record it
-                languages.add(tag_lower)
+                tag_lower = tag.lower()
+                if tag_lower in lang_map:
+                    languages.add(lang_map[tag_lower])
+                else:
+                    # Unknown tag - still record it
+                    languages.add(tag_lower)
+        elif in_fence and stripped == "```":
+            in_fence = False
 
     return languages
 
@@ -211,7 +234,7 @@ def extract_units(blueprint_dir: Path) -> List[UnitDefinition]:
         # Detect languages from both files for this unit
         languages = detect_code_block_language(blueprint_dir, unit_num)
 
-        # Check machinery flag in Tier 1
+        # Check machinery flag in Tier 1 (case-insensitive, requires space after colon)
         machinery = "machinery: true" in tier1.lower() if tier1 else False
 
         units.append(

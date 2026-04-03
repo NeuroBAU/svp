@@ -140,10 +140,10 @@ class TestGenerateHooksJson:
         for entry in entries:
             if "command" in entry:
                 all_commands.append(entry["command"])
-            if "handler" in entry:
-                handler = entry["handler"]
-                if isinstance(handler, dict) and "command" in handler:
-                    all_commands.append(handler["command"])
+            if "hooks" in entry:
+                for hook in entry["hooks"]:
+                    if isinstance(hook, dict) and "command" in hook:
+                        all_commands.append(hook["command"])
         matched = [c for c in all_commands if "write_authorization.sh" in c]
         assert len(matched) >= 1, (
             "PreToolUse must include a Write matcher -> write_authorization.sh entry"
@@ -157,10 +157,10 @@ class TestGenerateHooksJson:
         for entry in entries:
             if "command" in entry:
                 all_commands.append(entry["command"])
-            if "handler" in entry:
-                handler = entry["handler"]
-                if isinstance(handler, dict) and "command" in handler:
-                    all_commands.append(handler["command"])
+            if "hooks" in entry:
+                for hook in entry["hooks"]:
+                    if isinstance(hook, dict) and "command" in hook:
+                        all_commands.append(hook["command"])
         matched = [c for c in all_commands if "non_svp_protection.sh" in c]
         assert len(matched) >= 1, (
             "PreToolUse must include a Bash matcher -> non_svp_protection.sh entry"
@@ -174,10 +174,10 @@ class TestGenerateHooksJson:
         for entry in entries:
             if "command" in entry:
                 all_commands.append(entry["command"])
-            if "handler" in entry:
-                handler = entry["handler"]
-                if isinstance(handler, dict) and "command" in handler:
-                    all_commands.append(handler["command"])
+            if "hooks" in entry:
+                for hook in entry["hooks"]:
+                    if isinstance(hook, dict) and "command" in hook:
+                        all_commands.append(hook["command"])
         matched = [c for c in all_commands if "stub_sentinel_check.sh" in c]
         assert len(matched) >= 1, (
             "PostToolUse must include a Write matcher -> stub_sentinel_check.sh entry"
@@ -191,10 +191,10 @@ class TestGenerateHooksJson:
         for entry in entries:
             if "command" in entry:
                 all_commands.append(entry["command"])
-            if "handler" in entry:
-                handler = entry["handler"]
-                if isinstance(handler, dict) and "command" in handler:
-                    all_commands.append(handler["command"])
+            if "hooks" in entry:
+                for hook in entry["hooks"]:
+                    if isinstance(hook, dict) and "command" in hook:
+                        all_commands.append(hook["command"])
         matched = [c for c in all_commands if "monitoring_reminder.sh" in c]
         assert len(matched) >= 1, (
             "PostToolUse must include an Agent matcher -> monitoring_reminder.sh entry"
@@ -207,7 +207,7 @@ class TestGenerateHooksJson:
             entries = parsed["hooks"][hook_type]
             for entry in entries:
                 # Check handler dict if nested
-                handler = entry.get("handler", entry)
+                handler = entry["hooks"][0] if "hooks" in entry else entry
                 if isinstance(handler, dict) and "type" in handler:
                     assert handler["type"] == "command", (
                         f"Handler type must be 'command', not '{handler['type']}'"
@@ -222,7 +222,7 @@ class TestGenerateHooksJson:
         for hook_type in ("PreToolUse", "PostToolUse"):
             entries = parsed["hooks"][hook_type]
             for entry in entries:
-                handler = entry.get("handler", entry)
+                handler = entry["hooks"][0] if "hooks" in entry else entry
                 if isinstance(handler, dict):
                     assert "script" not in handler, (
                         "Handler must not have a 'script' field"
@@ -238,7 +238,7 @@ class TestGenerateHooksJson:
                 # If the entry has both a matcher and handler, the matcher
                 # must not have type/command.  If the entry IS the combined
                 # object, then it's a flat format which is acceptable.
-                if "matcher" in entry and "handler" in entry:
+                if "matcher" in entry and "hooks" in entry:
                     matcher = entry["matcher"]
                     assert "type" not in matcher or matcher.get("type") != "command", (
                         "Matcher must not carry handler's 'type' field"
@@ -253,7 +253,7 @@ class TestGenerateHooksJson:
         for hook_type in ("PreToolUse", "PostToolUse"):
             entries = parsed["hooks"][hook_type]
             for entry in entries:
-                handler = entry.get("handler", entry)
+                handler = entry["hooks"][0] if "hooks" in entry else entry
                 if isinstance(handler, dict) and "command" in handler:
                     cmd = handler["command"]
                     assert ".claude/scripts/" in cmd, (
@@ -267,7 +267,7 @@ class TestGenerateHooksJson:
         for hook_type in ("PreToolUse", "PostToolUse"):
             entries = parsed["hooks"][hook_type]
             for entry in entries:
-                handler = entry.get("handler", entry)
+                handler = entry["hooks"][0] if "hooks" in entry else entry
                 if isinstance(handler, dict):
                     assert "type" in handler, "Handler must have 'type' key"
                     assert "command" in handler, "Handler must have 'command' key"
@@ -712,7 +712,7 @@ class TestCrossFunctionConsistency:
         all_commands = []
         for hook_type in ("PreToolUse", "PostToolUse"):
             for entry in parsed["hooks"][hook_type]:
-                handler = entry.get("handler", entry)
+                handler = entry["hooks"][0] if "hooks" in entry else entry
                 if isinstance(handler, dict) and "command" in handler:
                     all_commands.append(handler["command"])
         write_auth_commands = [c for c in all_commands if "write_authorization" in c]
@@ -728,7 +728,7 @@ class TestCrossFunctionConsistency:
         all_commands = []
         for hook_type in ("PreToolUse", "PostToolUse"):
             for entry in parsed["hooks"][hook_type]:
-                handler = entry.get("handler", entry)
+                handler = entry["hooks"][0] if "hooks" in entry else entry
                 if isinstance(handler, dict) and "command" in handler:
                     all_commands.append(handler["command"])
         svp_prot_commands = [c for c in all_commands if "non_svp_protection" in c]
@@ -742,7 +742,7 @@ class TestCrossFunctionConsistency:
         all_commands = []
         for hook_type in ("PreToolUse", "PostToolUse"):
             for entry in parsed["hooks"][hook_type]:
-                handler = entry.get("handler", entry)
+                handler = entry["hooks"][0] if "hooks" in entry else entry
                 if isinstance(handler, dict) and "command" in handler:
                     all_commands.append(handler["command"])
         stub_commands = [c for c in all_commands if "stub_sentinel_check" in c]
@@ -756,7 +756,7 @@ class TestCrossFunctionConsistency:
         all_commands = []
         for hook_type in ("PreToolUse", "PostToolUse"):
             for entry in parsed["hooks"][hook_type]:
-                handler = entry.get("handler", entry)
+                handler = entry["hooks"][0] if "hooks" in entry else entry
                 if isinstance(handler, dict) and "command" in handler:
                     all_commands.append(handler["command"])
         monitor_commands = [c for c in all_commands if "monitoring_reminder" in c]
@@ -824,7 +824,7 @@ class TestHooksJsonSchemaStructure:
         entries = get_pretooluse_entries(parsed)
         write_entries = []
         for entry in entries:
-            handler = entry.get("handler", entry)
+            handler = entry["hooks"][0] if "hooks" in entry else entry
             if isinstance(handler, dict) and "command" in handler:
                 if "write_authorization" in handler["command"]:
                     write_entries.append(entry)
@@ -843,7 +843,7 @@ class TestHooksJsonSchemaStructure:
         entries = get_pretooluse_entries(parsed)
         bash_entries = []
         for entry in entries:
-            handler = entry.get("handler", entry)
+            handler = entry["hooks"][0] if "hooks" in entry else entry
             if isinstance(handler, dict) and "command" in handler:
                 if "non_svp_protection" in handler["command"]:
                     bash_entries.append(entry)
@@ -861,7 +861,7 @@ class TestHooksJsonSchemaStructure:
         entries = get_posttooluse_entries(parsed)
         write_entries = []
         for entry in entries:
-            handler = entry.get("handler", entry)
+            handler = entry["hooks"][0] if "hooks" in entry else entry
             if isinstance(handler, dict) and "command" in handler:
                 if "stub_sentinel_check" in handler["command"]:
                     write_entries.append(entry)
@@ -879,7 +879,7 @@ class TestHooksJsonSchemaStructure:
         entries = get_posttooluse_entries(parsed)
         agent_entries = []
         for entry in entries:
-            handler = entry.get("handler", entry)
+            handler = entry["hooks"][0] if "hooks" in entry else entry
             if isinstance(handler, dict) and "command" in handler:
                 if "monitoring_reminder" in handler["command"]:
                     agent_entries.append(entry)

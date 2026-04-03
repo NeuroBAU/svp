@@ -1,0 +1,15 @@
+{
+  "name": "GoL Plugin",
+  "description": "Claude Code plugin generating 3 GoL strategies — exercises plugin assembly and multi-artifact delivery.",
+  "archetype": "claude_code_plugin",
+  "oracle_mode": "product",
+  "languages": ["python"],
+  "key_paths": [
+    "Plugin assembly",
+    "Agent/skill/command delivery",
+    "Plugin manifest validation",
+    "Multi-artifact composition",
+    "plugin_markdown structural validation"
+  ],
+  "trajectory_config": "oracle_trajectory.json"
+}

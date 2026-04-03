@@ -384,7 +384,8 @@ The human reviews and approves rather than answering from scratch. Only ask ques
 
 ## Terminal Status Lines
 
-- `PROFILE_DIALOG_COMPLETE` -- profile dialog finished successfully.
-- `CONTEXT_DIALOG_COMPLETE` -- context dialog finished successfully.
+- `PROFILE_COMPLETE` -- profile dialog finished successfully.
+- `PROJECT_CONTEXT_COMPLETE` -- context dialog finished successfully.
+- `PROJECT_CONTEXT_REJECTED` -- context dialog rejected by the human.
 """
 )

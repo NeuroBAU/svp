@@ -1,5 +1,9 @@
 # SVP — Stratified Verification Pipeline
 
+**Upstream import TYPE_CHECKING guards (NEW IN 2.2 -- Bug S3-47).** The stub generator must wrap non-stdlib imports (upstream dependency modules) in `if TYPE_CHECKING:` guards with `from __future__ import annotations` at the top of the file. Stubs never execute upstream code at runtime (all bodies are `raise NotImplementedError()`), so upstream imports are only needed for type annotations. This ensures stubs are importable regardless of workspace directory layout.
+**R test source path resolution (NEW IN 2.2 -- Bug S3-48).** The infrastructure setup generates `tests/testthat/helper-svp.R`, which testthat auto-sources before test execution. This file provides `svp_source(path)` -- a helper function that resolves `source()` paths relative to the project root. R tests must use `svp_source("src/unit_N/stub.R")` instead of bare `source()`. This is the R equivalent of Python's `pyproject.toml pythonpath` setting. The helper uses `testthat::test_path()` (which returns `"tests/testthat"`) and navigates two levels up (`file.path(test_path(), "..", "..")`) to locate the project root deterministically.
+**Cross-language upstream stub generation (NEW IN 2.2 -- Bug S3-49).** In mixed-language projects, `generate_upstream_stubs` must detect each upstream unit's language from `UnitDefinition.languages` and use the appropriate signature parser and stub generator for that language. The caller's `--language` flag applies only to the current unit, not to upstream dependencies. This is symmetric: Python callers with R upstreams use the R parser for R units, and R callers with Python upstreams use the Python parser for Python units.
+**Delivery artifact completeness (NEW IN 2.2 — Bug S3-50).** The structural completion audit verifies Pass 2's delivered repo contains all root-level delivery artifacts present in Pass 1's repo: `environment.yml`, `pyproject.toml`, `README.md`, `CHANGELOG.md`, `LICENSE`, `.gitignore`. Any file present in Pass 1 but absent in Pass 2 is a delivery gap.
 ## Stakeholder Specification v9.0 (SVP 2.2)
 
 **Date:** 2026-03-21
@@ -197,6 +201,8 @@ The main session never decides which state update to call, never constructs argu
 
 **Status file state invariant.** `.svp/last_status.txt` contains the result of the most recently completed action. Commands reading this file during their own execution are reading the *previous* action cycle's result.
 
+**Command dispatch through update_state.py (NEW IN 2.2 -- Bug S3-14).** `update_state.py` accepts both `--phase` (for agent status dispatch) and `--command` (for command status dispatch). The routing script includes a `post` field in every `run_command` action block that invokes `update_state.py --command <command_type>`. This ensures the six-step action cycle is uniform for both agent and command actions.
+
 **Two-branch routing invariant (NEW IN 2.1 — generalized Bug 21 fix).** Every sub-stage where an agent completion should trigger a different action (gate presentation or deterministic command) rather than re-invocation has two reachable states: (1) the agent has not yet been invoked or has not yet completed, and (2) the agent has completed (indicated by its terminal status line in `last_status.txt`). The `route()` function must distinguish these two states for every such sub-stage. In state (1), it emits an `invoke_agent` action. In state (2), it emits the appropriate next action — typically a `human_gate` for the corresponding gate, or a `run_command` for a deterministic check (as in quality gate retry sub-stages). If `route()` always returns the agent invocation without checking `last_status.txt`, the pipeline loops indefinitely re-invoking the agent after its work is already done.
 
 This is a structural invariant, not a per-stage fix. The complete list of sub-stages governed by this invariant follows, in two groups distinguished by what the "done" branch emits:
@@ -219,7 +225,7 @@ This is a structural invariant, not a per-stage fix. The complete list of sub-st
 - **Redo profile sub-stages, `redo_profile_delivery`:** check for `PROFILE_COMPLETE` before presenting Gate 0.3r (`gate_0_3r_profile_revision`) (Section 13, `/svp:redo`).
 - **Redo profile sub-stages, `redo_profile_blueprint`:** check for `PROFILE_COMPLETE` before presenting Gate 0.3r (`gate_0_3r_profile_revision`) (Section 13, `/svp:redo`).
 - **Stage 7 (oracle), `dry_run` (NEW IN 2.2):** check for `ORACLE_DRY_RUN_COMPLETE` before presenting Gate 7.A (`gate_7_a_trajectory_review`) (Section 35.4).
-- **Stage 7 (oracle), `green_run` (NEW IN 2.2):** check for `ORACLE_FIX_APPLIED` or `ORACLE_ALL_CLEAR` before presenting the exit report or Gate 7.B (`gate_7_b_fix_plan_review`) (Section 35.4).
+- **Stage 7 (oracle), `green_run` (NEW IN 2.2, CHANGED IN 2.2 -- Bug S3-44):** check for `ORACLE_FIX_APPLIED` before presenting Gate 7.B (`gate_7_b_fix_plan_review`); check for `ORACLE_ALL_CLEAR` before exiting the oracle session directly via `complete_oracle_session` with exit_reason "all_clear" (Section 35.4). `ORACLE_ALL_CLEAR` must NOT present Gate 7.B.
 - **E/F self-build, `pass_transition` after Pass 1 (NEW IN 2.2):** After Pass 1's Stage 5 completes for E/F archetypes (`is_svp_build` is true, `pass` is 1), present `gate_pass_transition_post_pass1` (Section 43.7). Options: PROCEED TO PASS 2, FIX BUGS.
 - **E/F self-build, `pass_transition` after Pass 2 (NEW IN 2.2):** After Pass 2's Stage 5 completes (`pass` is 2), present `gate_pass_transition_post_pass2` (Section 43.7). Options: FIX BUGS, RUN ORACLE.
 - **Post-Stage-1, `checklist_generation` (NEW IN 2.2):** check for `CHECKLISTS_COMPLETE` before advancing to Stage 2 (Section 7.8). If the Checklist Generation Agent has not yet completed, invoke it; if it has completed, advance to Stage 2 (blueprint_dialog).
@@ -271,6 +277,8 @@ State-advancing entries follow the route-level state persistence invariant (Sect
 
 **Session boundary cross-reference.** Session boundaries follow the state-persistence-before-cycling invariant (Section 16).
 
+**Script execution invariant (NEW IN 2.2 — Bug S3-66).** Every deterministic script with a `main()` function must include `if __name__ == "__main__": main()` at the end. Every script invoked by the orchestrator from a non-scripts working directory must add its own directory to `sys.path` before bare imports. Without these, the script loads but produces no output, breaking the action cycle.
+
 The blueprint must implement `route()` such that adding a new agent-to-gate sub-stage automatically requires a two-branch check. Regression tests must verify both branches (agent-not-done and agent-done) for every sub-stage in this list. A regression test that only verifies the agent invocation branch is incomplete.
 
 **Universal compliance requirement (NEW IN 2.1 — Bug 43 fix).** The two-branch routing invariant must be applied universally in a single implementation pass, not incrementally as bugs are discovered in individual stages. Bugs 21, 41, and 43 demonstrated that applying the invariant piecemeal -- fixing only the stage where the bug was observed and leaving other stages unprotected -- leads to the same bug recurring in every unprotected stage. A universal compliance regression test (`test_bug43_stage2_blueprint_routing.py`) must verify that EVERY entry in the exhaustive list above has a corresponding two-branch check in `route()`. The test must fail if a new gate-presenting or command-presenting entry is added to the spec without a routing-level check. Additionally, the test must verify cross-unit consistency: every key in `GATE_VOCABULARY` (routing module) appears in `ALL_GATE_IDS` (preparation module) and has a gate prompt handler. The test covers both the gate-presenting and command-presenting categories. This is the definitive structural test for the two-branch invariant -- it supersedes per-stage regression tests as the primary compliance mechanism, though per-stage tests remain as defense in depth.
@@ -303,6 +311,12 @@ The blueprint must implement `route()` such that adding a new agent-to-gate sub-
 | `unit_completion` | `unit_completion` | `COMMAND_SUCCEEDED` | complete unit, advance to next |
 
 A bare `return state` (no-op) is not a valid contract outcome for any entry in this table. Every cell must produce a distinct state transition.
+
+**Stage 5 command dispatch completeness (NEW IN 2.2 — Bug S3-11).** `dispatch_command_status` must handle ALL command types emitted by the routing script, including `structural_check` and `compliance_scan` for Stage 5. Missing handlers cause crashes when the routing advances to these sub-stages.
+
+**Gate dispatch routing corrections (NEW IN 2.2 — Bug S3-17).** Three gate dispatch corrections: (1) Gate 1.1 FRESH REVIEW must route to stakeholder_reviewer, not stakeholder_dialog. The dispatch handler must set `sub_stage` to `"spec_review"`, which `_route_stage_1` maps to invoke the stakeholder_reviewer agent. (2) Gate 5.1 TESTS FAILED must re-enter bounded fix cycle by resetting sub_stage to `None` (which falls through to re-invoke git_repo_agent), not loop to Gate 5.1 by setting sub_stage to `"repo_test"`. (3) gate_pass_transition_post_pass1 PROCEED TO PASS 2 must reject when `deferred_broken_units` is non-empty, raising a ValueError to prevent advancing with unresolved broken units.
+
+**Routing loop prevention (NEW IN 2.2 — Bugs S3-18, S3-19, S3-20, S3-21).** Every agent invocation in the routing script must include a two-branch check: if `last_status` contains the agent's completion status, advance to the next phase/gate; otherwise invoke the agent. Without this check, completed agents are re-invoked indefinitely. Specific instances: (1) Debug reassembly phase must check for `REPO_ASSEMBLY_COMPLETE` and advance to `regression_test` phase. (2) Diagnostic escalation in Stage 3 implementation must check for `DIAGNOSIS_COMPLETE` and present Gate 3.2. (3) Debug repair phase must transition to `reassembly` phase on `REPAIR_COMPLETE`, not directly invoke `git_repo_agent` (which would leave the phase as `repair` after assembly completes, causing a loop). (4) `dispatch_command_status` must handle ALL command types emitted by `_route_debug`: `lessons_learned` (transitions debug phase to `commit`), `debug_commit` (completes the debug session), and `stage3_reentry` (sets `sub_stage` to `stub_generation` for unit rebuild).
 
 **COMMAND/POST separation invariant (NEW IN 2.1 — Bug 47 fix).** COMMAND fields in routing action blocks must never embed state update calls (`update_state.py`). State updates are exclusively the responsibility of POST commands. If a COMMAND embeds a state update call and a POST command also invokes `update_state.py` for the same phase, the state update runs twice, causing a `TransitionError` on the second invocation. The COMMAND should only produce output, write status files, or execute deterministic tool commands; the POST command handles state transitions. This applies to all routing action blocks, not just `unit_completion` (though Bug 47 was discovered there).
 
@@ -721,6 +735,12 @@ The launcher CLI supports exactly three invocation modes:
 
 **(NEW IN 2.2)** `--plugin-path` (optional): Overrides default plugin discovery. When provided, sets `SVP_PLUGIN_ROOT` in the subprocess environment, directing Claude Code to use the specified plugin directory instead of searching standard paths. Used by the oracle for nested session isolation (Section 35.17) but available as a general-purpose plugin path override.
 
+**Reference document carry-forward (NEW IN 2.2 -- Bug S3-43).** `svp restore` copies the `references/` directory from the source workspace if it exists. This ensures carry-forward artifacts (existing README, lessons learned) are available to downstream agents (git repo agent for README generation, test agent for lessons learned filtering).
+
+**Oracle ALL_CLEAR exit path (NEW IN 2.2 -- Bug S3-44).** `ORACLE_ALL_CLEAR` during the green run must exit the oracle session directly (calling `complete_oracle_session` with exit_reason "all_clear"), NOT present Gate 7B. Gate 7B is exclusively for fix plan review after `ORACLE_FIX_APPLIED`.
+
+**Gate routing completeness (NEW IN 2.2 -- Bug S3-45).** Every gate in GATE_VOCABULARY that can be reached through normal pipeline operation must have a corresponding routing branch in `route()` that presents it. Gates `gate_5_2_assembly_exhausted`, `gate_5_3_unused_functions`, and `gate_4_1a` must be routable via their respective sub_stage values (`gate_5_2`, `gate_5_3`, `gate_4_1a`). These sub_stages are registered in `ADDITIONAL_SUB_STAGES`.
+
 **(NEW IN 2.2, CHANGED IN 2.2) Pass 2 usage.** During a self-build's Pass 2, `svp restore` is invoked with `--plugin-path` pointing to the Pass 1 deliverable's SVP plugin directory and `--skip-to pre-stage-3` to initialize pipeline state at Pre-Stage-3 (Stages 0-2 skipped, spec/blueprint carried forward). When invoked with `--plugin-path` during Pass 2, the restore sequence additionally initializes `pass: 2` in the pipeline state (via `enter_pass_2()` from Unit 6). Example: `svp restore --plugin-path <pass1-deliverable>/svp/ --skip-to pre-stage-3 --spec <spec> --blueprint-dir <blueprint>`. Pass 2 is orchestrator-driven (Section 43.8), not human-initiated. See Section 43.2 for the full two-pass bootstrap protocol.
 
 No other subcommands exist. The blueprint must not introduce additional subcommands (e.g., `svp resume`, `svp status`) beyond these three modes. This vocabulary is a spec-level constraint — the blueprint author may decompose the internal handler structure freely, but the user-facing CLI surface is fixed.
@@ -772,7 +792,7 @@ The launcher launches Claude Code using `subprocess.run` with the following conf
 
 - **Working directory:** `cwd=str(project_root)`. Claude Code uses the working directory as the project root. No `--project-dir` flag exists in the Claude Code CLI; the launcher must not pass it (Bug 31 fix — see Section 24.26).
 - **Permissions flag:** `--dangerously-skip-permissions` is passed if `skip_permissions` is true in `svp_config.json` (default: true). The hook-based write authorization system (Section 19) remains active regardless of this setting.
-- **Initial prompt:** `"run the routing script"` — passed via the `--prompt` flag so the new session immediately enters the action cycle.
+- **Initial prompt:** `"run the routing script"` — passed as a **positional argument** (not a `--prompt` flag, which does not exist in the Claude Code CLI) so the new session immediately enters the action cycle.
 - **Environment variable:** `SVP_PLUGIN_ACTIVE=1` is set in the subprocess environment only, via the `env` parameter of `subprocess.run`. The launcher must never set this variable in its own process environment. Agents and hooks check this variable to distinguish SVP sessions from non-SVP sessions (see Section 19.3).
 - **No shell wrapping:** The command is passed as a list, not a string. No `shell=True`.
 
@@ -2311,6 +2331,10 @@ This sentinel is a machine-detectable marker. It is not removed by the implement
 
 **Sentinel injection invariant (NEW IN 2.2 — Bug S3-2, S3-4):** The stub generator (Unit 10) MUST inject the exact sentinel string from `LANGUAGE_REGISTRY[language]["stub_sentinel"]` into every generated stub file verbatim. The agent or script producing stubs must use this exact string, not improvise its own sentinel format. The compliance scanner (Section 12.5) and delivery structural validation rely on exact string matching to detect undelivered stubs. Any deviation in sentinel format will cause false negatives in stub detection.
 
+**Module-level constant defaults (NEW IN 2.2 — Bug S3-10).** Module-level annotated assignments (constants) in stubs must be assigned sensible default values to ensure importability. Dict-annotated constants get `{}`, List-annotated get `[]`, Set-annotated get `set()`, str-annotated get `""`, all others get `None`. A stub with a bare annotation (`X: Dict[str, str]`) is invalid — it must be `X: Dict[str, str] = {}`. This ensures test agents can import from stubs during red runs.
+
+**Stub output filename (NEW IN 2.2 -- Bug S3-13, AMENDED BY S3-29).** The stub generator must produce output files named `stub{file_ext}` (e.g., `stub.py`, `stub.R`) for the current unit, not `unit_N_stub{file_ext}`. The unit number is encoded in the directory path (`src/unit_N/`), not the filename. **Exception:** Upstream dependency stubs generated by `generate_upstream_stubs` use `unit_N_stub{ext}` filenames to avoid overwriting when multiple upstream dependencies exist (see Bug S3-29, Section 24.62).
+
 **Importability invariant.** The stub must be importable without error. Module-level `assert` statements are stripped from the parsed AST (they would fail against stub functions). Assertions inside function bodies are replaced along with the rest of the body. **(CHANGED IN 2.2)** Stub importability verification is language-specific — each language's `STUB_GENERATORS` implementation ensures the generated stub is loadable in that language's runtime (see Section 40.2 registry entries for language-specific importability requirements).
 
 ### 10.3 Quality Gate A: Post-Test, Pre-Red-Run (NEW IN 2.1)
@@ -2690,6 +2714,8 @@ After the integration test `run_command` completes, the routing script performs 
 4. **Retries exhausted** (retries >= 3): The assembly fix ladder has been exhausted after three attempts. Present Gate 4.2 (`gate_4_2_assembly_exhausted`) with options **FIX BLUEPRINT** or **FIX SPEC**. No further assembly fix attempts.
 
 This dispatch is a first-class behavioral requirement. The routing script must implement all four branches explicitly. A missing branch (e.g., no check for retries >= 3) causes the pipeline to loop indefinitely or present the wrong gate.
+
+**Stage 4 test dispatch differentiation (NEW IN 2.2 — Bug S3-16).** `dispatch_command_status` for Stage 4 `test_execution` must differentiate: TESTS_FAILED presents Gate 4.1 (`gate_4_1_integration_failure`) for human decision; TESTS_ERROR re-invokes the integration test author; retries exhausted presents Gate 4.2 (`gate_4_2_assembly_exhausted`). Simple retry-increment without gate presentation is incorrect.
 
 ### 11.3 On Pass
 
@@ -4483,6 +4509,242 @@ The triage agent must write `.svp/triage_result.json` containing `{"affected_uni
 
 **Fix:** Added file-write requirement to triage agent terminal behavior. A regression test verifies the file exists after triage completion.
 
+### 24.55 Debug Reassembly Phase Infinite Loop (Stage 3 Build — Bug S3-18, NEW IN 2.2)
+
+`_route_debug` for `phase == "reassembly"` unconditionally invokes `git_repo_agent` without checking `last_status`. After `REPO_ASSEMBLY_COMPLETE`, the debug phase stays at "reassembly" and the agent is re-invoked indefinitely.
+
+**Root cause:** Missing two-branch check in the reassembly phase handler. The routing did not check whether the git_repo_agent had already completed before re-invoking it.
+
+**Fix:** Added a check for `last_status == "REPO_ASSEMBLY_COMPLETE"` that advances the debug phase to `regression_test` before re-routing. A regression test (`test_bug_s3_18_21_routing_loops.py`) verifies the fix.
+
+### 24.56 Diagnostic Escalation Infinite Loop (Stage 3 Build — Bug S3-19, NEW IN 2.2)
+
+In `_route_stage_3`, when `fix_ladder_position == "diagnostic"`, the code unconditionally invokes `diagnostic_agent` without checking if `DIAGNOSIS_COMPLETE` has been written. After the agent completes, the same invocation is issued again indefinitely.
+
+**Root cause:** Missing two-branch check in the diagnostic escalation handler. The routing checked for `IMPLEMENTATION_COMPLETE` at the top of the `implementation` sub-stage handler, but did not check for `DIAGNOSIS_COMPLETE` in the diagnostic branch.
+
+**Fix:** Added a check for `last_status.startswith("DIAGNOSIS_COMPLETE")` that presents Gate 3.2 (`gate_3_2_diagnostic_decision`) for human decision. A regression test verifies the fix.
+
+### 24.57 Debug Repair Phase Routing Loop (Stage 3 Build — Bug S3-20, NEW IN 2.2)
+
+When `phase == "repair"` and `last_status == "REPAIR_COMPLETE"`, the routing directly invoked `git_repo_agent` for reassembly. After git_repo_agent completed with `REPO_ASSEMBLY_COMPLETE`, the repair handler did not recognize this status and fell through to re-invoke `repair_agent`, creating an infinite loop.
+
+**Root cause:** The repair phase handler directly invoked `git_repo_agent` instead of transitioning to the `reassembly` phase. After the git agent completed, the debug phase was still `repair`, so the repair handler processed the `REPO_ASSEMBLY_COMPLETE` status as an unrecognized status and fell through to the default repair_agent invocation.
+
+**Fix:** On `REPAIR_COMPLETE`, transition the debug phase to `reassembly` and re-route. The reassembly handler (fixed in S3-18) then properly handles the git_repo_agent invocation and subsequent transition. A regression test verifies the fix.
+
+### 24.58 Missing dispatch_command_status Handlers for Debug Commands (Stage 3 Build — Bug S3-21, NEW IN 2.2)
+
+Three command types emitted by `_route_debug` had no handler in `dispatch_command_status`: `lessons_learned`, `debug_commit`, and `stage3_reentry`. When the POST command called `update_state.py --command <type>`, it raised `ValueError: Unknown command_type`.
+
+**Root cause:** Incomplete specification of the `dispatch_command_status` contract. The debug routing emitted `run_command` action blocks with POST commands referencing these command types, but the dispatch function only handled Stage 3/4/5 command types.
+
+**Fix:** Added handlers for all three command types: `lessons_learned` (transitions debug phase to `commit`), `debug_commit` (completes the debug session via `complete_debug_session`), `stage3_reentry` (sets `sub_stage` to `stub_generation` for unit rebuild). A regression test verifies all three handlers.
+
+### 24.59 Debug Re-entry Loop Prevention (Stage 6 Debug — Bug S3-23, NEW IN 2.2)
+
+**Debug re-entry loop prevention (NEW IN 2.2 -- Bug S3-23).** `dispatch_command_status` for `stage3_reentry` must transition the debug session out of the stage3_reentry phase after COMMAND_SUCCEEDED, so normal Stage 3 routing takes over instead of `_route_debug` re-dispatching stage3_reentry. The fix sets the debug phase to `stage3_rebuild_active`, and `_route_debug` delegates that phase to `_route_stage_3` for the per-unit build loop.
+
+**Root cause:** On COMMAND_SUCCEEDED, the handler set `sub_stage = "stub_generation"` but left `debug_session.phase = "stage3_reentry"`. Since `_route_debug` intercepts all routing when `debug_session` is active, it re-dispatched the stage3_reentry command on every cycle -- infinite loop.
+
+**Fix:** After stage3_reentry COMMAND_SUCCEEDED, set `debug_session["phase"] = "stage3_rebuild_active"`. Added a `stage3_rebuild_active` handler in `_route_debug` that delegates to `_route_stage_3`.
+
+### 24.60 Gate 6.3 Reclassification Counter (Stage 6 Debug — Bug S3-24, NEW IN 2.2)
+
+**Gate 6.3 reclassification counter (NEW IN 2.2 -- Bug S3-24).** RECLASSIFY BUG at Gate 6.3 must increment `triage_refinement_count` before resetting to triage phase. Without the increment, the 3-reclassification limit is never enforced.
+
+**Root cause:** The RECLASSIFY BUG handler read `triage_refinement_count` and checked the limit but never wrote back an incremented value. The counter stayed at 0 across all reclassifications.
+
+**Fix:** After the limit check passes, increment `triage_refinement_count = triage_count + 1` in the debug session dict.
+
+### 24.61 Gate 4.1a No-op Responses (Stage 4 Integration — Bug S3-25, NEW IN 2.2)
+
+Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied state without modifying it). ESCALATE must advance to `gate_4_2` sub-stage. HUMAN FIX must reset `sub_stage` to `None` and `red_run_retries` to 0 for a fresh integration test attempt.
+
+**Root cause:** Both branches contained `pass` statements with comments describing intended behavior that was never implemented.
+
+**Fix:** ESCALATE sets `sub_stage = "gate_4_2"`. HUMAN FIX sets `sub_stage = None` and `red_run_retries = 0`.
+
+### 24.62 Upstream Stub Filename Convention (Stage 3 Build — Bug S3-29, NEW IN 2.2)
+
+**Upstream stub filename convention (NEW IN 2.2 -- Bug S3-29).** Upstream dependency stubs use `unit_N_stub{ext}` filenames (with unit number prefix) to avoid overwriting. Only the current unit's stub uses the bare `stub{ext}` filename.
+
+**Root cause:** The S3-13 fix changed the filename from `f"unit_{dep_num}_stub{file_ext}"` to `f"stub{file_ext}"` in `generate_upstream_stubs`, but this was incorrect -- that fix should only have applied to the `main()` function (current unit stub). In `generate_upstream_stubs`, all upstream stubs wrote to the same `stub.py` file, with each overwriting the previous.
+
+**Fix:** Restored `f"unit_{dep_num}_stub{file_ext}"` in `generate_upstream_stubs`. The `main()` function retains `f"stub{file_ext}"` for the current unit.
+
+### 24.63 Quality Gate QUALITY_ERROR and QUALITY_AUTO_FIXED Unreachable (Stage 3 Build — Bug S3-36, NEW IN 2.2)
+
+**Quality gate dead status variables (NEW IN 2.2 -- Bug S3-36).** In `_execute_gate_operations` (and the equivalent loops in `_run_plugin_markdown` and `_run_plugin_json`), `had_error` and `auto_fixed` are initialized to `False` and never set to `True`. This makes QUALITY_ERROR and QUALITY_AUTO_FIXED statuses unreachable -- every execution classifies as either QUALITY_CLEAN or QUALITY_RESIDUAL.
+
+**Root cause:** The classification logic at the end of each function correctly checks `had_error` and `auto_fixed`, but the execution loop never modifies these variables. Subprocess failures are not caught (so `had_error` stays False), and file content changes from auto-fix tools are not detected (so `auto_fixed` stays False).
+
+**Fix:** (1) Wrap `_run_command` in try/except; on exception set `had_error = True`. (2) Snapshot file content before and after each tool execution; if content changed, set `auto_fixed = True`.
+
+### 24.64 Hooks JSON Malformed Structure (Stage 3 Build — Bug S3-37, NEW IN 2.2)
+
+**Hooks JSON uses handler object instead of hooks array (NEW IN 2.2 -- Bug S3-37).** `HOOKS_JSON_SCHEMA` uses `{"matcher": "Write", "handler": {"type": "command", "command": "..."}}` instead of the spec-required `{"matcher": "Write", "hooks": [{"type": "command", "command": "..."}]}`. The Claude Code hooks configuration format requires a `"hooks"` array at the entry level, not a singular `"handler"` object.
+
+**Root cause:** The implementation used the wrong key name (`handler` instead of `hooks`) and wrong structure (object instead of array) for hook entries.
+
+**Fix:** Changed every entry in both PreToolUse and PostToolUse arrays from `"handler": {...}` to `"hooks": [{...}]`.
+
+### 24.65 New Project Initial sub_stage (Stage 3 Build — Bug S3-38, NEW IN 2.2)
+
+**New project initial sub_stage must be hook_activation (NEW IN 2.2 -- Bug S3-38).** `create_new_project` writes `"sub_stage": None` in the initial `pipeline_state.json`. The spec requires `"sub_stage": "hook_activation"` so that the routing script's first action block directs the orchestrator to activate hooks before proceeding to the setup dialog.
+
+**Root cause:** The initial state dictionary used `None` for `sub_stage` instead of the spec-required `"hook_activation"` value.
+
+**Fix:** Changed `"sub_stage": None` to `"sub_stage": "hook_activation"` in `create_new_project`.
+
+### 24.66 Setup Agent Definition Wrong Terminal Status Names (Stage 3 Build — Bug S3-41, NEW IN 2.2)
+
+**Terminal status name consistency (NEW IN 2.2 — Bug S3-41).** Agent definition terminal status names must be character-identical to the values handled by `dispatch_agent_status`. The setup agent uses `PROJECT_CONTEXT_COMPLETE`, `PROJECT_CONTEXT_REJECTED`, and `PROFILE_COMPLETE` — not any variant spellings.
+
+**Root cause:** `SETUP_AGENT_DEFINITION` string used `PROFILE_DIALOG_COMPLETE` and `CONTEXT_DIALOG_COMPLETE` as terminal statuses. But `dispatch_agent_status` in Unit 14 expects `PROJECT_CONTEXT_COMPLETE`, `PROJECT_CONTEXT_REJECTED`, and `PROFILE_COMPLETE`. The mismatched names would cause the orchestrator to emit status lines that the routing script does not recognize.
+
+**Fix:** Replaced `PROFILE_DIALOG_COMPLETE` with `PROFILE_COMPLETE`, `CONTEXT_DIALOG_COMPLETE` with `PROJECT_CONTEXT_COMPLETE`, and added `PROJECT_CONTEXT_REJECTED` as an additional terminal status in the `SETUP_AGENT_DEFINITION` string constant.
+
+### 24.67 dispatch_agent_status Missing HINT_BLUEPRINT_CONFLICT for Stage 3 Agents (Stage 3 Build — Bug S3-42, NEW IN 2.2)
+
+**Cross-agent HINT_BLUEPRINT_CONFLICT dispatch (NEW IN 2.2 — Bug S3-42).** Every agent that receives hint context (implementation_agent, test_agent, coverage_review_agent, diagnostic_agent) must have `HINT_BLUEPRINT_CONFLICT` handled in `dispatch_agent_status`. Missing handlers cause pipeline crashes when agents correctly detect hint-blueprint contradictions.
+
+**Root cause:** `dispatch_agent_status` for `implementation_agent` only handled `IMPLEMENTATION_COMPLETE`. The same omission applied to `test_agent`, `coverage_review_agent`, and `diagnostic_agent`. When any of these agents received a hint that contradicted the blueprint and correctly emitted `HINT_BLUEPRINT_CONFLICT`, the dispatch function raised `ValueError` instead of routing to `gate_hint_conflict`.
+
+**Fix:** Added `HINT_BLUEPRINT_CONFLICT` handling to all four hint-receiving agent types in `dispatch_agent_status`. The handler returns a copy of state with no changes — routing detects the conflict status and presents `gate_hint_conflict`.
+
+### 24.68 Stage 5 pass_transition Sub-Stage Not Routed (Post-delivery — Bug S3-54, NEW IN 2.2)
+
+**Stage 5 pass_transition routing (NEW IN 2.2 -- Bug S3-54).** `_route_stage_5()` sets `sub_stage` to `pass_transition` via `advance_sub_stage` when `repo_complete` is reached for pass 1 or 2. It then recursively calls `route()`. But `_route_stage_5()` has no explicit handler for `pass_transition`, so the recursive call falls through to the default `git_repo_agent` invocation. The handler for `pass_transition` exists only in `_route_stage_3()`. Fix: add a `pass_transition` handler in `_route_stage_5()` that presents `gate_pass_transition_post_pass1` (pass=1) or `gate_pass_transition_post_pass2` (pass=2), mirroring the Stage 3 handler.
+
+**Root cause:** Sub-stage set in one routing function (`_route_stage_5`) but handler only in a different one (`_route_stage_3`), with the dispatcher selecting by stage. When stage is "5", `_route_stage_3` is never called.
+
+**Pattern:** P2 (State Management). **Detection:** Regression test `test_bug_s3_54_pass_transition_routing.py`.
+
+### 24.69 Plugin Manifest Fields Empty Due to Missing Profile Section (Post-delivery — Bug S3-53, NEW IN 2.2)
+
+**Plugin profile section requirement (NEW IN 2.2 -- Bug S3-53).** `generate_plugin_json()` and `generate_marketplace_json()` in Unit 28 extract metadata from `profile.get("plugin", {})`. When the profile has no `"plugin"` section and no top-level `name`/`description`, all required manifest fields resolve to empty strings. Both Pass 1 and Pass 2 delivered repos had manifests with all-empty required fields. Fix: (1) `project_profile.json` must contain a `"plugin"` section with non-empty `name`, `description`, `version`, and `author` for plugin-producing archetypes, (2) generation functions must raise `ValueError` if any required field resolves to an empty string.
+
+**Root cause:** The setup dialog contract doesn't require populating plugin metadata for self-build archetypes (`svp_architectural`). The profile had `license.author` but no `plugin.name`, `plugin.description`, or top-level equivalents.
+
+**Pattern:** P1 (Incomplete Specification). **Detection:** Regression test `test_bug_s3_53_plugin_profile.py`.
+
+### 24.70 Plugin Manifest Directories Missing From Delivered Repo (Post-delivery — Bug S3-51, NEW IN 2.2)
+
+**Plugin manifest assembly (NEW IN 2.2 -- Bug S3-51).** The repository assembler (`assemble_python_project` in Unit 23) does not create `.claude-plugin/marketplace.json` at the repo root or `svp/.claude-plugin/plugin.json` in the plugin subdirectory. These are required by the Claude Code plugin discovery mechanism (Section 1.4). Fix: added `assemble_plugin_components()` to Unit 23 that calls `generate_marketplace_json()` and `generate_plugin_json()` from Unit 28 during assembly and writes the results to the correct paths.
+
+**Root cause:** Assembly function creates source code structure but omits plugin manifest files. No code path existed to generate or place these files.
+
+**Pattern:** P1 (Incomplete Implementation). **Detection:** Regression test `test_bug_s3_51_52_plugin_assembly.py`.
+
+### 24.71 Plugin Component Directories Missing From Delivered Repo (Post-delivery — Bug S3-52, NEW IN 2.2)
+
+**Plugin component extraction during assembly (NEW IN 2.2 -- Bug S3-52).** The repository assembler copies Python scripts to `svp/scripts/` but does not extract and write agent definitions (`svp/agents/*.md`), command definitions (`svp/commands/*.md`), hook configurations (`svp/hooks/`), or skill definitions (`svp/skills/`). These are Claude Code plugin component directories required for plugin functionality. The definition constants exist in workspace Units 17-26 but the assembler never reads them. Fix: `assemble_plugin_components()` in Unit 23 imports all definition constants from Units 17-26, creates the component directories, and writes 21 agent definitions, 11 command definitions, 5 hook files, and 1 skill definition.
+
+**Root cause:** Assembly handled code files (Python scripts) but omitted non-code plugin component artifacts (markdown definitions, JSON configurations, bash scripts).
+
+**Pattern:** P1 (Incomplete Implementation). **Detection:** Regression test `test_bug_s3_51_52_plugin_assembly.py`.
+
+### 24.72 Pass 1 Artifacts Not Synchronized to Pass 2 Workspace (Post-delivery — Bug S3-55, NEW IN 2.2)
+
+**Workspace artifact synchronization gap (NEW IN 2.2 -- Bug S3-55).** After Pass 2's Stage 5 completes, the Pass 2 workspace is missing artifacts accumulated during Pass 1's Stage 6: regression tests (S3-10 through S3-50), lessons-learned entries, inline spec amendments (Bugs S3-47/48/49/50), and .svp metadata (checklists, quality report, triage result). Section 43.8 clears `pass1_workspace_path` from pipeline state after Pass 2 completes, but no code path existed to copy the accumulated artifacts before clearing. Fix: added `sync_pass1_artifacts()` to Unit 16 that runs automatically at `pass_transition` when `pass == 2`, before the gate is presented. The function derives the Pass 1 workspace path from the Pass 2 workspace name (`{name}-pass2` convention), copies regression tests (union), merges lessons learned (append-unique), merges the spec (insert Pass 1-only lines using context matching), and copies .svp metadata files if absent. Idempotent via `.svp/pass1_sync_complete` marker file.
+
+**Root cause:** Section 43.8 specifies that Pass 1 workspace references are cleared after Pass 2 completes but does not specify any artifact synchronization step. Pass 2's Stage 5 produces a clean build but omits artifacts created during Pass 1's Stage 6 debug loop.
+
+**Pattern:** P1 (Incomplete Specification). **Detection:** Regression test `test_bug_s3_55_pass1_artifact_sync.py`.
+
+### 24.73 Malformed Plugin Manifest Paths (Post-delivery — Bug S3-56, NEW IN 2.2)
+
+**Plugin manifest path format (NEW IN 2.2 -- Bug S3-56).** Two path format issues prevent Claude Code plugin discovery: (1) `generate_marketplace_json()` hardcodes `source: "./"` instead of `source: "./{plugin_name}"` — the source field must point to the plugin subdirectory relative to the marketplace.json location. (2) `project_profile.json` plugin section uses bare paths (`"commands/"`) instead of relative paths (`"./commands/"`) — Claude Code requires `./` prefix on all custom component paths in plugin.json. Fix: (1) `generate_marketplace_json()` uses `f"./{name}"` for the source field. (2) Profile plugin paths updated to use `./` prefix.
+
+**Root cause:** The source field was copied from a generic template that assumes the plugin is at the same level as marketplace.json. The path prefix requirement was not documented in the spec's Section 40.7 plugin manifest schema.
+
+**Pattern:** P1 (Incomplete Specification). **Detection:** Regression test `test_bug_s3_56_manifest_paths.py`.
+
+### 24.74 Missing pyproject.toml Entry Point and Build Backend (Post-delivery — Bug S3-57, NEW IN 2.2)
+
+**pyproject.toml completeness (NEW IN 2.2 -- Bug S3-57).** The delivered repo's `pyproject.toml` is missing: (1) `[project.scripts]` section with `svp = "svp.scripts.svp_launcher:main"` entry point, (2) `[tool.setuptools.packages.find]` section, (3) `readme` field. Build backend is `setuptools.backends.legacy:build` instead of `setuptools.build_meta`. Without these, the `svp` CLI command is not registered and the package cannot be installed. Fix: reconstruct pyproject.toml to match SVP 2.1 structure with 2.2 metadata. The assembler's `_write_pyproject_toml` must include entry points from profile.
+
+**Pattern:** P1 (Incomplete Implementation). **Detection:** Manual audit against SVP 2.1 reference.
+
+### 24.75 Agent Definition Files Missing YAML Frontmatter (Post-delivery — Bug S3-58, NEW IN 2.2)
+
+**Agent frontmatter requirement (NEW IN 2.2 -- Bug S3-58).** Claude Code requires YAML frontmatter on agent .md files with at least `name` and `description`. All 21 agent definition files in `svp/agents/` were generated without frontmatter — they started with bare `# Agent Name` headers. Fix: `assemble_plugin_components()` injects YAML frontmatter at assembly time using agent model data from the profile's `pipeline.agent_models` mapping.
+
+**Pattern:** P1 (Incomplete Implementation). **Detection:** Regression test `test_bug_s3_57_60_plugin_readiness.py`.
+
+### 24.76 hooks.json Uses handler Object Instead of hooks Array (Post-delivery — Bug S3-59, NEW IN 2.2)
+
+**hooks.json schema (NEW IN 2.2 -- Bug S3-59).** Claude Code requires hook entries with `"hooks": [{"type": "command", ...}]` (array format). The `HOOKS_JSON_SCHEMA` in Unit 17 used `"handler": {"type": "command", ...}` (single object). This was already documented as Bug S3-37 in Section 24.64 but the fix was not applied to the generated hooks.json. Fix: updated `HOOKS_JSON_SCHEMA` to use `"hooks"` array format matching the Claude Code spec and SVP 2.1 reference.
+
+**Pattern:** P3 (Regression from Prior Fix). **Detection:** Regression test `test_bug_s3_57_60_plugin_readiness.py`.
+
+### 24.77 Missing svp/scripts/__init__.py (Post-delivery — Bug S3-60, NEW IN 2.2)
+
+**Package init file (NEW IN 2.2 -- Bug S3-60).** The delivered repo is missing `svp/scripts/__init__.py`. This file is required for Python package imports — `svp.scripts.svp_launcher` (the CLI entry point) cannot resolve without it. SVP 2.1 has it. Fix: `assemble_plugin_components()` creates an empty `__init__.py` in `svp/scripts/` during assembly.
+
+**Pattern:** P1 (Incomplete Implementation). **Detection:** Regression test `test_bug_s3_57_60_plugin_readiness.py`.
+
+### 24.78 SVP 2.1 Carry-Forward Regression Tests Missing (Post-delivery — Bug S3-62, NEW IN 2.2)
+
+**Carry-forward regression test gap (NEW IN 2.2 -- Bug S3-62).** Section 6.8 mandates 51 carry-forward regression tests from SVP 2.1 (test_bug2 through test_bug96, covering unified Bugs 6-73). Zero of these were present in the SVP 2.2 delivered repo or workspace. The tests were authored during the SVP 2.1 build and stored in the SVP 2.1 repo at `tests/regressions/`. Neither `svp restore` during Pass 2 creation nor the Stage 5 assembly process copied them forward. Without these tests, bugs that SVP 2.1 had already caught and fixed (e.g., Bug 48: launcher CLI contract) went undetected in SVP 2.2.
+
+**Root cause:** The carry-forward mechanism relies on `create_new_project()` in the launcher copying regression tests from the plugin's `tests/regressions/` to the workspace. During Pass 2, the active plugin was the Pass 1 deliverable, which itself lacked the carry-forward tests (they were never assembled into the repo during Pass 1's Stage 5). The chain: SVP 2.1 tests → should be in SVP 2.2 plugin → should be copied to workspace. The first link was broken.
+
+**Triage of 60 carried-forward tests against SVP 2.2:** 7 pass, 22 error (import failures due to API changes: DebugSession class removed, utility_agents.py consolidated, function renames), 33 fail (18 due to intentional API signature changes in route()/dispatch_*(), 15 require investigation for real bugs). Each test requires adaptation to SVP 2.2's API before it can serve as a regression guard.
+
+**Pattern:** P1 (Incomplete Specification) — Section 6.8 specifies WHAT must carry forward but not HOW the carry-forward chain works across a two-pass self-build. **Detection:** Manual audit against SVP 2.1 reference.
+
+### 24.79 Oracle State Transition Functions Never Implemented (Post-delivery — Bug S3-63, NEW IN 2.2)
+
+**Oracle state transition functions missing (NEW IN 2.2 -- Bug S3-63).** `enter_oracle_session`, `complete_oracle_session`, `abandon_oracle_session` were specified in the blueprint (Unit 6, Tier 2 lines 451-455, Tier 3 lines 579-589) but never implemented. The implementation agent for Unit 6 produced 30 functions but missed these 3. The test agent wrote `test_bug_s3_15_oracle_session.py` which imports the missing functions — but since they don't exist, the test errors during collection and gets silently skipped, not flagged as a failure. Unit 14 (routing/dispatch), unable to import them, worked around the absence by directly setting oracle state fields (`oracle_session_active`, `oracle_phase`) in 8+ locations, violating the spec's design principle that state transitions go through Unit 6. The workaround caused three downstream bugs: (1) `oracle_run_count` never incremented, (2) no precondition validation for double-entry, (3) `oracle_test_project` and `oracle_nested_session_path` not cleaned up on session exit.
+
+**Root cause:** The implementation agent for Unit 6 missed the oracle functions. The test agent correctly imported them but the collection error was treated as a skip, not a failure. The coverage review agent saw "8 skipped" but didn't flag it. Unit 14's implementation agent worked around the missing functions rather than reporting the gap. Pattern: P1 (Incomplete Implementation) compounded by P15 (Silent Test Skip).
+
+**Fix:** Implemented all 3 functions in Unit 6. Replaced all 8 direct oracle field mutations in Unit 14 with proper function calls.
+
+**Pattern:** P15 (NEW — Silent Test Skip Masks Missing Implementation). **Detection:** Regression test `test_bug_s3_15_oracle_session.py` (un-skipped).
+
+**Oracle state transition invariant (NEW IN 2.2 — Bug S3-63).** All oracle state mutations (`oracle_session_active`, `oracle_phase`, `oracle_test_project`, `oracle_nested_session_path`, `oracle_run_count`) MUST go through Unit 6 transition functions: `enter_oracle_session`, `complete_oracle_session`, `abandon_oracle_session`. Direct field assignment in Unit 14 routing or dispatch is prohibited. The only acceptable direct `oracle_phase` assignment is for intra-session phase transitions (e.g., `dry_run→gate_a`, `gate_a→green_run`) that don't involve session start/stop.
+
+### 24.80 Oracle Implementation Incomplete — Cross-Cutting Concern Not Wired (Post-delivery — Bug S3-65, NEW IN 2.2)
+
+**Oracle cross-cutting integration gap (NEW IN 2.2 -- Bug S3-65).** The oracle (Stage 7) was ~40% implemented: state fields, session lifecycle, routing skeleton, agent definition, and command definition existed, but operational logic was missing. Test project selection, nested session bootstrap, run ledger management, phase-specific prompt assembly, modification bound enforcement, internal /svp:bug invocation, fix verification, and session cleanup were all absent. The oracle could not run end-to-end.
+
+**Root cause:** The spec describes oracle behavior in Section 35 (~500 lines) as a narrative across multiple concerns. The blueprint decomposes it into per-unit contributions (Unit 5 state, Unit 6 lifecycle, Unit 7 ledger, Unit 13 prompts, Unit 14 routing, Unit 23 agent, Unit 25 command, Unit 29 launcher). No unit owns the end-to-end integration. Each implementation agent built its piece but the cross-unit wiring was nobody's responsibility. Compare with the debug loop (Stage 6) which works because Unit 14's blueprint contracts specify every routing transition, dispatch handler, and gate response explicitly.
+
+**Fix:** Added test project selection via oracle_start command, run ledger functions (Unit 7), modification bound (oracle_modification_count field), phase-specific prompt assembly (Unit 13), nested session bootstrap, Gate 7.B→debug loop integration, fix verification cycle, and session cleanup with ledger recording. Added oracle integration contract to spec Section 35.
+
+**Pattern:** P16 (NEW — Cross-Cutting Concern Without Integration Owner). Prevention: When a spec feature spans 3+ units, the blueprint must designate one unit as the integration owner with an explicit wiring checklist.
+
+**Oracle integration contract (NEW IN 2.2 — Bug S3-65).** Unit 14's `_route_oracle` is the single owner of the oracle lifecycle. All operational steps (nested session creation, run ledger recording, test project resolution, internal /svp:bug invocation) are dispatched from `_route_oracle` through calls to other units. This mirrors the debug loop's integration pattern in `_route_debug`.
+
+### 24.81 Entry Point Scripts Missing __name__ Guards and sys.path (Post-delivery — Bug S3-66, NEW IN 2.2)
+
+**Script execution completeness (NEW IN 2.2 -- Bug S3-66).** Two entry point scripts (`routing.py`, `prepare_task.py`) lacked `if __name__ == "__main__": main()` guards. When the orchestrator invokes `python scripts/routing.py --project-root .`, the module loads but `main()` is never called, producing no output. Additionally, bare imports (e.g., `from pipeline_state import ...`) fail when the working directory is not `scripts/` because `scripts/` is not on `sys.path`. SVP 2.1 had `__name__` guards in all 4 entry point scripts; SVP 2.2 had them in only 2 of 4.
+
+**Root cause:** The blueprint specifies `def main(argv=None) -> None: ...` function signatures but not the `if __name__` execution guard or sys.path setup. Implementation agents added the guard inconsistently.
+
+**Pattern:** P17 (NEW — Entry Point Script Completeness). Prevention: Every script with a `main()` function must include `if __name__ == "__main__": main()` at the end. Every script invoked from a non-scripts working directory must add its own directory to `sys.path`.
+
+### 24.82 Command Scripts Use Positional Args Instead of --project-root (Post-delivery — Bug S3-67, NEW IN 2.2)
+
+**Command script CLI interface (NEW IN 2.2 -- Bug S3-67).** All 4 command scripts (`cmd_save.py`, `cmd_quit.py`, `cmd_status.py`, `cmd_clean.py`) used `sys.argv[1]` positional argument instead of argparse `--project-root`. When invoked as `python scripts/cmd_save.py --project-root .`, the literal string `--project-root` was used as the path, causing `FileNotFoundError`. SVP 2.1 uses argparse with `--project-root` for all scripts.
+
+**Pattern:** P17 (Entry Point Script Completeness). **Detection:** Regression test in `test_plugin_completeness.py`.
+
+### 24.83 Launcher Uses --prompt Flag Instead of Positional Argument (Post-delivery — Bug S3-68, NEW IN 2.2)
+
+**Launcher CLI invocation (NEW IN 2.2 -- Bug S3-68).** `launch_session()` in Unit 29 passed the initial prompt via `--prompt "run the routing script"`, but the Claude Code CLI does not have a `--prompt` flag. The prompt must be passed as a **positional argument**: `claude [options] [prompt]`. Using `--prompt` causes `error: unknown option '--prompt'` and the session fails to launch. This bug originated in the spec (Section 6.1.5) and cascaded through the blueprint and implementation unchanged.
+
+**Pattern:** P18 (NEW — External CLI Interface Verification). Prevention: When a spec references an external tool's CLI interface, verify the interface against the tool's actual `--help` output before codifying flags or argument formats. **Detection:** Regression test in `test_unit_29.py`.
+
+### 24.84 Orchestration Skill Name Uses Hyphen Instead of Colon (Post-delivery — Bug S3-69, NEW IN 2.2)
+
+**Skill naming convention (NEW IN 2.2 -- Bug S3-69).** The orchestration skill frontmatter used `name: "svp-orchestration"` (hyphen), inconsistent with the SVP command convention `/svp:command` (colon). All other SVP skills and commands use the colon separator (e.g., `/svp:bug`, `/svp:oracle`, `/svp:help`). The frontmatter `name` field controls how Claude Code resolves `/skill-name` invocations. Fix: rename to `name: "svp:orchestration"` in the skill definition, code generators, blueprint, and tests.
+
+**Pattern:** P7 (Specification Omission). The spec did not explicitly mandate the colon convention for skill names, allowing the hyphen form to propagate. **Detection:** Regression test in `test_unit_26.py`.
+
 ---
 
 ## 25. Test Data
@@ -4825,6 +5087,8 @@ Each `/svp:oracle` invocation follows four phases:
 - **Gate 7.B (ABORT):** Logs abort with discovery details to run ledger. Exits oracle session.
 
 Each response has an explicit state transition. No response is a no-op.
+
+**(NEW IN 2.2 — Bug S3-65) Test project selection.** When `/svp:oracle` is invoked, the orchestration skill handles test project selection before entering the routing cycle. The selected test project path is passed via `update_state.py --command oracle_start`. If the oracle enters dry_run with no test project set, routing returns an `oracle_select_test_project` action block requiring selection before proceeding.
 
 **(NEW IN 2.2) Oracle mode selection for E/F archetypes.** The oracle operates in one of two modes, determined by the human's test project selection (Section 3.33):
 
@@ -5223,6 +5487,8 @@ Oracle session state is tracked via **flat fields** in `pipeline_state.json`, co
 | `oracle_phase` | string or null | `null` | `"dry_run"`, `"gate_a"`, `"green_run"`, `"gate_b"`, `"exit"`, `null` |
 | `oracle_run_count` | int | `0` | non-negative integer |
 | `oracle_nested_session_path` | string or null | `null` | valid file path or `null` |
+
+**Oracle session lifecycle functions (NEW IN 2.2 -- Bug S3-15).** The oracle session follows the same structured lifecycle pattern as debug sessions. `enter_oracle_session(state, test_project)` validates preconditions (no active session) and initializes the session with `oracle_phase="dry_run"`. `complete_oracle_session(state, exit_reason)` deactivates after success. `abandon_oracle_session(state)` deactivates after human abort. Direct field assignment of `oracle_session_active` is prohibited -- all activation must go through transition functions.
 
 ### 35.16 Cleanup and Environment Hygiene
 
@@ -6842,7 +7108,9 @@ Gate ID: `gate_pass_transition_post_pass1`. Response options: `PROCEED TO PASS 2
 
 **After Pass 2's Stage 5 completes:**
 
-The routing script presents a similar bug summary for the Pass 2 build. At this point, `delivered_repo_path` points to the Pass 2 output and the pipeline state is identical to any A-D archetype post-delivery. The human chooses:
+**(NEW IN 2.2 — Bug S3-55) Workspace artifact synchronization.** Before presenting the transition gate, the routing script automatically synchronizes accumulated artifacts from the Pass 1 workspace (regression tests, lessons learned, spec amendments) into the Pass 2 workspace. This ensures Stage 6 bug fixing and Stage 7 oracle have access to all historical artifacts. The Pass 1 workspace path is derived from the Pass 2 workspace name by removing the `-pass2` suffix. The sync is idempotent (guarded by `.svp/pass1_sync_complete` marker). See Section 43.8 for details.
+
+The routing script then presents a bug summary for the Pass 2 build. At this point, `delivered_repo_path` points to the Pass 2 output and the pipeline state is identical to any A-D archetype post-delivery. The human chooses:
 
 - **FIX BUGS (Stage 6):** Enter `/svp:bug` to fix bugs in the Pass 2 deliverable. Stage 6 operates on the Pass 2 deliverable exactly as it would on any other delivered project — it finds bugs, writes regression tests, patches files (including spec and blueprint if necessary), and activates Stage 5 reassembly for any correction.
 - **RUN ORACLE (Stage 7):** Enter `/svp:oracle` for pipeline acceptance testing.

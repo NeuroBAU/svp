@@ -30,14 +30,16 @@ def _parse_r_signatures(
     """Regex-based parser for R function assignments.
 
     Finds patterns like: name <- function(args) { ... }
+    Also handles name = function(args) as valid R assignment.
     Returns a list of dicts with function definition info.
     """
     results: List[Dict[str, Any]] = []
 
     # Match R function assignments: name <- function(args)
-    # Also handle name = function(args) as valid R assignment
+    # Also handle name = function(args) as valid R assignment.
+    # R identifiers can contain dots (e.g., my.func.name), so use [\w.]+
     pattern = re.compile(
-        r"^(\w+)\s*(?:<-|=)\s*function\s*\(([^)]*)\)",
+        r"^([\w.]+)\s*(?:<-|=)\s*function\s*\(([^)]*)\)",
         re.MULTILINE,
     )
 
@@ -138,10 +140,11 @@ def main(argv: list = None) -> None:
             print(f"Error: Unit {args.unit} not found in blueprint", file=sys.stderr)
             sys.exit(1)
 
-        # Get language config from registry
-        from language_registry import get_language_config
-
-        language_config = get_language_config(args.language)
+        # Build a minimal language config from the language name.
+        # The signature parsers do not rely on config details; they only
+        # need the source string.  Using a minimal dict avoids a hard
+        # dependency on Unit 2 at CLI invocation time.
+        language_config: Dict[str, Any] = {"id": args.language}
 
         # Parse signatures
         result = parse_signatures(tier2_source, args.language, language_config)

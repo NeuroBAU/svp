@@ -150,6 +150,24 @@ def clear_ledger(ledger_path: Path) -> None:
     ledger_path.unlink()
 
 
+def append_oracle_run_entry(project_root: Path, entry: Dict[str, Any]) -> None:
+    """Append an entry to .svp/oracle_run_ledger.json."""
+    ledger_path = project_root / ".svp" / "oracle_run_ledger.json"
+    entries = read_oracle_run_ledger(project_root)
+    entry["timestamp"] = datetime.now(timezone.utc).isoformat()
+    entries.append(entry)
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger_path.write_text(json.dumps(entries, indent=2), encoding="utf-8")
+
+
+def read_oracle_run_ledger(project_root: Path) -> List[Dict[str, Any]]:
+    """Read all entries from .svp/oracle_run_ledger.json."""
+    ledger_path = project_root / ".svp" / "oracle_run_ledger.json"
+    if not ledger_path.is_file():
+        return []
+    return json.loads(ledger_path.read_text(encoding="utf-8"))
+
+
 def get_ledger_path(
     project_root: Path,
     ledger_type: str,

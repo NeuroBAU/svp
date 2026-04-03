@@ -24,6 +24,7 @@ ADDITIONAL_SUB_STAGES = {
     "pass_transition",
     "pass2_active",
     "targeted_spec_revision",
+    "spec_review",
 }
 
 # ---------------------------------------------------------------------------
@@ -549,4 +550,61 @@ def resolve_deferred_broken(state: PipelineState, unit_number: int) -> PipelineS
 
     new = _copy_state(state)
     new.deferred_broken_units.remove(unit_number)
+    return new
+
+
+# ---------------------------------------------------------------------------
+# Oracle session transitions (Bug S3-63)
+# ---------------------------------------------------------------------------
+
+
+def enter_oracle_session(state: PipelineState, test_project: str) -> PipelineState:
+    """Enter an oracle session for pipeline acceptance testing.
+
+    Precondition: oracle_session_active is False.
+    Postcondition: oracle_session_active=True, oracle_phase="dry_run",
+                   oracle_test_project=test_project, oracle_run_count incremented.
+    """
+    if state.oracle_session_active:
+        raise TransitionError("Cannot enter oracle session: session already active")
+    new = _copy_state(state)
+    new.oracle_session_active = True
+    new.oracle_phase = "dry_run"
+    new.oracle_test_project = test_project
+    new.oracle_run_count = (state.oracle_run_count or 0) + 1
+    new.oracle_modification_count = 0
+    return new
+
+
+def complete_oracle_session(state: PipelineState, exit_reason: str) -> PipelineState:
+    """Complete an oracle session normally.
+
+    Precondition: oracle_session_active is True.
+    Postcondition: oracle_session_active=False, oracle_phase=None,
+                   oracle_test_project=None, oracle_nested_session_path=None.
+    """
+    if not state.oracle_session_active:
+        raise TransitionError("Cannot complete oracle session: no active session")
+    new = _copy_state(state)
+    new.oracle_session_active = False
+    new.oracle_phase = None
+    new.oracle_test_project = None
+    new.oracle_nested_session_path = None
+    return new
+
+
+def abandon_oracle_session(state: PipelineState) -> PipelineState:
+    """Abandon an oracle session (human abort).
+
+    Precondition: oracle_session_active is True.
+    Postcondition: oracle_session_active=False, oracle_phase=None,
+                   oracle_test_project=None, oracle_nested_session_path=None.
+    """
+    if not state.oracle_session_active:
+        raise TransitionError("Cannot abandon oracle session: no active session")
+    new = _copy_state(state)
+    new.oracle_session_active = False
+    new.oracle_phase = None
+    new.oracle_test_project = None
+    new.oracle_nested_session_path = None
     return new

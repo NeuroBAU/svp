@@ -11,14 +11,18 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+_scripts_dir = str(Path(__file__).resolve().parent)
+if _scripts_dir not in sys.path:
+    sys.path.insert(0, _scripts_dir)
+
+from svp_config import ARTIFACT_FILENAMES, get_blueprint_dir
+from language_registry import LANGUAGE_REGISTRY
+from profile_schema import load_profile
+from pipeline_state import PipelineState, load_state
+from ledger_manager import get_ledger_path, read_ledger
 from blueprint_extractor import build_unit_context as _build_unit_context_raw
 from blueprint_extractor import extract_units
 from hint_prompt_assembler import assemble_hint_prompt
-from language_registry import LANGUAGE_REGISTRY
-from ledger_manager import get_ledger_path, read_ledger
-from pipeline_state import PipelineState, load_state
-from profile_schema import load_profile
-from svp_config import ARTIFACT_FILENAMES, get_blueprint_dir
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -184,6 +188,13 @@ _STAGE3_AGENTS = {
     "coverage_review_agent",
 }
 
+# Sentinel-checking agent types (Bug S3-2, S3-4)
+_SENTINEL_CHECKING_AGENTS = {
+    "test_agent",
+    "implementation_agent",
+    "coverage_review_agent",
+}
+
 
 # ---------------------------------------------------------------------------
 # Blueprint loading functions
@@ -236,6 +247,7 @@ def build_unit_context(
     """Extract unit definition and build context with include_tier1 parameter.
 
     Uses Unit 8's extract_units and build_unit_context with path resolution.
+    Prefixes output with unit identification header.
     """
     blueprint_dir = Path(blueprint_dir)
     all_units = extract_units(blueprint_dir)
@@ -249,7 +261,21 @@ def build_unit_context(
     if target_unit is None:
         return ""
 
-    return _build_unit_context_raw(target_unit, all_units, include_tier1=include_tier1)
+    raw_context = _build_unit_context_raw(
+        target_unit, all_units, include_tier1=include_tier1
+    )
+
+    # Prefix with unit identification header
+    unit_name = target_unit.name or f"Unit {unit_number}"
+    header = f"### Unit {unit_number}: {unit_name}"
+    if include_tier1:
+        header += " (full context)"
+    else:
+        header += " (contracts only)"
+
+    if raw_context:
+        return f"{header}\n\n{raw_context}"
+    return header
 
 
 def build_language_context(
@@ -261,6 +287,10 @@ def build_language_context(
 
     Includes: unit language, language-specific agent guidance from registry,
     test framework, quality tools, file extension.
+
+    For sentinel-checking agent types (test_agent, implementation_agent,
+    coverage_review_agent), the stub_sentinel value from the registry is
+    injected verbatim (Bug S3-2, S3-4).
 
     Returns empty string if agent_type has no language-specific prompts.
     """
@@ -299,6 +329,13 @@ def build_language_context(
 
     parts.append("")
     parts.append(f"**Agent guidance:** {agent_guidance}")
+
+    # Sentinel injection for stub-checking agents (Bug S3-2, S3-4)
+    if agent_type in _SENTINEL_CHECKING_AGENTS:
+        stub_sentinel = lang_config.get("stub_sentinel", "")
+        if stub_sentinel:
+            parts.append("")
+            parts.append(f"**Stub sentinel:** `{stub_sentinel}`")
 
     return "\n".join(parts)
 
@@ -718,6 +755,9 @@ def _prepare_test_agent(
     sections: List[str] = []
     sections.append("# Test Agent Task Prompt")
 
+    if unit_number is not None:
+        sections.append(f"\n**Unit:** {unit_number}")
+
     if mode:
         sections.append(f"\n**Mode:** {mode}")
 
@@ -773,6 +813,9 @@ def _prepare_implementation_agent(
     """Prepare task prompt for implementation_agent."""
     sections: List[str] = []
     sections.append("# Implementation Agent Task Prompt")
+
+    if unit_number is not None:
+        sections.append(f"\n**Unit:** {unit_number}")
 
     # Blueprint: contracts only
     blueprint_content = _load_blueprint_for_agent("implementation_agent", blueprint_dir)
@@ -1345,16 +1388,27 @@ def _prepare_oracle_agent(
     context: Optional[str],
     blueprint_dir: Path,
 ) -> str:
-    """Prepare task prompt for oracle_agent."""
+    """Prepare task prompt for oracle_agent.
+
+    Differentiates prompt content by oracle_phase:
+    - dry_run: full analysis context (blueprint, assembly map, delivered repo, mode)
+    - green_run: execution context (trajectory plan, nested session)
+    - other phases: common context only
+    """
     sections: List[str] = []
+    oracle_phase = state.oracle_phase if state else None
     sections.append("# Oracle Agent Task Prompt")
 
-    # Blueprint: both files (dry run only)
-    is_dry_run = state and state.oracle_phase == "dry_run"
-    if is_dry_run:
-        blueprint_content = _load_blueprint_for_agent("oracle_agent", blueprint_dir)
-        if blueprint_content:
-            sections.append(_format_section("Blueprint", blueprint_content))
+    if oracle_phase:
+        sections.append(f"\n**Oracle Phase:** {oracle_phase}")
+
+    # --- Common inputs (all phases) ---
+
+    # Spec
+    spec_path = project_root / ARTIFACT_FILENAMES["stakeholder_spec"]
+    spec_content = _read_file_safe(spec_path)
+    if spec_content:
+        sections.append(_format_section("Spec", spec_content))
 
     # Run ledger
     ledger_path = project_root / ARTIFACT_FILENAMES.get(
@@ -1363,12 +1417,6 @@ def _prepare_oracle_agent(
     ledger_content = _read_file_safe(ledger_path)
     if ledger_content:
         sections.append(_format_section("Oracle Run Ledger", ledger_content))
-
-    # Spec
-    spec_path = project_root / ARTIFACT_FILENAMES["stakeholder_spec"]
-    spec_content = _read_file_safe(spec_path)
-    if spec_content:
-        sections.append(_format_section("Spec", spec_content))
 
     # Bug catalog
     bug_catalog_path = project_root / ".svp" / "bug_catalog.json"
@@ -1380,32 +1428,96 @@ def _prepare_oracle_agent(
     regression_dir = project_root / "tests" / "regression"
     if regression_dir.exists():
         for f in sorted(regression_dir.glob("*")):
-            content = _read_file_safe(f)
-            if content:
-                sections.append(_format_section(f"Regression Test: {f.name}", content))
+            reg_content = _read_file_safe(f)
+            if reg_content:
+                sections.append(
+                    _format_section(f"Regression Test: {f.name}", reg_content)
+                )
 
-    # Test project artifacts
-    if state and state.oracle_test_project:
-        test_project_path = Path(state.oracle_test_project)
-        if test_project_path.exists():
-            sections.append(_format_section("Test Project", str(test_project_path)))
+    # --- Phase-specific inputs ---
 
-    # Nested session state
-    if state and state.oracle_nested_session_path:
-        nested_state_path = (
-            Path(state.oracle_nested_session_path) / "pipeline_state.json"
+    if oracle_phase == "dry_run":
+        # Dry run: analyze delivered code against spec
+        blueprint_content = _load_blueprint_for_agent("oracle_agent", blueprint_dir)
+        if blueprint_content:
+            sections.append(_format_section("Blueprint", blueprint_content))
+
+        # Assembly map
+        assembly_map_path = project_root / ARTIFACT_FILENAMES.get(
+            "assembly_map", ".svp/assembly_map.json"
         )
-        nested_state = _read_file_safe(nested_state_path)
-        if nested_state:
-            sections.append(_format_section("Nested Session State", nested_state))
+        assembly_map = _read_file_safe(assembly_map_path)
+        if assembly_map:
+            sections.append(_format_section("Assembly Map", assembly_map))
 
-    # Assembly map
-    assembly_map_path = project_root / ARTIFACT_FILENAMES.get(
-        "assembly_map", ".svp/assembly_map.json"
-    )
-    assembly_map = _read_file_safe(assembly_map_path)
-    if assembly_map:
-        sections.append(_format_section("Assembly Map", assembly_map))
+        # Delivered repo path for code analysis
+        if state and state.delivered_repo_path:
+            sections.append(
+                _format_section("Delivered Repo Path", str(state.delivered_repo_path))
+            )
+
+        # Oracle mode context (E-mode vs F-mode)
+        if state and state.oracle_test_project:
+            test_proj = state.oracle_test_project
+            oracle_mode = (
+                "E-mode (product testing)"
+                if "examples/" in test_proj
+                else "F-mode (machinery testing)"
+            )
+            sections.append(_format_section("Oracle Mode", oracle_mode))
+            sections.append(_format_section("Test Project", test_proj))
+
+    elif oracle_phase == "green_run":
+        # Green run: execute trajectory in nested session
+        if state and state.oracle_nested_session_path:
+            sections.append(
+                _format_section(
+                    "Nested Session Path", str(state.oracle_nested_session_path)
+                )
+            )
+            nested_state_path = (
+                Path(state.oracle_nested_session_path) / "pipeline_state.json"
+            )
+            nested_state = _read_file_safe(nested_state_path)
+            if nested_state:
+                sections.append(
+                    _format_section("Nested Session State", nested_state)
+                )
+
+        # Load trajectory plan from dry run output
+        trajectory_path = project_root / ".svp" / "oracle_trajectory.json"
+        trajectory_content = _read_file_safe(trajectory_path)
+        if trajectory_content:
+            sections.append(
+                _format_section("Trajectory Plan", trajectory_content)
+            )
+
+    else:
+        # Other phases: include test project and nested session if available
+        if state and state.oracle_test_project:
+            test_project_path = Path(state.oracle_test_project)
+            if test_project_path.exists():
+                sections.append(
+                    _format_section("Test Project", str(test_project_path))
+                )
+
+        if state and state.oracle_nested_session_path:
+            nested_state_path = (
+                Path(state.oracle_nested_session_path) / "pipeline_state.json"
+            )
+            nested_state = _read_file_safe(nested_state_path)
+            if nested_state:
+                sections.append(
+                    _format_section("Nested Session State", nested_state)
+                )
+
+        # Assembly map
+        assembly_map_path = project_root / ARTIFACT_FILENAMES.get(
+            "assembly_map", ".svp/assembly_map.json"
+        )
+        assembly_map = _read_file_safe(assembly_map_path)
+        if assembly_map:
+            sections.append(_format_section("Assembly Map", assembly_map))
 
     if context:
         sections.append(_format_section("Context", context))
@@ -1723,3 +1835,7 @@ def main(argv: list = None) -> None:
         output_path.write_text(content, encoding="utf-8")
 
     print(content)
+
+
+if __name__ == "__main__":
+    main()

@@ -95,7 +95,7 @@ This agent operates in two modes:
 
 ## Behavioral Requirements (Rules 1-4)
 
-The following four rules govern every question the setup agent asks across all dialog areas. These are not guidelines -- they are behavioral requirements.
+The following four rules govern every question the setup agent asks across all dialog areas. These are not guidelines -- they are behavioral requirements. They ensure plain language communication, best option guidance, sensible defaults, and progressive disclosure.
 
 """
     + _RULES_BLOCK
@@ -128,7 +128,7 @@ Begin Area 0 with the archetype question:
 ---
 **EXPERT MODE**
 
-Expert Mode provides access to SVP self-build archetypes. These are meaningless for non-SVP projects and involve complex two-pass bootstrap protocols. Options A-D are for building projects; Expert Mode is for building SVP itself.
+Expert Mode provides access to SVP self-build archetypes. These are hidden from normal users because they are meaningless for non-SVP projects and involve complex two-pass bootstrap protocols. Options A-D are for building projects; Expert Mode is for building SVP itself.
 
 When the human selects Expert Mode, present:
 
@@ -384,7 +384,8 @@ The human reviews and approves rather than answering from scratch. Only ask ques
 
 ## Terminal Status Lines
 
-- `PROFILE_DIALOG_COMPLETE` -- profile dialog finished successfully.
-- `CONTEXT_DIALOG_COMPLETE` -- context dialog finished successfully.
+- `PROFILE_COMPLETE` -- profile dialog finished successfully.
+- `PROJECT_CONTEXT_COMPLETE` -- context dialog finished successfully.
+- `PROJECT_CONTEXT_REJECTED` -- context dialog rejected by the human.
 """
 )

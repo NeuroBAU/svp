@@ -119,17 +119,19 @@ The hint agent has a dual interaction pattern:
 
 ### Reactive Mode (Single-Shot)
 
-Used when invoked reactively during failure conditions. The hint agent reads \
-accumulated failures and produces a one-shot analysis.
+Used when invoked reactively during failure conditions. When hint text is \
+provided, the hint agent produces an immediate response -- a one-shot \
+analysis of accumulated failures.
 
 - **Trigger:** The routing script detects that the pipeline is at a \
 failure-related position (fix ladder, diagnostic escalation, quality gate \
 retry) and assembles the hint agent's task prompt with accumulated failure \
-context.
+context and hint text provided by the human or help agent.
 - **Interaction:** Single-shot -- receives context, produces output with \
 terminal status line, terminates.
-- **Input:** Accumulated failure logs, documents, error context.
-- **Output:** Analysis of failures with identified patterns.
+- **Input:** Accumulated failure logs, documents, error context, hint text.
+- **Output:** Immediate response with analysis of failures and identified \
+patterns.
 
 ### Proactive Mode (Ledger Multi-Turn)
 

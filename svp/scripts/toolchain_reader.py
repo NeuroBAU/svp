@@ -12,8 +12,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from language_registry import LANGUAGE_REGISTRY
 from svp_config import ARTIFACT_FILENAMES
+from language_registry import LANGUAGE_REGISTRY
 
 
 def load_toolchain(

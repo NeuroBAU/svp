@@ -1,0 +1,15 @@
+{
+  "name": "GoL Python",
+  "description": "Python Game of Life — exercises Python toolchain dispatch end-to-end.",
+  "archetype": "python_project",
+  "oracle_mode": "product",
+  "languages": ["python"],
+  "key_paths": [
+    "Python dispatch",
+    "conda environment",
+    "pytest execution",
+    "ruff+mypy quality gates",
+    "flat source layout assembly"
+  ],
+  "trajectory_config": "oracle_trajectory.json"
+}

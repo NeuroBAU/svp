@@ -307,6 +307,7 @@ class PipelineState:
     oracle_phase: Optional[str]
     oracle_run_count: int
     oracle_nested_session_path: Optional[str]
+    oracle_modification_count: int
     state_hash: Optional[str]
     spec_revision_count: int  # default 0, incremented on each spec version_document
     pass_: Optional[int]  # 'pass' in JSON, renamed for Python keyword
@@ -337,7 +338,7 @@ Additional sub-stages (not stage-bound): `"redo_profile_delivery"`, `"redo_profi
 
 **VALID_FIX_LADDER_POSITIONS:** `[None, "fresh_impl", "diagnostic", "diagnostic_impl", "exhausted"]`.
 
-**VALID_DEBUG_PHASES:** `{"triage", "repair", "regression_test", "lessons_learned", "reassembly", "stage3_reentry", "commit"}`.
+**VALID_DEBUG_PHASES:** `{"triage", "repair", "regression_test", "lessons_learned", "reassembly", "stage3_reentry", "stage3_rebuild_active", "commit"}`. **(AMENDED: Bug S3-23 added `stage3_rebuild_active`.)**
 
 **VALID_ORACLE_PHASES:** `{None, "dry_run", "gate_a", "green_run", "gate_b", "exit"}`.
 
@@ -447,6 +448,12 @@ def clear_pass(state: "PipelineState") -> "PipelineState": ...
 def mark_unit_deferred_broken(state: "PipelineState", unit_number: int) -> "PipelineState": ...
 
 def resolve_deferred_broken(state: "PipelineState", unit_number: int) -> "PipelineState": ...
+
+def enter_oracle_session(state: "PipelineState", test_project: str) -> "PipelineState": ...
+
+def complete_oracle_session(state: "PipelineState", exit_reason: str) -> "PipelineState": ...
+
+def abandon_oracle_session(state: "PipelineState") -> "PipelineState": ...
 ```
 
 ### Tier 3 -- Behavioral Contracts
@@ -570,6 +577,18 @@ def resolve_deferred_broken(state: "PipelineState", unit_number: int) -> "Pipeli
 - Precondition: `unit_number` in `state.deferred_broken_units`.
 - Postcondition: `unit_number` removed from `state.deferred_broken_units`.
 
+**enter_oracle_session (Bug S3-15):**
+- Precondition: `state.oracle_session_active is False`.
+- Postcondition: `state.oracle_session_active = True`, `state.oracle_phase = "dry_run"`, `state.oracle_test_project = test_project`, `state.oracle_run_count` incremented by 1.
+
+**complete_oracle_session (Bug S3-15):**
+- Precondition: `state.oracle_session_active is True`.
+- Postcondition: `state.oracle_session_active = False`, `state.oracle_phase = None`, `state.oracle_test_project = None`, `state.oracle_nested_session_path = None`.
+
+**abandon_oracle_session (Bug S3-15):**
+- Precondition: `state.oracle_session_active is True`.
+- Postcondition: `state.oracle_session_active = False`, `state.oracle_phase = None`, `state.oracle_test_project = None`, `state.oracle_nested_session_path = None`.
+
 ---
 
 ## Unit 7: Ledger Management
@@ -601,6 +620,9 @@ def get_ledger_path(
     ledger_type: str,
     session_number: Optional[int] = None,
 ) -> Path: ...
+
+def append_oracle_run_entry(project_root: Path, entry: Dict[str, Any]) -> None: ...
+def read_oracle_run_ledger(project_root: Path) -> List[Dict[str, Any]]: ...
 ```
 
 ### Tier 3 -- Behavioral Contracts
@@ -628,6 +650,9 @@ def get_ledger_path(
 
 **get_ledger_path:**
 - `ledger_type` maps to deterministic path: `"setup"` -> `ledgers/setup_dialog.jsonl`, `"stakeholder"` -> `ledgers/stakeholder_dialog.jsonl`, `"blueprint"` -> `ledgers/blueprint_dialog.jsonl`, `"spec_revision"` -> `ledgers/spec_revision_{session_number}.jsonl`, `"help"` -> `ledgers/help_session.jsonl`, `"hint"` -> `ledgers/hint_session.jsonl`, `"bug_triage"` -> `ledgers/bug_triage_{session_number}.jsonl`.
+
+**append_oracle_run_entry:** Appends timestamped entry to .svp/oracle_run_ledger.json. Creates file if absent.
+**read_oracle_run_ledger:** Returns list of entries from .svp/oracle_run_ledger.json. Returns [] if absent.
 
 ---
 
@@ -771,7 +796,7 @@ def main(argv: list = None) -> None: ...
 **Dependencies:** Unit 2, Unit 8, Unit 9.
 
 **STUB_GENERATORS dispatch table:**
-- Key `"python"`: generates Python stub. Every function body: `raise NotImplementedError()`. Every class body: methods raising `NotImplementedError()`, class-level attributes set to `None`. Module-level `assert` statements stripped. Stub sentinel prepended as first non-import statement.
+- Key `"python"`: generates Python stub. Every function body: `raise NotImplementedError()`. Every class body: methods raising `NotImplementedError()`, class-level attributes set to `None`. Module-level annotated assignments (constants): assigned type-appropriate defaults (`{}` for Dict, `[]` for List, `set()` for Set, `""` for str, `None` for all others). Bare annotations without values are invalid — they produce `ImportError` at collection time. **(Bug S3-10)** Module-level `assert` statements stripped. Stub sentinel prepended as first non-import statement.
 - Key `"r"`: generates R stub. Function bodies: `stop("Not implemented")`. R sentinel prepended as comment.
 - Key `"stan_template"`: generates minimal Stan model template with sentinel comment.
 - Keys `"plugin_markdown"`, `"plugin_bash"`, `"plugin_json"`: generate minimal valid stubs for plugin artifact types.
@@ -785,11 +810,13 @@ def main(argv: list = None) -> None: ...
 
 **generate_upstream_stubs:**
 - For each upstream unit: extracts Tier 2 from blueprint, parses signatures, generates stub, writes to `output_dir`.
+- Output filename for upstream stubs is `unit_N_stub{file_ext}` (with unit number prefix) to avoid overwriting when multiple upstream dependencies exist. Only the current unit's stub (in `main()`) uses the bare `stub{file_ext}` filename. **(Bug S3-29 fix.)**
 - Forward-reference guard: every dependency must have a lower unit number than `unit_number`. Raises `ValueError` on forward reference.
 
 **main (CLI entry point):**
 - Arguments: `--blueprint` (path to `blueprint_contracts.md`), `--unit` (int), `--output-dir` (path), `--upstream` (comma-separated list of int, empty string for no dependencies).
 - Generates stub for current unit and upstream stubs for dependencies.
+- Output filename for the current unit is `stub{file_ext}`, not `unit_N_stub{file_ext}`. The unit number is encoded in the directory path, not the filename. Upstream stubs use `unit_N_stub{file_ext}` to distinguish dependencies. **(Bug S3-13, AMENDED by Bug S3-29.)**
 - Exit code 0 on success, 1 on failure.
 - Command: `PYTHONPATH=scripts python -m stub_generator --blueprint <path> --unit <N> --output-dir <dir> --upstream <deps>`.
 
@@ -987,6 +1014,7 @@ Set equality invariant: `set(ALL_GATE_IDS) == set(GATE_VOCABULARY.keys())` (veri
 
 **main (CLI entry point):**
 - Arguments: `--unit` (int, optional), `--agent` (str), `--project-root` (path), `--output` (path, optional), `--gate` (str, optional), `--context` (str, optional), `--mode` (str, optional), `--ladder` (str, optional: current fix ladder position), `--revision-mode` (flag, optional: indicates revision invocation), `--quality-report` (path, optional: path to quality gate report for injection into task prompt).
+- Script execution contract: prepare_task.py ends with `if __name__ == "__main__": main()`. Adds `Path(__file__).parent` to `sys.path` for bare imports. **(Bug S3-66 fix.)**
 
 ---
 
@@ -1096,16 +1124,21 @@ def run_tests_main(argv: list = None) -> None: ...
 - Two-branch routing invariant: for every sub-stage in the exhaustive list (Section 3.6), checks `last_status.txt` to distinguish "agent not done" from "agent done".
 - Route-level state persistence invariant: calls `save_state()` before any recursive `route()` call.
 - Orchestrator Pipeline Fidelity: emits exactly one action block per call.
+- Every `run_command` action block includes a `post` field that invokes `update_state.py --command <command_type>`. This ensures the six-step action cycle is uniform for both agent and command actions. **(Bug S3-14)**
 - Oracle routing: if `oracle_session_active` is True, dispatches on `oracle_phase` instead of normal stage/sub_stage. Per-phase routing:
   - `oracle_phase == "dry_run"`: emit `invoke_agent` with `agent_type: "oracle_agent"`, prepare task prompt with dry run context (spec, blueprint, run ledger, bug catalog, test project).
   - `oracle_phase == "gate_a"`: emit `human_gate` with `gate_id: "gate_7_a_trajectory_review"`. Present trajectory plan for human review.
-  - `oracle_phase == "green_run"`: emit `invoke_agent` with `agent_type: "oracle_agent"`, prepare task prompt with green run context (approved trajectory, nested session config, test project).
-  - `oracle_phase == "gate_b"`: emit `human_gate` with `gate_id: "gate_7_b_fix_plan_review"`. Present fix plan for human review.
+  - `oracle_phase == "green_run"`: if `last_status == "ORACLE_FIX_APPLIED"`, emit `human_gate` with `gate_id: "gate_7_b_fix_plan_review"`; if `last_status == "ORACLE_ALL_CLEAR"`, call `complete_oracle_session(state, "all_clear")`, save state, emit `pipeline_complete` with "Oracle all clear" message; if `last_status == "ORACLE_HUMAN_ABORT"`, abandon oracle session, emit `pipeline_complete`; otherwise emit `invoke_agent` with `agent_type: "oracle_agent"`, prepare task prompt with green run context. **(Bug S3-44 fix.)**
+  - `oracle_phase == "gate_b"`: emit `human_gate` with `gate_id: "gate_7_b_fix_plan_review"`. Present fix plan for human review. Gate 7B is exclusively for `ORACLE_FIX_APPLIED`. **(Bug S3-44 fix.)**
   - `oracle_phase == "exit"`: deactivate oracle session. Set `oracle_session_active = False`, clean up nested session workspace, emit `pipeline_complete` or return to Stage 5 complete state.
 - Pass 2 routing: if `sub_stage == "pass2_active"`, delegates to nested session.
 - Break-glass routing: emits `break_glass` action type when known exhaustion conditions are met during E/F self-builds. Trigger conditions: fix ladder exhausted for a unit, assembly failure after maximum retries, quality gate failure after retry cycle. The action block includes diagnostic context (what failed, how many times, last error).
 - Hard Stop awareness: during Pass 1, if a builder script bug is detected (routing script failure, state transition error), the routing script includes Hard Stop Protocol diagnostic context in the action block.
 - `_validate_stage3_completion()` runs at Stage 3/4 boundary: checks unit count (all units verified), build log sub-stage audit (9 sub-stages per unit), red run validation (`TESTS_FAILED` present for each unit), green run validation (`TESTS_PASSED` present for each unit). On failure, presents `gate_3_completion_failure`.
+- At `repo_complete`, if `pass_` is 1 or 2, advance to `pass_transition` sub-stage instead of returning `pipeline_complete`.
+- Gate routing completeness: `_route_stage_4` handles `sub_stage == "gate_4_1a"` -> emit `human_gate` with `gate_id: "gate_4_1a"`. `_route_stage_5` handles `sub_stage == "gate_5_2"` -> emit `human_gate` with `gate_id: "gate_5_2_assembly_exhausted"`. `_route_stage_5` handles `sub_stage == "gate_5_3"` -> emit `human_gate` with `gate_id: "gate_5_3_unused_functions"`. These sub_stages are registered in `ADDITIONAL_SUB_STAGES`. **(Bug S3-45 fix.)**
+- `_route_stage_5` handles `sub_stage == "pass_transition"`: presents `gate_pass_transition_post_pass1` (pass=1) or `gate_pass_transition_post_pass2` (pass=2). Must not fall through to `git_repo_agent` default. **(Bug S3-54 fix.)**
+- Oracle state mutation invariant: `dispatch_gate_response` and `_route_oracle` must NOT directly set `oracle_session_active`, `oracle_phase`, `oracle_test_project`, or `oracle_nested_session_path`. All oracle session start/stop goes through `enter_oracle_session`, `complete_oracle_session`, or `abandon_oracle_session` from Unit 6. Direct `oracle_phase` assignment is acceptable only for intra-session phase transitions. **(Bug S3-63 fix.)**
 
 **dispatch_agent_status contracts (per agent type, main pipeline):**
 - `"setup_agent"` + `PROJECT_CONTEXT_COMPLETE`: no state change (two-branch in route presents gate_0_2).
@@ -1120,10 +1153,14 @@ def run_tests_main(argv: list = None) -> None: ...
 - `"blueprint_checker"` + `ALIGNMENT_FAILED: spec`: set sub_stage to `"targeted_spec_revision"`, increment alignment_iterations. If >= limit: present gate_2_3. Otherwise: invoke stakeholder dialog in targeted revision mode.
 - `"checklist_generation"` + `CHECKLISTS_COMPLETE`: no state change (two-branch in route, advances to Stage 2).
 - `"test_agent"` + `TEST_GENERATION_COMPLETE`: no state change (two-branch routes to quality gate A or retry re-run).
+- `"test_agent"` + `HINT_BLUEPRINT_CONFLICT: <details>`: no state change (routing presents gate_hint_conflict). **(Bug S3-42 fix.)**
 - `"implementation_agent"` + `IMPLEMENTATION_COMPLETE`: no state change (two-branch routes to quality gate B or retry re-run).
+- `"implementation_agent"` + `HINT_BLUEPRINT_CONFLICT: <details>`: no state change (routing presents gate_hint_conflict). **(Bug S3-42 fix.)**
 - `"coverage_review_agent"` + `COVERAGE_COMPLETE: no gaps`: no state change (two-branch advances to unit_completion).
 - `"coverage_review_agent"` + `COVERAGE_COMPLETE: tests added`: no state change (two-branch routes to auto-format).
+- `"coverage_review_agent"` + `HINT_BLUEPRINT_CONFLICT: <details>`: no state change (routing presents gate_hint_conflict). **(Bug S3-42 fix.)**
 - `"diagnostic_agent"` + `DIAGNOSIS_COMPLETE: *`: no state change (two-branch routes to gate_3_2).
+- `"diagnostic_agent"` + `HINT_BLUEPRINT_CONFLICT: <details>`: no state change (routing presents gate_hint_conflict). **(Bug S3-42 fix.)**
 - `"integration_test_author"` + `INTEGRATION_TESTS_COMPLETE`: no state change (two-branch routes to run_command).
 - `"regression_adaptation"` + `ADAPTATION_COMPLETE`: no state change (two-branch advances to Stage 5).
 - `"regression_adaptation"` + `ADAPTATION_NEEDS_REVIEW`: no state change (two-branch routes to gate_4_3).
@@ -1131,11 +1168,12 @@ def run_tests_main(argv: list = None) -> None: ...
 - `"bug_triage_agent"` + `TRIAGE_COMPLETE: single_unit` / `TRIAGE_COMPLETE: cross_unit`: no state change (two-branch routes to gate_6_2).
 - `"bug_triage_agent"` + `TRIAGE_COMPLETE: build_env`: routes directly to repair agent (fast path, no Gate 6.2).
 - `"bug_triage_agent"` + `TRIAGE_NON_REPRODUCIBLE`: no state change (two-branch routes to gate_6_4).
-- `"repair_agent"` + `REPAIR_COMPLETE`: routes to reassembly/debug completion.
+- `"repair_agent"` + `REPAIR_COMPLETE`: transitions debug phase to `reassembly` via `update_debug_phase`, then re-routes. The reassembly handler manages the git_repo_agent invocation and subsequent transition to `regression_test`. **(Bug S3-20 fix: must not directly invoke git_repo_agent from repair handler.)**
 - `"repair_agent"` + `REPAIR_RECLASSIFY`: routes to gate_6_3.
 - `"repair_agent"` + `REPAIR_FAILED`: if `repair_retry_count` < limit (`iteration_limit` from config, default 3): increment `repair_retry_count`, re-invoke; if `repair_retry_count` >= limit: routes to gate_6_3.
 - `"oracle_agent"` + `ORACLE_DRY_RUN_COMPLETE`: no state change (two-branch routes to gate_7_a).
-- `"oracle_agent"` + `ORACLE_FIX_APPLIED` / `ORACLE_ALL_CLEAR`: no state change (two-branch routes to exit report or gate_7_b).
+- `"oracle_agent"` + `ORACLE_FIX_APPLIED`: set `oracle_phase = "gate_b"` (routes to Gate 7B for fix plan review). **(Bug S3-44 fix.)**
+- `"oracle_agent"` + `ORACLE_ALL_CLEAR`: set `oracle_phase = "exit"` (routes to oracle session exit, no Gate 7B presentation). **(Bug S3-44 fix.)**
 - `"oracle_agent"` + `ORACLE_HUMAN_ABORT`: log abort, exit oracle session. Set `oracle_session_active = False`.
 - `"help_agent"` + `HELP_SESSION_COMPLETE: no hint`: no state change. Session complete, no hint to forward.
 - `"help_agent"` + `HELP_SESSION_COMPLETE: hint forwarded`: store hint content for injection into next agent invocation.
@@ -1151,6 +1189,12 @@ def run_tests_main(argv: list = None) -> None: ...
 - `"bug_triage_agent"` + `TRIAGE_NEEDS_REFINEMENT`: increment triage_refinement_count. If < limit (`iteration_limit` from config, default 3): re-invoke triage agent. If >= limit: route to gate_6_4.
 - No bare `return state` for any main-pipeline agent type.
 
+**Debug routing two-branch completeness (Bug S3-18, S3-19, S3-20, S3-23 fixes):**
+- `_route_debug` reassembly phase: must check `last_status == "REPO_ASSEMBLY_COMPLETE"` and advance debug phase to `regression_test` before re-routing.
+- `_route_stage_3` diagnostic escalation (`fix_ladder_position == "diagnostic"`): must check `last_status.startswith("DIAGNOSIS_COMPLETE")` and present `gate_3_2_diagnostic_decision`.
+- `_route_debug` repair phase on `REPAIR_COMPLETE`: must transition to `reassembly` phase (not directly invoke `git_repo_agent`), letting the reassembly handler manage the assembly and subsequent transition.
+- `_route_debug` `stage3_rebuild_active` phase: delegates to `_route_stage_3` so the per-unit build loop runs within the debug session context. **(Bug S3-23 fix.)**
+
 **dispatch_gate_response contracts (per gate, per response):**
 - `gate_0_1_hook_activation` + `HOOKS ACTIVATED`: advance_sub_stage("project_context").
 - `gate_0_1_hook_activation` + `HOOKS FAILED`: halt pipeline.
@@ -1163,10 +1207,10 @@ def run_tests_main(argv: list = None) -> None: ...
 - `gate_0_3r_profile_revision` + `PROFILE REJECTED`: re-invoke setup agent in appropriate redo mode.
 - `gate_1_1_spec_draft` + `APPROVE`: advance to `checklist_generation` sub_stage. Invoke checklist generation agent.
 - `gate_1_1_spec_draft` + `REVISE`: re-invoke stakeholder dialog in revision mode.
-- `gate_1_1_spec_draft` + `FRESH REVIEW`: invoke stakeholder reviewer.
+- `gate_1_1_spec_draft` + `FRESH REVIEW`: set `sub_stage = "spec_review"`, which routes to stakeholder_reviewer (Bug S3-17 fix).
 - `gate_1_2_spec_post_review` + `APPROVE`: advance to checklist_generation sub_stage.
 - `gate_1_2_spec_post_review` + `REVISE`: version_document(spec), re-invoke stakeholder dialog in revision mode.
-- `gate_1_2_spec_post_review` + `FRESH REVIEW`: invoke stakeholder reviewer.
+- `gate_1_2_spec_post_review` + `FRESH REVIEW`: set `sub_stage = "spec_review"`, which routes to stakeholder_reviewer (Bug S3-17 fix).
 - `gate_2_1_blueprint_approval` + `APPROVE`: invoke blueprint checker (enter alignment_check).
 - `gate_2_1_blueprint_approval` + `REVISE`: re-invoke blueprint author in revision mode.
 - `gate_2_1_blueprint_approval` + `FRESH REVIEW`: invoke blueprint reviewer.
@@ -1186,15 +1230,15 @@ def run_tests_main(argv: list = None) -> None: ...
 - `gate_4_1_integration_failure` + `ASSEMBLY FIX`: re-invoke integration test author with fix context. Increment assembly retry counter.
 - `gate_4_1_integration_failure` + `FIX BLUEPRINT`: version_document(prose+contracts), restart_from_stage("2").
 - `gate_4_1_integration_failure` + `FIX SPEC`: version_document(spec), restart_from_stage("1").
-- `gate_4_1a` + `HUMAN FIX`: re-invoke integration test author with human guidance.
-- `gate_4_1a` + `ESCALATE`: present gate_4_2_assembly_exhausted.
+- `gate_4_1a` + `HUMAN FIX`: set `sub_stage = None`, `red_run_retries = 0` to re-enter integration test flow with fresh attempt. **(AMENDED: Bug S3-25 fix.)**
+- `gate_4_1a` + `ESCALATE`: set `sub_stage = "gate_4_2"` to route to assembly exhausted gate. **(AMENDED: Bug S3-25 fix.)**
 - `gate_4_2_assembly_exhausted` + `FIX BLUEPRINT`: version_document(prose+contracts), restart_from_stage("2").
 - `gate_4_2_assembly_exhausted` + `FIX SPEC`: version_document(spec), restart_from_stage("1").
 - `gate_4_3_adaptation_review` + `ACCEPT ADAPTATIONS`: advance_stage("5").
 - `gate_4_3_adaptation_review` + `MODIFY TEST`: re-invoke regression adaptation agent with modification guidance.
 - `gate_4_3_adaptation_review` + `REMOVE TEST`: remove flagged test, advance_stage("5").
 - `gate_5_1_repo_test` + `TESTS PASSED`: advance_sub_stage("compliance_scan").
-- `gate_5_1_repo_test` + `TESTS FAILED`: re-enter bounded fix cycle with test output.
+- `gate_5_1_repo_test` + `TESTS FAILED`: reset `sub_stage` to `None` to re-enter bounded fix cycle (re-invokes git_repo_agent), not loop to Gate 5.1 (Bug S3-17 fix).
 - `gate_5_2_assembly_exhausted` + `RETRY ASSEMBLY`: re-invoke git repo agent.
 - `gate_5_2_assembly_exhausted` + `FIX BLUEPRINT`: version_document(prose+contracts), restart_from_stage("2").
 - `gate_5_2_assembly_exhausted` + `FIX SPEC`: version_document(spec), restart_from_stage("1").
@@ -1212,7 +1256,7 @@ def run_tests_main(argv: list = None) -> None: ...
 - `gate_6_2_debug_classification` + `FIX SPEC`: version_document(spec), restart_from_stage("1").
 - `gate_6_2_debug_classification` + `FIX IN PLACE`: update_debug_phase("repair").
 - `gate_6_3_repair_exhausted` + `RETRY REPAIR`: reset repair_retry_count, re-invoke repair agent.
-- `gate_6_3_repair_exhausted` + `RECLASSIFY BUG`: if triage_refinement_count < 3: re-invoke triage agent. If >= 3: only RETRY REPAIR and ABANDON DEBUG offered.
+- `gate_6_3_repair_exhausted` + `RECLASSIFY BUG`: if triage_refinement_count < 3: increment triage_refinement_count, reset to triage phase. If >= 3: only RETRY REPAIR and ABANDON DEBUG offered. **(AMENDED: Bug S3-24 -- must increment triage_refinement_count.)**
 - `gate_6_3_repair_exhausted` + `ABANDON DEBUG`: abandon_debug_session.
 - `gate_6_4_non_reproducible` + `RETRY TRIAGE`: increment triage_refinement_count, re-invoke triage agent.
 - `gate_6_4_non_reproducible` + `ABANDON DEBUG`: abandon_debug_session.
@@ -1222,13 +1266,13 @@ def run_tests_main(argv: list = None) -> None: ...
 - `gate_hint_conflict` + `HINT CORRECT`: version appropriate document, restart.
 - `gate_7_a_trajectory_review` + `APPROVE TRAJECTORY`: set oracle_phase to green_run.
 - `gate_7_a_trajectory_review` + `MODIFY TRAJECTORY`: if modification_count < 3: re-enter dry_run. If >= 3: only APPROVE TRAJECTORY and ABORT offered.
-- `gate_7_a_trajectory_review` + `ABORT`: log abort, exit oracle session.
+- `gate_7_a_trajectory_review` + `ABORT`: abandon_oracle_session (Bug S3-15).
 - `gate_7_b_fix_plan_review` + `APPROVE FIX`: oracle calls /svp:bug internally.
-- `gate_7_b_fix_plan_review` + `ABORT`: log abort with discovery, exit oracle session.
-- `gate_pass_transition_post_pass1` + `PROCEED TO PASS 2`: enter_pass_2 with nested session path. If `deferred_broken_units` is non-empty, the gate prompt includes the deferred unit list and this option is conditionally available only with human acknowledgment of deferred units.
+- `gate_7_b_fix_plan_review` + `ABORT`: abandon_oracle_session (Bug S3-15).
+- `gate_pass_transition_post_pass1` + `PROCEED TO PASS 2`: raise ValueError if `deferred_broken_units` is non-empty (Bug S3-17 fix). Otherwise enter_pass_2 with nested session path.
 - `gate_pass_transition_post_pass1` + `FIX BUGS`: enter debug session (Stage 6). If `deferred_broken_units` is non-empty, the gate prompt highlights deferred units as candidates for debug.
 - `gate_pass_transition_post_pass2` + `FIX BUGS`: enter debug session (Stage 6). If `deferred_broken_units` is non-empty, the gate prompt highlights deferred units as candidates for debug.
-- `gate_pass_transition_post_pass2` + `RUN ORACLE`: start oracle session. If `deferred_broken_units` is non-empty, the gate prompt warns that deferred units will not be covered by the oracle run.
+- `gate_pass_transition_post_pass2` + `RUN ORACLE`: enter_oracle_session (Bug S3-15). If `deferred_broken_units` is non-empty, the gate prompt warns that deferred units will not be covered by the oracle run.
 
 **dispatch_command_status contracts:**
 - `"stub_generation"` + `COMMAND_SUCCEEDED`: advance_sub_stage("test_generation").
@@ -1248,16 +1292,28 @@ def run_tests_main(argv: list = None) -> None: ...
 - `"quality_gate"` at `quality_gate_b_retry` + `COMMAND_SUCCEEDED`: advance_sub_stage("green_run").
 - `"quality_gate"` at `quality_gate_b_retry` + `COMMAND_FAILED`: enter fix ladder.
 - `"test_execution"` at Stage 4 + `TESTS_PASSED`: advance_sub_stage("regression_adaptation"). Integration tests passed; proceed to regression test adaptation.
-- `"test_execution"` at Stage 4 + `TESTS_FAILED`: increment assembly retry counter. If under limit (default 3): present gate_4_1 (ASSEMBLY FIX / FIX BLUEPRINT / FIX SPEC). If at limit: present gate_4_2 (FIX BLUEPRINT / FIX SPEC).
-- `"test_execution"` at Stage 4 + `TESTS_ERROR`: increment red_run_retries and present gate_4_1 (under limit) or gate_4_2 (at limit), same dispatch as TESTS_FAILED. This follows the universal TESTS_ERROR pattern from Section 18.
+- `"test_execution"` at Stage 4 + `TESTS_FAILED`: increment assembly retry counter. If under limit (default 3): set sub_stage to "gate_4_1" to present gate_4_1_integration_failure (ASSEMBLY FIX / FIX BLUEPRINT / FIX SPEC). If at limit: set sub_stage to "gate_4_2" to present gate_4_2_assembly_exhausted (FIX BLUEPRINT / FIX SPEC). **(Bug S3-16 fix: must set sub_stage for gate presentation, not just increment retries.)**
+- `"test_execution"` at Stage 4 + `TESTS_ERROR`: increment red_run_retries. If under limit (default 3): set sub_stage to None (re-invoke integration_test_author with error output). If at limit: set sub_stage to "gate_4_2" to present gate_4_2_assembly_exhausted. This follows the universal TESTS_ERROR pattern from Section 11.2: one automatic re-invocation before escalating. **(Bug S3-16 fix: differentiate from TESTS_FAILED — re-invoke author, do not present gate_4_1.)**
 - `"unit_completion"` + `COMMAND_SUCCEEDED`: complete_unit, advance to next.
+- `"structural_check"` + `COMMAND_SUCCEEDED`: advance_sub_stage("compliance_scan").
+- `"structural_check"` + `COMMAND_FAILED`: advance_sub_stage("compliance_scan") (proceed with findings).
+- `"compliance_scan"` + `COMMAND_SUCCEEDED`: advance_sub_stage("repo_complete").
+- `"compliance_scan"` + `COMMAND_FAILED`: set sub_stage to None (re-enter assembly).
+- `"lessons_learned"` + `COMMAND_SUCCEEDED`: if debug_session active, transition debug phase to `commit` via `update_debug_phase`. **(Bug S3-21 fix.)**
+- `"lessons_learned"` + `COMMAND_FAILED`: no-op (retry on next cycle).
+- `"debug_commit"` + `COMMAND_SUCCEEDED`: `complete_debug_session(state)` — archives debug session and clears it. **(Bug S3-21 fix.)**
+- `"debug_commit"` + `COMMAND_FAILED`: no-op (retry on next cycle).
+- `"stage3_reentry"` + `COMMAND_SUCCEEDED`: set `sub_stage` to `"stub_generation"` to begin rebuilding affected unit; also set `debug_session["phase"]` to `"stage3_rebuild_active"` so `_route_debug` delegates to `_route_stage_3` instead of re-dispatching stage3_reentry. **(Bug S3-21 fix, AMENDED by Bug S3-23.)**
+- `"stage3_reentry"` + `COMMAND_FAILED`: no-op (retry on next cycle).
 - No bare `return state` for any entry in this table.
 
 **COLLECTION_ERROR to TESTS_ERROR mapping (M-3 clarification):** When `run_tests.py` detects collection error indicators in test output, it maps the result to `TESTS_ERROR` status (not a separate `COLLECTION_ERROR` status at the dispatch level). The `RunResult.collection_error` boolean is set to `True` for diagnostic context, but `dispatch_command_status` routes on the `TESTS_ERROR` status string. The `COLLECTION_ERROR` value exists only as a `RunResult.status` variant for internal parser use -- it is normalized to `TESTS_ERROR` before dispatch.
 
 **update_state_main (CLI for update_state.py):**
-- Arguments: `--phase` (str, required), `--project-root` (path), `--status` (str, optional), `--gate-id` (str, optional: gate identifier for gate response dispatch), `--unit` (int, optional: unit number for unit-scoped transitions).
-- Validates `--phase` matches current pipeline state (legal transition). Rejects mismatches.
+- Arguments: `--phase` (str, optional), `--command` (str, optional: command type for command dispatch -- **Bug S3-14**), `--project-root` (path), `--status` (str, optional), `--gate-id` (str, optional: gate identifier for gate response dispatch), `--unit` (int, optional: unit number for unit-scoped transitions).
+- Dispatch paths: (1) `--gate-id` present: gate response dispatch. (2) `--command` present: command status dispatch via `dispatch_command_status`. (3) `--phase` present: agent status dispatch via `dispatch_agent_status`. (4) Neither: error.
+- When `--command` is used and `--status` is not provided, reads status from `last_status.txt`.
+- Validates `--phase` matches `PHASE_TO_AGENT` (legal transition). Rejects mismatches.
 - Calls appropriate transition function from Unit 6.
 - Appends build log entry (source: "update_state", event_type: "state_transition").
 
@@ -1273,6 +1329,18 @@ def run_tests_main(argv: list = None) -> None: ...
 - Arguments: `--project-root` (path, default `.`).
 - Calls `route()`, prints action block as JSON to stdout.
 - Appends build log entry (source: "routing", event_type: "action_emitted").
+
+**Oracle integration checklist (Bug S3-65 fix):**
+- Test project selection: _route_oracle returns oracle_select_test_project when oracle_test_project is empty at dry_run.
+- oracle_start command: dispatch_command_status handles "oracle_start" by calling enter_oracle_session.
+- Modification bound: gate_7_a MODIFY increments oracle_modification_count; _route_oracle warns when >= 3.
+- Nested session bootstrap: _bootstrap_oracle_nested_session creates workspace at green_run start.
+- Internal /svp:bug: gate_7_b APPROVE FIX calls enter_debug_session; oracle_session_active stays True.
+- Fix verification: after debug completes, green_run tears down and recreates nested session.
+- Session cleanup: exit phase cleans workspace (unless E-mode), records run ledger, calls complete_oracle_session.
+- Abort logging: all ABORT/HUMAN_ABORT paths record to run ledger before abandoning.
+
+- Script execution contract: routing.py ends with `if __name__ == "__main__": main()`. Adds `Path(__file__).parent` to `sys.path` for bare imports. **(Bug S3-66 fix.)**
 
 ---
 
@@ -1315,6 +1383,8 @@ def run_quality_gate_main(argv: list = None) -> None: ...
 - Resolves each operation's command template via `resolve_command`.
 - Executes commands in order.
 - Classifies results: `QUALITY_CLEAN` (no issues), `QUALITY_AUTO_FIXED` (all issues auto-fixed), `QUALITY_RESIDUAL` (residuals remain after auto-fix), `QUALITY_ERROR` (tool execution error).
+- **QUALITY_ERROR reachability (Bug S3-36):** Subprocess execution is wrapped in try/except; on exception, `had_error` is set to `True`.
+- **QUALITY_AUTO_FIXED reachability (Bug S3-36):** File content is snapshotted before and after each tool execution; if content changed, `auto_fixed` is set to `True`. The same pattern applies in `_run_plugin_markdown` and `_run_plugin_json`.
 - Returns `QualityResult(status, auto_fixed, residuals, report)`.
 
 **run_quality_gate_main (CLI):**
@@ -1342,6 +1412,8 @@ def cmd_status(project_root: Path) -> str: ...
 def cmd_clean(project_root: Path, action: str) -> str: ...
 
 def sync_debug_docs(project_root: Path) -> None: ...
+
+def sync_pass1_artifacts(project_root: Path) -> Dict[str, Any]: ...
 ```
 
 ### Tier 3 -- Behavioral Contracts
@@ -1374,6 +1446,19 @@ def sync_debug_docs(project_root: Path) -> None: ...
 **sync_debug_docs:**
 - Copies workspace spec/blueprint to delivered repo `docs/` directory.
 - Workspace is canonical; delivered repo is updated to match.
+
+**sync_pass1_artifacts (Bug S3-55 fix):**
+- Called automatically at `pass_transition` when `pass == 2`, before presenting the gate.
+- Derives Pass 1 workspace path by removing `-pass2` suffix from Pass 2 workspace name.
+- Syncs regression tests (union: copy files from Pass 1 that don't exist in Pass 2).
+- Merges lessons learned (Pass 1 as base, appends Pass 2-only Part sections).
+- Merges spec (Pass 2 as base, inserts Pass 1-only bug marker lines at context-matched positions).
+- Copies .svp metadata (checklists, quality report, triage result) if absent.
+- Does NOT sync `src/`, `scripts/`, `pipeline_state.json`, or `blueprint/`.
+- Idempotent: guarded by `.svp/pass1_sync_complete` marker file.
+- Returns summary dict: `synced_files`, `skipped_files`, `merged_files`, `pass1_workspace`, `errors`.
+
+- Script execution contract: cmd_save.py, cmd_quit.py, cmd_status.py, cmd_clean.py all use argparse with `--project-root` argument. cmd_clean.py also accepts `--action`. **(Bug S3-67 fix.)**
 
 ---
 
@@ -1409,7 +1494,7 @@ def generate_monitoring_reminder_sh() -> str: ...
 - PreToolUse entries: Write matcher -> `write_authorization.sh`, Bash matcher -> `non_svp_protection.sh`.
 - PostToolUse entries: Write matcher -> `stub_sentinel_check.sh`, Agent matcher -> `monitoring_reminder.sh` (E/F self-builds only).
 - The Agent PostToolUse hook (`monitoring_reminder.sh`) fires on Agent tool returns during E/F self-builds. It reads `project_profile.json` to check `is_svp_build`; if true, it outputs a monitoring reminder instructing the orchestrator to verify subagent output against the spec before proceeding. If `is_svp_build` is false (or the field is absent), the hook is a no-op (exit 0, no output).
-- Each handler: `{"type": "command", "command": "<path>"}`.
+- Each entry uses a `"hooks"` array (not a singular `"handler"` object): `{"matcher": "<tool>", "hooks": [{"type": "command", "command": "<path>"}]}` **(Bug S3-37)**.
 - NOT `type: "bash"`, NOT `script` field, NOT handler fields on matcher object.
 - Paths use `.claude/scripts/` prefix.
 
@@ -1463,6 +1548,7 @@ DIALOG_AREAS: list  # 6 dialog areas (0-5)
 - Six dialog areas (0-5): Area 0 (Language/Ecosystem), Area 1 (VCS), Area 2 (README/Docs), Area 3 (Testing), Area 4 (Licensing/Metadata), Area 5 (Quality). Area 5 may be skipped if Area 0 already populated quality settings.
 - Profile schema: exact canonical field names for every profile field.
 - Two modes: `project_context` and `project_profile`.
+- Terminal status names must be character-identical to `dispatch_agent_status` handlers: `PROJECT_CONTEXT_COMPLETE`, `PROJECT_CONTEXT_REJECTED`, `PROFILE_COMPLETE`. **(Bug S3-41 fix.)**
 - Mode A (self-build): default pre-population logic.
 - Option C (plugin): extended interview (4 questions: external services, auth, hook events, skills). Populates `plugin.external_services`, `plugin.hook_events`, `plugin.skills`, `plugin.mcp_servers` in profile.
 - Option D (mixed-language): focused dialog flow (3-4 questions):
@@ -1675,6 +1761,14 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 - Called during Stage 5 assembly (`assemble_python_project` / `assemble_r_project`) and on every reassembly.
 - Returns the mapping dict (also written to disk).
 
+**assemble_plugin_components (Bug S3-51/S3-52 fix):**
+- Creates `.claude-plugin/marketplace.json` at repo root and `svp/.claude-plugin/plugin.json` in the plugin subdirectory by calling `generate_marketplace_json()` and `generate_plugin_json()` from Unit 28.
+- Extracts agent definition constants from Units 18-24 and writes 21 markdown files to `svp/agents/`.
+- Extracts command definitions from Unit 25's `COMMAND_DEFINITIONS` dict and writes 11 markdown files to `svp/commands/`.
+- Calls Unit 17 hook generator functions and writes `hooks.json` + 4 bash scripts to `svp/hooks/`, setting executable permissions on `.sh` files.
+- Extracts `ORCHESTRATION_SKILL` from Unit 26 and writes to `svp/skills/orchestration/SKILL.md`.
+- Must be called during Stage 5 assembly for plugin-producing archetypes.
+
 **GIT_REPO_AGENT_DEFINITION:** assembly mapping rules, commit order (conventional commits), delivery compliance awareness, README generation, quality config generation, bounded fix cycle (iteration_limit attempts). Status: `REPO_ASSEMBLY_COMPLETE`.
 
 **CHECKLIST_GENERATION_AGENT_DEFINITION:** produces two checklists (alignment_checker_checklist.md, blueprint_author_checklist.md) for Stage 2 agents. Status: `CHECKLISTS_COMPLETE`.
@@ -1798,7 +1892,7 @@ ORCHESTRATION_SKILL: str  # Complete SKILL.md content
 **Dependencies:** None (markdown file).
 
 **ORCHESTRATION_SKILL content requirements:**
-- Frontmatter follows Claude Code schema: `name: "svp-orchestration"`, `description`, `argument-hint`, `allowed-tools`, `model`, `effort`, `context`.
+- Frontmatter follows Claude Code schema: `name: "svp:orchestration"`, `description`, `argument-hint`, `allowed-tools`, `model`, `effort`, `context`.
 - Six-step mechanical action cycle.
 - REMINDER block template (exact text from Section 3.6).
 - Three-layer model explanation (pipeline toolchain, build-time quality, delivery toolchain).
@@ -1936,8 +2030,14 @@ def compliance_scan_main(argv: list = None) -> None: ...
 
 **generate_marketplace_json:**
 - Required fields: `name`, `owner` (object with `name`), `plugins` array.
-- Each plugin entry: `name`, `source` (relative path `./`), `description`, `version`, `author`.
+- Each plugin entry: `name`, `source` (relative path `./{plugin_name}` — must point to plugin subdirectory, NOT `./`), `description`, `version`, `author`. **(Bug S3-56 fix.)**
+- Raises `ValueError` if `name` resolves to empty string. **(Bug S3-53 fix.)**
 - Returns JSON string.
+
+**generate_plugin_json:**
+- Required fields: `name`, `description`, `version`, `author`.
+- Raises `ValueError` if `name` or `description` resolve to empty strings. **(Bug S3-53 fix.)**
+- Profile must contain a `plugin` section with non-empty required fields for plugin-producing archetypes.
 
 **run_structural_check:**
 - Four AST-based checks: (1) dict registry keys never dispatched, (2) enum values never matched, (3) exported functions never called, (4) string dispatch gaps.
@@ -2034,7 +2134,7 @@ def main(argv: list = None) -> None: ...
 - Copies `ruff.toml` (set read-only after copy).
 - Copies regression test files.
 - Copies hook configuration with path rewriting (plugin paths -> project paths).
-- Creates initial `pipeline_state.json`, `svp_config.json`, `CLAUDE.md`.
+- Creates initial `pipeline_state.json` (with `"sub_stage": "hook_activation"` per Bug S3-38), `svp_config.json`, `CLAUDE.md`.
 - Sets filesystem permissions.
 - Launches session.
 - Returns project root path.
@@ -2042,13 +2142,14 @@ def main(argv: list = None) -> None: ...
 **restore_project:**
 - Creates project directory.
 - Copies spec, blueprint, context, scripts, profile from provided paths.
+- Copies `references/` directory from source workspace if present. **(Bug S3-43)**
 - If `skip_to` provided: sets pipeline state to skip to that stage.
 - If `plugin_path` provided: sets `SVP_PLUGIN_ROOT` in subprocess environment (for Pass 2 nested session isolation).
 - Returns project root path.
 
 **launch_session:**
 - Uses `subprocess.run` with `cwd=project_root`.
-- Arguments: optional `--dangerously-skip-permissions`, `--prompt "run the routing script"`.
+- Arguments: optional `--dangerously-skip-permissions`, positional prompt `"run the routing script"` (Bug S3-68: not a `--prompt` flag).
 - Environment: `SVP_PLUGIN_ACTIVE=1`. If `plugin_path`: `SVP_PLUGIN_ROOT=<path>`.
 - Restart loop: after session exit, checks for `.svp/restart_signal`. If present, removes signal and relaunches.
 - Returns exit code.

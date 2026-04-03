@@ -1,0 +1,15 @@
+name: svp2_2
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.11
+  - pip
+  - git
+  - pip:
+    - ruff
+    - mypy
+    - pytest
+    - pytest-cov
+    - setuptools>=64
+    - wheel

@@ -11,9 +11,56 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, List
 
-from blueprint_extractor import extract_units
 from language_registry import get_language_config
+from blueprint_extractor import extract_units
 from signature_parser import parse_signatures
+
+# ---------------------------------------------------------------------------
+# stdlib module names (for TYPE_CHECKING guard logic -- Bug S3-47)
+# ---------------------------------------------------------------------------
+
+_STDLIB_MODULES = {
+    "abc", "aifc", "argparse", "array", "ast", "asynchat", "asyncio",
+    "asyncore", "atexit", "base64", "bdb", "binascii", "binhex", "bisect",
+    "builtins", "bz2", "calendar", "cgi", "cgitb", "chunk", "cmath", "cmd",
+    "code", "codecs", "codeop", "collections", "colorsys", "compileall",
+    "concurrent", "configparser", "contextlib", "contextvars", "copy",
+    "copyreg", "cProfile", "crypt", "csv", "ctypes", "curses", "dataclasses",
+    "datetime", "dbm", "decimal", "difflib", "dis", "distutils", "doctest",
+    "email", "encodings", "enum", "errno", "faulthandler", "fcntl", "filecmp",
+    "fileinput", "fnmatch", "fractions", "ftplib", "functools", "gc",
+    "getopt", "getpass", "gettext", "glob", "graphlib", "grp", "gzip",
+    "hashlib", "heapq", "hmac", "html", "http", "idlelib", "imaplib",
+    "imghdr", "imp", "importlib", "inspect", "io", "ipaddress", "itertools",
+    "json", "keyword", "lib2to3", "linecache", "locale", "logging", "lzma",
+    "mailbox", "mailcap", "marshal", "math", "mimetypes", "mmap",
+    "modulefinder", "multiprocessing", "netrc", "nis", "nntplib", "numbers",
+    "operator", "optparse", "os", "ossaudiodev", "pathlib", "pdb", "pickle",
+    "pickletools", "pipes", "pkgutil", "platform", "plistlib", "poplib",
+    "posix", "posixpath", "pprint", "profile", "pstats", "pty", "pwd",
+    "py_compile", "pyclbr", "pydoc", "queue", "quopri", "random", "re",
+    "readline", "reprlib", "resource", "rlcompleter", "runpy", "sched",
+    "secrets", "select", "selectors", "shelve", "shlex", "shutil", "signal",
+    "site", "smtpd", "smtplib", "sndhdr", "socket", "socketserver", "sqlite3",
+    "ssl", "stat", "statistics", "string", "stringprep", "struct",
+    "subprocess", "sunau", "symtable", "sys", "sysconfig", "syslog",
+    "tabnanny", "tarfile", "telnetlib", "tempfile", "termios", "test",
+    "textwrap", "threading", "time", "timeit", "tkinter", "token", "tokenize",
+    "tomllib", "trace", "traceback", "tracemalloc", "tty", "turtle",
+    "turtledemo", "types", "typing", "unicodedata", "unittest", "urllib",
+    "uu", "uuid", "venv", "warnings", "wave", "weakref", "webbrowser",
+    "winreg", "winsound", "wsgiref", "xdrlib", "xml", "xmlrpc", "zipapp",
+    "zipfile", "zipimport", "zlib", "zoneinfo", "_thread", "__future__",
+}
+
+def _get_import_top_level_module(import_line: str) -> str:
+    """Extract the top-level module name from an import statement string."""
+    if import_line.startswith("from "):
+        return import_line.split()[1].split(".")[0]
+    elif import_line.startswith("import "):
+        return import_line.split()[1].split(".")[0].split(",")[0]
+    return import_line.split(".")[0]
+
 
 # ---------------------------------------------------------------------------
 # Keys that bypass signature parsing (plugin + component)
@@ -58,28 +105,46 @@ def _generate_python_stub(
         elif isinstance(node, ast.Assert):
             # Strip module-level asserts
             continue
-        elif isinstance(node, ast.FunctionDef) or isinstance(
-            node, ast.AsyncFunctionDef
-        ):
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             body_lines.append(_render_python_function(node, indent=0))
         elif isinstance(node, ast.ClassDef):
             body_lines.append(_render_python_class(node, indent=0))
         elif isinstance(node, ast.AnnAssign):
             # Module-level annotated assignment (e.g., STUB_GENERATORS: Dict[...])
+            # Bug S3-10: Must have default values for importability
             body_lines.append(_render_python_ann_assign(node, indent=0))
         elif isinstance(node, ast.Assign):
             # Module-level assignment
             body_lines.append(_render_python_assign(node, indent=0))
-        elif isinstance(node, ast.Expr) and isinstance(node.value, (ast.Constant,)):
+        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
             # Module-level docstrings or string expressions
             body_lines.append(ast.unparse(node))
         else:
             # Other statements -- preserve as-is
             body_lines.append(ast.unparse(node))
 
-    # Build output: imports, sentinel, body
-    if import_lines:
-        lines.extend(import_lines)
+    # Bug S3-47: Separate stdlib imports from non-stdlib (upstream) imports
+    # and wrap non-stdlib imports in TYPE_CHECKING guard
+    stdlib_imports: List[str] = []
+    upstream_imports: List[str] = []
+    for imp_line in import_lines:
+        mod = _get_import_top_level_module(imp_line)
+        if mod in _STDLIB_MODULES:
+            stdlib_imports.append(imp_line)
+        else:
+            upstream_imports.append(imp_line)
+
+    # Build output: imports (with TYPE_CHECKING guard if needed), sentinel, body
+    if upstream_imports:
+        lines.append("from __future__ import annotations")
+    if stdlib_imports:
+        lines.extend(stdlib_imports)
+    if upstream_imports:
+        lines.append("from typing import TYPE_CHECKING")
+        lines.append("if TYPE_CHECKING:")
+        for imp_line in upstream_imports:
+            lines.append(f"    {imp_line}")
+    if stdlib_imports or upstream_imports:
         lines.append("")
     lines.append(sentinel)
     lines.append("")
@@ -160,13 +225,37 @@ def _render_python_class(node: ast.ClassDef, indent: int = 0) -> str:
 
 
 def _render_python_ann_assign(node: ast.AnnAssign, indent: int = 0) -> str:
-    """Render annotated assignment at module level."""
+    """Render annotated assignment at module level, ensuring importability.
+
+    Bug S3-10 fix: Module-level annotated constants MUST have default values
+    (Dict -> {}, List -> [], str -> "", etc.) for importability.
+    """
     prefix = "    " * indent
-    return f"{prefix}{ast.unparse(node)}"
+    target = ast.unparse(node.target)
+    annotation = ast.unparse(node.annotation)
+    if node.value is not None:
+        return f"{prefix}{target}: {annotation} = {ast.unparse(node.value)}"
+    # No value provided -- assign a sensible default based on annotation type
+    ann = annotation
+    if "Dict" in ann or "dict" in ann:
+        default = "{}"
+    elif "List" in ann or "list" in ann:
+        default = "[]"
+    elif "Set" in ann or "set" in ann:
+        default = "set()"
+    elif ann == "str":
+        default = '""'
+    elif ann == "int":
+        default = "0"
+    elif ann == "bool":
+        default = "False"
+    else:
+        default = "None"
+    return f"{prefix}{target}: {annotation} = {default}"
 
 
 def _render_python_ann_assign_none(node: ast.AnnAssign, indent: int = 0) -> str:
-    """Render annotated assignment with value set to None."""
+    """Render annotated assignment with value set to None (class-level)."""
     prefix = "    " * indent
     target = ast.unparse(node.target)
     annotation = ast.unparse(node.annotation)
@@ -180,7 +269,7 @@ def _render_python_assign(node: ast.Assign, indent: int = 0) -> str:
 
 
 def _render_python_assign_none(node: ast.Assign, indent: int = 0) -> str:
-    """Render assignment with value set to None."""
+    """Render assignment with value set to None (class-level)."""
     prefix = "    " * indent
     targets = [ast.unparse(t) for t in node.targets]
     return f"{prefix}{' = '.join(targets)} = None"
@@ -188,17 +277,13 @@ def _render_python_assign_none(node: ast.Assign, indent: int = 0) -> str:
 
 def _build_function_signature(node: ast.FunctionDef) -> str:
     """Build a 'def name(args) -> ret:' line from an AST function node."""
-    # Use ast.unparse for the arguments
-    args_str = ast.unparse(node.args) if node.args.args or node.args.kwonlyargs else ""
-    # Manually reconstruct to handle edge cases
     args_parts = []
 
     for i, arg in enumerate(node.args.args):
         part = arg.arg
         if arg.annotation:
             part += f": {ast.unparse(arg.annotation)}"
-        # Check for defaults
-        # defaults align to the end of args
+        # Check for defaults (defaults align to the end of args)
         num_defaults = len(node.args.defaults)
         num_args = len(node.args.args)
         default_offset = num_args - num_defaults
@@ -250,7 +335,6 @@ def _extract_docstring(node: Any) -> str:
         and isinstance(node.body[0].value.value, str)
     ):
         doc = node.body[0].value.value
-        # Use repr for triple-quoted strings
         if "\n" in doc:
             return f'"""{doc}"""'
         return f'"""{doc}"""'
@@ -450,18 +534,35 @@ def generate_upstream_stubs(
         dep_unit = unit_map[dep_num]
         tier2_source = dep_unit.tier2
 
+        # Bug S3-49: Use the dep unit's own languages, not the caller's language
+        dep_language = language  # fallback to caller's language
+        if hasattr(dep_unit, "languages") and dep_unit.languages:
+            # Pick the dep unit's primary language
+            dep_languages = dep_unit.languages
+            try:
+                lang_list = list(dep_languages)
+            except (TypeError, ValueError):
+                lang_list = []
+            if language in lang_list:
+                dep_language = language
+            elif lang_list:
+                dep_language = sorted(lang_list)[0]
+
+        dep_lang_config = get_language_config(dep_language)
+        dep_stub_key = dep_lang_config["stub_generator_key"]
+
         # Determine if this is a template-only key (no parsing needed)
-        if stub_key in _TEMPLATE_ONLY_KEYS:
+        if dep_stub_key in _TEMPLATE_ONLY_KEYS:
             parsed = None
         else:
             # Parse signatures from Tier 2
-            parsed = parse_signatures(tier2_source, language, lang_config)
+            parsed = parse_signatures(tier2_source, dep_language, dep_lang_config)
 
         # Generate stub
-        stub_text = generate_stub(parsed, language, lang_config)
+        stub_text = generate_stub(parsed, dep_language, dep_lang_config)
 
         # Write stub to output directory
-        file_ext = lang_config.get("file_extension", ".py")
+        file_ext = dep_lang_config.get("file_extension", ".py")
         output_file = output_dir / f"unit_{dep_num}_stub{file_ext}"
         output_file.parent.mkdir(parents=True, exist_ok=True)
         output_file.write_text(stub_text, encoding="utf-8")
@@ -544,7 +645,7 @@ def main(argv: list = None) -> None:
             stub_text = generate_stub(parsed, args.language, lang_config)
 
             file_ext = lang_config.get("file_extension", ".py")
-            output_file = output_dir / f"unit_{args.unit}_stub{file_ext}"
+            output_file = output_dir / f"stub{file_ext}"
             output_file.write_text(stub_text, encoding="utf-8")
 
         # Generate upstream stubs

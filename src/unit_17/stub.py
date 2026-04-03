@@ -19,33 +19,41 @@ HOOKS_JSON_SCHEMA: Dict[str, Any] = {
         "PreToolUse": [
             {
                 "matcher": "Write",
-                "handler": {
-                    "type": "command",
-                    "command": ".claude/scripts/write_authorization.sh",
-                },
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": ".claude/scripts/write_authorization.sh",
+                    }
+                ],
             },
             {
                 "matcher": "Bash",
-                "handler": {
-                    "type": "command",
-                    "command": ".claude/scripts/non_svp_protection.sh",
-                },
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": ".claude/scripts/non_svp_protection.sh",
+                    }
+                ],
             },
         ],
         "PostToolUse": [
             {
                 "matcher": "Write",
-                "handler": {
-                    "type": "command",
-                    "command": ".claude/scripts/stub_sentinel_check.sh",
-                },
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": ".claude/scripts/stub_sentinel_check.sh",
+                    }
+                ],
             },
             {
                 "matcher": "Agent",
-                "handler": {
-                    "type": "command",
-                    "command": ".claude/scripts/monitoring_reminder.sh",
-                },
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": ".claude/scripts/monitoring_reminder.sh",
+                    }
+                ],
             },
         ],
     }

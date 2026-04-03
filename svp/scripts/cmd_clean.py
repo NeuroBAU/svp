@@ -5,12 +5,14 @@ Removes the build environment and optionally archives/deletes the workspace.
 Part of Unit 16: Command Logic Scripts.
 """
 
-import sys
 from pathlib import Path
 
 from cmd_save import cmd_clean
 
 if __name__ == "__main__":
-    project_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
-    action = sys.argv[2] if len(sys.argv) > 2 else "keep"
-    print(cmd_clean(project_root, action))
+    import argparse
+    parser = argparse.ArgumentParser(description="SVP Clean Command")
+    parser.add_argument("--project-root", type=str, default=".")
+    parser.add_argument("--action", type=str, default="keep", choices=["archive", "delete", "keep"])
+    args = parser.parse_args()
+    print(cmd_clean(Path(args.project_root).resolve(), args.action))

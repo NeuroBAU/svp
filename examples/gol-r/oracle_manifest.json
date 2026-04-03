@@ -1,0 +1,15 @@
+{
+  "name": "GoL R",
+  "description": "R Game of Life — exercises R toolchain, renv, testthat, lintr/styler.",
+  "archetype": "r_project",
+  "oracle_mode": "product",
+  "languages": ["r"],
+  "key_paths": [
+    "R dispatch",
+    "renv environment management",
+    "testthat test execution",
+    "lintr/styler quality gates",
+    "DESCRIPTION/NAMESPACE generation"
+  ],
+  "trajectory_config": "oracle_trajectory.json"
+}

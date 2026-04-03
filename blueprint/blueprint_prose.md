@@ -485,7 +485,7 @@ The pre-flight check sequence validates: Claude Code installed, SVP plugin loade
 
 The new project creation sequence performs: directory creation, script copying, toolchain copying, ruff.toml copying (set read-only), regression test copying, hook configuration copying with path rewriting, initial `pipeline_state.json`, `svp_config.json`, CLAUDE.md generation, filesystem permissions, and session launch.
 
-Session launch uses `subprocess.run` with `cwd=project_root`, optional `--dangerously-skip-permissions`, `--prompt "run the routing script"`, and `SVP_PLUGIN_ACTIVE=1` in the subprocess environment. The restart loop checks for `.svp/restart_signal`.
+Session launch uses `subprocess.run` with `cwd=project_root`, optional `--dangerously-skip-permissions`, positional prompt `"run the routing script"` (Bug S3-68: not a `--prompt` flag), and `SVP_PLUGIN_ACTIVE=1` in the subprocess environment. The restart loop checks for `.svp/restart_signal`.
 
 The `--plugin-path` argument (for `svp restore`) sets `SVP_PLUGIN_ROOT` in the subprocess environment, enabling nested session isolation for the oracle and Pass 2. Language runtime pre-flight checks are derived from the language registry.
 

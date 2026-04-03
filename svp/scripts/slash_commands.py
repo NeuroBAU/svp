@@ -15,7 +15,7 @@ Standalone: svp_visual_verify
 from typing import List
 
 # ---------------------------------------------------------------------------
-# COMMAND_NAMES — exactly 11 commands
+# COMMAND_NAMES -- exactly 11 commands
 # ---------------------------------------------------------------------------
 
 COMMAND_NAMES: List[str] = [
@@ -33,7 +33,7 @@ COMMAND_NAMES: List[str] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Group A commands — direct action, no agent spawning
+# Group A commands -- direct action, no agent spawning
 # ---------------------------------------------------------------------------
 
 _SVP_SAVE_DEFINITION: str = """\
@@ -133,7 +133,7 @@ The delivered repository is never touched by this command.
 """
 
 # ---------------------------------------------------------------------------
-# Group B commands — agent-driven workflow with full action cycle
+# Group B commands -- agent-driven workflow with full action cycle
 # ---------------------------------------------------------------------------
 
 _SVP_HELP_DEFINITION: str = """\
@@ -238,11 +238,11 @@ Roll back to redo a previously completed step.
 ## Classification
 
 The redo agent classifies the request into one of five categories:
-- `REDO_CLASSIFIED: spec` — spec says the wrong thing
-- `REDO_CLASSIFIED: blueprint` — blueprint translated incorrectly
-- `REDO_CLASSIFIED: gate` — human approved wrong thing
-- `REDO_CLASSIFIED: profile_delivery` — delivery-only profile change
-- `REDO_CLASSIFIED: profile_blueprint` — blueprint-influencing profile change
+- `REDO_CLASSIFIED: spec` -- spec says the wrong thing
+- `REDO_CLASSIFIED: blueprint` -- blueprint translated incorrectly
+- `REDO_CLASSIFIED: gate` -- human approved wrong thing
+- `REDO_CLASSIFIED: profile_delivery` -- delivery-only profile change
+- `REDO_CLASSIFIED: profile_blueprint` -- blueprint-influencing profile change
 
 ## Notes
 
@@ -319,7 +319,7 @@ No production deliverables are produced.
 """
 
 # ---------------------------------------------------------------------------
-# Standalone command — not routed
+# Standalone command -- not routed
 # ---------------------------------------------------------------------------
 
 _SVP_VISUAL_VERIFY_DEFINITION: str = """\
@@ -334,9 +334,9 @@ intervals or interaction points, and returns captured images for evaluation.
 
 ## Arguments
 
-- `--target` — Path to the executable or project to launch.
-- `--interval` — (Optional) Capture interval in seconds for periodic screenshots.
-- `--interactions` — (Optional) List of interaction steps to execute before \
+- `--target` -- Path to the executable or project to launch.
+- `--interval` -- (Optional) Capture interval in seconds for periodic screenshots.
+- `--interactions` -- (Optional) List of interaction steps to execute before \
 capturing screenshots.
 
 ## Usage
@@ -372,7 +372,7 @@ confidence but does not replace deterministic test results.
 """
 
 # ---------------------------------------------------------------------------
-# COMMAND_DEFINITIONS — maps each command name to its markdown content
+# COMMAND_DEFINITIONS -- maps each command name to its markdown content
 # ---------------------------------------------------------------------------
 
 COMMAND_DEFINITIONS: dict = {

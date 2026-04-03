@@ -471,6 +471,189 @@ PROJECT_ASSEMBLERS: Dict[
 
 
 # ---------------------------------------------------------------------------
+# Bug S3-51/S3-52: Plugin component assembly
+# ---------------------------------------------------------------------------
+
+
+def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
+    """Assemble plugin manifests and component directories for Claude Code plugins.
+
+    Creates .claude-plugin/ directories with manifests and extracts
+    agent/command/hook/skill definitions from workspace units into the
+    delivered repo's svp/ subdirectory.
+    """
+    plugin_subdir = repo_dir / "svp"
+    plugin_subdir.mkdir(parents=True, exist_ok=True)
+
+    # --- Plugin manifests (Bug S3-51) ---
+    from src.unit_28.stub import generate_marketplace_json, generate_plugin_json
+
+    # Root-level marketplace.json
+    marketplace_dir = repo_dir / ".claude-plugin"
+    marketplace_dir.mkdir(parents=True, exist_ok=True)
+    (marketplace_dir / "marketplace.json").write_text(
+        generate_marketplace_json(profile) + "\n"
+    )
+
+    # Plugin-level plugin.json
+    plugin_manifest_dir = plugin_subdir / ".claude-plugin"
+    plugin_manifest_dir.mkdir(parents=True, exist_ok=True)
+    (plugin_manifest_dir / "plugin.json").write_text(
+        generate_plugin_json(profile) + "\n"
+    )
+
+    # --- Agent definitions (Bug S3-52) ---
+    agents_dir = plugin_subdir / "agents"
+    agents_dir.mkdir(parents=True, exist_ok=True)
+
+    from src.unit_18.stub import SETUP_AGENT_DEFINITION
+    from src.unit_19.stub import BLUEPRINT_CHECKER_DEFINITION
+    from src.unit_20.stub import (
+        BLUEPRINT_AUTHOR_DEFINITION,
+        BLUEPRINT_REVIEWER_DEFINITION,
+        COVERAGE_REVIEW_AGENT_DEFINITION,
+        IMPLEMENTATION_AGENT_DEFINITION,
+        INTEGRATION_TEST_AUTHOR_DEFINITION,
+        STAKEHOLDER_DIALOG_DEFINITION,
+        STAKEHOLDER_REVIEWER_DEFINITION,
+        TEST_AGENT_DEFINITION,
+    )
+    from src.unit_21.stub import DIAGNOSTIC_AGENT_DEFINITION, REDO_AGENT_DEFINITION
+    from src.unit_22.stub import (
+        HELP_AGENT_DEFINITION,
+        HINT_AGENT_DEFINITION,
+        REFERENCE_INDEXING_AGENT_DEFINITION,
+    )
+    from src.unit_24.stub import BUG_TRIAGE_AGENT_DEFINITION, REPAIR_AGENT_DEFINITION
+
+    agent_defs = {
+        "setup_agent.md": SETUP_AGENT_DEFINITION,
+        "blueprint_checker.md": BLUEPRINT_CHECKER_DEFINITION,
+        "stakeholder_dialog.md": STAKEHOLDER_DIALOG_DEFINITION,
+        "stakeholder_reviewer.md": STAKEHOLDER_REVIEWER_DEFINITION,
+        "blueprint_author.md": BLUEPRINT_AUTHOR_DEFINITION,
+        "blueprint_reviewer.md": BLUEPRINT_REVIEWER_DEFINITION,
+        "test_agent.md": TEST_AGENT_DEFINITION,
+        "implementation_agent.md": IMPLEMENTATION_AGENT_DEFINITION,
+        "coverage_review_agent.md": COVERAGE_REVIEW_AGENT_DEFINITION,
+        "integration_test_author.md": INTEGRATION_TEST_AUTHOR_DEFINITION,
+        "diagnostic_agent.md": DIAGNOSTIC_AGENT_DEFINITION,
+        "redo_agent.md": REDO_AGENT_DEFINITION,
+        "help_agent.md": HELP_AGENT_DEFINITION,
+        "hint_agent.md": HINT_AGENT_DEFINITION,
+        "reference_indexing.md": REFERENCE_INDEXING_AGENT_DEFINITION,
+        "git_repo_agent.md": GIT_REPO_AGENT_DEFINITION,
+        "checklist_generation.md": CHECKLIST_GENERATION_AGENT_DEFINITION,
+        "regression_adaptation.md": REGRESSION_ADAPTATION_AGENT_DEFINITION,
+        "oracle_agent.md": ORACLE_AGENT_DEFINITION,
+        "bug_triage_agent.md": BUG_TRIAGE_AGENT_DEFINITION,
+        "repair_agent.md": REPAIR_AGENT_DEFINITION,
+    }
+
+    # Bug S3-58: inject YAML frontmatter (Claude Code requires name + description)
+    agent_models = profile.get("pipeline", {}).get("agent_models", {})
+    # Map filename stems to profile agent_models keys
+    _agent_model_keys = {
+        "setup_agent": "setup_agent",
+        "blueprint_checker": "blueprint_checker",
+        "stakeholder_dialog": "stakeholder_dialog",
+        "stakeholder_reviewer": "stakeholder_reviewer",
+        "blueprint_author": "blueprint_author",
+        "blueprint_reviewer": "blueprint_reviewer",
+        "test_agent": "test_agent",
+        "implementation_agent": "implementation_agent",
+        "coverage_review_agent": "coverage_review",
+        "integration_test_author": "integration_test_author",
+        "diagnostic_agent": "diagnostic_agent",
+        "redo_agent": "redo_agent",
+        "help_agent": "help_agent",
+        "hint_agent": "hint_agent",
+        "reference_indexing": "reference_indexing",
+        "git_repo_agent": "git_repo_agent",
+        "checklist_generation": "checklist_generation",
+        "regression_adaptation": "regression_adaptation",
+        "oracle_agent": "oracle_agent",
+        "bug_triage_agent": "bug_triage",
+        "repair_agent": "repair_agent",
+    }
+
+    for filename, content in agent_defs.items():
+        stem = filename.replace(".md", "")
+        model_key = _agent_model_keys.get(stem, stem)
+        model = agent_models.get(model_key, "claude-sonnet-4-6")
+        # Extract description from first paragraph after the heading
+        desc_line = ""
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and not stripped.startswith("---"):
+                desc_line = stripped[:120]
+                break
+        name = stem.replace("_", "-")
+        frontmatter = (
+            f"---\n"
+            f"name: {name}\n"
+            f"description: {desc_line}\n"
+            f"model: {model}\n"
+            f"---\n\n"
+        )
+        (agents_dir / filename).write_text(frontmatter + content)
+
+    # --- Command definitions (Bug S3-52) ---
+    commands_dir = plugin_subdir / "commands"
+    commands_dir.mkdir(parents=True, exist_ok=True)
+
+    from src.unit_25.stub import COMMAND_DEFINITIONS
+
+    for cmd_name, content in COMMAND_DEFINITIONS.items():
+        (commands_dir / f"{cmd_name}.md").write_text(content)
+
+    # --- Hook configurations (Bug S3-52) ---
+    hooks_dir = plugin_subdir / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+
+    from src.unit_17.stub import (
+        generate_hooks_json,
+        generate_monitoring_reminder_sh,
+        generate_non_svp_protection_sh,
+        generate_stub_sentinel_check_sh,
+        generate_write_authorization_sh,
+    )
+
+    (hooks_dir / "hooks.json").write_text(generate_hooks_json() + "\n")
+    (hooks_dir / "write_authorization.sh").write_text(
+        generate_write_authorization_sh()
+    )
+    (hooks_dir / "non_svp_protection.sh").write_text(
+        generate_non_svp_protection_sh()
+    )
+    (hooks_dir / "stub_sentinel_check.sh").write_text(
+        generate_stub_sentinel_check_sh()
+    )
+    (hooks_dir / "monitoring_reminder.sh").write_text(
+        generate_monitoring_reminder_sh()
+    )
+
+    # Make hook scripts executable
+    for sh_file in hooks_dir.glob("*.sh"):
+        sh_file.chmod(0o755)
+
+    # --- Skill definitions (Bug S3-52) ---
+    skill_dir = plugin_subdir / "skills" / "orchestration"
+    skill_dir.mkdir(parents=True, exist_ok=True)
+
+    from src.unit_26.stub import ORCHESTRATION_SKILL
+
+    (skill_dir / "SKILL.md").write_text(ORCHESTRATION_SKILL)
+
+    # --- Bug S3-60: Package init file for svp.scripts imports ---
+    scripts_dir = plugin_subdir / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    init_file = scripts_dir / "__init__.py"
+    if not init_file.exists():
+        init_file.write_text("")
+
+
+# ---------------------------------------------------------------------------
 # Assembly map generation
 # ---------------------------------------------------------------------------
 

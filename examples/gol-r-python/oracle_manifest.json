@@ -1,0 +1,15 @@
+{
+  "name": "GoL R-Python Mixed",
+  "description": "R Shiny GUI + Python GoL engine via reticulate — exercises reverse dual-language dispatch.",
+  "archetype": "mixed",
+  "oracle_mode": "product",
+  "languages": ["r", "python"],
+  "key_paths": [
+    "Option D setup dialog (R primary)",
+    "Dual-language Stage 3 dispatch (R first)",
+    "reticulate bridge integration",
+    "Cross-language tests",
+    "Two-phase assembly"
+  ],
+  "trajectory_config": "oracle_trajectory.json"
+}

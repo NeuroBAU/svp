@@ -9,8 +9,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
-from language_registry import LANGUAGE_REGISTRY
 from svp_config import ARTIFACT_FILENAMES
+from language_registry import LANGUAGE_REGISTRY
 
 # ---------------------------------------------------------------------------
 # Valid archetypes
@@ -218,7 +218,7 @@ def validate_profile(
     if primary not in language_registry:
         errors.append(f"Unknown primary language: {primary}")
 
-    # Collect all project languages (primary + secondary)
+    # Collect all project languages (primary + secondary if present)
     project_langs = set()
     if primary:
         project_langs.add(primary)
@@ -292,35 +292,33 @@ def validate_profile(
 
     # Mixed archetype constraints
     if archetype == "mixed":
-        # Must have secondary language
-        if not secondary:
-            errors.append("Mixed archetype requires a secondary language")
+        # Collect all language keys from delivery and quality sections
+        all_lang_keys = set(delivery.keys()) | set(quality.keys())
+        # Filter to only those that are in the language registry and not component-only
+        full_lang_keys = {
+            k
+            for k in all_lang_keys
+            if k in language_registry
+            and not language_registry[k].get("is_component_only", False)
+        }
+
+        if len(full_lang_keys) < 2:
+            errors.append("Mixed archetype requires at least two languages")
         else:
             # Both languages must be in delivery and quality
-            if primary and primary not in delivery:
-                errors.append(
-                    f"Mixed archetype: missing delivery config for "
-                    f"primary language {primary}"
-                )
-            if secondary not in delivery:
-                errors.append(
-                    f"Mixed archetype: missing delivery config for "
-                    f"secondary language {secondary}"
-                )
-            if primary and primary not in quality:
-                errors.append(
-                    f"Mixed archetype: missing quality config for "
-                    f"primary language {primary}"
-                )
-            if secondary not in quality:
-                errors.append(
-                    f"Mixed archetype: missing quality config for "
-                    f"secondary language {secondary}"
-                )
+            for lang in sorted(full_lang_keys):
+                if lang not in delivery:
+                    errors.append(
+                        f"Mixed archetype: missing delivery config for language {lang}"
+                    )
+                if lang not in quality:
+                    errors.append(
+                        f"Mixed archetype: missing quality config for language {lang}"
+                    )
 
             # Hard constraints: conda forced for both languages
-            for lang in [primary, secondary]:
-                if lang and lang in delivery:
+            for lang in sorted(full_lang_keys):
+                if lang in delivery:
                     lang_del = delivery[lang]
                     if isinstance(lang_del, dict):
                         env_rec = lang_del.get("environment_recommendation")

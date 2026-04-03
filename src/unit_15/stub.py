@@ -19,6 +19,11 @@ from src.unit_4.stub import get_gate_composition, load_toolchain, resolve_comman
 # ---------------------------------------------------------------------------
 
 
+def _tool_is_none(command_template: str) -> bool:
+    """Check if a tool command is 'none', meaning it should be skipped."""
+    return command_template.strip().lower() == "none"
+
+
 def _get_env_name(toolchain_config: Dict[str, Any]) -> str:
     """Extract env_name from toolchain config, falling back to empty string."""
     return toolchain_config.get("env_name", "")
@@ -81,18 +86,35 @@ def _execute_gate_operations(
         operation_name = op.get("operation", "")
         command_template = op.get("command", "")
 
-        # Skip operations whose command is "none"
-        if command_template == "none":
+        # Skip operations whose tool is "none"
+        if _tool_is_none(command_template):
             continue
 
         # Resolve command
         cmd = resolve_command(command_template, env_name, run_prefix, str(target_path))
+
+        # Capture file content before execution for auto-fix detection
+        content_before = None
+        if target_path.is_file() and allow_auto_fix:
+            try:
+                content_before = target_path.read_bytes()
+            except OSError:
+                pass
 
         # Execute
         try:
             result = _run_command(cmd)
             output = result.stdout + result.stderr
             all_outputs.append(f"[{operation_name}]\n{output}")
+
+            # Detect auto-fix: file was modified by the tool
+            if content_before is not None and target_path.is_file():
+                try:
+                    content_after = target_path.read_bytes()
+                    if content_after != content_before:
+                        auto_fixed = True
+                except OSError:
+                    pass
 
             if result.returncode != 0:
                 if pass_fail_only:
@@ -108,10 +130,10 @@ def _execute_gate_operations(
     # Classify result
     if had_error:
         status = "QUALITY_ERROR"
-    elif not residuals:
-        status = "QUALITY_CLEAN"
     elif auto_fixed and allow_auto_fix:
         status = "QUALITY_AUTO_FIXED"
+    elif not residuals:
+        status = "QUALITY_CLEAN"
     else:
         status = "QUALITY_RESIDUAL"
 

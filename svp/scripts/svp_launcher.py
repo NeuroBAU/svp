@@ -8,7 +8,12 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
+
+# Ensure sibling scripts are importable when running as pip entry point.
+_scripts_dir = str(Path(__file__).resolve().parent)
+if _scripts_dir not in sys.path:
+    sys.path.insert(0, _scripts_dir)
 
 from language_registry import LANGUAGE_REGISTRY
 
@@ -95,7 +100,21 @@ def parse_args(argv: list = None) -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 
-def preflight_check(project_root: Optional[Path] = None) -> List[str]:
+def _check(label: str, passed: bool, detail: str = "", verbose: bool = True) -> Optional[str]:
+    """Print a preflight check result and return error string if failed."""
+    if passed:
+        if verbose:
+            print(f"  \u2713 {label}")
+        return None
+    msg = f"{label}: {detail}" if detail else label
+    if verbose:
+        print(f"  \u2717 {label} -- {detail}")
+    return msg
+
+
+def preflight_check(
+    project_root: Optional[Path] = None, verbose: bool = True,
+) -> List[str]:
     """Validate that required tools and runtimes are available.
 
     Checks in order:
@@ -108,44 +127,72 @@ def preflight_check(project_root: Optional[Path] = None) -> List[str]:
       7. git installed
       8. Language runtime checks from LANGUAGE_REGISTRY
 
+    When verbose=True, prints each check result to stdout.
     Returns a list of error messages (empty if all pass).
     """
+    if verbose:
+        print("\nSVP 2.2 -- Preflight checks\n")
+
     errors: List[str] = []
 
     # 1. Claude Code installed
-    if shutil.which("claude") is None:
-        errors.append("Claude Code is not installed or not on PATH")
+    claude_ok = shutil.which("claude") is not None
+    err = _check("Claude Code installed", claude_ok,
+                 "not installed or not on PATH", verbose)
+    if err:
+        errors.append(err)
 
     # 2. SVP plugin loaded
+    plugin_ok = True
     try:
         _find_plugin_root()
     except FileNotFoundError:
-        errors.append("SVP plugin not found in any standard location")
+        plugin_ok = False
+    err = _check("SVP plugin loaded", plugin_ok,
+                 "not found in any standard location", verbose)
+    if err:
+        errors.append(err)
 
-    # 3. API credentials valid
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        # Check if claude is configured (best-effort)
-        pass  # Advisory: no easy way to check without calling API
+    # 3. API credentials valid (advisory only)
+    has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    if verbose:
+        if has_key:
+            print("  \u2713 API credentials (ANTHROPIC_API_KEY set)")
+        else:
+            print("  - API credentials (relying on Claude Code auth)")
 
     # 4. conda installed
-    if shutil.which("conda") is None:
-        errors.append("conda is not installed or not on PATH")
+    conda_ok = shutil.which("conda") is not None
+    err = _check("conda installed", conda_ok,
+                 "not installed or not on PATH", verbose)
+    if err:
+        errors.append(err)
 
     # 5. Python >= 3.11
-    if sys.version_info < (3, 11):
-        errors.append(
-            f"Python >= 3.11 required, found {sys.version_info.major}.{sys.version_info.minor}"
-        )
+    py_ok = sys.version_info >= (3, 11)
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+    err = _check(f"Python >= 3.11 (found {py_ver})", py_ok,
+                 f"found {py_ver}", verbose)
+    if err:
+        errors.append(err)
 
     # 6. pytest importable
+    pytest_ok = True
     try:
         import pytest  # noqa: F401
     except ImportError:
-        errors.append("pytest is not importable")
+        pytest_ok = False
+    err = _check("pytest importable", pytest_ok,
+                 "not importable", verbose)
+    if err:
+        errors.append(err)
 
     # 7. git installed
-    if shutil.which("git") is None:
-        errors.append("git is not installed or not on PATH")
+    git_ok = shutil.which("git") is not None
+    err = _check("git installed", git_ok,
+                 "not installed or not on PATH", verbose)
+    if err:
+        errors.append(err)
 
     # 8. Language runtime pre-flight from LANGUAGE_REGISTRY
     for lang_key, entry in LANGUAGE_REGISTRY.items():
@@ -153,6 +200,7 @@ def preflight_check(project_root: Optional[Path] = None) -> List[str]:
             continue
         version_cmd = entry.get("version_check_command")
         if version_cmd:
+            lang_ok = True
             try:
                 subprocess.run(
                     version_cmd.split(),
@@ -160,10 +208,15 @@ def preflight_check(project_root: Optional[Path] = None) -> List[str]:
                     timeout=10,
                 )
             except (subprocess.TimeoutExpired, FileNotFoundError):
-                errors.append(
-                    f"{entry.get('display_name', lang_key)} runtime check failed: "
-                    f"'{version_cmd}' not available"
-                )
+                lang_ok = False
+            display = entry.get("display_name", lang_key)
+            err = _check(f"{display} runtime", lang_ok,
+                         f"'{version_cmd}' not available", verbose)
+            if err:
+                errors.append(err)
+
+    if verbose:
+        print()  # blank line after checks
 
     return errors
 
@@ -241,7 +294,7 @@ def create_new_project(
 ) -> Path:
     """Create a new SVP project.
 
-    - Creates project directory
+    - Creates project directory at CWD/project_name
     - Copies scripts from plugin source
     - Copies toolchain files
     - Copies ruff.toml (set read-only after copy)
@@ -249,11 +302,10 @@ def create_new_project(
     - Copies hook configuration with path rewriting
     - Creates initial pipeline_state.json, svp_config.json, CLAUDE.md
     - Sets filesystem permissions
-    - Launches session
     - Returns project root path
     """
     project_root = Path.cwd() / project_name
-    project_root.mkdir(parents=True, exist_ok=False)
+    project_root.mkdir(parents=True, exist_ok=True)
 
     # Create .svp directory
     svp_dir = project_root / ".svp"
@@ -263,18 +315,25 @@ def create_new_project(
     scripts_src = plugin_root / "scripts"
     if scripts_src.is_dir():
         scripts_dst = project_root / "scripts"
+        if scripts_dst.exists():
+            shutil.rmtree(scripts_dst)
         shutil.copytree(scripts_src, scripts_dst)
 
     # Copy toolchain files
     toolchain_src = plugin_root / "toolchain"
     if toolchain_src.is_dir():
         toolchain_dst = project_root / "toolchain"
+        if toolchain_dst.exists():
+            shutil.rmtree(toolchain_dst)
         shutil.copytree(toolchain_src, toolchain_dst)
 
     # Copy ruff.toml (set read-only)
     ruff_src = plugin_root / "ruff.toml"
     if ruff_src.is_file():
         ruff_dst = project_root / "ruff.toml"
+        # Make writable first if it already exists (it may be read-only)
+        if ruff_dst.exists():
+            ruff_dst.chmod(stat.S_IRUSR | stat.S_IWUSR)
         shutil.copy2(ruff_src, ruff_dst)
         ruff_dst.chmod(stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
 
@@ -282,20 +341,25 @@ def create_new_project(
     tests_src = plugin_root / "tests"
     if tests_src.is_dir():
         tests_dst = project_root / "tests"
+        if tests_dst.exists():
+            shutil.rmtree(tests_dst)
         shutil.copytree(tests_src, tests_dst)
 
     # Copy hook configuration with path rewriting
     hooks_src = plugin_root / ".claude-plugin"
     if hooks_src.is_dir():
         hooks_dst = project_root / ".claude-plugin"
+        if hooks_dst.exists():
+            shutil.rmtree(hooks_dst)
         shutil.copytree(hooks_src, hooks_dst)
         # Rewrite paths in hook config files
         _rewrite_hook_paths(hooks_dst, plugin_root, project_root)
 
     # Create initial pipeline_state.json
+    # Bug S3-38: sub_stage must start as "hook_activation", not None
     initial_state = {
         "stage": "0",
-        "sub_stage": None,
+        "sub_stage": "hook_activation",
         "current_unit": None,
         "total_units": 0,
         "verified_units": [],
@@ -347,9 +411,6 @@ def create_new_project(
         encoding="utf-8",
     )
 
-    # Launch session
-    launch_session(project_root, plugin_path=plugin_root)
-
     return project_root
 
 
@@ -373,6 +434,8 @@ def _rewrite_hook_paths(hooks_dir: Path, plugin_root: Path, project_root: Path) 
 def _copy_artifact(src: Path, dst: Path) -> None:
     """Copy a file or directory to the destination."""
     if src.is_dir():
+        if dst.exists():
+            shutil.rmtree(dst)
         shutil.copytree(src, dst)
     else:
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -396,14 +459,14 @@ def restore_project(
 ) -> Path:
     """Restore an SVP project from existing artifacts.
 
-    - Creates project directory
+    - Creates project directory at CWD/project_name
     - Copies spec, blueprint, context, scripts, profile from provided paths
     - If skip_to provided: sets pipeline state to skip to that stage
     - If plugin_path provided: sets SVP_PLUGIN_ROOT in subprocess environment
     - Returns project root path
     """
     project_root = Path.cwd() / project_name
-    project_root.mkdir(parents=True, exist_ok=False)
+    project_root.mkdir(parents=True, exist_ok=True)
 
     # Create .svp directory
     svp_dir = project_root / ".svp"
@@ -416,6 +479,8 @@ def restore_project(
 
     # Copy blueprint directory
     bp_dst = project_root / "blueprint"
+    if bp_dst.exists():
+        shutil.rmtree(bp_dst)
     shutil.copytree(blueprint_dir, bp_dst)
 
     # Copy context
@@ -423,10 +488,20 @@ def restore_project(
 
     # Copy scripts
     scripts_dst = project_root / "scripts"
+    if scripts_dst.exists():
+        shutil.rmtree(scripts_dst)
     shutil.copytree(scripts_source, scripts_dst)
 
     # Copy profile
     _copy_artifact(profile_path, project_root / "project_profile.json")
+
+    # Bug S3-43: copy references directory from source workspace if present
+    source_workspace = blueprint_dir.parent
+    src_refs = source_workspace / "references"
+    if src_refs.is_dir():
+        dst_refs = project_root / "references"
+        if not dst_refs.exists():
+            shutil.copytree(str(src_refs), str(dst_refs))
 
     # Create initial pipeline state
     initial_state = {
@@ -476,18 +551,6 @@ def restore_project(
     config_path = project_root / "svp_config.json"
     config_path.write_text(json.dumps(DEFAULT_CONFIG, indent=2), encoding="utf-8")
 
-    # Set up environment for launch
-    env_override: Optional[Dict[str, str]] = None
-    if plugin_path is not None:
-        env_override = {"SVP_PLUGIN_ROOT": str(plugin_path)}
-
-    # Launch session
-    launch_session(
-        project_root,
-        plugin_path=plugin_path,
-        env_override=env_override,
-    )
-
     return project_root
 
 
@@ -500,13 +563,12 @@ def launch_session(
     project_root: Path,
     skip_permissions: bool = True,
     plugin_path: Optional[Path] = None,
-    env_override: Optional[Dict[str, str]] = None,
 ) -> int:
     """Launch a Claude Code session with restart signal loop.
 
     - Uses subprocess.run with cwd=project_root
     - Arguments: optional --dangerously-skip-permissions,
-      --prompt "run the routing script"
+      positional prompt "run the routing script" (Bug S3-68)
     - Environment: SVP_PLUGIN_ACTIVE=1. If plugin_path: SVP_PLUGIN_ROOT=<path>
     - Restart loop: after exit, checks .svp/restart_signal.
       If present, removes signal and relaunches.
@@ -515,14 +577,12 @@ def launch_session(
     cmd = ["claude"]
     if skip_permissions:
         cmd.append("--dangerously-skip-permissions")
-    cmd.extend(["--prompt", "run the routing script"])
+    cmd.append("run the routing script")
 
     env = os.environ.copy()
     env["SVP_PLUGIN_ACTIVE"] = "1"
     if plugin_path is not None:
         env["SVP_PLUGIN_ROOT"] = str(plugin_path)
-    if env_override:
-        env.update(env_override)
 
     restart_signal = project_root / ".svp" / "restart_signal"
 
@@ -547,28 +607,33 @@ def main(argv: list = None) -> None:
     args = parse_args(argv)
 
     # Run preflight checks
-    errors = preflight_check()
+    errors = preflight_check(verbose=True)
     if errors:
-        for err in errors:
-            print(f"Pre-flight error: {err}", file=sys.stderr)
+        print(f"{len(errors)} pre-flight error(s). Cannot continue.",
+              file=sys.stderr)
         sys.exit(1)
+
+    print(f"Launching SVP session ({args.command})...\n")
 
     if args.command == "new":
         plugin_root = _find_plugin_root()
-        create_new_project(args.project_name, plugin_root)
+        project_root = create_new_project(args.project_name, plugin_root)
+        launch_session(project_root, plugin_path=plugin_root)
     elif args.command == "resume":
         # Auto-detect project and launch
         project_root = Path.cwd()
         plugin_root = _find_plugin_root()
         launch_session(project_root, plugin_path=plugin_root)
     elif args.command == "restore":
-        restore_project(
+        plugin_path = Path(args.plugin_path) if args.plugin_path else None
+        project_root = restore_project(
             project_name=args.project_name,
             spec_path=Path(args.spec),
             blueprint_dir=Path(args.blueprint_dir),
             context_path=Path(args.context),
             scripts_source=Path(args.scripts_source),
             profile_path=Path(args.profile),
-            plugin_path=Path(args.plugin_path) if args.plugin_path else None,
+            plugin_path=plugin_path,
             skip_to=args.skip_to,
         )
+        launch_session(project_root, plugin_path=plugin_path)

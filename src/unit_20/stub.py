@@ -385,6 +385,12 @@ placeholder tests, no `pass` statements, no `TODO` comments.
 `readable_test_names: True`, use long descriptive test names. If False, shorter names \
 are acceptable.
 
+## R Test Source Path Resolution
+
+For R projects, use `svp_source()` (defined in `tests/testthat/helper-svp.R`) to \
+source unit files. Example: `svp_source("unit_1.R")`. This helper resolves the \
+correct path from the project root so tests do not depend on working directory.
+
 ## Prohibited Patterns
 
 The following patterns are strictly prohibited. Violating any of these is a test \

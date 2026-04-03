@@ -7,7 +7,7 @@ behavioral invariants, and operational guidance.
 """
 
 ORCHESTRATION_SKILL: str = """---
-name: "svp-orchestration"
+name: "svp:orchestration"
 description: "Deterministic orchestration protocol for the Stratified Verification Pipeline (SVP). Controls all pipeline routing, agent invocation, gate presentation, and state management."
 argument-hint: "Run the routing script to receive your next action block. Never improvise pipeline flow."
 allowed-tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
@@ -146,7 +146,7 @@ The orchestrator applies a 26-item oversight checklist covering:
 - Red/green run validation: red runs confirm tests fail without implementation, green runs confirm tests pass with implementation
 - Coverage verification: coverage review agent is invoked and coverage gaps are addressed
 - Language dispatch correctness: each unit is dispatched to the correct language-specific tools
-- Stub sentinel presence: stub files contain the `__SVP_STUB__` sentinel before implementation
+- Stub sentinel presence: stub files contain the SVP stub sentinel marker before implementation
 - Lessons learned integration: lessons from prior failures are fed back to subsequent agent invocations
 
 ### Stage 4: Assembly -- 6-Item Checklist (Section 11.6)

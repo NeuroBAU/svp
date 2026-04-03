@@ -5,17 +5,15 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict
 
-# Module-level constants
-
 ARTIFACT_FILENAMES: Dict[str, str] = {
-    "pipeline_state": "pipeline_state.json",
+    "pipeline_state": ".svp/pipeline_state.json",
     "project_profile": "project_profile.json",
     "toolchain": "toolchain.json",
-    "stakeholder_spec": "specs/stakeholder_spec.md",
+    "stakeholder_spec": "spec/stakeholder_spec.md",
     "blueprint_dir": "blueprint",
     "blueprint_prose": "blueprint/blueprint_prose.md",
     "blueprint_contracts": "blueprint/blueprint_contracts.md",
-    "build_log": ".svp/build_log.jsonl",
+    "build_log": ".svp/build_log.json",
     "task_prompt": ".svp/task_prompt.md",
     "gate_prompt": ".svp/gate_prompt.md",
     "last_status": ".svp/last_status.txt",
@@ -23,7 +21,6 @@ ARTIFACT_FILENAMES: Dict[str, str] = {
     "assembly_map": ".svp/assembly_map.json",
     "triage_result": ".svp/triage_result.json",
     "oracle_run_ledger": ".svp/oracle_run_ledger.json",
-    "lessons_learned": "references/svp_2_1_lessons_learned.md",
 }
 
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -40,7 +37,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 
 
 def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
-    """Deep-merge override into a copy of base. Override values win."""
+    """Deep-merge override into base. Override values take precedence."""
     result = copy.deepcopy(base)
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
@@ -51,31 +48,27 @@ def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any
 
 
 def load_config(project_root: Path) -> Dict[str, Any]:
-    """Read svp_config.json from project_root, deep-merge with DEFAULT_CONFIG.
-
-    Raises FileNotFoundError if the config file is absent.
-    """
-    config_path = project_root / "svp_config.json"
-    with open(config_path, "r") as f:
+    config_path = project_root / ARTIFACT_FILENAMES["svp_config"]
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+    with open(config_path, "r", encoding="utf-8") as f:
         user_config = json.load(f)
     return _deep_merge(DEFAULT_CONFIG, user_config)
 
 
 def save_config(project_root: Path, config: Dict[str, Any]) -> None:
-    """Write config to svp_config.json at project_root as formatted JSON.
-
-    Uses atomic write (write to temp file, then rename).
-    """
-    config_path = project_root / "svp_config.json"
+    config_path = project_root / ARTIFACT_FILENAMES["svp_config"]
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    # Atomic write: write to temp file in same directory, then rename
     fd, tmp_path = tempfile.mkstemp(
-        dir=str(project_root), suffix=".tmp", prefix=".svp_config_"
+        dir=config_path.parent, suffix=".tmp", prefix=".svp_config_"
     )
     try:
-        with os.fdopen(fd, "w") as f:
-            json.dump(config, f, indent=2)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
             f.write("\n")
-        os.replace(tmp_path, str(config_path))
-    except BaseException:
+        os.replace(tmp_path, config_path)
+    except Exception:
         # Clean up temp file on failure
         try:
             os.unlink(tmp_path)
@@ -85,31 +78,17 @@ def save_config(project_root: Path, config: Dict[str, Any]) -> None:
 
 
 def derive_env_name(project_root: Path) -> str:
-    """Return the environment name derived from the project root directory name."""
     return f"svp-{project_root.name}"
 
 
 def get_blueprint_dir(project_root: Path) -> Path:
-    """Return project_root / ARTIFACT_FILENAMES['blueprint_dir']."""
     return project_root / ARTIFACT_FILENAMES["blueprint_dir"]
 
 
 def get_model_for_agent(
-    agent_key: str,
-    config: Dict[str, Any],
-    profile: Dict[str, Any],
+    agent_key: str, config: Dict[str, Any], profile: Dict[str, Any]
 ) -> str:
-    """Return the model identifier for the given agent key.
-
-    Precedence:
-      1. profile["pipeline"]["agent_models"][agent_key]
-      2. config["models"][agent_key]
-      3. config["models"]["default"]
-      4. Hardcoded fallback: "claude-opus-4-6"
-
-    Never returns None.
-    """
-    # Check profile first (highest precedence)
+    # Tier 1: profile["pipeline"]["agent_models"][agent_key]
     try:
         model = profile["pipeline"]["agent_models"][agent_key]
         if model is not None:
@@ -117,15 +96,13 @@ def get_model_for_agent(
     except (KeyError, TypeError):
         pass
 
-    # Check config agent-specific
-    models = config.get("models", {})
-    if agent_key in models and models[agent_key] is not None:
-        return models[agent_key]
+    # Tier 2: config["models"][agent_key]
+    try:
+        model = config["models"][agent_key]
+        if model is not None:
+            return model
+    except (KeyError, TypeError):
+        pass
 
-    # Check config default
-    default_model = models.get("default")
-    if default_model is not None:
-        return default_model
-
-    # Hardcoded fallback
-    return "claude-opus-4-6"
+    # Tier 3: config["models"]["default"]
+    return config["models"]["default"]
