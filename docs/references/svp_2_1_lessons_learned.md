@@ -458,3 +458,9 @@
 - **Bug:** S3-69 (skill frontmatter `name: "svp-orchestration"` uses hyphen instead of colon)
 - **Root cause:** Spec did not explicitly mandate the colon convention (`/svp:command`) for skill naming. The blueprint codified `svp-orchestration` and it propagated to skill definitions, code generators, and tests.
 - **Prevention:** P7 applies: spec should explicitly define the skill naming convention (colon separator) and the blueprint should validate against it.
+
+### Lesson: Oracle Test Project Selection Lists docs/ Files Individually (Bug S3-70)
+
+- **Bug:** S3-70 (routing script reminder "List projects from examples/ and docs/" caused orchestrator to list individual docs/ files as separate F-mode test projects)
+- **Root cause:** The routing script's reminder text was vague. The spec defined the exact UI format (Section 35.6) but the reminder didn't encode it, leaving the orchestrator to guess.
+- **Prevention:** P7 applies: when a routing action requires specific UI formatting, the reminder text must encode the exact expected format, not leave it to orchestrator improvisation.

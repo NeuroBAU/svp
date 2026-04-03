@@ -791,7 +791,19 @@ def _route_oracle(
             # Present test project selection before proceeding
             return _make_action_block(
                 action_type="oracle_select_test_project",
-                reminder="Select a test project for the oracle. List projects from examples/ and docs/.",
+                reminder=(
+                    "Present the test project list to the human. Format:\n"
+                    "\n"
+                    "  F-mode (Machinery Testing):\n"
+                    "  1. SVP Pipeline (docs/) — rebuilds the SVP project itself\n"
+                    "\n"
+                    "  E-mode (Product Testing) — one entry per examples/ subdirectory:\n"
+                    "  2. <name from oracle_manifest.json> (examples/<dir>/)\n"
+                    "  ...\n"
+                    "\n"
+                    "docs/ is ONE project ('SVP Pipeline'), not individual files. "
+                    "Read oracle_manifest.json from each examples/ subdirectory for the project name."
+                ),
             )
         if last_status.startswith("ORACLE_DRY_RUN_COMPLETE"):
             return _make_action_block(

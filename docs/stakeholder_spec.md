@@ -4745,6 +4745,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P7 (Specification Omission). The spec did not explicitly mandate the colon convention for skill names, allowing the hyphen form to propagate. **Detection:** Regression test in `test_unit_26.py`.
 
+### 24.85 Oracle Test Project Selection Lists docs/ Files Individually (Post-delivery — Bug S3-70, NEW IN 2.2)
+
+**Oracle test project listing (NEW IN 2.2 -- Bug S3-70).** The routing script's `oracle_select_test_project` action used a vague reminder ("List projects from examples/ and docs/"), causing the orchestrator to list individual files in `docs/` (stakeholder_spec.md, blueprint_contracts.md, blueprint_prose.md) as separate F-mode test projects. Per Section 35.6, `docs/` is ONE test project ("SVP Pipeline") for F-mode machinery testing, not individual files. Fix: replace the vague reminder with prescriptive text specifying the exact expected format.
+
+**Pattern:** P7 (Specification Omission). The spec defined the expected UI format (Section 35.6) but the routing script's reminder text did not encode it, leaving the orchestrator to guess. **Detection:** Manual testing of `/svp:oracle`.
+
 ---
 
 ## 25. Test Data
