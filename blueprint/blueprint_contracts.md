@@ -2156,12 +2156,14 @@ def main(argv: list = None) -> None: ...
 
 **_find_plugin_root:**
 - Checks `SVP_PLUGIN_ROOT` environment variable first.
-- Then searches 5 standard locations in order:
-  1. `~/.claude/plugins/svp/`
+- Then searches standard locations (platform-aware, Bug S3-71):
+  1. `~/.claude/plugins/svp/` (all platforms)
   2. `~/.claude/plugins/cache/svp/svp/*/` (all version subdirs, sorted)
-  3. `~/.config/claude/plugins/svp/`
-  4. `/usr/local/share/claude/plugins/svp/`
-  5. `/usr/share/claude/plugins/svp/`
+  3. `~/.config/claude/plugins/svp/` (all platforms)
+  4. `/usr/local/share/claude/plugins/svp/` (Unix/macOS only)
+  5. `/usr/share/claude/plugins/svp/` (Unix/macOS only)
+  6. `%LOCALAPPDATA%\claude\plugins\svp` (Windows only)
+  7. `%PROGRAMDATA%\claude\plugins\svp` (Windows only)
 - Validates: directory contains `.claude-plugin/plugin.json` with `name == "svp"`.
 - Reads and parses JSON content -- checking directory existence alone is not sufficient.
 - Returns `Path` to valid plugin root. Raises `FileNotFoundError` if none found.

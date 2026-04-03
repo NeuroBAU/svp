@@ -6,6 +6,9 @@
 
 set -euo pipefail
 
+# Portable Python: prefer python3, fall back to python (Bug S3-71)
+PYTHON="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)"
+
 # Read tool input from stdin
 TOOL_INPUT=""
 if [ ! -t 0 ]; then
@@ -15,7 +18,7 @@ fi
 # Extract file_path from tool input JSON
 FILE_PATH=""
 if [ -n "$TOOL_INPUT" ]; then
-    FILE_PATH="$(echo "$TOOL_INPUT" | python3 -c "
+    FILE_PATH="$(echo "$TOOL_INPUT" | $PYTHON -c "
 import sys, json
 try:
     data = json.load(sys.stdin)

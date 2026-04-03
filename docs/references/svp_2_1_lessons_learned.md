@@ -464,3 +464,9 @@
 - **Bug:** S3-70 (routing script reminder "List projects from examples/ and docs/" caused orchestrator to list individual docs/ files as separate F-mode test projects)
 - **Root cause:** The routing script's reminder text was vague. The spec defined the exact UI format (Section 35.6) but the reminder didn't encode it, leaving the orchestrator to guess.
 - **Prevention:** P7 applies: when a routing action requires specific UI formatting, the reminder text must encode the exact expected format, not leave it to orchestrator improvisation.
+
+### Lesson: Platform-Specific Code Prevents Cross-Platform Use (Bug S3-71)
+
+- **Bug:** S3-71 (hardcoded Unix paths in plugin search, `python3` in hooks, macOS-only `stat` in sync script)
+- **Root cause:** Code assumed macOS/Unix environment without considering Windows. Plugin search used `/usr/local/share/` and `/usr/share/` with no Windows equivalents. Hook scripts invoked `python3` directly. Sync script used macOS `stat -f %m`.
+- **Prevention pattern P19 (NEW):** When codifying filesystem paths or tool invocations, consider Unix, macOS, and Windows. Use `sys.platform` guards for system paths, `command -v` fallback chains for tool invocation, and Python stdlib for file metadata.

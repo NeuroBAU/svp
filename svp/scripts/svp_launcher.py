@@ -25,15 +25,22 @@ VALID_STAGES = {"0", "1", "2", "pre_stage_3", "3", "4", "5"}
 
 
 def _get_plugin_search_locations() -> List[Path]:
-    """Return the 5 standard plugin search locations (computed dynamically)."""
+    """Return standard plugin search locations (platform-aware, Bug S3-71)."""
     home = Path.home()
-    return [
+    locations = [
         home / ".claude" / "plugins" / "svp",
         home / ".claude" / "plugins" / "cache" / "svp" / "svp",
         home / ".config" / "claude" / "plugins" / "svp",
-        Path("/usr/local/share/claude/plugins/svp"),
-        Path("/usr/share/claude/plugins/svp"),
     ]
+    if sys.platform == "win32":
+        for var in ("LOCALAPPDATA", "PROGRAMDATA"):
+            val = os.environ.get(var, "")
+            if val:
+                locations.append(Path(val) / "claude" / "plugins" / "svp")
+    else:
+        locations.append(Path("/usr/local/share/claude/plugins/svp"))
+        locations.append(Path("/usr/share/claude/plugins/svp"))
+    return locations
 
 
 # ---------------------------------------------------------------------------

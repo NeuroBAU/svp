@@ -4751,6 +4751,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P7 (Specification Omission). The spec defined the expected UI format (Section 35.6) but the routing script's reminder text did not encode it, leaving the orchestrator to guess. **Detection:** Manual testing of `/svp:oracle`.
 
+### 24.86 Platform-Specific Code Prevents Cross-Platform Use (Post-delivery — Bug S3-71, NEW IN 2.2)
+
+**Cross-platform portability (NEW IN 2.2 -- Bug S3-71).** Three platform-specific issues: (1) `_get_plugin_search_locations()` in Unit 29 hardcodes Unix-only paths (`/usr/local/share/`, `/usr/share/`) with no Windows equivalents (`%LOCALAPPDATA%`, `%PROGRAMDATA%`); (2) hook shell scripts invoke `python3` which may not exist on Windows (only `python`); (3) `sync_workspace.sh` used macOS-only `stat -f %m` (fixed with fallback chain, but script not in repo). Fix: add platform-conditional paths, use portable Python invocation in hooks, place sync script in repo with platform-aware path resolution.
+
+**Pattern:** P19 (NEW — Cross-Platform Assumption). Prevention: When codifying filesystem paths or tool invocations, always consider Unix, macOS, and Windows variants. Use `sys.platform` guards or environment variables for system-level paths. **Detection:** Code audit.
+
 ---
 
 ## 25. Test Data

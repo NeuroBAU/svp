@@ -5,6 +5,9 @@
 
 set -euo pipefail
 
+# Portable Python: prefer python3, fall back to python (Bug S3-71)
+PYTHON="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)"
+
 PROFILE_FILE="project_profile.json"
 
 # If profile doesn't exist, exit silently
@@ -13,7 +16,7 @@ if [ ! -f "$PROFILE_FILE" ]; then
 fi
 
 # Check is_svp_build field
-IS_SVP_BUILD="$(python3 -c "
+IS_SVP_BUILD="$($PYTHON -c "
 import json
 try:
     with open('$PROFILE_FILE') as f:
