@@ -470,3 +470,9 @@
 - **Bug:** S3-71 (hardcoded Unix paths in plugin search, `python3` in hooks, macOS-only `stat` in sync script)
 - **Root cause:** Code assumed macOS/Unix environment without considering Windows. Plugin search used `/usr/local/share/` and `/usr/share/` with no Windows equivalents. Hook scripts invoked `python3` directly. Sync script used macOS `stat -f %m`.
 - **Prevention pattern P19 (NEW):** When codifying filesystem paths or tool invocations, consider Unix, macOS, and Windows. Use `sys.platform` guards for system paths, `command -v` fallback chains for tool invocation, and Python stdlib for file metadata.
+
+### Lesson: restore_project Missing sync_workspace.sh and examples/ (Bug S3-72)
+
+- **Bug:** S3-72 (`restore_project()` did not copy `sync_workspace.sh` or `examples/` to the restored workspace)
+- **Root cause:** The spec did not enumerate all workspace artifacts that must be present after restore. `sync_workspace.sh` was added post-delivery and `examples/` was only in the repo.
+- **Prevention:** P7 applies: when adding new workspace artifacts (scripts, directories), verify they are included in all workspace creation paths (`create_new_project`, `restore_project`).

@@ -4757,6 +4757,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P19 (NEW — Cross-Platform Assumption). Prevention: When codifying filesystem paths or tool invocations, always consider Unix, macOS, and Windows variants. Use `sys.platform` guards or environment variables for system-level paths. **Detection:** Code audit.
 
+### 24.87 restore_project Missing sync_workspace.sh and examples/ (Post-delivery — Bug S3-72, NEW IN 2.2)
+
+**Restore workspace completeness (NEW IN 2.2 -- Bug S3-72).** `restore_project()` in Unit 29 did not copy `sync_workspace.sh` or the `examples/` directory to the restored workspace. Without `sync_workspace.sh`, the workspace-repo sync tool is unavailable after restore. Without `examples/`, the oracle cannot list test projects for E-mode selection. Fix: after copying references, also copy `sync_workspace.sh` and `examples/` from the repo or source workspace if present.
+
+**Pattern:** P7 (Specification Omission). The spec did not enumerate all workspace artifacts that must be restored. **Detection:** Code audit of restore_project after adding sync_workspace.sh and examples/ to the repo.
+
 ---
 
 ## 25. Test Data

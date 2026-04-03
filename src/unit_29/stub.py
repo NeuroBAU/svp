@@ -512,6 +512,21 @@ def restore_project(
         if not dst_refs.exists():
             shutil.copytree(str(src_refs), str(dst_refs))
 
+    # Bug S3-72: copy sync_workspace.sh from repo or source workspace
+    repo_root = scripts_source.parent
+    for candidate in (repo_root / "sync_workspace.sh", source_workspace / "sync_workspace.sh"):
+        if candidate.is_file():
+            _copy_artifact(candidate, project_root / "sync_workspace.sh")
+            break
+
+    # Bug S3-72: copy examples/ from repo or source workspace for oracle
+    for candidate in (repo_root / "examples", source_workspace / "examples"):
+        if candidate.is_dir():
+            examples_dst = project_root / "examples"
+            if not examples_dst.exists():
+                shutil.copytree(str(candidate), str(examples_dst))
+            break
+
     # Create initial pipeline state
     initial_state = {
         "stage": "0",

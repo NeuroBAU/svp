@@ -2143,6 +2143,8 @@ def main(argv: list = None) -> None: ...
 - Creates project directory.
 - Copies spec, blueprint, context, scripts, profile from provided paths.
 - Copies `references/` directory from source workspace if present. **(Bug S3-43)**
+- Copies `sync_workspace.sh` from repo or source workspace if present. **(Bug S3-72)**
+- Copies `examples/` directory from repo or source workspace if present (oracle test projects). **(Bug S3-72)**
 - If `skip_to` provided: sets pipeline state to skip to that stage.
 - If `plugin_path` provided: sets `SVP_PLUGIN_ROOT` in subprocess environment (for Pass 2 nested session isolation).
 - Returns project root path.
