@@ -1126,7 +1126,7 @@ def run_tests_main(argv: list = None) -> None: ...
 - Orchestrator Pipeline Fidelity: emits exactly one action block per call.
 - Every `run_command` action block includes a `post` field that invokes `update_state.py --command <command_type>`. This ensures the six-step action cycle is uniform for both agent and command actions. **(Bug S3-14)**
 - Oracle routing: if `oracle_session_active` is True, dispatches on `oracle_phase` instead of normal stage/sub_stage. Per-phase routing:
-  - `oracle_phase == "dry_run"`: emit `invoke_agent` with `agent_type: "oracle_agent"`, prepare task prompt with dry run context (spec, blueprint, run ledger, bug catalog, test project).
+  - `oracle_phase == "dry_run"`: if `oracle_test_project` is empty, emit `oracle_select_test_project` with the complete pre-built test project list in the `reminder` field (hardcoded F-mode entry + auto-discovered E-mode from `examples/*/oracle_manifest.json`, built in Python — Bug S3-76). Otherwise emit `invoke_agent` with `agent_type: "oracle_agent"`, prepare task prompt with dry run context (spec, blueprint, run ledger, bug catalog, test project).
   - `oracle_phase == "gate_a"`: emit `human_gate` with `gate_id: "gate_7_a_trajectory_review"`. Present trajectory plan for human review.
   - `oracle_phase == "green_run"`: if `last_status == "ORACLE_FIX_APPLIED"`, emit `human_gate` with `gate_id: "gate_7_b_fix_plan_review"`; if `last_status == "ORACLE_ALL_CLEAR"`, call `complete_oracle_session(state, "all_clear")`, save state, emit `pipeline_complete` with "Oracle all clear" message; if `last_status == "ORACLE_HUMAN_ABORT"`, abandon oracle session, emit `pipeline_complete`; otherwise emit `invoke_agent` with `agent_type: "oracle_agent"`, prepare task prompt with green run context. **(Bug S3-44 fix.)**
   - `oracle_phase == "gate_b"`: emit `human_gate` with `gate_id: "gate_7_b_fix_plan_review"`. Present fix plan for human review. Gate 7B is exclusively for `ORACLE_FIX_APPLIED`. **(Bug S3-44 fix.)**
@@ -1331,7 +1331,7 @@ def run_tests_main(argv: list = None) -> None: ...
 - Appends build log entry (source: "routing", event_type: "action_emitted").
 
 **Oracle integration checklist (Bug S3-65 fix):**
-- Test project selection: _route_oracle returns oracle_select_test_project when oracle_test_project is empty at dry_run.
+- Test project selection: _route_oracle builds the complete numbered test project list in Python (hardcoded F-mode "SVP Pipeline" entry + auto-discovered E-mode from `examples/*/oracle_manifest.json`) and embeds it in the reminder field. The orchestrator presents it verbatim — no directory scanning. **(Bug S3-76 fix.)**
 - oracle_start command: dispatch_command_status handles "oracle_start" by calling enter_oracle_session.
 - Modification bound: gate_7_a MODIFY increments oracle_modification_count; _route_oracle warns when >= 3.
 - Nested session bootstrap: _bootstrap_oracle_nested_session creates workspace at green_run start.
@@ -1870,7 +1870,7 @@ COMMAND_NAMES: List[str]
 - `/svp:bug`: `bug_triage`.
 - `/svp:oracle`: `oracle`.
 
-**`/svp:oracle` command:** includes test project selection UX (numbered list from `docs/` and `examples/`).
+**`/svp:oracle` command:** includes test project selection UX. The routing script builds the complete numbered list deterministically (hardcoded F-mode "SVP Pipeline" + auto-discovered E-mode from `examples/`) and the orchestrator presents it verbatim. **(Bug S3-76 fix.)**
 
 **`/svp:visual-verify` command:** provides visual verification for GUI-based test projects (Section 35.18). Launches a target program, captures visual output (screenshots) at defined intervals or interaction points, and returns captured images for evaluation. Invocable by the oracle agent during E-mode green runs (after primary test suite verification) and by the human independently on persisted test projects. Supplementary, not authoritative -- the test suite is the authoritative verification. The command accepts `--target` (path to executable or project), `--interval` (optional, capture interval in seconds), `--interactions` (optional, list of interaction steps). No `--phase` value (this is not a routed command -- it is a standalone utility).
 

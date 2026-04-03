@@ -494,3 +494,9 @@
 - **Bug:** S3-75 (`pipeline_held` emitted 6 times in routing.py but orchestration skill had no handler)
 - **Root cause:** Same as S3-74 — the orchestration skill's Action Type Handling section was not exhaustive. `pipeline_held` was in the blueprint's valid action_type list but not in the skill.
 - **Prevention:** P20 applies. At delivery time, grep all `action_type=` values in routing.py and verify each has a handler in the orchestration skill.
+
+### Lesson: Oracle Test Project List Delegated to Orchestrator Instead of Built Deterministically (Bug S3-76)
+
+- **Bug:** S3-76 (three prior fixes — S3-70, S3-73, S3-74 — all failed because they tried to control the orchestrator via instructional text in the reminder field, but the LLM ignored instructions and scanned directories instead)
+- **Root cause:** Content construction was delegated to the orchestrator (an LLM). The reminder described *how* to build the list but didn't *contain* the list. The LLM improvised by running `ls docs/` and `ls examples/`, missing the hardcoded F-mode entry.
+- **Prevention pattern P21 (NEW):** Never delegate content construction to the orchestrator. All content the human sees must be produced by deterministic scripts. The orchestrator is a relay, not a generator. The routing script must build the complete formatted content in Python and embed it in the action block.

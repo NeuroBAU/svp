@@ -788,25 +788,56 @@ def _route_oracle(
 
     if phase == "dry_run":
         if not state.oracle_test_project:
-            # Present test project selection before proceeding
+            # Bug S3-76: build the complete test project list deterministically
+            e_entries: List[str] = []
+            examples_dir = project_root / "examples"
+            if examples_dir.is_dir():
+                for d in sorted(examples_dir.iterdir()):
+                    if not d.is_dir():
+                        continue
+                    manifest = d / "oracle_manifest.json"
+                    if manifest.is_file():
+                        try:
+                            data = json.loads(manifest.read_text(encoding="utf-8"))
+                            name = data.get("name", d.name)
+                            desc = data.get("description", "")
+                            mode = data.get("oracle_mode", "product")
+                            tag = "E-mode" if mode == "product" else "F-mode"
+                            e_entries.append(
+                                f"{name} ({d.name}/) \u2014 {desc} [{tag}]"
+                            )
+                        except (json.JSONDecodeError, OSError):
+                            e_entries.append(
+                                f"{d.name} \u2014 [no manifest \u2014 mode unknown]"
+                            )
+                    else:
+                        e_entries.append(
+                            f"{d.name} \u2014 [no manifest \u2014 mode unknown]"
+                        )
+
+            lines = ["Available test projects for /svp:oracle:", ""]
+            lines.append("  F-mode (Machinery Testing):")
+            lines.append(
+                "  1. SVP Pipeline \u2014 Machinery testing: "
+                "rebuilds the SVP project itself. [F-mode]"
+            )
+            lines.append("")
+            lines.append("  E-mode (Product Testing):")
+            for i, entry in enumerate(e_entries, start=2):
+                lines.append(f"  {i}. {entry}")
+            total = 1 + len(e_entries)
+            lines.append("")
+            lines.append(
+                f"Select a test project (1\u2013{total}), or ask a question:"
+            )
+            project_list = "\n".join(lines)
+
             return _make_action_block(
                 action_type="oracle_select_test_project",
                 reminder=(
-                    "Present this EXACT test project list to the human.\n"
-                    "Item 1 is ALWAYS present — it is hardcoded, not discovered from any directory.\n"
-                    "Items 2+ are discovered from examples/ subdirectories.\n"
-                    "\n"
-                    "Available test projects for /svp:oracle:\n"
-                    "\n"
-                    "  F-mode (Machinery Testing):\n"
-                    "  1. SVP Pipeline — rebuilds the SVP project itself [F-mode]\n"
-                    "\n"
-                    "  E-mode (Product Testing):\n"
-                    "  2. <name from oracle_manifest.json> (examples/<dir>/) [E-mode]\n"
-                    "  ... (one entry per examples/ subdirectory)\n"
-                    "\n"
-                    "Do NOT scan docs/ for F-mode projects. "
-                    "The SVP Pipeline entry is always present regardless of directory structure."
+                    "Present this EXACT text to the human verbatim. "
+                    "Do NOT modify it, scan directories, or add your own "
+                    "analysis.\n\n" + project_list
                 ),
             )
         if last_status.startswith("ORACLE_DRY_RUN_COMPLETE"):

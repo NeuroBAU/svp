@@ -4781,6 +4781,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P20 (Incomplete Action Type Dispatch). **Detection:** Cross-reference audit of routing.py action types vs orchestration skill handlers.
 
+### 24.91 Oracle Test Project List Delegated to Orchestrator Instead of Built Deterministically (Post-delivery — Bug S3-76, NEW IN 2.2)
+
+**Deterministic test project list construction (NEW IN 2.2 -- Bug S3-76).** Bugs S3-70, S3-73, and S3-74 attempted to fix the missing F-mode entry by improving reminder text and adding action type handlers. All failed because the orchestrator is an LLM that ignores instructional text and scans directories instead. The fundamental error: delegating content construction to the orchestrator instead of building it deterministically in the routing script. Fix: `_route_oracle` builds the complete numbered test project list in Python — hardcoded F-mode entry ("SVP Pipeline") plus auto-discovered E-mode entries from `examples/*/oracle_manifest.json` — and embeds the formatted list in the `reminder` field. The orchestrator presents it verbatim.
+
+**Pattern:** P21 (NEW — Deterministic Content Construction). Prevention: Never delegate content construction to the orchestrator. All content the human sees must be produced by deterministic scripts. The orchestrator is a relay, not a generator. **Detection:** Review all action blocks for cases where the reminder describes *how* to build content rather than *containing* the content.
+
 ---
 
 ## 25. Test Data
