@@ -4793,6 +4793,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P7 (Specification Omission). The spec described the selection UI but not the mechanical action cycle steps needed to persist it. **Detection:** Manual testing of `/svp:oracle` selection flow.
 
+### 24.93 All invoke_agent Action Blocks Missing prepare Field (Post-delivery — Bug S3-78, NEW IN 2.2)
+
+**Action block prepare field (NEW IN 2.2 -- Bug S3-78).** None of the ~30 `invoke_agent` action blocks in `routing.py` included a `prepare` field with the `prepare_task.py` command. Per the six-step action cycle (step 2: "Run the PREPARE command if present"), the `prepare` field generates the task prompt file (`.svp/task_prompt.md`) that the orchestrator relays to the agent. Without it, the orchestrator either uses a stale prompt file or improvises by guessing the CLI flags — causing errors like `--agent-type` (nonexistent flag) instead of `--agent`. Fix: add `_agent_prepare_cmd()` helper and include `prepare` field in every `invoke_agent` block. Unit-level agents (`test_agent`, `implementation_agent`, `diagnostic_agent`, `coverage_review_agent`) include `--unit N`. Secondary fix: `svp_oracle.md` specified `--agent oracle` but the correct value is `--agent oracle_agent`.
+
+**Pattern:** P22 (NEW — Incomplete Action Block Fields). Prevention: Every `invoke_agent` action block must include `prepare`, `post`, and `reminder` fields. The routing script must never emit an `invoke_agent` without a `prepare` command. **Detection:** Regression test verifying all invoke_agent blocks have prepare field.
+
 ---
 
 ## 25. Test Data

@@ -613,6 +613,17 @@ def _make_action_block(
     return block
 
 
+def _agent_prepare_cmd(agent_type: str, unit: Optional[int] = None) -> str:
+    """Build the prepare_task.py command for an invoke_agent action block."""
+    cmd = (
+        f"python scripts/prepare_task.py --agent {agent_type} "
+        f"--project-root . --output .svp/task_prompt.md"
+    )
+    if unit is not None:
+        cmd += f" --unit {unit}"
+    return cmd
+
+
 def _append_build_log(
     project_root: Path, source: str, event_type: str, **extra: Any
 ) -> None:
@@ -869,6 +880,7 @@ def _route_oracle(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="oracle_agent",
+            prepare=_agent_prepare_cmd("oracle_agent"),
             reminder="Oracle dry run.",
         )
 
@@ -942,6 +954,7 @@ def _route_oracle(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="oracle_agent",
+            prepare=_agent_prepare_cmd("oracle_agent"),
             reminder="Oracle green run.",
         )
 
@@ -1025,6 +1038,7 @@ def _route_debug(
                 return _make_action_block(
                     action_type="invoke_agent",
                     agent_type="repair_agent",
+                    prepare=_agent_prepare_cmd("repair_agent"),
                     reminder="Fast path: build_env triage to repair.",
                 )
             return _make_action_block(
@@ -1049,11 +1063,13 @@ def _route_debug(
             return _make_action_block(
                 action_type="invoke_agent",
                 agent_type="bug_triage_agent",
+                prepare=_agent_prepare_cmd("bug_triage_agent"),
                 reminder="Re-invoke triage agent.",
             )
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="bug_triage_agent",
+            prepare=_agent_prepare_cmd("bug_triage_agent"),
             reminder="Invoke triage agent.",
         )
 
@@ -1067,6 +1083,7 @@ def _route_debug(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="test_agent",
+            prepare=_agent_prepare_cmd("test_agent", unit=state.current_unit),
             reminder="Generate regression test.",
         )
 
@@ -1092,11 +1109,13 @@ def _route_debug(
             return _make_action_block(
                 action_type="invoke_agent",
                 agent_type="repair_agent",
+                prepare=_agent_prepare_cmd("repair_agent"),
                 reminder="Re-invoke repair agent.",
             )
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="repair_agent",
+            prepare=_agent_prepare_cmd("repair_agent"),
             reminder="Invoke repair agent.",
         )
 
@@ -1125,6 +1144,7 @@ def _route_debug(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="git_repo_agent",
+            prepare=_agent_prepare_cmd("git_repo_agent"),
             reminder="Debug reassembly.",
         )
 
@@ -1166,6 +1186,7 @@ def _route_stage_0(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="setup_agent",
+            prepare=_agent_prepare_cmd("setup_agent"),
             reminder=f"Setup agent in redo-{redo_mode} mode.",
         )
 
@@ -1192,6 +1213,7 @@ def _route_stage_0(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="setup_agent",
+            prepare=_agent_prepare_cmd("setup_agent"),
             reminder="Setup agent for project context.",
         )
 
@@ -1205,6 +1227,7 @@ def _route_stage_0(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="setup_agent",
+            prepare=_agent_prepare_cmd("setup_agent"),
             reminder="Setup agent for project profile.",
         )
 
@@ -1231,6 +1254,7 @@ def _route_stage_1(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="stakeholder_dialog",
+            prepare=_agent_prepare_cmd("stakeholder_dialog"),
             reminder="Targeted spec revision.",
         )
 
@@ -1243,6 +1267,7 @@ def _route_stage_1(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="checklist_generation",
+            prepare=_agent_prepare_cmd("checklist_generation"),
             reminder="Generate checklists.",
         )
 
@@ -1264,6 +1289,7 @@ def _route_stage_1(
     return _make_action_block(
         action_type="invoke_agent",
         agent_type="stakeholder_dialog",
+        prepare=_agent_prepare_cmd("stakeholder_dialog"),
         reminder="Start stakeholder dialog.",
     )
 
@@ -1285,6 +1311,7 @@ def _route_stage_2(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="stakeholder_dialog",
+            prepare=_agent_prepare_cmd("stakeholder_dialog"),
             reminder="Targeted spec revision for alignment.",
         )
 
@@ -1298,6 +1325,7 @@ def _route_stage_2(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="blueprint_author",
+            prepare=_agent_prepare_cmd("blueprint_author"),
             reminder="Blueprint authoring.",
         )
 
@@ -1323,6 +1351,7 @@ def _route_stage_2(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="blueprint_checker",
+            prepare=_agent_prepare_cmd("blueprint_checker"),
             reminder="Alignment check.",
         )
 
@@ -1342,6 +1371,7 @@ def _route_stage_2(
     return _make_action_block(
         action_type="invoke_agent",
         agent_type="blueprint_author",
+        prepare=_agent_prepare_cmd("blueprint_author"),
         reminder="Blueprint authoring.",
     )
 
@@ -1402,6 +1432,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="test_agent",
+            prepare=_agent_prepare_cmd("test_agent", unit=state.current_unit),
             reminder=f"Generate tests for unit {state.current_unit}.",
         )
 
@@ -1437,6 +1468,7 @@ def _route_stage_3(
             return _make_action_block(
                 action_type="invoke_agent",
                 agent_type="diagnostic_agent",
+                prepare=_agent_prepare_cmd("diagnostic_agent", unit=state.current_unit),
                 reminder=f"Diagnose failures for unit {state.current_unit}.",
             )
         if fl == "exhausted":
@@ -1448,6 +1480,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="implementation_agent",
+            prepare=_agent_prepare_cmd("implementation_agent", unit=state.current_unit),
             reminder=f"Implement unit {state.current_unit}.",
         )
 
@@ -1478,6 +1511,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="coverage_review_agent",
+            prepare=_agent_prepare_cmd("coverage_review_agent", unit=state.current_unit),
             reminder=f"Review coverage for unit {state.current_unit}.",
         )
 
@@ -1537,6 +1571,7 @@ def _route_stage_4(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="regression_adaptation",
+            prepare=_agent_prepare_cmd("regression_adaptation"),
             reminder="Run regression adaptation.",
         )
 
@@ -1572,6 +1607,7 @@ def _route_stage_4(
     return _make_action_block(
         action_type="invoke_agent",
         agent_type="integration_test_author",
+        prepare=_agent_prepare_cmd("integration_test_author"),
         reminder="Author integration tests.",
     )
 
@@ -1661,6 +1697,7 @@ def _route_stage_5(
     return _make_action_block(
         action_type="invoke_agent",
         agent_type="git_repo_agent",
+        prepare=_agent_prepare_cmd("git_repo_agent"),
         reminder="Assemble repository.",
     )
 

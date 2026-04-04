@@ -1120,6 +1120,7 @@ def run_tests_main(argv: list = None) -> None: ...
 **route():**
 - Reads `pipeline_state.json` and `last_status.txt`.
 - Returns action block dict with keys: `action_type` (str), `agent_type` (str, optional), `command` (str, optional), `gate_id` (str, optional), `prepare` (str, optional), `post` (str, optional), `reminder` (str).
+- **Action block prepare invariant (Bug S3-78):** Every `invoke_agent` action block MUST include a `prepare` field containing the `prepare_task.py` command that generates `.svp/task_prompt.md`. Unit-level agents include `--unit N`. The helper `_agent_prepare_cmd(agent_type, unit=None)` builds this command.
 - Valid `action_type` values: `"invoke_agent"`, `"run_command"`, `"human_gate"`, `"session_boundary"`, `"pipeline_complete"`, `"pipeline_held"`, `"break_glass"`, `"oracle_select_test_project"` **(Bug S3-74)**.
 - Two-branch routing invariant: for every sub-stage in the exhaustive list (Section 3.6), checks `last_status.txt` to distinguish "agent not done" from "agent done".
 - Route-level state persistence invariant: calls `save_state()` before any recursive `route()` call.

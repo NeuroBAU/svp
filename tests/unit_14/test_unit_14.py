@@ -980,6 +980,25 @@ class TestRoute:
         assert "docs/" in reminder, "Mapping must include docs/ for F-mode"
         assert "examples/demo/" in reminder, "Mapping must include examples/demo/ for E-mode"
 
+    def test_all_invoke_agent_blocks_have_prepare(self, tmp_path):
+        """Bug S3-78: every invoke_agent action block must have a prepare field."""
+        import re
+        from pathlib import Path as P
+        # Read routing.py source and check all invoke_agent blocks
+        routing_path = P(__file__).resolve().parents[2] / "src" / "unit_14" / "stub.py"
+        content = routing_path.read_text()
+        blocks = list(re.finditer(r'action_type="invoke_agent"', content))
+        assert len(blocks) > 0, "No invoke_agent blocks found"
+        for m in blocks:
+            ctx = content[m.start() - 100:m.start() + 300]
+            at_match = re.search(r'agent_type="(\w+)"', ctx)
+            agent = at_match.group(1) if at_match else "unknown"
+            if agent == "pass2_nested":
+                continue
+            assert "prepare=" in ctx, (
+                f"Bug S3-78: invoke_agent for {agent} missing prepare field"
+            )
+
     # -- Break-glass routing --
 
     def test_break_glass_includes_diagnostic_context(self, tmp_path):

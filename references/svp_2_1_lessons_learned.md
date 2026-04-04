@@ -506,3 +506,9 @@
 - **Bug:** S3-77 (after human selected a test project number, the orchestrator had no command to persist the selection and no mapping from number to path)
 - **Root cause:** The `oracle_select_test_project` action block had no `post` field and no number-to-path mapping. The six-step action cycle requires a POST command to update state. The orchestrator invented `--oracle-selection 1` which doesn't exist.
 - **Prevention:** P7 applies: every action block that requires human input must include a `post` field and sufficient context for the orchestrator to write the correct status to `last_status.txt`.
+
+### Lesson: All invoke_agent Action Blocks Missing prepare Field (Bug S3-78)
+
+- **Bug:** S3-78 (none of the ~30 `invoke_agent` action blocks in routing.py included a `prepare` field, so the task prompt file was never generated before agent invocation)
+- **Root cause:** The spec (line 3530) shows PREPARE in example action blocks, but the blueprint did not mandate it as an invariant. Implementation agents never added `prepare` fields because the blueprint's `_make_action_block` contract listed `prepare` as optional.
+- **Prevention pattern P22 (NEW):** Every `invoke_agent` action block must include `prepare`, `post`, and `reminder` fields. Add this as a structural invariant in the blueprint and verify via regression test.

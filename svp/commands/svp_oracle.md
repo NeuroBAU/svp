@@ -4,7 +4,7 @@ Launch the oracle agent for pipeline acceptance testing.
 
 ## Action Cycle
 
-1. Run `prepare_task.py --agent oracle --project-root .` to assemble the task prompt.
+1. Run `prepare_task.py --agent oracle_agent --project-root .` to assemble the task prompt.
 2. Spawn the oracle agent with the assembled task prompt.
 3. Write the agent's terminal status line to `.svp/last_status.txt`.
 4. Run `update_state.py --phase oracle` to update pipeline state.
