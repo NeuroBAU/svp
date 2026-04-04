@@ -4,24 +4,10 @@ Launch the oracle agent for pipeline acceptance testing.
 
 ## Action Cycle
 
-1. Run `prepare_task.py --agent oracle_agent --project-root .` to assemble the task prompt.
-2. Spawn the oracle agent with the assembled task prompt.
-3. Write the agent's terminal status line to `.svp/last_status.txt`.
-4. Run `update_state.py --phase oracle` to update pipeline state.
-5. Re-run the routing script (`python scripts/routing.py --project-root .`).
-
-## Phase Value
-
-`--phase oracle`
-
-## Test Project Selection
-
-Before launching the oracle, select a test project. The oracle presents a numbered list of available test projects from the `docs/` and `examples/` directories:
-
-- **GoL test projects** (from `examples/`): E-mode (product testing). Verifies that the pipeline-built product works correctly.
-- **SVP docs** (from `docs/`): F-mode (machinery testing). Verifies that the pipeline machinery itself functions correctly.
-
-The human selects the test project by number to determine the oracle mode.
+1. Write `ORACLE_REQUESTED` to `.svp/last_status.txt`.
+2. Run `python scripts/update_state.py --command oracle_start --project-root .` to enter the oracle session.
+3. Run `python scripts/routing.py --project-root .` to receive the next action block.
+4. Follow the six-step action cycle from there (the routing script handles test project selection, agent invocation, and all oracle phases).
 
 ## Availability
 
@@ -30,6 +16,7 @@ The human selects the test project by number to determine the oracle mode.
 
 ## Notes
 
-- This is a Group B command: it follows the complete action cycle above.
+- This is a Group B command: after the initial state transition, it follows the standard routing-driven action cycle.
+- The routing script handles test project selection deterministically. Do NOT scan directories or build test project lists.
 - The oracle creates a nested pipeline session for verification purposes only. No production deliverables are produced.
 - The run ledger provides cross-invocation memory for trajectory prioritization.
