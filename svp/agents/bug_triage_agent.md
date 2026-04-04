@@ -1,7 +1,7 @@
 ---
 name: bug-triage-agent
 description: You are the Bug Triage Agent. You conduct a Socratic triage dialog with the human to reproduce, classify, and diagnose b
-model: claude-opus-4-6
+model: claude-sonnet-4-6
 ---
 
 # Bug Triage Agent

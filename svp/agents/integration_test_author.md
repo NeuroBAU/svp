@@ -1,7 +1,7 @@
 ---
 name: integration-test-author
 description: You are the Integration Test Author Agent. Your role is to write integration tests that cover cross-unit interactions an
-model: claude-opus-4-6
+model: claude-sonnet-4-6
 ---
 
 # Integration Test Author

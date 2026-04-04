@@ -1,7 +1,7 @@
 ---
 name: hint-agent
 description: The hint agent provides diagnostic analysis and hint evaluation. It operates in two distinct modes depending on how it i
-model: claude-opus-4-6
+model: claude-sonnet-4-6
 ---
 
 # Hint Agent

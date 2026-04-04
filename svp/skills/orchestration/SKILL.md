@@ -307,3 +307,36 @@ The orchestrator does not maintain any in-memory state across sessions. All stat
 ## 14. Human Input During Autonomous Sequences
 
 During autonomous sequences (agent invocations, command executions), defer human input. If the human types during an autonomous sequence, acknowledge briefly and defer: complete the current action cycle before engaging.
+
+---
+
+## 15. Manual Bug-Fixing Protocol (Break-Glass Mode)
+
+When the SVP routing mechanism is too broken to function and the human directs the orchestrator to fix bugs directly, the following protocol applies. This overrides the six-step action cycle for the duration of the break-glass session.
+
+**RULE 0:** NEVER directly fix a bug. ALWAYS enter plan mode first.
+
+**Bug-Fixing Cycle (for each bug):**
+
+1. **DIAGNOSE** -- Identify root cause. Trace spec → blueprint → code.
+2. **PLAN** fixes covering:
+   a. Spec amendment (Section 24 bug entry)
+   b. Blueprint contract amendments
+   c. Code fix in `src/unit_*/stub.py`
+3. **EXECUTE** -- Apply code changes after plan approval.
+4. **EVALUATE** -- Run `pytest tests/ --tb=no -q` from workspace.
+5. **LESSONS LEARNED** -- Write entry in `references/svp_2_1_lessons_learned.md`.
+6. **REGRESSION TESTS** -- Author tests covering ALL aspects. 0 skips allowed.
+7. **SYNC REPOS** -- Full workspace→repo sync:
+   - `src/unit_*/stub.py` → repo `src/` AND repo `svp/scripts/` (import rewriting)
+   - Docs → repo `docs/`, `specs/`, `blueprint/`, `references/`
+   - `tests/` → repo `tests/`
+   - Plugin components: run `assemble_plugin_components()` on both repos
+8. **TEST FROM REPO** -- Run `pytest tests/ --tb=no -q` from the REPO directory.
+9. **VERIFY** -- All tests pass from BOTH workspace AND repo. 0 skipped. Line counts match.
+
+This protocol exists because during SVP 2.2 development, manual bug fixing repeatedly caused:
+- Workspace fixed but repos stale (silent test failures when running from repo)
+- `svp/scripts/` synced but `src/unit_*/stub.py` in repo not synced
+- Tests run only from workspace, masking import errors in repo context
+- Stale file copies accumulated (dual pipeline_state.json, spec/ vs specs/)

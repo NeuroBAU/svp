@@ -4805,6 +4805,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P21 (Deterministic Content Construction) + P23 (NEW — Slash Command Content Delegation). Prevention: Group B slash commands must be thin state-transition triggers. They enter the relevant session state and hand off to the routing script. They must never contain instructional text describing how to build user-facing content. When fixing a content-construction bug, audit ALL entry points — routing script, skill definitions, orchestration skill handlers, and CLAUDE.md. **Detection:** Regression test `test_bug_s3_79_oracle_skill_redirect.py`.
 
+### 24.95 Deployed Plugin Artifacts Not Regenerated After Source Fix (Post-delivery — Bug S3-80, NEW IN 2.2)
+
+**Deployed artifact staleness (NEW IN 2.2 -- Bug S3-80).** When manually fixing a source Unit that produces deployed plugin artifacts (Unit 25 → `svp/commands/`, Unit 26 → `svp/skills/`, Units 18-24 → `svp/agents/`, Unit 17 → `svp/hooks/`), the deployed `.md` files are not regenerated. `sync_workspace.sh` syncs source code but not deployed artifacts. `test_bug_fix_completeness.py` validates spec/blueprint sync but not artifact freshness. Claude Code loads deployed `.md` files at runtime — the Python source is only an assembly input. This caused the S3-79 F-mode regression to persist even after the Python source was fixed. Fix: add `regenerate_deployed_artifacts()` to Unit 23, invoked by `sync_workspace.sh` after source sync. Add exhaustive artifact freshness tests to `test_bug_fix_completeness.py`.
+
+**Pattern:** P24 (NEW — Deployed Artifact Regeneration). Prevention: (1) `sync_workspace.sh` must regenerate deployed artifacts from source Units after syncing source code. (2) `test_bug_fix_completeness.py` must validate that deployed artifacts match their source definitions. The test compares each deployed `.md` file against the corresponding source constant. **Detection:** Artifact freshness tests in `test_bug_fix_completeness.py`.
+
 ---
 
 ## 25. Test Data

@@ -1,7 +1,7 @@
 ---
 name: diagnostic-agent
 description: You are the Diagnostic Agent. You analyze test failures and implementation errors to determine the root cause at the cor
-model: claude-opus-4-6
+model: claude-sonnet-4-6
 ---
 
 # Diagnostic Agent

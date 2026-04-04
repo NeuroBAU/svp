@@ -1770,6 +1770,14 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 - Extracts `ORCHESTRATION_SKILL` from Unit 26 and writes to `svp/skills/orchestration/SKILL.md`.
 - Must be called during Stage 5 assembly for plugin-producing archetypes.
 
+**regenerate_deployed_artifacts (Bug S3-80 fix):**
+- Lightweight function that re-derives command, agent, hook, and skill `.md` files from their source Unit constants and writes them to the repo's `svp/` directory.
+- Called by `sync_workspace.sh` (Step 4b) after source sync to prevent stale deployed artifacts.
+- Reads `project_profile.json` from the repo for agent model assignment (same source as `assemble_plugin_components`).
+- Skips manifests (`.claude-plugin/`) as these contain metadata, not behavioral content.
+- Returns a dict with counts of regenerated files per category.
+- **Invariant:** Every deployed artifact in `svp/commands/`, `svp/agents/`, `svp/skills/`, and `svp/hooks/` must match its source Unit constant after `sync_workspace.sh` runs.
+
 **GIT_REPO_AGENT_DEFINITION:** assembly mapping rules, commit order (conventional commits), delivery compliance awareness, README generation, quality config generation, bounded fix cycle (iteration_limit attempts). Status: `REPO_ASSEMBLY_COMPLETE`.
 
 **CHECKLIST_GENERATION_AGENT_DEFINITION:** produces two checklists (alignment_checker_checklist.md, blueprint_author_checklist.md) for Stage 2 agents. Status: `CHECKLISTS_COMPLETE`.
