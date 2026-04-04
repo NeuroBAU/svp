@@ -2,8 +2,8 @@
 import json
 import tempfile
 
-from src.unit_5.stub import PipelineState, save_state
-from src.unit_14.stub import dispatch_gate_response, route
+from pipeline_state import PipelineState
+from routing import dispatch_gate_response, route, save_state
 from pathlib import Path
 import pytest
 

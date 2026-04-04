@@ -1278,6 +1278,20 @@ def _route_stage_1(
             reminder="Targeted spec revision.",
         )
 
+    if sub == "spec_review":
+        if last_status == "REVIEW_COMPLETE":
+            return _make_action_block(
+                action_type="human_gate",
+                gate_id="gate_1_2_spec_post_review",
+                reminder="Review spec post-review (after stakeholder reviewer).",
+            )
+        return _make_action_block(
+            action_type="invoke_agent",
+            agent_type="stakeholder_reviewer",
+            prepare=_agent_prepare_cmd("stakeholder_reviewer"),
+            reminder="Stakeholder spec review.",
+        )
+
     if sub == "checklist_generation":
         if last_status == "CHECKLISTS_COMPLETE":
             state = advance_stage(state, "2")
@@ -1347,6 +1361,20 @@ def _route_stage_2(
             agent_type="blueprint_author",
             prepare=_agent_prepare_cmd("blueprint_author"),
             reminder="Blueprint authoring.",
+        )
+
+    if sub == "blueprint_review":
+        if last_status == "REVIEW_COMPLETE":
+            return _make_action_block(
+                action_type="human_gate",
+                gate_id="gate_2_2_blueprint_post_review",
+                reminder="Review blueprint post-review (after blueprint reviewer).",
+            )
+        return _make_action_block(
+            action_type="invoke_agent",
+            agent_type="blueprint_reviewer",
+            prepare=_agent_prepare_cmd("blueprint_reviewer"),
+            reminder="Blueprint review.",
         )
 
     if sub == "alignment_check":
@@ -1829,7 +1857,7 @@ def dispatch_gate_response(
             new = advance_sub_stage(state, "blueprint_dialog")
         else:  # FRESH REVIEW
             _clear_last_status(project_root)
-            new = advance_sub_stage(state, "alignment_check")
+            new = advance_sub_stage(state, "blueprint_review")
         return new
 
     # Gate 2.2: Blueprint post-review
@@ -1841,7 +1869,7 @@ def dispatch_gate_response(
             new = advance_sub_stage(state, "blueprint_dialog")
         else:  # FRESH REVIEW
             _clear_last_status(project_root)
-            new = advance_sub_stage(state, "alignment_check")
+            new = advance_sub_stage(state, "blueprint_review")
         return new
 
     # Gate 2.3: Alignment exhausted
@@ -2213,7 +2241,8 @@ def dispatch_agent_status(
     # blueprint_reviewer
     if agent_type == "blueprint_reviewer":
         if status_line == "REVIEW_COMPLETE":
-            return _copy(state)
+            new = advance_sub_stage(state, "alignment_confirmed")
+            return new
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 
     # blueprint_checker
