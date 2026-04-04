@@ -4811,6 +4811,18 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P24 (NEW — Deployed Artifact Regeneration). Prevention: (1) `sync_workspace.sh` must regenerate deployed artifacts from source Units after syncing source code. (2) `test_bug_fix_completeness.py` must validate that deployed artifacts match their source definitions. The test compares each deployed `.md` file against the corresponding source constant. **Detection:** Artifact freshness tests in `test_bug_fix_completeness.py`.
 
+### 24.96 oracle_start Handler Passes Status Line as test_project Instead of Empty String (Post-delivery — Bug S3-81, NEW IN 2.2)
+
+**Oracle test project selection bypass (NEW IN 2.2 -- Bug S3-81).** The `/svp:oracle` command writes `ORACLE_REQUESTED` to `.svp/last_status.txt` before running `update_state.py --command oracle_start`. The `oracle_start` handler in `dispatch_command_status()` reads `status_line.strip()` and passes it to `enter_oracle_session(state, test_project)`. Since `"ORACLE_REQUESTED"` is truthy, `_route_oracle()` at line 801 (`if not state.oracle_test_project:`) skips the deterministic test project selection gate. The human never sees the E-mode/F-mode selection menu. Fix: in the `oracle_start` handler, normalize any non-path value (specifically `"ORACLE_REQUESTED"`) to empty string before passing to `enter_oracle_session()`.
+
+**Pattern:** P23 (Slash Command Content Delegation) + P7 (Specification Omission). The S3-79 fix added the empty-test_project guard comment but did not verify the command definition's status line value would actually arrive empty. **Detection:** Manual testing of `/svp:oracle`.
+
+### 24.97 Oracle Gate Action Blocks Missing POST Commands (Post-delivery — Bug S3-82, NEW IN 2.2)
+
+**Oracle gate state advancement failure (NEW IN 2.2 -- Bug S3-82).** The four oracle gate action blocks in `_route_oracle()` (two for `gate_7_a_trajectory_review` at phases `dry_run` and `gate_a`, two for `gate_7_b_fix_plan_review` at phases `green_run` and `gate_b`) emit `human_gate` action blocks without a `post` field. Oracle gates require `oracle_phase` field mutations (e.g., `dry_run` → `green_run`) which only happen in `dispatch_gate_response()`. Without a POST command to invoke `dispatch_gate_response`, the orchestrator writes the human's response to `last_status.txt` but the `oracle_phase` field is never updated. On the next routing cycle, `_route_oracle` reads the stale `oracle_phase` and re-enters the same phase, causing a loop (e.g., dry_run presents the dry run agent again instead of advancing to green_run). Fix: add `post` commands to all four oracle gate action blocks that invoke `dispatch_command_status` with new `oracle_gate_7a` and `oracle_gate_7b` command types. These handlers read the human response from `last_status.txt` and call `dispatch_gate_response()` to perform the `oracle_phase` transition. This is the same pattern used by `oracle_test_project_selection` (Bug S3-77 fix).
+
+**Pattern:** P22 (Incomplete Action Block Fields). The `oracle_select_test_project` action block correctly included a `post` field (Bug S3-77 fix), but the same treatment was not applied to the four oracle gate action blocks. **Detection:** Manual testing of `/svp:oracle` end-to-end flow.
+
 ---
 
 ## 25. Test Data

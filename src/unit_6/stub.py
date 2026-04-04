@@ -25,6 +25,7 @@ ADDITIONAL_SUB_STAGES = {
     "pass2_active",
     "targeted_spec_revision",
     "spec_review",
+    "blueprint_review",
 }
 
 # ---------------------------------------------------------------------------

@@ -876,6 +876,11 @@ def _route_oracle(
                 action_type="human_gate",
                 gate_id="gate_7_a_trajectory_review",
                 reminder="Review oracle trajectory plan.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command oracle_gate_7a "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="invoke_agent",
@@ -896,6 +901,11 @@ def _route_oracle(
             action_type="human_gate",
             gate_id="gate_7_a_trajectory_review",
             reminder=reminder,
+            post=(
+                "python scripts/update_state.py "
+                "--command oracle_gate_7a "
+                "--project-root ."
+            ),
         )
 
     if phase == "green_run":
@@ -929,6 +939,11 @@ def _route_oracle(
                 action_type="human_gate",
                 gate_id="gate_7_b_fix_plan_review",
                 reminder="Review oracle fix plan.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command oracle_gate_7b "
+                    "--project-root ."
+                ),
             )
         if last_status == "ORACLE_HUMAN_ABORT":
             state = abandon_oracle_session(state)
@@ -963,6 +978,11 @@ def _route_oracle(
             action_type="human_gate",
             gate_id="gate_7_b_fix_plan_review",
             reminder="Review oracle fix plan.",
+            post=(
+                "python scripts/update_state.py "
+                "--command oracle_gate_7b "
+                "--project-root ."
+            ),
         )
 
     if phase == "exit":
@@ -2397,6 +2417,7 @@ def dispatch_command_status(
     command_type: str,
     status_line: str,
     sub_stage: Optional[str] = None,
+    project_root: Optional[Path] = None,
 ) -> Any:
     """Dispatch a command status to the appropriate state transition.
 
@@ -2597,7 +2618,11 @@ def dispatch_command_status(
     if command_type == "oracle_start":
         # The test_project path is passed via the status_line (written by the command skill).
         # Bug S3-79: allow empty test_project so _route_oracle() handles selection.
+        # Bug S3-81: command writes "ORACLE_REQUESTED" sentinel — normalize to empty
+        # so the routing script's deterministic selection gate fires.
         test_project = status_line.strip()
+        if test_project == "ORACLE_REQUESTED":
+            test_project = ""
         new = enter_oracle_session(state, test_project)
         return new
 
@@ -2607,6 +2632,18 @@ def dispatch_command_status(
         new = _copy(state)
         new.oracle_test_project = status_line.strip()
         return new
+
+    # oracle_gate_7a — Bug S3-82: process Gate 7.A response via dispatch_gate_response
+    if command_type == "oracle_gate_7a":
+        return dispatch_gate_response(
+            state, "gate_7_a_trajectory_review", status_line.strip(), project_root
+        )
+
+    # oracle_gate_7b — Bug S3-82: process Gate 7.B response via dispatch_gate_response
+    if command_type == "oracle_gate_7b":
+        return dispatch_gate_response(
+            state, "gate_7_b_fix_plan_review", status_line.strip(), project_root
+        )
 
     raise ValueError(f"Unknown command_type: {command_type}")
 
@@ -2713,7 +2750,9 @@ def update_state_main(argv: list = None) -> None:
     if args.command:
         state = load_state(project_root)
         last_status = _read_last_status(project_root)
-        new_state = dispatch_command_status(state, args.command, last_status)
+        new_state = dispatch_command_status(
+            state, args.command, last_status, project_root=project_root
+        )
         save_state(project_root, new_state)
         _append_build_log(
             project_root,
