@@ -516,6 +516,8 @@ def _bootstrap_oracle_nested_session(
     """Create a nested session workspace for oracle green_run execution.
 
     Creates workspace directory, copies project files, stores path in state.
+    Mode-aware (Bug S3-83): E-mode copies test project artifacts,
+    F-mode copies SVP workspace artifacts.
     """
     import shutil
 
@@ -529,17 +531,54 @@ def _bootstrap_oracle_nested_session(
 
     workspace.mkdir(parents=True)
 
-    # Copy essential files for the nested session
-    for item in ["specs", "blueprint", ".svp"]:
-        src = project_root / item
-        if src.exists():
-            if src.is_dir():
-                shutil.copytree(str(src), str(workspace / item))
-            else:
-                shutil.copy2(str(src), str(workspace / item))
+    test_project = state.oracle_test_project or ""
+    is_emode = test_project.startswith("examples/")
 
-    # Copy project_profile.json and svp_config.json
-    for fname in ["project_profile.json", "svp_config.json", "project_context.md"]:
+    if is_emode:
+        # E-mode: copy test project artifacts into standard SVP locations
+        tp_dir = project_root / test_project
+
+        (workspace / "specs").mkdir(parents=True, exist_ok=True)
+        (workspace / "blueprint").mkdir(parents=True, exist_ok=True)
+
+        # Copy spec
+        spec_src = tp_dir / "stakeholder_spec.md"
+        if spec_src.is_file():
+            shutil.copy2(str(spec_src), str(workspace / "specs" / "stakeholder_spec.md"))
+
+        # Copy blueprint files
+        for bp_file in ["blueprint_prose.md", "blueprint_contracts.md"]:
+            src = tp_dir / bp_file
+            if src.is_file():
+                shutil.copy2(str(src), str(workspace / "blueprint" / bp_file))
+
+        # Copy project_context.md
+        ctx_src = tp_dir / "project_context.md"
+        if ctx_src.is_file():
+            shutil.copy2(str(ctx_src), str(workspace / "project_context.md"))
+
+        # Copy .svp/ for pipeline state skeleton
+        svp_src = project_root / ".svp"
+        if svp_src.is_dir():
+            shutil.copytree(str(svp_src), str(workspace / ".svp"))
+    else:
+        # F-mode: copy SVP workspace artifacts (existing behavior)
+        for item in ["specs", "blueprint", ".svp"]:
+            src = project_root / item
+            if src.exists():
+                if src.is_dir():
+                    shutil.copytree(str(src), str(workspace / item))
+                else:
+                    shutil.copy2(str(src), str(workspace / item))
+
+        # F-mode: copy project files from workspace root
+        for fname in ["project_profile.json", "project_context.md"]:
+            src = project_root / fname
+            if src.is_file():
+                shutil.copy2(str(src), str(workspace / fname))
+
+    # Copy config files (both modes need these)
+    for fname in ["svp_config.json"]:
         src = project_root / fname
         if src.is_file():
             shutil.copy2(str(src), str(workspace / fname))

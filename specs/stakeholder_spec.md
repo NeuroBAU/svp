@@ -4823,6 +4823,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P22 (Incomplete Action Block Fields). The `oracle_select_test_project` action block correctly included a `post` field (Bug S3-77 fix), but the same treatment was not applied to the four oracle gate action blocks. **Detection:** Manual testing of `/svp:oracle` end-to-end flow.
 
+### 24.98 E-mode Bootstrap Mode-Blind — Nested Session Gets SVP Artifacts Instead of GoL (Post-delivery — Bug S3-83, NEW IN 2.2)
+
+**E-mode nested session artifact mismatch (NEW IN 2.2 -- Bug S3-83).** `_bootstrap_oracle_nested_session` in `routing.py` (lines 513-550) unconditionally copies the main SVP workspace's `specs/`, `blueprint/`, and `.svp/` directories into the nested session. It never reads `state.oracle_test_project` to determine which artifacts to copy. In E-mode (GoL test project at `examples/game-of-life/`), the nested session receives the SVP spec and blueprint instead of the GoL spec and blueprint. The GoL pipeline cannot execute because the nested session has the wrong project's artifacts. Fix: make `_bootstrap_oracle_nested_session` mode-aware — if `oracle_test_project` starts with `examples/`, resolve spec, blueprint, and context from the test project directory; otherwise use the existing F-mode behavior (copy from workspace root). Spec Section 35.17 explicitly defines this mode-aware artifact resolution.
+
+**Pattern:** P7 (Specification Omission in blueprint). The blueprint contract (line 1338) said only "creates workspace at green_run start" without specifying mode-aware artifact resolution. The spec (Section 35.17) was clear but the blueprint gap allowed a mode-blind implementation. **Detection:** E-mode oracle green run (Run 13).
+
 ---
 
 ## 25. Test Data
