@@ -14,11 +14,16 @@ Synthetic data assumptions:
   svp_oracle) include a complete action cycle: (1) run prepare_task.py,
   (2) spawn agent, (3) write terminal status to last_status.txt,
   (4) run update_state.py, (5) re-run routing script.
-- Per-command --phase values for Group B: help -> "help", hint -> "hint",
-  ref -> "reference_indexing", redo -> "redo", bug -> "bug_triage",
-  oracle -> "oracle".
-- /svp:oracle command includes test project selection UX (numbered list
-  from docs/ and examples/).
+  Exception: svp_oracle is a thin redirect (Bug S3-79) — it enters the
+  oracle session state and defers to the routing script for all content
+  construction, including test project selection. It does NOT follow the
+  standard 5-step cycle.
+- Per-command --phase values for standard Group B: help -> "help",
+  hint -> "hint", ref -> "reference_indexing", redo -> "redo",
+  bug -> "bug_triage". Oracle uses --command oracle_start instead.
+- /svp:oracle command is a thin redirect that enters oracle session state
+  and defers to the routing script. It must NOT contain directory-scanning
+  instructions (Bug S3-79 / P21 / P23).
 - /svp:visual-verify command provides visual verification for GUI-based
   test projects. It is a standalone utility with no --phase value. It
   accepts --target, --interval, and --interactions parameters.
@@ -66,13 +71,15 @@ GROUP_B_COMMANDS = [
     "svp_oracle",
 ]
 
+# Bug S3-79: svp_oracle is a thin redirect, not a standard 5-step Group B command.
+GROUP_B_STANDARD = [cmd for cmd in GROUP_B_COMMANDS if cmd != "svp_oracle"]
+
 PHASE_VALUES = {
     "svp_help": "help",
     "svp_hint": "hint",
     "svp_ref": "reference_indexing",
     "svp_redo": "redo",
     "svp_bug": "bug_triage",
-    "svp_oracle": "oracle",
 }
 
 
@@ -374,8 +381,9 @@ class TestGroupBActionCyclePrepareTask:
     def test_bug_references_prepare_task(self):
         assert cmd_contains("svp_bug", "prepare_task", case_sensitive=False)
 
-    def test_oracle_references_prepare_task(self):
-        assert cmd_contains("svp_oracle", "prepare_task", case_sensitive=False)
+    def test_oracle_references_routing_script(self):
+        """Bug S3-79: oracle is a thin redirect to the routing script."""
+        assert cmd_contains("svp_oracle", "routing.py", case_sensitive=False)
 
 
 class TestGroupBActionCycleSpawnAgent:
@@ -568,14 +576,10 @@ class TestGroupBPhaseValueOracle:
         content = COMMAND_DEFINITIONS["svp_oracle"]
         assert "oracle" in content.lower()
 
-    def test_oracle_phase_argument_in_update_state(self):
+    def test_oracle_uses_command_oracle_start(self):
+        """Bug S3-79: oracle uses --command oracle_start instead of --phase oracle."""
         content = COMMAND_DEFINITIONS["svp_oracle"]
-        has_phase_oracle = (
-            "--phase oracle" in content
-            or "--phase=oracle" in content
-            or "phase oracle" in content.lower()
-        )
-        assert has_phase_oracle
+        assert "--command oracle_start" in content or "oracle_start" in content
 
 
 # ===========================================================================
@@ -669,41 +673,34 @@ class TestGroupBPrepareTaskProjectRoot:
 
 
 class TestOracleTestProjectSelectionUX:
-    """/svp:oracle command includes test project selection UX."""
+    """/svp:oracle is a thin redirect (Bug S3-79). It must NOT build content."""
 
     def test_oracle_references_test_project_selection(self):
-        """Oracle must describe test project selection."""
+        """Oracle must mention test project selection is handled by routing."""
         content = COMMAND_DEFINITIONS["svp_oracle"].lower()
         has_test_project = "test project" in content
-        has_selection = "select" in content or "choose" in content or "pick" in content
-        assert has_test_project or has_selection
+        has_routing = "routing" in content
+        assert has_test_project and has_routing
 
-    def test_oracle_references_numbered_list(self):
-        """Oracle must describe numbered list for selection."""
-        content = COMMAND_DEFINITIONS["svp_oracle"].lower()
-        assert "numbered" in content or "number" in content or "list" in content
+    def test_oracle_does_not_scan_directories(self):
+        """Bug S3-79: oracle must NOT instruct orchestrator to scan directories."""
+        content = COMMAND_DEFINITIONS["svp_oracle"]
+        assert "Do NOT scan directories" in content
 
-    def test_oracle_references_docs_directory(self):
-        """Oracle must reference docs/ as a source for test projects."""
-        assert cmd_contains(
-            "svp_oracle", "docs/", case_sensitive=False
-        ) or cmd_contains("svp_oracle", "docs", case_sensitive=False)
+    def test_oracle_no_docs_directory_reference(self):
+        """Bug S3-79: oracle must NOT reference docs/ for scanning."""
+        content = COMMAND_DEFINITIONS["svp_oracle"]
+        assert "from the `docs/`" not in content
 
-    def test_oracle_references_examples_directory(self):
-        """Oracle must reference examples/ as a source for test projects."""
-        assert cmd_contains(
-            "svp_oracle", "examples/", case_sensitive=False
-        ) or cmd_contains("svp_oracle", "examples", case_sensitive=False)
+    def test_oracle_no_examples_directory_reference(self):
+        """Bug S3-79: oracle must NOT reference examples/ for scanning."""
+        content = COMMAND_DEFINITIONS["svp_oracle"]
+        assert "from the `examples/`" not in content
 
-    def test_oracle_ux_references_both_sources(self):
-        """Oracle UX must reference both docs/ and examples/ directories."""
-        content = COMMAND_DEFINITIONS["svp_oracle"].lower()
-        has_docs = "docs" in content
-        has_examples = "examples" in content
-        assert has_docs and has_examples, (
-            f"Oracle must reference both docs/ and examples/: "
-            f"docs={has_docs}, examples={has_examples}"
-        )
+    def test_oracle_no_numbered_list_instruction(self):
+        """Bug S3-79: oracle must NOT instruct building a numbered list."""
+        content = COMMAND_DEFINITIONS["svp_oracle"]
+        assert "numbered list of available test projects" not in content
 
 
 # ===========================================================================
@@ -901,9 +898,9 @@ class TestGroupAGroupBDistinction:
                 f"Group A command {cmd!r} unexpectedly references update_state"
             )
 
-    def test_group_b_commands_have_prepare_task(self):
-        """Group B commands must reference prepare_task."""
-        for cmd in GROUP_B_COMMANDS:
+    def test_group_b_standard_commands_have_prepare_task(self):
+        """Standard Group B commands must reference prepare_task (oracle excluded per S3-79)."""
+        for cmd in GROUP_B_STANDARD:
             assert cmd_contains(cmd, "prepare_task", case_sensitive=False), (
                 f"Group B command {cmd!r} missing prepare_task reference"
             )
@@ -1031,9 +1028,9 @@ class TestDefinitionsAndNamesConsistency:
 class TestGroupBFiveStepCycleCompleteness:
     """Each Group B command must reference all five steps of the action cycle."""
 
-    @pytest.mark.parametrize("cmd_name", GROUP_B_COMMANDS)
+    @pytest.mark.parametrize("cmd_name", GROUP_B_STANDARD)
     def test_step_1_prepare_task(self, cmd_name):
-        """Step 1: run prepare_task.py --agent <type> --project-root ."""
+        """Step 1: run prepare_task.py --agent <type> --project-root . (oracle excluded per S3-79)."""
         assert cmd_contains(cmd_name, "prepare_task", case_sensitive=False)
 
     @pytest.mark.parametrize("cmd_name", GROUP_B_COMMANDS)
@@ -1109,8 +1106,8 @@ class TestComprehensiveTopicCoverage:
             )
 
     def test_covers_group_b_action_cycle(self):
-        """All Group B commands reference the complete action cycle."""
-        for cmd in GROUP_B_COMMANDS:
+        """Standard Group B commands reference the complete action cycle (oracle excluded per S3-79)."""
+        for cmd in GROUP_B_STANDARD:
             content = COMMAND_DEFINITIONS[cmd].lower()
             has_prepare = "prepare_task" in content
             has_agent = "agent" in content
@@ -1125,12 +1122,16 @@ class TestComprehensiveTopicCoverage:
                 f"update={has_update}, routing={has_routing}"
             )
 
-    def test_covers_oracle_test_project_selection(self):
-        """Oracle command covers test project selection UX."""
+    def test_covers_oracle_thin_redirect(self):
+        """Bug S3-79: oracle is a thin redirect to the routing script."""
         content = COMMAND_DEFINITIONS["svp_oracle"].lower()
-        has_docs = "docs" in content
-        has_examples = "examples" in content
-        assert has_docs and has_examples
+        has_routing = "routing" in content
+        has_update = "update_state" in content
+        has_no_scan = "do not scan directories" in content
+        assert has_routing and has_update and has_no_scan, (
+            f"Oracle thin redirect missing elements: "
+            f"routing={has_routing}, update={has_update}, no_scan={has_no_scan}"
+        )
 
     def test_covers_visual_verify_parameters(self):
         """Visual verify command covers all three parameters."""

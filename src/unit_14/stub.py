@@ -2595,10 +2595,9 @@ def dispatch_command_status(
 
     # oracle_start
     if command_type == "oracle_start":
-        # The test_project path is passed via the status_line (written by the command skill)
+        # The test_project path is passed via the status_line (written by the command skill).
+        # Bug S3-79: allow empty test_project so _route_oracle() handles selection.
         test_project = status_line.strip()
-        if not test_project:
-            return _copy(state)
         new = enter_oracle_session(state, test_project)
         return new
 

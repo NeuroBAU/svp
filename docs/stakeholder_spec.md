@@ -4799,6 +4799,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P22 (NEW — Incomplete Action Block Fields). Prevention: Every `invoke_agent` action block must include `prepare`, `post`, and `reminder` fields. The routing script must never emit an `invoke_agent` without a `prepare` command. **Detection:** Regression test verifying all invoke_agent blocks have prepare field.
 
+### 24.94 Slash Command Skill Bypasses Routing Script's Deterministic Content (Post-delivery — Bug S3-79, NEW IN 2.2)
+
+**Slash command content delegation (NEW IN 2.2 -- Bug S3-79).** The `/svp:oracle` skill definition (Unit 25) contains instructional text telling the orchestrator to scan `docs/` and `examples/` directories for test projects. This bypasses the routing script's deterministic `oracle_select_test_project` action block (fixed in S3-76). The orchestrator scans directories, finds no `docs/` in the workspace, and drops the hardcoded F-mode entry. Five prior fixes (S3-70, S3-73, S3-74, S3-76, S3-77) were all applied only to `routing.py`. The skill definition in `slash_commands.py` is a parallel entry point that was never updated. Fix: reduce `/svp:oracle` to a thin state-transition trigger that enters the oracle session and redirects to the routing script for all content construction. Remove `oracle_start` empty-test_project guard so the routing script's `_route_oracle()` handles test project selection.
+
+**Pattern:** P21 (Deterministic Content Construction) + P23 (NEW — Slash Command Content Delegation). Prevention: Group B slash commands must be thin state-transition triggers. They enter the relevant session state and hand off to the routing script. They must never contain instructional text describing how to build user-facing content. When fixing a content-construction bug, audit ALL entry points — routing script, skill definitions, orchestration skill handlers, and CLAUDE.md. **Detection:** Regression test `test_bug_s3_79_oracle_skill_redirect.py`.
+
 ---
 
 ## 25. Test Data

@@ -512,3 +512,9 @@
 - **Bug:** S3-78 (none of the ~30 `invoke_agent` action blocks in routing.py included a `prepare` field, so the task prompt file was never generated before agent invocation)
 - **Root cause:** The spec (line 3530) shows PREPARE in example action blocks, but the blueprint did not mandate it as an invariant. Implementation agents never added `prepare` fields because the blueprint's `_make_action_block` contract listed `prepare` as optional.
 - **Prevention pattern P22 (NEW):** Every `invoke_agent` action block must include `prepare`, `post`, and `reminder` fields. Add this as a structural invariant in the blueprint and verify via regression test.
+
+### Lesson: Slash Command Skill Bypasses Routing Script's Deterministic Content (Bug S3-79)
+
+- **Bug:** S3-79 (`/svp:oracle` skill definition told orchestrator to scan `docs/` and `examples/` for test projects, bypassing the deterministic list in `_route_oracle()`)
+- **Root cause:** Five prior fixes (S3-70, S3-73, S3-74, S3-76, S3-77) were all applied to `routing.py` only. The `/svp:oracle` skill definition in `slash_commands.py` (Unit 25) was a parallel entry point that was never updated. It contained instructional text delegating content construction to the orchestrator — the exact anti-pattern P21 prohibits. The orchestrator scanned directories, found no `docs/` in the workspace, and dropped the hardcoded F-mode entry.
+- **Prevention pattern P23 (NEW):** Group B slash commands must be thin state-transition triggers. They enter the relevant session state and redirect to the routing script. They must never contain instructional text for content construction. When fixing a content-construction bug, audit ALL entry points — routing script, skill definitions, orchestration skill handlers, and CLAUDE.md.
