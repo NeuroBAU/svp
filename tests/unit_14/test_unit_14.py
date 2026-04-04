@@ -932,6 +932,54 @@ class TestRoute:
         result = route(tmp_path)
         assert result["action_type"] in {"pipeline_complete", "session_boundary"}
 
+    def test_oracle_select_builds_deterministic_list(self, tmp_path):
+        """Bug S3-76: oracle_select_test_project must contain pre-built list with hardcoded F-mode entry."""
+        # Create examples/ with a manifest
+        examples = tmp_path / "examples" / "test-project"
+        examples.mkdir(parents=True)
+        (examples / "oracle_manifest.json").write_text(
+            json.dumps({"name": "Test", "oracle_mode": "product", "description": "A test project"}),
+            encoding="utf-8",
+        )
+        state = _make_state(
+            stage="5",
+            sub_stage="repo_complete",
+            oracle_session_active=True,
+            oracle_phase="dry_run",
+            oracle_test_project=None,
+        )
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "")
+        result = route(tmp_path)
+        assert result["action_type"] == "oracle_select_test_project"
+        reminder = result["reminder"]
+        assert "SVP Pipeline" in reminder, "F-mode hardcoded entry missing"
+        assert "Test (test-project/)" in reminder, "E-mode discovered entry missing"
+
+    def test_oracle_select_has_post_and_mapping(self, tmp_path):
+        """Bug S3-77: oracle_select_test_project must have post command and number-to-path mapping."""
+        examples = tmp_path / "examples" / "demo"
+        examples.mkdir(parents=True)
+        (examples / "oracle_manifest.json").write_text(
+            json.dumps({"name": "Demo", "oracle_mode": "product", "description": "Demo"}),
+            encoding="utf-8",
+        )
+        state = _make_state(
+            stage="5",
+            sub_stage="repo_complete",
+            oracle_session_active=True,
+            oracle_phase="dry_run",
+            oracle_test_project=None,
+        )
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "")
+        result = route(tmp_path)
+        assert "post" in result, "Bug S3-77: action block must have post field"
+        assert "oracle_test_project_selection" in result["post"]
+        reminder = result["reminder"]
+        assert "docs/" in reminder, "Mapping must include docs/ for F-mode"
+        assert "examples/demo/" in reminder, "Mapping must include examples/demo/ for E-mode"
+
     # -- Break-glass routing --
 
     def test_break_glass_includes_diagnostic_context(self, tmp_path):
