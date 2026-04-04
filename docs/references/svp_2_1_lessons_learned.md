@@ -500,3 +500,9 @@
 - **Bug:** S3-76 (three prior fixes — S3-70, S3-73, S3-74 — all failed because they tried to control the orchestrator via instructional text in the reminder field, but the LLM ignored instructions and scanned directories instead)
 - **Root cause:** Content construction was delegated to the orchestrator (an LLM). The reminder described *how* to build the list but didn't *contain* the list. The LLM improvised by running `ls docs/` and `ls examples/`, missing the hardcoded F-mode entry.
 - **Prevention pattern P21 (NEW):** Never delegate content construction to the orchestrator. All content the human sees must be produced by deterministic scripts. The orchestrator is a relay, not a generator. The routing script must build the complete formatted content in Python and embed it in the action block.
+
+### Lesson: oracle_select_test_project Missing POST Command and Mapping (Bug S3-77)
+
+- **Bug:** S3-77 (after human selected a test project number, the orchestrator had no command to persist the selection and no mapping from number to path)
+- **Root cause:** The `oracle_select_test_project` action block had no `post` field and no number-to-path mapping. The six-step action cycle requires a POST command to update state. The orchestrator invented `--oracle-selection 1` which doesn't exist.
+- **Prevention:** P7 applies: every action block that requires human input must include a `post` field and sufficient context for the orchestrator to write the correct status to `last_status.txt`.

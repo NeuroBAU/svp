@@ -788,13 +788,16 @@ def _route_oracle(
 
     if phase == "dry_run":
         if not state.oracle_test_project:
-            # Bug S3-76: build the complete test project list deterministically
-            e_entries: List[str] = []
+            # Bug S3-76 + S3-77: build the complete test project list
+            # deterministically and include the post command + mapping.
+            e_dirs: List[Path] = []
+            e_display: List[str] = []
             examples_dir = project_root / "examples"
             if examples_dir.is_dir():
                 for d in sorted(examples_dir.iterdir()):
                     if not d.is_dir():
                         continue
+                    e_dirs.append(d)
                     manifest = d / "oracle_manifest.json"
                     if manifest.is_file():
                         try:
@@ -803,18 +806,19 @@ def _route_oracle(
                             desc = data.get("description", "")
                             mode = data.get("oracle_mode", "product")
                             tag = "E-mode" if mode == "product" else "F-mode"
-                            e_entries.append(
+                            e_display.append(
                                 f"{name} ({d.name}/) \u2014 {desc} [{tag}]"
                             )
                         except (json.JSONDecodeError, OSError):
-                            e_entries.append(
+                            e_display.append(
                                 f"{d.name} \u2014 [no manifest \u2014 mode unknown]"
                             )
                     else:
-                        e_entries.append(
+                        e_display.append(
                             f"{d.name} \u2014 [no manifest \u2014 mode unknown]"
                         )
 
+            # Build the display list
             lines = ["Available test projects for /svp:oracle:", ""]
             lines.append("  F-mode (Machinery Testing):")
             lines.append(
@@ -823,21 +827,37 @@ def _route_oracle(
             )
             lines.append("")
             lines.append("  E-mode (Product Testing):")
-            for i, entry in enumerate(e_entries, start=2):
+            for i, entry in enumerate(e_display, start=2):
                 lines.append(f"  {i}. {entry}")
-            total = 1 + len(e_entries)
+            total = 1 + len(e_display)
             lines.append("")
             lines.append(
                 f"Select a test project (1\u2013{total}), or ask a question:"
             )
             project_list = "\n".join(lines)
 
+            # Bug S3-77: build the number-to-path mapping
+            mapping = ["", "After the human selects a number, write the "
+                       "corresponding PATH to .svp/last_status.txt, "
+                       "then run the POST command.", ""]
+            mapping.append("  Number-to-path mapping:")
+            mapping.append("  1 \u2192 docs/")
+            for i, d in enumerate(e_dirs, start=2):
+                mapping.append(f"  {i} \u2192 examples/{d.name}/")
+            mapping_text = "\n".join(mapping)
+
             return _make_action_block(
                 action_type="oracle_select_test_project",
                 reminder=(
-                    "Present this EXACT text to the human verbatim. "
-                    "Do NOT modify it, scan directories, or add your own "
-                    "analysis.\n\n" + project_list
+                    "Present the test project list below to the human "
+                    "verbatim. Do NOT modify it, scan directories, or "
+                    "add your own analysis.\n\n"
+                    + project_list + mapping_text
+                ),
+                post=(
+                    "python scripts/update_state.py "
+                    "--command oracle_test_project_selection "
+                    "--project-root ."
                 ),
             )
         if last_status.startswith("ORACLE_DRY_RUN_COMPLETE"):

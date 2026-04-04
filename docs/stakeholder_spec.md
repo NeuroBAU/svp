@@ -4787,6 +4787,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P21 (NEW — Deterministic Content Construction). Prevention: Never delegate content construction to the orchestrator. All content the human sees must be produced by deterministic scripts. The orchestrator is a relay, not a generator. **Detection:** Review all action blocks for cases where the reminder describes *how* to build content rather than *containing* the content.
 
+### 24.92 oracle_select_test_project Missing POST Command and Number-to-Path Mapping (Post-delivery — Bug S3-77, NEW IN 2.2)
+
+**Oracle selection action cycle completeness (NEW IN 2.2 -- Bug S3-77).** The `oracle_select_test_project` action block had no `post` field and no number-to-path mapping. After the human selected a test project number, the orchestrator had no command to run to persist the selection to pipeline state, and no way to translate the number into the test project path expected by `dispatch_command_status("oracle_test_project_selection")`. Fix: add `post` field invoking `update_state.py --command oracle_test_project_selection`, and include the number-to-path mapping in the reminder so the orchestrator writes the correct path to `.svp/last_status.txt`.
+
+**Pattern:** P7 (Specification Omission). The spec described the selection UI but not the mechanical action cycle steps needed to persist it. **Detection:** Manual testing of `/svp:oracle` selection flow.
+
 ---
 
 ## 25. Test Data
