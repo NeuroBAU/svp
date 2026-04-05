@@ -2368,7 +2368,23 @@ def dispatch_agent_status(
             "TRIAGE_COMPLETE: single_unit",
             "TRIAGE_COMPLETE: cross_unit",
         ):
-            return _copy(state)  # Two-branch routes to gate_6_2
+            new = _copy(state)
+            # Bug S3-84: load triage result into debug_session (spec line 3315)
+            if new.debug_session is not None:
+                triage_path = project_root / ".svp" / "triage_result.json"
+                if triage_path.is_file():
+                    triage = json.loads(
+                        triage_path.read_text(encoding="utf-8")
+                    )
+                    new.debug_session = dict(new.debug_session)
+                    new.debug_session["classification"] = triage.get(
+                        "classification",
+                        status_line.split(": ", 1)[1],
+                    )
+                    new.debug_session["affected_units"] = triage.get(
+                        "affected_units", []
+                    )
+            return new  # Two-branch routes to gate_6_2
         if status_line == "TRIAGE_COMPLETE: build_env":
             if state.debug_session is not None:
                 new = update_debug_phase(state, "repair")

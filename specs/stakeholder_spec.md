@@ -4829,6 +4829,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P7 (Specification Omission in blueprint). The blueprint contract (line 1338) said only "creates workspace at green_run start" without specifying mode-aware artifact resolution. The spec (Section 35.17) was clear but the blueprint gap allowed a mode-blind implementation. **Detection:** E-mode oracle green run (Run 13).
 
+### 24.99 Triage Result Not Loaded Into Debug Session State (Post-delivery — Bug S3-84, NEW IN 2.2)
+
+**Debug session affected_units empty after triage (NEW IN 2.2 -- Bug S3-84).** `dispatch_agent_status` for `TRIAGE_COMPLETE: single_unit` and `TRIAGE_COMPLETE: cross_unit` returns `_copy(state)` — a no-op that does not load the triage result into the debug_session. The spec state transition table (Section 12.18.13, line "Triage complete → Gate 6.2") requires setting `classification`, `affected_units`, and `bug_number` in the debug_session at triage completion. The triage agent writes these to `.svp/triage_result.json`, but `dispatch_agent_status` never reads the file. Consequence: at Gate 6.2 FIX UNIT, `affected_units` is empty, `rollback_to_unit()` is not called, `stage` stays at "5", and `dispatch_command_status("stub_generation")` crashes with `TransitionError: Invalid sub-stage 'test_generation' for stage '5'`. Fix: `dispatch_agent_status` for `TRIAGE_COMPLETE` must read `.svp/triage_result.json` and populate `debug_session.classification` and `debug_session.affected_units`.
+
+**Pattern:** P10 (Error-Path Contract Omission) + P7 (Spec Omission in blueprint). The blueprint (line 1169) said "no state change" for this dispatch, contradicting the spec's state transition table. **Detection:** Oracle E-mode green run internal `/svp:bug` session.
+
 ---
 
 ## 25. Test Data
