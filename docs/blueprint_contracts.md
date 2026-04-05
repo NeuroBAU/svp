@@ -1903,7 +1903,7 @@ ORCHESTRATION_SKILL: str  # Complete SKILL.md content
 **Dependencies:** None (markdown file).
 
 **ORCHESTRATION_SKILL content requirements:**
-- Frontmatter follows Claude Code schema: `name: "svp:orchestration"`, `description`, `argument-hint`, `allowed-tools`, `model`, `effort`, `context`.
+- Frontmatter follows Claude Code schema: `name: "svp:svp_orchestration"`, `description`, `argument-hint`, `allowed-tools`, `model`, `effort`, `context`.
 - Six-step mechanical action cycle.
 - REMINDER block template (exact text from Section 3.6).
 - Three-layer model explanation (pipeline toolchain, build-time quality, delivery toolchain).

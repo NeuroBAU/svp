@@ -1221,6 +1221,7 @@ def _route_debug(
             action_type="run_command",
             command="stage3_reentry",
             reminder="Re-entering Stage 3 for affected unit.",
+            post="python scripts/update_state.py --command stage3_reentry --project-root .",
         )
 
     if phase == "lessons_learned":
@@ -1228,6 +1229,7 @@ def _route_debug(
             action_type="run_command",
             command="lessons_learned",
             reminder="Recording lessons learned.",
+            post="python scripts/update_state.py --command lessons_learned --project-root .",
         )
 
     if phase == "reassembly":
@@ -1248,6 +1250,7 @@ def _route_debug(
                 action_type="run_command",
                 command="debug_commit",
                 reminder="Committing debug changes.",
+                post="python scripts/update_state.py --command debug_commit --project-root .",
             )
         return _make_action_block(
             action_type="human_gate",
@@ -2346,6 +2349,8 @@ def dispatch_gate_response(
             new = _copy(state)
             new.oracle_phase = "green_run"
         elif response == "MODIFY TRAJECTORY":
+            if getattr(state, "oracle_modification_count", 0) >= 3:
+                raise ValueError("MODIFY TRAJECTORY not available: modification limit (3) reached")
             new = _copy(state)
             new.oracle_phase = "dry_run"
             new.oracle_modification_count = getattr(state, "oracle_modification_count", 0) + 1
