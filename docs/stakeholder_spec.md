@@ -4841,6 +4841,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P22 (Incomplete Action Block Fields) — systemic. The S3-82 fix for oracle gates established the correct pattern but was not applied to all other gates. **Detection:** Gate 6.0 loop during oracle E-mode internal `/svp:bug`.
 
+### 24.101 PHASE_TO_AGENT Mapping Mismatch for bug_triage (Post-delivery — Bug S3-86, NEW IN 2.2)
+
+**Phase-to-agent mapping inconsistency (NEW IN 2.2 -- Bug S3-86).** `PHASE_TO_AGENT["bug_triage"]` maps to `"bug_triage"` but `dispatch_agent_status` and `AGENT_STATUS_LINES` both register the handler as `"bug_triage_agent"`. When `update_state.py --phase bug_triage --status "TRIAGE_COMPLETE: single_unit"` is called, the phase resolves to agent_type `"bug_triage"`, which has no handler, causing `ValueError: Unknown agent_type: bug_triage`. Fix: change the mapping to `"bug_triage_agent"`. Comprehensive namespace audit confirmed this is the only mismatch — all other 7 PHASE_TO_AGENT entries are correct.
+
+**Pattern:** P10 (Error-Path Contract Omission). **Detection:** `/svp:bug` triage completion during oracle E-mode session.
+
 ---
 
 ## 25. Test Data

@@ -556,3 +556,9 @@
 - **Bug:** S3-85 (28 of 30 human_gate action blocks across Stages 0-6 lacked `post` fields. Only oracle gates 7.A/7.B had them from S3-82 fix. Gate responses modify state via `dispatch_gate_response()` but it was never called. Gates only worked because the orchestrator improvised manual `update_state.py` calls.)
 - **Root cause:** The S3-82 fix for oracle gates established the correct pattern (POST command → dispatch_command_status handler → dispatch_gate_response) but was applied only to 2 oracle gates. The same pattern was not applied to the other 28 gates. The six-step action cycle requires POST commands for state transitions, but the routing code predated this understanding.
 - **Prevention pattern P22 (systemic):** Every `human_gate` action block MUST include a `post` field. The generic catch-all handler (`if command_type in GATE_VOCABULARY: return dispatch_gate_response(...)`) eliminates the need for per-gate handlers. When fixing a pattern bug, apply the fix to ALL instances — not just the one that caused the immediate failure.
+
+### Lesson: PHASE_TO_AGENT Mapping Mismatch (Bug S3-86)
+
+- **Bug:** S3-86 (`PHASE_TO_AGENT["bug_triage"]` mapped to `"bug_triage"` but `dispatch_agent_status` and `AGENT_STATUS_LINES` use `"bug_triage_agent"`. Caused `ValueError: Unknown agent_type` when `/svp:bug` triage completed.)
+- **Root cause:** Inconsistent naming convention. Most PHASE_TO_AGENT entries use the `*_agent` suffix (e.g., `"help_agent"`, `"redo_agent"`), but `"bug_triage"` was missing it. Three entries use bare names without suffix: `"reference_indexing"`, `"checklist_generation"`, `"regression_adaptation"` — these are consistent because their handlers and AGENT_STATUS_LINES entries also use bare names.
+- **Prevention:** Namespace consistency invariant: every PHASE_TO_AGENT value must exist as a key in AGENT_STATUS_LINES and have a handler in `dispatch_agent_status`. A structural regression test verifies this cross-reference.

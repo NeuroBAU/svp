@@ -745,8 +745,8 @@ class TestPhaseToAgent:
         assert PHASE_TO_AGENT["redo"] == "redo_agent"
 
     def test_bug_triage_maps_correctly(self):
-        """Phase 'bug_triage' maps to 'bug_triage'."""
-        assert PHASE_TO_AGENT["bug_triage"] == "bug_triage"
+        """Phase 'bug_triage' maps to 'bug_triage_agent' (Bug S3-86 fix)."""
+        assert PHASE_TO_AGENT["bug_triage"] == "bug_triage_agent"
 
     def test_oracle_maps_to_oracle_agent(self):
         """Phase 'oracle' maps to 'oracle_agent'."""

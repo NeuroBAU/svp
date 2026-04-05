@@ -129,7 +129,7 @@ PHASE_TO_AGENT: Dict[str, str] = {
     "hint": "hint_agent",
     "reference_indexing": "reference_indexing",
     "redo": "redo_agent",
-    "bug_triage": "bug_triage",
+    "bug_triage": "bug_triage_agent",
     "oracle": "oracle_agent",
     "checklist_generation": "checklist_generation",
     "regression_adaptation": "regression_adaptation",
