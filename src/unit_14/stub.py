@@ -510,9 +510,7 @@ def _copy(state: Any) -> Any:
     return copy.deepcopy(state)
 
 
-def _bootstrap_oracle_nested_session(
-    state: Any, project_root: Path
-) -> Any:
+def _bootstrap_oracle_nested_session(state: Any, project_root: Path) -> Any:
     """Create a nested session workspace for oracle green_run execution.
 
     Creates workspace directory, copies project files, stores path in state.
@@ -544,7 +542,9 @@ def _bootstrap_oracle_nested_session(
         # Copy spec
         spec_src = tp_dir / "stakeholder_spec.md"
         if spec_src.is_file():
-            shutil.copy2(str(spec_src), str(workspace / "specs" / "stakeholder_spec.md"))
+            shutil.copy2(
+                str(spec_src), str(workspace / "specs" / "stakeholder_spec.md")
+            )
 
         # Copy blueprint files
         for bp_file in ["blueprint_prose.md", "blueprint_contracts.md"]:
@@ -881,15 +881,17 @@ def _route_oracle(
                 lines.append(f"  {i}. {entry}")
             total = 1 + len(e_display)
             lines.append("")
-            lines.append(
-                f"Select a test project (1\u2013{total}), or ask a question:"
-            )
+            lines.append(f"Select a test project (1\u2013{total}), or ask a question:")
             project_list = "\n".join(lines)
 
             # Bug S3-77: build the number-to-path mapping
-            mapping = ["", "After the human selects a number, write the "
-                       "corresponding PATH to .svp/last_status.txt, "
-                       "then run the POST command.", ""]
+            mapping = [
+                "",
+                "After the human selects a number, write the "
+                "corresponding PATH to .svp/last_status.txt, "
+                "then run the POST command.",
+                "",
+            ]
             mapping.append("  Number-to-path mapping:")
             mapping.append("  1 \u2192 docs/")
             for i, d in enumerate(e_dirs, start=2):
@@ -901,8 +903,7 @@ def _route_oracle(
                 reminder=(
                     "Present the test project list below to the human "
                     "verbatim. Do NOT modify it, scan directories, or "
-                    "add your own analysis.\n\n"
-                    + project_list + mapping_text
+                    "add your own analysis.\n\n" + project_list + mapping_text
                 ),
                 post=(
                     "python scripts/update_state.py "
@@ -1221,6 +1222,7 @@ def _route_debug(
             action_type="run_command",
             command="stage3_reentry",
             reminder="Re-entering Stage 3 for affected unit.",
+            post="python scripts/update_state.py --command stage3_reentry --project-root .",
         )
 
     if phase == "lessons_learned":
@@ -1228,6 +1230,7 @@ def _route_debug(
             action_type="run_command",
             command="lessons_learned",
             reminder="Recording lessons learned.",
+            post="python scripts/update_state.py --command lessons_learned --project-root .",
         )
 
     if phase == "reassembly":
@@ -1248,6 +1251,7 @@ def _route_debug(
                 action_type="run_command",
                 command="debug_commit",
                 reminder="Committing debug changes.",
+                post="python scripts/update_state.py --command debug_commit --project-root .",
             )
         return _make_action_block(
             action_type="human_gate",
@@ -1723,7 +1727,9 @@ def _route_stage_3(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="coverage_review_agent",
-            prepare=_agent_prepare_cmd("coverage_review_agent", unit=state.current_unit),
+            prepare=_agent_prepare_cmd(
+                "coverage_review_agent", unit=state.current_unit
+            ),
             reminder=f"Review coverage for unit {state.current_unit}.",
         )
 
@@ -1820,9 +1826,7 @@ def _route_stage_4(
             gate_id="gate_4_1a",
             reminder="Human fix or escalate.",
             post=(
-                "python scripts/update_state.py "
-                "--command gate_4_1a "
-                "--project-root ."
+                "python scripts/update_state.py --command gate_4_1a --project-root ."
             ),
         )
 
@@ -1864,7 +1868,7 @@ def _route_stage_5(
     sub = state.sub_stage
 
     if sub == "repo_complete":
-        pass_val = getattr(state, 'pass_', None)
+        pass_val = getattr(state, "pass_", None)
         if pass_val in (1, 2):
             new = advance_sub_stage(state, "pass_transition")
             save_state(project_root, new)
@@ -1934,6 +1938,7 @@ def _route_stage_5(
         if state.pass_ == 2:
             # Bug S3-55: sync Pass 1 artifacts before presenting gate
             from src.unit_16.stub import sync_pass1_artifacts
+
             sync_result = sync_pass1_artifacts(project_root)
             reminder = "Pass 2 complete. Choose next action."
             if sync_result["synced_files"] or sync_result["merged_files"]:
@@ -2346,9 +2351,15 @@ def dispatch_gate_response(
             new = _copy(state)
             new.oracle_phase = "green_run"
         elif response == "MODIFY TRAJECTORY":
+            if getattr(state, "oracle_modification_count", 0) >= 3:
+                raise ValueError(
+                    "MODIFY TRAJECTORY not available: modification limit (3) reached"
+                )
             new = _copy(state)
             new.oracle_phase = "dry_run"
-            new.oracle_modification_count = getattr(state, "oracle_modification_count", 0) + 1
+            new.oracle_modification_count = (
+                getattr(state, "oracle_modification_count", 0) + 1
+            )
         else:  # ABORT
             new = abandon_oracle_session(state)
             try:
@@ -2558,9 +2569,7 @@ def dispatch_agent_status(
             if new.debug_session is not None:
                 triage_path = project_root / ".svp" / "triage_result.json"
                 if triage_path.is_file():
-                    triage = json.loads(
-                        triage_path.read_text(encoding="utf-8")
-                    )
+                    triage = json.loads(triage_path.read_text(encoding="utf-8"))
                     new.debug_session = dict(new.debug_session)
                     new.debug_session["classification"] = triage.get(
                         "classification",
