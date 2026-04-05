@@ -4835,6 +4835,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P10 (Error-Path Contract Omission) + P7 (Spec Omission in blueprint). The blueprint (line 1169) said "no state change" for this dispatch, contradicting the spec's state transition table. **Detection:** Oracle E-mode green run internal `/svp:bug` session.
 
+### 24.100 All Human Gates Missing POST Commands (Post-delivery — Bug S3-85, NEW IN 2.2)
+
+**Systemic gate POST command omission (NEW IN 2.2 -- Bug S3-85).** Only oracle gates 7.A and 7.B (S3-82 fix) have `post` fields. All other 28 gates across Stages 0-6 emit `human_gate` action blocks without `post` fields. Every gate response modifies pipeline state via `dispatch_gate_response()` (sub-stage advances, stage advances, debug session management, etc.), but without a POST command, `dispatch_gate_response()` is never called. The orchestrator writes the human's response to `last_status.txt` but the routing function checks state fields (not `last_status.txt`) on the next cycle, causing the gate to be re-presented. Gates have only been working because the orchestrator (LLM) improvises manual `update_state.py` calls — violating the "orchestrator is a relay" principle. Fix: add `post` commands to all 28 gate action blocks using the gate_id as the command type, and add a single catch-all handler in `dispatch_command_status` that dispatches any command matching a `GATE_VOCABULARY` key to `dispatch_gate_response()`.
+
+**Pattern:** P22 (Incomplete Action Block Fields) — systemic. The S3-82 fix for oracle gates established the correct pattern but was not applied to all other gates. **Detection:** Gate 6.0 loop during oracle E-mode internal `/svp:bug`.
+
 ---
 
 ## 25. Test Data

@@ -1087,6 +1087,11 @@ def _route_debug(
             action_type="human_gate",
             gate_id="gate_6_0_debug_permission",
             reminder="Authorize debug session.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_6_0_debug_permission "
+                "--project-root ."
+            ),
         )
 
     phase = ds.get("phase", "triage")
@@ -1104,12 +1109,22 @@ def _route_debug(
                 action_type="human_gate",
                 gate_id="gate_6_2_debug_classification",
                 reminder="Classify bug for debug.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_6_2_debug_classification "
+                    "--project-root ."
+                ),
             )
         if last_status == "TRIAGE_NON_REPRODUCIBLE":
             return _make_action_block(
                 action_type="human_gate",
                 gate_id="gate_6_4_non_reproducible",
                 reminder="Bug not reproducible.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_6_4_non_reproducible "
+                    "--project-root ."
+                ),
             )
         if last_status == "TRIAGE_NEEDS_REFINEMENT":
             triage_count = ds.get("triage_refinement_count", 0)
@@ -1118,6 +1133,11 @@ def _route_debug(
                     action_type="human_gate",
                     gate_id="gate_6_4_non_reproducible",
                     reminder="Triage refinement limit reached.",
+                    post=(
+                        "python scripts/update_state.py "
+                        "--command gate_6_4_non_reproducible "
+                        "--project-root ."
+                    ),
                 )
             return _make_action_block(
                 action_type="invoke_agent",
@@ -1138,6 +1158,11 @@ def _route_debug(
                 action_type="human_gate",
                 gate_id="gate_6_1_regression_test",
                 reminder="Review regression test.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_6_1_regression_test "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="invoke_agent",
@@ -1156,6 +1181,11 @@ def _route_debug(
                 action_type="human_gate",
                 gate_id="gate_6_3_repair_exhausted",
                 reminder="Repair reclassify.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_6_3_repair_exhausted "
+                    "--project-root ."
+                ),
             )
         if last_status == "REPAIR_FAILED":
             repair_count = ds.get("repair_retry_count", 0)
@@ -1164,6 +1194,11 @@ def _route_debug(
                     action_type="human_gate",
                     gate_id="gate_6_3_repair_exhausted",
                     reminder="Repair limit reached.",
+                    post=(
+                        "python scripts/update_state.py "
+                        "--command gate_6_3_repair_exhausted "
+                        "--project-root ."
+                    ),
                 )
             return _make_action_block(
                 action_type="invoke_agent",
@@ -1218,6 +1253,11 @@ def _route_debug(
             action_type="human_gate",
             gate_id="gate_6_5_debug_commit",
             reminder="Review debug commit.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_6_5_debug_commit "
+                "--project-root ."
+            ),
         )
 
     return _make_action_block(
@@ -1240,6 +1280,11 @@ def _route_stage_0(
                 action_type="human_gate",
                 gate_id="gate_0_3r_profile_revision",
                 reminder="Review redo profile revision.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_0_3r_profile_revision "
+                    "--project-root ."
+                ),
             )
         redo_mode = "delivery" if sub == "redo_profile_delivery" else "blueprint"
         return _make_action_block(
@@ -1254,6 +1299,11 @@ def _route_stage_0(
             action_type="human_gate",
             gate_id="gate_0_1_hook_activation",
             reminder="Activate hooks.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_0_1_hook_activation "
+                "--project-root ."
+            ),
         )
 
     if sub == "project_context":
@@ -1262,6 +1312,11 @@ def _route_stage_0(
                 action_type="human_gate",
                 gate_id="gate_0_2_context_approval",
                 reminder="Review project context.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_0_2_context_approval "
+                    "--project-root ."
+                ),
             )
         if last_status == "PROJECT_CONTEXT_REJECTED":
             return _make_action_block(
@@ -1282,6 +1337,11 @@ def _route_stage_0(
                 action_type="human_gate",
                 gate_id="gate_0_3_profile_approval",
                 reminder="Review project profile.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_0_3_profile_approval "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="invoke_agent",
@@ -1309,6 +1369,11 @@ def _route_stage_1(
                 action_type="human_gate",
                 gate_id="gate_1_1_spec_draft",
                 reminder="Review targeted spec revision.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_1_1_spec_draft "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="invoke_agent",
@@ -1323,6 +1388,11 @@ def _route_stage_1(
                 action_type="human_gate",
                 gate_id="gate_1_2_spec_post_review",
                 reminder="Review spec post-review (after stakeholder reviewer).",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_1_2_spec_post_review "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="invoke_agent",
@@ -1350,6 +1420,11 @@ def _route_stage_1(
             action_type="human_gate",
             gate_id="gate_1_1_spec_draft",
             reminder="Review spec draft.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_1_1_spec_draft "
+                "--project-root ."
+            ),
         )
 
     if last_status == "REVIEW_COMPLETE":
@@ -1357,6 +1432,11 @@ def _route_stage_1(
             action_type="human_gate",
             gate_id="gate_1_2_spec_post_review",
             reminder="Review spec post-review.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_1_2_spec_post_review "
+                "--project-root ."
+            ),
         )
 
     return _make_action_block(
@@ -1394,6 +1474,11 @@ def _route_stage_2(
                 action_type="human_gate",
                 gate_id="gate_2_1_blueprint_approval",
                 reminder="Review blueprint draft.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_2_1_blueprint_approval "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="invoke_agent",
@@ -1408,6 +1493,11 @@ def _route_stage_2(
                 action_type="human_gate",
                 gate_id="gate_2_2_blueprint_post_review",
                 reminder="Review blueprint post-review (after blueprint reviewer).",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_2_2_blueprint_post_review "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="invoke_agent",
@@ -1427,6 +1517,11 @@ def _route_stage_2(
                     action_type="human_gate",
                     gate_id="gate_2_3_alignment_exhausted",
                     reminder="Alignment iterations exhausted.",
+                    post=(
+                        "python scripts/update_state.py "
+                        "--command gate_2_3_alignment_exhausted "
+                        "--project-root ."
+                    ),
                 )
             return route(project_root)
         if last_status == "REVIEW_COMPLETE":
@@ -1434,6 +1529,11 @@ def _route_stage_2(
                 action_type="human_gate",
                 gate_id="gate_2_2_blueprint_post_review",
                 reminder="Review blueprint post-review.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_2_2_blueprint_post_review "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="invoke_agent",
@@ -1448,11 +1548,21 @@ def _route_stage_2(
                 action_type="human_gate",
                 gate_id="gate_2_2_blueprint_post_review",
                 reminder="Review blueprint after alignment confirmed.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_2_2_blueprint_post_review "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="human_gate",
             gate_id="gate_2_2_blueprint_post_review",
             reminder="Blueprint alignment confirmed. Human review.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_2_2_blueprint_post_review "
+                "--project-root ."
+            ),
         )
 
     return _make_action_block(
@@ -1493,6 +1603,11 @@ def _route_stage_3(
                 gate_id="gate_3_completion_failure",
                 message=validation_error,
                 reminder="Stage 3 completion validation failed.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_3_completion_failure "
+                    "--project-root ."
+                ),
             )
         state = advance_stage(state, "4")
         save_state(project_root, state)
@@ -1551,6 +1666,11 @@ def _route_stage_3(
                     action_type="human_gate",
                     gate_id="gate_3_2_diagnostic_decision",
                     reminder=f"Diagnostic decision for unit {state.current_unit}.",
+                    post=(
+                        "python scripts/update_state.py "
+                        "--command gate_3_2_diagnostic_decision "
+                        "--project-root ."
+                    ),
                 )
             return _make_action_block(
                 action_type="invoke_agent",
@@ -1563,6 +1683,11 @@ def _route_stage_3(
                 action_type="human_gate",
                 gate_id="gate_3_2_diagnostic_decision",
                 reminder=f"Fix ladder exhausted for unit {state.current_unit}.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_3_2_diagnostic_decision "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="invoke_agent",
@@ -1616,12 +1741,22 @@ def _route_stage_3(
                 action_type="human_gate",
                 gate_id="gate_pass_transition_post_pass1",
                 reminder="Pass 1 complete. Choose next action.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_pass_transition_post_pass1 "
+                    "--project-root ."
+                ),
             )
         if state.pass_ == 2:
             return _make_action_block(
                 action_type="human_gate",
                 gate_id="gate_pass_transition_post_pass2",
                 reminder="Pass 2 complete. Choose next action.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_pass_transition_post_pass2 "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="pipeline_complete",
@@ -1654,6 +1789,11 @@ def _route_stage_4(
                 action_type="human_gate",
                 gate_id="gate_4_3_adaptation_review",
                 reminder="Review adaptation.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_4_3_adaptation_review "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="invoke_agent",
@@ -1667,6 +1807,11 @@ def _route_stage_4(
             action_type="human_gate",
             gate_id="gate_4_1_integration_failure",
             reminder="Integration test failure.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_4_1_integration_failure "
+                "--project-root ."
+            ),
         )
 
     if sub == "gate_4_1a":
@@ -1674,6 +1819,11 @@ def _route_stage_4(
             action_type="human_gate",
             gate_id="gate_4_1a",
             reminder="Human fix or escalate.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_4_1a "
+                "--project-root ."
+            ),
         )
 
     if sub == "gate_4_2":
@@ -1681,6 +1831,11 @@ def _route_stage_4(
             action_type="human_gate",
             gate_id="gate_4_2_assembly_exhausted",
             reminder="Assembly retries exhausted.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_4_2_assembly_exhausted "
+                "--project-root ."
+            ),
         )
 
     if last_status == "INTEGRATION_TESTS_COMPLETE":
@@ -1732,6 +1887,11 @@ def _route_stage_5(
             action_type="human_gate",
             gate_id="gate_5_1_repo_test",
             reminder="Review repository test results.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_5_1_repo_test "
+                "--project-root ."
+            ),
         )
 
     if sub == "gate_5_2":
@@ -1739,6 +1899,11 @@ def _route_stage_5(
             action_type="human_gate",
             gate_id="gate_5_2_assembly_exhausted",
             reminder="Assembly retries exhausted.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_5_2_assembly_exhausted "
+                "--project-root ."
+            ),
         )
 
     if sub == "gate_5_3":
@@ -1746,6 +1911,11 @@ def _route_stage_5(
             action_type="human_gate",
             gate_id="gate_5_3_unused_functions",
             reminder="Unused functions detected.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_5_3_unused_functions "
+                "--project-root ."
+            ),
         )
 
     # Bug S3-54: pass_transition must be handled in Stage 5, not only Stage 3
@@ -1755,6 +1925,11 @@ def _route_stage_5(
                 action_type="human_gate",
                 gate_id="gate_pass_transition_post_pass1",
                 reminder="Pass 1 complete. Choose next action.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_pass_transition_post_pass1 "
+                    "--project-root ."
+                ),
             )
         if state.pass_ == 2:
             # Bug S3-55: sync Pass 1 artifacts before presenting gate
@@ -1768,6 +1943,11 @@ def _route_stage_5(
                 action_type="human_gate",
                 gate_id="gate_pass_transition_post_pass2",
                 reminder=reminder,
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_pass_transition_post_pass2 "
+                    "--project-root ."
+                ),
             )
         return _make_action_block(
             action_type="pipeline_complete",
@@ -1779,6 +1959,11 @@ def _route_stage_5(
             action_type="human_gate",
             gate_id="gate_5_1_repo_test",
             reminder="Review repository test results.",
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_5_1_repo_test "
+                "--project-root ."
+            ),
         )
 
     return _make_action_block(
@@ -2727,6 +2912,12 @@ def dispatch_command_status(
     if command_type == "oracle_gate_7b":
         return dispatch_gate_response(
             state, "gate_7_b_fix_plan_review", status_line.strip(), project_root
+        )
+
+    # Generic gate dispatch — Bug S3-85
+    if command_type in GATE_VOCABULARY:
+        return dispatch_gate_response(
+            state, command_type, status_line.strip(), project_root
         )
 
     raise ValueError(f"Unknown command_type: {command_type}")
