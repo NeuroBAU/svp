@@ -1700,6 +1700,20 @@ def prepare_gate_prompt(
                 if opt in ("RETRY REPAIR", "ABANDON DEBUG")
             ]
 
+    if gate_id == "gate_7_a_trajectory_review" and state:
+        mod_count = getattr(state, "oracle_modification_count", 0)
+        if mod_count >= 3:
+            gate_context_parts.append(
+                f"**Note:** Modification limit reached ({mod_count}/3). "
+                "Only APPROVE TRAJECTORY and ABORT are available."
+            )
+            # Filter response options per spec Section 35.4
+            response_options = [
+                opt
+                for opt in response_options
+                if opt in ("APPROVE TRAJECTORY", "ABORT")
+            ]
+
     if gate_context_parts:
         sections.append(_format_section("Gate Context", "\n".join(gate_context_parts)))
 
