@@ -4741,7 +4741,7 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 ### 24.84 Orchestration Skill Name Uses Hyphen Instead of Colon (Post-delivery — Bug S3-69, NEW IN 2.2)
 
-**Skill naming convention (NEW IN 2.2 -- Bug S3-69).** The orchestration skill frontmatter used `name: "svp-orchestration"` (hyphen), inconsistent with the SVP command convention `/svp:command` (colon). All other SVP skills and commands use the colon separator (e.g., `/svp:bug`, `/svp:oracle`, `/svp:help`). The frontmatter `name` field controls how Claude Code resolves `/skill-name` invocations. Fix: rename to `name: "svp:orchestration"` in the skill definition, code generators, blueprint, and tests.
+**Skill naming convention (NEW IN 2.2 -- Bug S3-69).** The orchestration skill frontmatter used `name: "svp-orchestration"` (hyphen), inconsistent with the SVP command convention `/svp:command` (colon). All other SVP skills and commands use the colon separator (e.g., `/svp:bug`, `/svp:oracle`, `/svp:help`). The frontmatter `name` field controls how Claude Code resolves `/skill-name` invocations. Fix: rename to `name: "svp:svp_orchestration"` in the skill definition, code generators, blueprint, and tests. See also Bug S3-87 for the subsequent prefix consistency fix.
 
 **Pattern:** P7 (Specification Omission). The spec did not explicitly mandate the colon convention for skill names, allowing the hyphen form to propagate. **Detection:** Regression test in `test_unit_26.py`.
 
@@ -4846,6 +4846,24 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 **Phase-to-agent mapping inconsistency (NEW IN 2.2 -- Bug S3-86).** `PHASE_TO_AGENT["bug_triage"]` maps to `"bug_triage"` but `dispatch_agent_status` and `AGENT_STATUS_LINES` both register the handler as `"bug_triage_agent"`. When `update_state.py --phase bug_triage --status "TRIAGE_COMPLETE: single_unit"` is called, the phase resolves to agent_type `"bug_triage"`, which has no handler, causing `ValueError: Unknown agent_type: bug_triage`. Fix: change the mapping to `"bug_triage_agent"`. Comprehensive namespace audit confirmed this is the only mismatch — all other 7 PHASE_TO_AGENT entries are correct.
 
 **Pattern:** P10 (Error-Path Contract Omission). **Detection:** `/svp:bug` triage completion during oracle E-mode session.
+
+### 24.102 Orchestration Skill Name Missing svp_ Prefix (Post-delivery — Bug S3-87, NEW IN 2.2)
+
+**Skill naming prefix consistency (NEW IN 2.2 -- Bug S3-87).** Claude Code derives command invocation names from `{plugin_namespace}:{filename_stem}` — e.g., `svp_bug.md` becomes `svp:svp_bug`. The orchestration skill's frontmatter `name` field is used directly by Claude Code (not derived from the path). After the S3-69 fix changed the name from `svp-orchestration` to `svp:orchestration`, the skill loaded as `svp:orchestration` while all 11 commands loaded as `svp:svp_*` (e.g., `svp:svp_bug`, `svp:svp_oracle`). Fix: rename to `name: "svp:svp_orchestration"` in the skill definition, blueprint, and tests.
+
+**Pattern:** P7 (Specification Omission). The S3-69 fix addressed the separator character but not the namespace prefix convention. The spec did not document how Claude Code derives command names from filenames vs. skill names from frontmatter. **Detection:** Manual observation of inconsistent names in Claude Code system-reminder.
+
+### 24.103 Debug Loop run_command Blocks Missing POST Fields (Post-delivery — Bug S3-88, NEW IN 2.2)
+
+**Debug run_command POST omission (NEW IN 2.2 -- Bug S3-88).** Three debug loop `run_command` action blocks — `stage3_reentry` (sets `sub_stage = "stub_generation"` for unit rebuild), `lessons_learned` (advances debug phase to `commit`), and `debug_commit` (completes debug session) — were emitted without `post` fields. Without a `post` field, `dispatch_command_status` is never called after these commands execute. The pipeline enters a dead-end state: the command runs but no state transition occurs, leaving the debug loop permanently stuck in the `stage3_reentry`, `lessons_learned`, or `commit` phase. Fix: add `post="python scripts/update_state.py --command <phase> --project-root ."` to all three run_command blocks.
+
+**Pattern:** P22 (Incomplete Action Block Fields). Bug S3-85 fixed POST commands for "all 28 human gates" but its audit scope was limited to `human_gate` action blocks. The three `run_command` blocks in the debug loop were not audited. The COMMAND/POST separation invariant (Section 3.6) applies to ALL action block types: `human_gate`, `run_command`, and any future types. **Detection:** Oracle F-mode green run (Run 19).
+
+### 24.104 MODIFY TRAJECTORY Bound Never Enforced (Post-delivery — Bug S3-89, NEW IN 2.2)
+
+**MODIFY TRAJECTORY restriction gap (NEW IN 2.2 -- Bug S3-89).** Section 35.4 requires that after 3 MODIFY TRAJECTORY selections, only APPROVE TRAJECTORY and ABORT are offered. Two gaps prevented this enforcement: (1) `dispatch_gate_response` for `gate_7_a_trajectory_review` accepted MODIFY TRAJECTORY without checking `oracle_modification_count`, allowing unlimited modifications. (2) `prepare_gate_prompt` always returned MODIFY TRAJECTORY as a response option regardless of count. A warning text was added to the reminder after 3 modifications, but this relied on the orchestrator LLM to self-enforce — a violation of the deterministic enforcement principle. Fix: (1) add a count >= 3 guard in `dispatch_gate_response` that raises `ValueError`; (2) add dynamic option filtering in `prepare_gate_prompt` for `gate_7_a_trajectory_review` that removes MODIFY TRAJECTORY when count >= 3, following the existing pattern for `gate_6_3_repair_exhausted`.
+
+**Pattern:** P22 (Incomplete Action Block Fields) + P10 (Error-Path Contract Omission). The counter-exhaustion rule was documented in the spec (Section 3.6 universal counter-exhaustion table) but the blueprint contract for `dispatch_gate_response` and `prepare_gate_prompt` did not specify the conditional behavior. The `gate_6_3_repair_exhausted` dynamic filtering pattern existed but was not applied to `gate_7_a_trajectory_review`. **Detection:** Oracle F-mode green run (Run 19).
 
 ---
 
