@@ -1099,6 +1099,20 @@ def _route_debug(
 
     if phase == "triage":
         if last_status.startswith("TRIAGE_COMPLETE"):
+            # Bug S3-89: load triage result inline (dispatch_agent_status
+            # is not reached because invoke_agent has no POST command)
+            triage_path = project_root / ".svp" / "triage_result.json"
+            if triage_path.is_file() and state.debug_session is not None:
+                triage = json.loads(triage_path.read_text(encoding="utf-8"))
+                state.debug_session = dict(state.debug_session)
+                state.debug_session["classification"] = triage.get(
+                    "classification",
+                    last_status.split(": ", 1)[1],
+                )
+                state.debug_session["affected_units"] = triage.get(
+                    "affected_units", []
+                )
+                save_state(project_root, state)
             if last_status == "TRIAGE_COMPLETE: build_env":
                 return _make_action_block(
                     action_type="invoke_agent",
