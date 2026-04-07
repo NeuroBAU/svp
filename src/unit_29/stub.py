@@ -11,8 +11,6 @@ from pathlib import Path
 from typing import List, Optional
 
 # Ensure sibling scripts are importable when running as pip entry point.
-# When invoked via `svp` CLI, Python resolves this file as svp.scripts.svp_launcher
-# but bare imports like `from language_registry import ...` need svp/scripts on sys.path.
 _scripts_dir = str(Path(__file__).resolve().parent)
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)

@@ -4901,6 +4901,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P7 (Specification Omission at blueprint level). The spec requirements were complete and unambiguous (Section 40.6.4, AC-91, AC-92), but the blueprint author did not translate them into Unit 23, 28, or 13 contracts. Same pattern as S3-92 (archetype-based dispatch not encoded in blueprint). **Detection:** Oracle E-mode run 8 with `examples/gol-python-r/` test project. Dry run identified all three gaps; green run confirmed.
 
+### 24.111 Workspace Script/Stub Desync — No Automatic Derivation (Post-delivery — Bug S3-98, NEW IN 2.2)
+
+**Workspace scripts drift from unit stubs because sync_workspace.sh treats them as independent files (NEW IN 2.2 -- Bug S3-98).** Each unit stub (`src/unit_N/stub.py`) has a corresponding workspace script (`scripts/<module>.py`) that is identical except for import paths: stubs use `from src.unit_N.stub import X` while scripts use `from module_name import X`. When a bug fix is applied to a stub, the corresponding script must be manually updated with the same change using different imports. `sync_workspace.sh` syncs stubs ↔ repo stubs and scripts ↔ repo scripts independently — it has no knowledge that scripts should be derived from stubs. This caused S3-90 (workspace script out of sync) and S3-97 (three scripts missing mixed archetype fixes). Fix: add `derive_scripts_from_stubs.py` which reads each stub, rewrites `from src.unit_N.stub import` to flat module imports, and writes the derived script. `sync_workspace.sh` calls this as Step 0 before all other sync steps. The stub is now the single source of truth; scripts are derived artifacts.
+
+**Pattern:** P10 (Error-Path Contract Omission). The sync script was designed for bidirectional file copying, not for derived-artifact relationships. The stub-to-script import rewriting was a manual process with no automation or enforcement. **Detection:** Oracle E-mode runs 8-10 with `examples/gol-python-r/` repeatedly found script/stub desync.
+
 ---
 
 ## 25. Test Data

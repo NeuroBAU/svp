@@ -45,7 +45,7 @@ _VALID_MODEL_VALUES = {
 }
 
 # ---------------------------------------------------------------------------
-# The hook event set
+# The 12 hook event set
 # ---------------------------------------------------------------------------
 
 _VALID_HOOK_EVENTS = {
@@ -61,7 +61,7 @@ _VALID_HOOK_EVENTS = {
     "SubagentStop",
     "ConfigChange",
     "Stop",
-    # Common filesystem/lifecycle events
+    # Common filesystem/lifecycle events (Claude Code supports additional events)
     "on_save",
     "on_load",
     "on_close",
@@ -144,12 +144,40 @@ _PLUGIN_MANIFEST_ALL = _PLUGIN_MANIFEST_REQUIRED | _PLUGIN_MANIFEST_OPTIONAL
 # ---------------------------------------------------------------------------
 
 _ALL_DISPATCH_TABLE_NAMES = {
+    "SIGNATURE_PARSERS",
     "STUB_GENERATORS",
     "TEST_OUTPUT_PARSERS",
     "QUALITY_RUNNERS",
-    "SPEC_ASSEMBLERS",
+    "PROJECT_ASSEMBLERS",
     "COMPLIANCE_SCANNERS",
-    "BLUEPRINT_PARSERS",
+}
+
+# Tables keyed by language ID (language name directly)
+_ID_KEYED_TABLES = {
+    "PROJECT_ASSEMBLERS",
+    "COMPLIANCE_SCANNERS",
+    "SIGNATURE_PARSERS",
+}
+
+# Tables keyed by dispatch key from a registry field
+_DISPATCH_KEY_FIELDS = {
+    "STUB_GENERATORS": "stub_generator_key",
+    "TEST_OUTPUT_PARSERS": "test_output_parser_key",
+    "QUALITY_RUNNERS": "quality_runner_key",
+}
+
+# Mapping from required_dispatch_entries field names to dispatch table names
+_DISPATCH_ENTRY_TO_TABLE = {
+    "stub_generator_key": "STUB_GENERATORS",
+    "test_output_parser_key": "TEST_OUTPUT_PARSERS",
+    "quality_runner_key": "QUALITY_RUNNERS",
+    # Also accept table names directly for required_dispatch_entries
+    "STUB_GENERATORS": "STUB_GENERATORS",
+    "TEST_OUTPUT_PARSERS": "TEST_OUTPUT_PARSERS",
+    "QUALITY_RUNNERS": "QUALITY_RUNNERS",
+    "SIGNATURE_PARSERS": "SIGNATURE_PARSERS",
+    "PROJECT_ASSEMBLERS": "PROJECT_ASSEMBLERS",
+    "COMPLIANCE_SCANNERS": "COMPLIANCE_SCANNERS",
 }
 
 # Plugin composite keys for claude_code_plugin archetype
@@ -165,6 +193,7 @@ _PLUGIN_COMPOSITE_TABLES = {"STUB_GENERATORS", "TEST_OUTPUT_PARSERS", "QUALITY_R
 def _has_conda_run_prefix(text: str, match_start: int) -> bool:
     """Check if the text before match_start contains 'conda run -n' prefix."""
     prefix = text[:match_start]
+    # Look for 'conda run -n <name> ' pattern near the end of the prefix
     return bool(re.search(r"conda\s+run\s+-n\s+\S+\s+$", prefix))
 
 
@@ -186,7 +215,9 @@ def _python_compliance_scan(
         "environment_manager", "conda"
     )
 
-    # Define banned patterns per environment manager
+    # Define simple banned patterns per environment
+    # For conda: ban bare pip, python, pytest NOT preceded by conda run -n
+    # We use simple word boundary matching and check prefix separately
     if env_manager == "conda":
         banned_words = [
             ("pip", "bare pip (not preceded by conda run -n)"),
@@ -218,6 +249,7 @@ def _python_compliance_scan(
     if not banned_words:
         return findings
 
+    # Also check poetry-specific: bare pip install
     poetry_pip_install = env_manager == "poetry"
 
     # Collect Python files from src_dir and tests_dir
@@ -246,6 +278,7 @@ def _python_compliance_scan(
                     for word, description in banned_words:
                         pattern = re.compile(r"\b" + re.escape(word) + r"\b")
                         for m in pattern.finditer(text):
+                            # For conda env, check if preceded by conda run -n
                             if env_manager == "conda":
                                 if _has_conda_run_prefix(text, m.start()):
                                     continue
@@ -301,6 +334,7 @@ def _r_compliance_scan(
         simple_patterns = [
             (r"\binstall\.packages\s*\(", "install.packages() in conda R environment"),
         ]
+        # For bare Rscript we need a special check
     else:
         simple_patterns = []
 
@@ -334,6 +368,7 @@ def _r_compliance_scan(
                 # conda env: check for bare Rscript without conda run
                 if env_manager == "conda":
                     for m in re.finditer(r"\bRscript\b", line):
+                        # Check if preceded by conda run -n
                         prefix = line[: m.start()]
                         if not re.search(r"conda\s+run\s+-n\s+\S+\s+$", prefix):
                             findings.append(
@@ -384,6 +419,9 @@ def generate_plugin_json(profile: Dict[str, Any]) -> str:
     )
     manifest["version"] = plugin_config.get("version", profile.get("version", "0.1.0"))
 
+    if not manifest.get("name") or not manifest.get("description"):
+        raise ValueError("Plugin manifest required fields empty: name and description are required")
+
     # Author field -- can be string or object
     if "author" in plugin_config:
         manifest["author"] = plugin_config["author"]
@@ -394,11 +432,13 @@ def generate_plugin_json(profile: Dict[str, Any]) -> str:
         author_name = license_info.get("author", "") or license_info.get("holder", "")
         manifest["author"] = author_name
 
-    # Optional fields - include if present in plugin config or profile
+    # Optional fields - include if present in plugin config
+    # Check using manifest key names directly (camelCase)
     # NOTE (Bug S3-43): agents, commands, skills are auto-discovered by
     # Claude Code from the plugin directory structure. Including them as
     # string paths causes the Zod schema validator to reject the manifest.
     # hooks is only valid as an inline object, not a string path.
+    _AUTO_DISCOVERED = {"agents", "commands", "skills"}
     optional_keys = [
         "mcpServers",
         "lspServers",
@@ -416,14 +456,6 @@ def generate_plugin_json(profile: Dict[str, Any]) -> str:
             continue
         manifest[key] = value
 
-    # Bug S3-53: validate required fields are non-empty
-    missing = [f for f in ("name", "description") if not manifest.get(f)]
-    if missing:
-        raise ValueError(
-            f"generate_plugin_json: required fields empty: {missing}. "
-            f"Profile must contain a 'plugin' section with non-empty values."
-        )
-
     return json.dumps(manifest, indent=2)
 
 
@@ -440,27 +472,20 @@ def generate_marketplace_json(profile: Dict[str, Any]) -> str:
     license_info = profile.get("license", {})
 
     name = plugin_config.get("name", profile.get("name", ""))
-    owner_obj = profile.get("owner", plugin_config.get("owner"))
-
-    if owner_obj is None:
-        owner_name = license_info.get("author", "") or license_info.get("holder", "")
-        owner_obj = {"name": owner_name} if isinstance(owner_name, str) else owner_name
-    elif isinstance(owner_obj, str):
-        owner_obj = {"name": owner_obj}
+    if not name:
+        raise ValueError("Marketplace manifest 'name' field is empty")
+    owner_name = (
+        plugin_config.get("owner", "")
+        or license_info.get("author", "")
+        or license_info.get("holder", "")
+    )
 
     # Get author value from plugin config
-    author = plugin_config.get("author", profile.get("author", ""))
-
-    # Bug S3-53: validate required fields are non-empty
-    if not name:
-        raise ValueError(
-            "generate_marketplace_json: 'name' field is empty. "
-            "Profile must contain a 'plugin' section with non-empty 'name'."
-        )
+    author = plugin_config.get("author", owner_name)
 
     marketplace: Dict[str, Any] = {
         "name": name,
-        "owner": owner_obj,
+        "owner": {"name": owner_name} if isinstance(owner_name, str) else owner_name,
         "plugins": [
             {
                 "name": name,
@@ -510,6 +535,9 @@ def run_structural_check(
         py_files = sorted(target.rglob("*.py"))
     else:
         return findings
+
+    # Need at least 2 files for meaningful cross-file analysis
+    # For single files, we only do checks that make sense in isolation
 
     # Parse all files into ASTs
     file_asts: Dict[str, ast.AST] = {}
@@ -582,17 +610,12 @@ def run_structural_check(
         if file_func_defs:
             all_function_defs[filepath] = file_func_defs
 
-    # Build set of all registry dict key strings so we can exclude them
-    # from the general string constants pool (dict keys are themselves
-    # ast.Constant nodes, so they would always appear in all_string_constants)
-    registry_key_strings: set = set()
-    for filepath, dicts in all_dict_keys.items():
-        for dict_name, keys in dicts.items():
-            if dict_name.isupper() or dict_name.endswith("_REGISTRY"):
-                registry_key_strings.update(keys)
-
-    # String constants used outside of registry dict key positions
-    non_registry_string_constants = all_string_constants - registry_key_strings
+    # Remove dict registry keys from string constants to avoid self-masking
+    # (dict literal keys appear as string constants in the same file)
+    for dicts in all_dict_keys.values():
+        for keys in dicts.values():
+            for key in keys:
+                all_string_constants.discard(key)
 
     # Check 1: Dict registry keys never dispatched
     # Only check dicts that look like registries (UPPER_CASE names)
@@ -602,7 +625,7 @@ def run_structural_check(
                 continue
             accessed = all_subscript_names.get(dict_name, set())
             for key in keys:
-                if key not in accessed and key not in non_registry_string_constants:
+                if key not in accessed and key not in all_string_constants:
                     findings.append(
                         {
                             "check": "dict_key_never_dispatched",
@@ -737,6 +760,10 @@ def validate_dispatch_exhaustiveness(
     and every component language has entries in its required_dispatch_entries
     tables.
 
+    Uses correct keying strategy:
+    - Language ID for assemblers, scanners, and signature parsers
+    - Dispatch key for stub generators, test output parsers, quality runners
+
     When archetype is claude_code_plugin: additionally verifies plugin composite
     keys (plugin_markdown, plugin_bash, plugin_json) are present in
     STUB_GENERATORS, TEST_OUTPUT_PARSERS, and QUALITY_RUNNERS.
@@ -745,39 +772,64 @@ def validate_dispatch_exhaustiveness(
     """
     errors: List[str] = []
 
-    has_plugin_archetype = False
-
     for lang_id, lang_config in language_registry.items():
         is_component = lang_config.get("is_component_only", False)
-        dispatch_key = lang_config.get("dispatch_key", lang_id)
-
-        if lang_config.get("archetype") == "claude_code_plugin":
-            has_plugin_archetype = True
 
         if not is_component:
-            # Full language: must have entries in all 6 dispatch tables
-            for table_name in sorted(_ALL_DISPATCH_TABLE_NAMES):
+            # Full language: must have entries in all dispatch tables
+            # Include both known tables and any caller-provided tables
+            check_tables = _ALL_DISPATCH_TABLE_NAMES | set(dispatch_tables.keys())
+            for table_name in check_tables:
+                if dispatch_tables and table_name not in dispatch_tables:
+                    continue
                 table = dispatch_tables.get(table_name, {})
-                # Check using dispatch_key first, then lang_id
-                if dispatch_key not in table and lang_id not in table:
-                    errors.append(f"Language '{lang_id}' missing from {table_name}")
+
+                if table_name in _ID_KEYED_TABLES:
+                    # Keyed by language ID
+                    if lang_id not in table:
+                        errors.append(f"Language '{lang_id}' missing from {table_name}")
+                else:
+                    # Keyed by dispatch key from registry field; fall back to lang_id
+                    key_field = _DISPATCH_KEY_FIELDS.get(table_name)
+                    if key_field:
+                        dispatch_key = lang_config.get(key_field, "")
+                        check_key = dispatch_key if dispatch_key else lang_id
+                    else:
+                        check_key = lang_id
+                    if check_key not in table:
+                        errors.append(
+                            f"Language '{lang_id}' missing from {table_name}"
+                        )
         else:
             # Component language: entries only in required_dispatch_entries tables
             required_entries = lang_config.get("required_dispatch_entries", [])
-            for table_name in required_entries:
-                if table_name not in _ALL_DISPATCH_TABLE_NAMES:
+            for entry_field in required_entries:
+                table_name = _DISPATCH_ENTRY_TO_TABLE.get(entry_field)
+                if table_name is None:
                     continue
+
                 table = dispatch_tables.get(table_name, {})
-                if dispatch_key not in table and lang_id not in table:
+                dispatch_key = lang_config.get(entry_field, "")
+                check_key = dispatch_key if dispatch_key else lang_id
+
+                if check_key not in table:
                     errors.append(
-                        f"Component language '{lang_id}' missing from {table_name}"
+                        f"Component language '{lang_id}' missing from "
+                        f"{table_name}"
                     )
 
-    # Plugin composite key verification
-    if has_plugin_archetype:
-        for table_name in sorted(_PLUGIN_COMPOSITE_TABLES):
+    # Plugin composite key verification:
+    # Only check if plugin keys are present (indicating plugin archetype build)
+    has_any_plugin_key = any(
+        composite_key in dispatch_tables.get(table_name, {})
+        for table_name in _PLUGIN_COMPOSITE_TABLES
+        for composite_key in _PLUGIN_COMPOSITE_KEYS
+    )
+
+    if has_any_plugin_key:
+        for table_name in _PLUGIN_COMPOSITE_TABLES:
             table = dispatch_tables.get(table_name, {})
-            for composite_key in sorted(_PLUGIN_COMPOSITE_KEYS):
+            for composite_key in _PLUGIN_COMPOSITE_KEYS:
                 if composite_key not in table:
                     errors.append(
                         f"Plugin composite key '{composite_key}' missing from "
@@ -803,7 +855,7 @@ def validate_plugin_manifest(manifest: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
 
     # Check required fields
-    for field in sorted(_PLUGIN_MANIFEST_REQUIRED):
+    for field in _PLUGIN_MANIFEST_REQUIRED:
         if field not in manifest:
             errors.append(f"Missing required field: {field}")
 
@@ -867,9 +919,11 @@ def _check_env_var_syntax(obj: Any, context: str, errors: List[str]) -> None:
         # Find all ${...} references and validate
         for m in re.finditer(r"\$\{([^}]*)\}", obj):
             ref = m.group(1)
+            # Valid: VAR_NAME, VAR_NAME:-default
             if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*(?::-.*)?$", ref):
                 errors.append(f"{context}: invalid env var syntax '${{{ref}}}'")
-        # Check for unclosed braces
+        # Check for malformed ${... (unclosed braces)
+        # Look for ${ not followed by } before end of string
         pos = 0
         while True:
             idx = obj.find("${", pos)
@@ -905,6 +959,8 @@ def validate_mcp_config(config: Dict[str, Any]) -> List[str]:
 
     valid_transport_types = {"stdio", "http", "sse"}
 
+    # Config can be {server_name: server_config, ...} or
+    # {"mcpServers": {server_name: server_config, ...}}
     servers = config
     if "mcpServers" in config and isinstance(config["mcpServers"], dict):
         servers = config["mcpServers"]
@@ -917,9 +973,10 @@ def validate_mcp_config(config: Dict[str, Any]) -> List[str]:
             errors.append(f"Server '{server_name}': config must be an object")
             continue
 
-        # Determine transport type
+        # Determine transport type (default depends on what fields are present)
         transport = server_config.get("type") or server_config.get("transport")
         if transport is None:
+            # Infer transport from fields present
             if "url" in server_config:
                 transport = "http"
             else:
@@ -943,7 +1000,7 @@ def validate_mcp_config(config: Dict[str, Any]) -> List[str]:
                     f"Server '{server_name}': {transport} transport requires 'url'"
                 )
 
-        # Validate env var ${...} syntax
+        # Validate env var ${...} syntax in all string values
         _check_env_var_syntax(server_config, f"Server '{server_name}'", errors)
 
     return errors
@@ -962,6 +1019,8 @@ def validate_lsp_config(config: Dict[str, Any]) -> List[str]:
     """
     errors: List[str] = []
 
+    # Config can be {lang_id: server_config, ...} or
+    # {"lspServers": {lang_id: server_config, ...}}
     servers = config
     if "lspServers" in config and isinstance(config["lspServers"], dict):
         servers = config["lspServers"]
@@ -978,7 +1037,7 @@ def validate_lsp_config(config: Dict[str, Any]) -> List[str]:
         if "command" not in server_config:
             errors.append(f"LSP server '{lang_id}': 'command' is required")
 
-        # Validate env var syntax
+        # Validate env var syntax in all string values
         _check_env_var_syntax(server_config, f"LSP server '{lang_id}'", errors)
 
     return errors
@@ -1038,11 +1097,15 @@ def validate_skill_frontmatter(frontmatter: Dict[str, Any]) -> List[str]:
 def validate_hook_definitions(hooks: Dict[str, Any]) -> List[str]:
     """Validate hook definitions against Section 40.7.5 schema.
 
-    Validates event set, valid hook types (command, http, prompt, agent),
+    Validates 12-event set, valid hook types (command, http, prompt, agent),
     matcher regex. Returns list of error strings.
     """
     errors: List[str] = []
 
+    # Hooks can have various structures:
+    # {"hooks": {"EventName": [...]}} -- standard Section 40.7.5 format
+    # {"EventName": [...]}} -- direct event mapping
+    # {"EventName": {"hooks": [...]}} -- simplified per-event format
     hook_data = hooks
     if "hooks" in hooks and isinstance(hooks["hooks"], dict):
         hook_data = hooks["hooks"]
@@ -1051,25 +1114,30 @@ def validate_hook_definitions(hooks: Dict[str, Any]) -> List[str]:
         if event_name == "hooks":
             continue
 
-        # Validate event name
+        # Validate event name against the recognized event set
         if event_name not in _VALID_HOOK_EVENTS:
             errors.append(f"Invalid hook event: {event_name}")
 
         # Handle different structures for the event value
         if isinstance(event_value, list):
+            # Standard format: array of hook groups
             for i, hook_group in enumerate(event_value):
                 _validate_hook_group(event_name, i, hook_group, errors)
         elif isinstance(event_value, dict):
+            # Could be a single hook group or a dict with "hooks" key
             if "hooks" in event_value:
                 inner_hooks = event_value["hooks"]
                 if isinstance(inner_hooks, list):
                     for j, hook in enumerate(inner_hooks):
                         _validate_single_hook(event_name, 0, j, hook, errors)
                 elif isinstance(inner_hooks, dict):
+                    # Single hook as a dict
                     _validate_single_hook(event_name, 0, 0, inner_hooks, errors)
             elif "type" in event_value:
+                # Direct single hook definition
                 _validate_single_hook(event_name, 0, 0, event_value, errors)
             else:
+                # Treat as a hook group with optional matcher
                 _validate_hook_group(event_name, 0, event_value, errors)
 
     return errors
@@ -1083,13 +1151,7 @@ def _validate_hook_group(
         errors.append(f"Event '{event_name}' entry {index}: must be an object")
         return
 
-    # If this entry has a "type" field, treat it as a single hook definition
-    # (flat format where hook entries are directly in the event array)
-    if "type" in hook_group:
-        _validate_single_hook(event_name, index, 0, hook_group, errors)
-        return
-
-    # Validate matcher
+    # Validate matcher (optional, only for tool events)
     if "matcher" in hook_group:
         matcher = hook_group["matcher"]
         if isinstance(matcher, str):
@@ -1196,55 +1258,6 @@ def validate_agent_frontmatter(frontmatter: Dict[str, Any]) -> List[str]:
 # ---------------------------------------------------------------------------
 # Cross-reference integrity
 # ---------------------------------------------------------------------------
-
-
-def _parse_yaml_frontmatter(content: str) -> Dict[str, Any]:
-    """Parse YAML frontmatter from markdown content.
-
-    Looks for content between --- delimiters at the start of the file.
-    Returns parsed dict or empty dict if no frontmatter found.
-    """
-    lines = content.strip().splitlines()
-    if not lines or lines[0].strip() != "---":
-        return {}
-
-    end_idx = -1
-    for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
-            end_idx = i
-            break
-
-    if end_idx < 0:
-        return {}
-
-    yaml_lines = lines[1:end_idx]
-    result: Dict[str, Any] = {}
-
-    for line in yaml_lines:
-        if ":" in line:
-            key, _, value = line.partition(":")
-            key = key.strip()
-            value = value.strip()
-
-            if value.lower() == "true":
-                result[key] = True
-            elif value.lower() == "false":
-                result[key] = False
-            elif value.startswith("[") and value.endswith("]"):
-                items = value[1:-1].split(",")
-                result[key] = [
-                    item.strip().strip('"').strip("'") for item in items if item.strip()
-                ]
-            elif value.isdigit():
-                result[key] = int(value)
-            elif value.startswith('"') and value.endswith('"'):
-                result[key] = value[1:-1]
-            elif value.startswith("'") and value.endswith("'"):
-                result[key] = value[1:-1]
-            else:
-                result[key] = value if value else None
-
-    return result
 
 
 def check_cross_reference_integrity(
@@ -1384,6 +1397,55 @@ def check_cross_reference_integrity(
     return errors
 
 
+def _parse_yaml_frontmatter(content: str) -> Dict[str, Any]:
+    """Parse YAML frontmatter from markdown content.
+
+    Looks for content between --- delimiters at the start of the file.
+    Returns parsed dict or empty dict if no frontmatter found.
+    """
+    lines = content.strip().splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+
+    end_idx = -1
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            end_idx = i
+            break
+
+    if end_idx < 0:
+        return {}
+
+    yaml_lines = lines[1:end_idx]
+    result: Dict[str, Any] = {}
+
+    for line in yaml_lines:
+        if ":" in line:
+            key, _, value = line.partition(":")
+            key = key.strip()
+            value = value.strip()
+
+            if value.lower() == "true":
+                result[key] = True
+            elif value.lower() == "false":
+                result[key] = False
+            elif value.startswith("[") and value.endswith("]"):
+                items = value[1:-1].split(",")
+                result[key] = [
+                    item.strip().strip('"').strip("'") for item in items if item.strip()
+                ]
+            elif value.isdigit():
+                result[key] = int(value)
+            elif value.startswith('"') and value.endswith('"'):
+                result[key] = value[1:-1]
+            elif value.startswith("'") and value.endswith("'"):
+                result[key] = value[1:-1]
+            else:
+                result[key] = value if value else None
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Compliance scan CLI
 # ---------------------------------------------------------------------------
@@ -1436,10 +1498,7 @@ def compliance_scan_main(argv: list = None) -> None:
     # Load profile to determine language and environment
     from profile_schema import load_profile
 
-    try:
-        profile = load_profile(args.project_root)
-    except (FileNotFoundError, OSError, json.JSONDecodeError):
-        profile = {}
+    profile = load_profile(args.project_root)
     primary_language = profile.get("language", {}).get("primary", "python")
 
     # Get language config

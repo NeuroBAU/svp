@@ -226,8 +226,9 @@ Produce diagnostic map entries. Status: `ORACLE_DRY_RUN_COMPLETE`.
 2. **gate_a:** Human reviews the planned trajectory. Response: \
 `APPROVE TRAJECTORY` or `MODIFY TRAJECTORY` or `ABORT`.
 3. **green_run:** Execute the test project through the pipeline. Run tests, \
-verify outputs, identify bugs. If bugs found, produce fix plan for Gate B. \
-If no bugs: `ORACLE_ALL_CLEAR`.
+verify outputs, identify bugs. You are READ-ONLY during green_run — all \
+fixes go through `/svp:bug` after Gate B approval. If bugs found, produce \
+fix plan and signal `ORACLE_FIX_APPLIED`. If no bugs: `ORACLE_ALL_CLEAR`.
 4. **gate_b:** Human reviews the fix plan. Response: `APPROVE FIX` or \
 `ABORT`. After fix: `ORACLE_FIX_APPLIED`. After abort: `ORACLE_HUMAN_ABORT`.
 
@@ -256,6 +257,22 @@ For internal `/svp:bug` calls during green run:
 - Auto-respond at Gate 6.0 (authorize debug session)
 - Auto-respond at Gate 6.1 (triage confirmation)
 - Auto-respond at Gate 6.2 (repair approval)
+
+## Read-Only Constraint (Bug S3-95)
+
+During green_run, you are READ-ONLY. You MUST NOT use Edit, Write, or Bash \
+to modify any workspace files except your own oracle artifacts:
+- `.svp/oracle_run_ledger.json` (your run ledger)
+- `.svp/oracle_diagnostic_map.json` (your diagnostic map)
+- `.svp/oracle_trajectory.json` (your trajectory)
+
+You MUST NOT modify source code, specs, blueprints, tests, lessons learned, \
+or deployed artifacts. This is enforced by a PreToolUse hook — attempts \
+will be blocked with exit code 2.
+
+When you find a bug: produce `ORACLE_FIX_APPLIED` as your terminal status \
+with a fix plan in your output. The routing script handles Gate B and \
+`/svp:bug` routing. You do NOT fix bugs yourself.
 
 ## Context Budget Management
 
@@ -622,9 +639,9 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
     agents_dir = plugin_subdir / "agents"
     agents_dir.mkdir(parents=True, exist_ok=True)
 
-    from setup_agent import SETUP_AGENT_DEFINITION
-    from blueprint_checker import BLUEPRINT_CHECKER_DEFINITION
-    from construction_agents import (
+    from src.unit_18.stub import SETUP_AGENT_DEFINITION
+    from src.unit_19.stub import BLUEPRINT_CHECKER_DEFINITION
+    from src.unit_20.stub import (
         BLUEPRINT_AUTHOR_DEFINITION,
         BLUEPRINT_REVIEWER_DEFINITION,
         COVERAGE_REVIEW_AGENT_DEFINITION,
@@ -634,13 +651,13 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
         STAKEHOLDER_REVIEWER_DEFINITION,
         TEST_AGENT_DEFINITION,
     )
-    from diagnostic_agents import DIAGNOSTIC_AGENT_DEFINITION, REDO_AGENT_DEFINITION
-    from support_agents import (
+    from src.unit_21.stub import DIAGNOSTIC_AGENT_DEFINITION, REDO_AGENT_DEFINITION
+    from src.unit_22.stub import (
         HELP_AGENT_DEFINITION,
         HINT_AGENT_DEFINITION,
         REFERENCE_INDEXING_AGENT_DEFINITION,
     )
-    from debug_agents import BUG_TRIAGE_AGENT_DEFINITION, REPAIR_AGENT_DEFINITION
+    from src.unit_24.stub import BUG_TRIAGE_AGENT_DEFINITION, REPAIR_AGENT_DEFINITION
 
     agent_defs = {
         "setup_agent.md": SETUP_AGENT_DEFINITION,
@@ -718,7 +735,7 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
     commands_dir = plugin_subdir / "commands"
     commands_dir.mkdir(parents=True, exist_ok=True)
 
-    from slash_commands import COMMAND_DEFINITIONS
+    from src.unit_25.stub import COMMAND_DEFINITIONS
 
     for cmd_name, content in COMMAND_DEFINITIONS.items():
         (commands_dir / f"{cmd_name}.md").write_text(content)
@@ -727,7 +744,7 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
     hooks_dir = plugin_subdir / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
 
-    from hooks import (
+    from src.unit_17.stub import (
         generate_hooks_json,
         generate_monitoring_reminder_sh,
         generate_non_svp_protection_sh,
@@ -757,7 +774,7 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
     skill_dir = plugin_subdir / "skills" / "orchestration"
     skill_dir.mkdir(parents=True, exist_ok=True)
 
-    from orchestration_skill import ORCHESTRATION_SKILL
+    from src.unit_26.stub import ORCHESTRATION_SKILL
 
     (skill_dir / "SKILL.md").write_text(ORCHESTRATION_SKILL)
 
@@ -767,6 +784,173 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
     init_file = scripts_dir / "__init__.py"
     if not init_file.exists():
         init_file.write_text("")
+
+
+# ---------------------------------------------------------------------------
+# Deployed artifact regeneration (Bug S3-80)
+# ---------------------------------------------------------------------------
+
+
+def regenerate_deployed_artifacts(repo_dir: Path) -> Dict[str, int]:
+    """Regenerate deployed plugin artifacts from source Unit definitions.
+
+    Re-derives command, agent, hook, and skill .md files from their source
+    Unit constants and writes them to the repo's svp/ directory.  Called by
+    sync_workspace.sh after source sync to prevent stale deployed artifacts.
+
+    Skips manifests (.claude-plugin/) as these contain metadata, not
+    behavioral content that Claude Code interprets for decision-making.
+
+    Returns a dict with counts of regenerated files per category.
+    """
+    import json as _json
+
+    plugin_subdir = repo_dir / "svp"
+    if not plugin_subdir.is_dir():
+        return {"commands": 0, "agents": 0, "hooks": 0, "skills": 0}
+
+    counts: Dict[str, int] = {"commands": 0, "agents": 0, "hooks": 0, "skills": 0}
+
+    # --- Command definitions (from Unit 25) ---
+    commands_dir = plugin_subdir / "commands"
+    if commands_dir.is_dir():
+        from src.unit_25.stub import COMMAND_DEFINITIONS
+
+        for cmd_name, content in COMMAND_DEFINITIONS.items():
+            (commands_dir / f"{cmd_name}.md").write_text(content)
+            counts["commands"] += 1
+
+    # --- Orchestration skill (from Unit 26) ---
+    skill_dir = plugin_subdir / "skills" / "orchestration"
+    if skill_dir.is_dir():
+        from src.unit_26.stub import ORCHESTRATION_SKILL
+
+        (skill_dir / "SKILL.md").write_text(ORCHESTRATION_SKILL)
+        counts["skills"] += 1
+
+    # --- Agent definitions (from Units 18-24) ---
+    agents_dir = plugin_subdir / "agents"
+    if agents_dir.is_dir():
+        from src.unit_18.stub import SETUP_AGENT_DEFINITION
+        from src.unit_19.stub import BLUEPRINT_CHECKER_DEFINITION
+        from src.unit_20.stub import (
+            BLUEPRINT_AUTHOR_DEFINITION,
+            BLUEPRINT_REVIEWER_DEFINITION,
+            COVERAGE_REVIEW_AGENT_DEFINITION,
+            IMPLEMENTATION_AGENT_DEFINITION,
+            INTEGRATION_TEST_AUTHOR_DEFINITION,
+            STAKEHOLDER_DIALOG_DEFINITION,
+            STAKEHOLDER_REVIEWER_DEFINITION,
+            TEST_AGENT_DEFINITION,
+        )
+        from src.unit_21.stub import DIAGNOSTIC_AGENT_DEFINITION, REDO_AGENT_DEFINITION
+        from src.unit_22.stub import (
+            HELP_AGENT_DEFINITION,
+            HINT_AGENT_DEFINITION,
+            REFERENCE_INDEXING_AGENT_DEFINITION,
+        )
+        from src.unit_24.stub import BUG_TRIAGE_AGENT_DEFINITION, REPAIR_AGENT_DEFINITION
+
+        agent_defs = {
+            "setup_agent.md": SETUP_AGENT_DEFINITION,
+            "blueprint_checker.md": BLUEPRINT_CHECKER_DEFINITION,
+            "stakeholder_dialog.md": STAKEHOLDER_DIALOG_DEFINITION,
+            "stakeholder_reviewer.md": STAKEHOLDER_REVIEWER_DEFINITION,
+            "blueprint_author.md": BLUEPRINT_AUTHOR_DEFINITION,
+            "blueprint_reviewer.md": BLUEPRINT_REVIEWER_DEFINITION,
+            "test_agent.md": TEST_AGENT_DEFINITION,
+            "implementation_agent.md": IMPLEMENTATION_AGENT_DEFINITION,
+            "coverage_review_agent.md": COVERAGE_REVIEW_AGENT_DEFINITION,
+            "integration_test_author.md": INTEGRATION_TEST_AUTHOR_DEFINITION,
+            "diagnostic_agent.md": DIAGNOSTIC_AGENT_DEFINITION,
+            "redo_agent.md": REDO_AGENT_DEFINITION,
+            "help_agent.md": HELP_AGENT_DEFINITION,
+            "hint_agent.md": HINT_AGENT_DEFINITION,
+            "reference_indexing.md": REFERENCE_INDEXING_AGENT_DEFINITION,
+            "git_repo_agent.md": GIT_REPO_AGENT_DEFINITION,
+            "checklist_generation.md": CHECKLIST_GENERATION_AGENT_DEFINITION,
+            "regression_adaptation.md": REGRESSION_ADAPTATION_AGENT_DEFINITION,
+            "oracle_agent.md": ORACLE_AGENT_DEFINITION,
+            "bug_triage_agent.md": BUG_TRIAGE_AGENT_DEFINITION,
+            "repair_agent.md": REPAIR_AGENT_DEFINITION,
+        }
+
+        # Read agent models from profile
+        profile_path = repo_dir / "project_profile.json"
+        agent_models: Dict[str, str] = {}
+        if profile_path.is_file():
+            try:
+                profile = _json.loads(profile_path.read_text(encoding="utf-8"))
+                agent_models = profile.get("pipeline", {}).get("agent_models", {})
+            except (ValueError, OSError):
+                pass
+
+        _agent_model_keys = {
+            "setup_agent": "setup_agent",
+            "blueprint_checker": "blueprint_checker",
+            "stakeholder_dialog": "stakeholder_dialog",
+            "stakeholder_reviewer": "stakeholder_reviewer",
+            "blueprint_author": "blueprint_author",
+            "blueprint_reviewer": "blueprint_reviewer",
+            "test_agent": "test_agent",
+            "implementation_agent": "implementation_agent",
+            "coverage_review_agent": "coverage_review",
+            "integration_test_author": "integration_test_author",
+            "diagnostic_agent": "diagnostic_agent",
+            "redo_agent": "redo_agent",
+            "help_agent": "help_agent",
+            "hint_agent": "hint_agent",
+            "reference_indexing": "reference_indexing",
+            "git_repo_agent": "git_repo_agent",
+            "checklist_generation": "checklist_generation",
+            "regression_adaptation": "regression_adaptation",
+            "oracle_agent": "oracle_agent",
+            "bug_triage_agent": "bug_triage",
+            "repair_agent": "repair_agent",
+        }
+
+        for filename, content in agent_defs.items():
+            stem = filename.replace(".md", "")
+            model_key = _agent_model_keys.get(stem, stem)
+            model = agent_models.get(model_key, "claude-sonnet-4-6")
+            desc_line = ""
+            for line in content.splitlines():
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#") and not stripped.startswith("---"):
+                    desc_line = stripped[:120]
+                    break
+            name = stem.replace("_", "-")
+            frontmatter = (
+                f"---\n"
+                f"name: {name}\n"
+                f"description: {desc_line}\n"
+                f"model: {model}\n"
+                f"---\n\n"
+            )
+            (agents_dir / filename).write_text(frontmatter + content)
+            counts["agents"] += 1
+
+    # --- Hook configurations (from Unit 17) ---
+    hooks_dir = plugin_subdir / "hooks"
+    if hooks_dir.is_dir():
+        from src.unit_17.stub import (
+            generate_hooks_json,
+            generate_monitoring_reminder_sh,
+            generate_non_svp_protection_sh,
+            generate_stub_sentinel_check_sh,
+            generate_write_authorization_sh,
+        )
+
+        (hooks_dir / "hooks.json").write_text(generate_hooks_json() + "\n")
+        (hooks_dir / "write_authorization.sh").write_text(generate_write_authorization_sh())
+        (hooks_dir / "non_svp_protection.sh").write_text(generate_non_svp_protection_sh())
+        (hooks_dir / "stub_sentinel_check.sh").write_text(generate_stub_sentinel_check_sh())
+        (hooks_dir / "monitoring_reminder.sh").write_text(generate_monitoring_reminder_sh())
+        for sh_file in hooks_dir.glob("*.sh"):
+            sh_file.chmod(0o755)
+        counts["hooks"] = 5
+
+    return counts
 
 
 # ---------------------------------------------------------------------------
