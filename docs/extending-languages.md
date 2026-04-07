@@ -137,6 +137,15 @@ The setup agent will help you define your requirements through conversation. The
 
 **Use existing languages as templates.** The spec should reference the existing Python and R implementations as models. The Python entry in `LANGUAGE_REGISTRY` (Unit 2) and `python_conda_pytest.json` (toolchain defaults) are the most complete examples.
 
+**Mixed-language projects.** Adding a new language also opens the door to mixed-language projects — for example, a Python application calling Julia for numerical computation, or a Julia GUI driving a Python ML backend. Mixed-language support requires additional work beyond the base language entry:
+
+- **Bridge library:** Define how the two languages communicate at runtime. Python-R uses `rpy2` (Python calling R) and `reticulate` (R calling Python). For Julia, you might use `PyJulia`/`PythonCall.jl` (Python calling Julia) or `PyCall.jl` (Julia calling Python). Specify the bridge library in the `bridge_libraries` field of both language registry entries.
+- **Cross-language stub generation:** When a unit in one language depends on a unit in another, the stub generator must produce stubs in the dependency's language, not the caller's. SVP already handles this (Bug S3-49) — your language's signature parser and stub generator will be invoked automatically for upstream dependencies written in your language.
+- **Bridge test injection:** The test agent needs instructions for writing integration tests that exercise the cross-language bridge. These tests verify that data crosses the language boundary correctly (type conversions, error propagation, memory management).
+- **Two-phase assembly:** Mixed projects are assembled in two phases — the primary language's project structure first, then the secondary language's files in a subdirectory. Your project assembler needs to handle both roles (primary and secondary).
+
+Mixed-language support is selected as **Option D** in the setup dialog. If your spec only defines the standalone language (Option A/B equivalent), mixed-language projects with your new language won't be available until the bridge definitions are added. You can add mixed-language support in the same spec or as a follow-up extension.
+
 ### 2.3 Pipeline Build (Two Passes)
 
 SVP self-builds use a two-pass architecture:
