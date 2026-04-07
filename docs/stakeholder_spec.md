@@ -4907,6 +4907,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P10 (Error-Path Contract Omission). The sync script was designed for bidirectional file copying, not for derived-artifact relationships. The stub-to-script import rewriting was a manual process with no automation or enforcement. **Detection:** Oracle E-mode runs 8-10 with `examples/gol-python-r/` repeatedly found script/stub desync.
 
+### 24.112 SVP Workspace Artifacts Not Separated by Build Mode (Post-delivery — Bug S3-99, NEW IN 2.2)
+
+**Workspace carry-over files (CLAUDE.md, sync_workspace.sh, examples/, regression tests) not gated by is_svp_build flag (NEW IN 2.2 -- Bug S3-99).** `create_new_project()` copied ALL SVP regression tests (115+ files) to every project workspace, including A-D user projects where they are irrelevant and would fail. `CLAUDE.md` was generated as a minimal stub without the full bug-fixing protocol needed for E/F self-builds. Workspace carry-over files reached the repo only via manual `sync_workspace.sh` calls, not through Stage 5 assembly. Fix: (1) `create_new_project()` creates empty `tests/` scaffold for all projects; SVP regression tests copied only for E/F via `copy_svp_regression_tests()` post-Stage-0. (2) CLAUDE.md split into Tier 1 (universal: action cycle, routing) and Tier 2 (SVP-only: bug protocol, stubs note); `enrich_claude_md_for_svp_build()` appends Tier 2 post-Stage-0 when `is_svp_build`. (3) `assemble_svp_workspace_artifacts()` in Stage 5 writes CLAUDE.md, sync_workspace.sh, examples/ to repo when `is_svp_build`, making Stage 5 the authoritative delivery mechanism.
+
+**Pattern:** P7 (Specification Omission). The spec did not distinguish workspace artifact delivery between normal projects and self-builds. **Detection:** Manual audit of create_new_project() and delivered repo contents during Bug S3-98 investigation.
+
 ---
 
 ## 25. Test Data

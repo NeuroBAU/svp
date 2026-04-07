@@ -787,6 +787,56 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# SVP workspace artifact assembly (Bug S3-99)
+# ---------------------------------------------------------------------------
+
+
+def assemble_svp_workspace_artifacts(
+    repo_dir: Path,
+    workspace_root: Path,
+    project_name: str,
+) -> Dict[str, int]:
+    """Assemble SVP workspace carry-over artifacts for E/F self-build repos.
+
+    Called during Stage 5 assembly when is_svp_build is true.
+    Writes workspace management files to the repo so that future passes
+    can recreate workspaces via restore_project().
+
+    Normal (A-D) projects do NOT call this — their repos stay clean.
+    """
+    from svp_launcher import CLAUDE_MD_TEMPLATE, CLAUDE_MD_SVP_ADDENDUM
+
+    counts: Dict[str, int] = {"files": 0}
+
+    # Full CLAUDE.md (Tier 1 + Tier 2)
+    claude_content = CLAUDE_MD_TEMPLATE.format(project_name=project_name)
+    claude_content += CLAUDE_MD_SVP_ADDENDUM
+    (repo_dir / "CLAUDE.md").write_text(claude_content, encoding="utf-8")
+    counts["files"] += 1
+
+    # sync_workspace.sh
+    sync_src = workspace_root / "sync_workspace.sh"
+    if sync_src.is_file():
+        import shutil
+
+        shutil.copy2(sync_src, repo_dir / "sync_workspace.sh")
+        counts["files"] += 1
+
+    # examples/ directory (test projects for oracle)
+    examples_src = workspace_root / "examples"
+    if examples_src.is_dir():
+        import shutil
+
+        examples_dst = repo_dir / "examples"
+        if examples_dst.exists():
+            shutil.rmtree(examples_dst)
+        shutil.copytree(str(examples_src), str(examples_dst))
+        counts["files"] += 1
+
+    return counts
+
+
+# ---------------------------------------------------------------------------
 # Deployed artifact regeneration (Bug S3-80)
 # ---------------------------------------------------------------------------
 

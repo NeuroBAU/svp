@@ -21,6 +21,106 @@ from src.unit_2.stub import LANGUAGE_REGISTRY
 # Constants
 # ---------------------------------------------------------------------------
 
+# Tier 1: Universal CLAUDE.md content for ALL SVP projects (A-D, E, F)
+CLAUDE_MD_TEMPLATE: str = """\
+# SVP-Managed Project: {project_name}
+
+This project is managed by the **Stratified Verification Pipeline (SVP)**. \
+You are the orchestration layer — the main session. \
+Your behavior is fully constrained by deterministic scripts. \
+Do not improvise pipeline flow.
+
+## On Session Start
+
+Run the routing script immediately:
+
+```
+python scripts/routing.py --project-root .
+```
+
+The routing script reads `pipeline_state.json` and outputs a structured \
+action block telling you exactly what to do next. Execute its output. \
+Do not reason about what stage the pipeline is in or what should happen next.
+
+## The Six-Step Action Cycle
+
+Your complete behavior is six steps, repeated:
+
+1. **Run the routing script** → receive a structured action block.
+2. **Run the PREPARE command** (if present) → produces a task prompt or gate prompt file.
+3. **Execute the ACTION** (invoke agent / run command / present gate).
+4. **Write the result to `.svp/last_status.txt`** (agent terminal status line or constructed command status).
+5. **Run the POST command** (if present) → updates pipeline state.
+6. **Go to step 1.**
+
+Do not skip steps. Do not add steps. Do not reorder steps.
+
+## Verbatim Task Prompt Relay
+
+When invoking an agent, pass the contents of TASK_PROMPT_FILE as the task prompt \
+**verbatim**. Do not summarize, annotate, or rephrase. The task prompt was assembled \
+by a deterministic preparation script and contains exactly the context the agent needs.
+
+## REMINDER
+
+- Execute the ACTION above exactly as specified.
+- When invoking an agent, pass the contents of TASK_PROMPT_FILE as the task prompt verbatim.
+- Wait for the agent to produce its terminal status line before proceeding.
+- Write the agent's terminal status line to .svp/last_status.txt.
+- Run the POST command if one was specified.
+- Then re-run the routing script for the next action.
+- Do not improvise pipeline flow. Do not skip steps. Do not add steps.
+- If the human types during an autonomous sequence, acknowledge and defer.
+- You MUST NOT write to pipeline_state.json directly or batch multiple units.
+"""
+
+# Tier 2: SVP self-build addendum (E/F only) — bug-fixing protocol, sync, stubs
+CLAUDE_MD_SVP_ADDENDUM: str = """\
+
+## Manual Bug-Fixing Protocol (Break-Glass Mode)
+
+When the SVP routing mechanism is too broken to function and the human asks \
+you to fix bugs directly, follow this protocol EXACTLY.
+
+**RULE 0: NEVER directly fix a bug. ALWAYS enter plan mode first.**
+
+### Bug-Fixing Cycle (repeat for each bug):
+
+1. **DIAGNOSE** — Identify root cause. Trace through spec → blueprint → code to understand WHY.
+
+2. **PLAN** the fixes in:
+   - a. **SPEC** — Add bug entry to Section 24, fix any spec gaps
+   - b. **BLUEPRINT** — Amend contracts in affected units
+   - c. **CODE** — Fix implementation in `src/unit_*/stub.py`. \
+**Stubs are the single source of truth.** Never edit `scripts/*.py` directly \
+— they are derived from stubs by `sync_workspace.sh` Step 0 (import rewriting). \
+Fix the stub, run sync, scripts auto-update.
+   - d. **EXECUTE** — Apply the code changes
+   - e. **EVALUATE** — Run tests, verify the fix works
+   - f. **LESSONS LEARNED** — Write entry in `references/svp_2_1_lessons_learned.md`
+   - g. **REGRESSION TESTS** — Author tests covering ALL aspects of the bug
+   - h. **VERIFY** — Tests pass with 0 skipped
+   - i. **DEPLOYED ARTIFACTS** — If the fix touches Units that produce deployed \
+plugin artifacts (Unit 25 → `svp/commands/`, Unit 26 → `svp/skills/`, \
+Unit 23 → `svp/agents/`, `svp/hooks/`), manually update the corresponding \
+`.md` files in the repo's `svp/` directory. `sync_workspace.sh` does NOT \
+sync these. The deployed `.md` file is what Claude Code loads — the Python \
+source is only an input to assembly.
+   - j. **SYNC** — Run `bash sync_workspace.sh` from the workspace directory. This handles:
+     - Step 0: Derives `scripts/*.py` from `src/unit_*/stub.py` by rewriting imports (stubs → flat modules)
+     - Scripts: workspace `scripts/` ↔ repo `svp/scripts/` (newer wins)
+     - Source units: workspace `src/unit_*/stub.py` ↔ repo `src/unit_*/stub.py` (newer wins)
+     - Docs: workspace is authoritative → repo `docs/`, `specs/`, `blueprint/`, `references/` + Pass 1 repo
+     - Tests: workspace `tests/` ↔ repo `tests/` (newer wins)
+     - Use `--dry-run` to preview, `--force-workspace` or `--force-repo` to override timestamps
+   - k. **TEST FROM BOTH** — Run `pytest` from BOTH the workspace AND the repo directory. \
+Do not skip either. Failures in one but not the other indicate stale test files or permission issues.
+
+3. **EVALUATE** — All tests pass from BOTH workspace AND repo. 0 skipped, 0 failed. \
+Repos fully in sync. Clean up any stale test artifacts (e.g., `test_project/`, \
+`test_restore/`) left by previous runs.
+"""
+
 VALID_STAGES = {"0", "1", "2", "pre_stage_3", "3", "4", "5"}
 
 
@@ -344,13 +444,15 @@ def create_new_project(
         shutil.copy2(ruff_src, ruff_dst)
         ruff_dst.chmod(stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
 
-    # Copy regression test files
-    tests_src = plugin_root / "tests"
-    if tests_src.is_dir():
-        tests_dst = project_root / "tests"
-        if tests_dst.exists():
-            shutil.rmtree(tests_dst)
-        shutil.copytree(tests_src, tests_dst)
+    # Create empty tests scaffold. SVP regression tests are only copied
+    # for E/F builds (post-Stage-0 via copy_svp_regression_tests).
+    # For A-D projects, the test agent populates tests/ during Stage 3.
+    tests_dst = project_root / "tests"
+    tests_dst.mkdir(exist_ok=True)
+    (tests_dst / "__init__.py").write_text("")
+    regressions_dst = tests_dst / "regressions"
+    regressions_dst.mkdir(exist_ok=True)
+    (regressions_dst / "__init__.py").write_text("")
 
     # Copy hook configuration with path rewriting
     hooks_src = plugin_root / ".claude-plugin"
@@ -401,24 +503,56 @@ def create_new_project(
     config_path = project_root / "svp_config.json"
     config_path.write_text(json.dumps(DEFAULT_CONFIG, indent=2), encoding="utf-8")
 
-    # Create CLAUDE.md
+    # Create CLAUDE.md (Tier 1: universal, always present)
     claude_md = project_root / "CLAUDE.md"
     claude_md.write_text(
-        f"# SVP-Managed Project: {project_name}\n\n"
-        "This project is managed by the **Stratified Verification Pipeline (SVP)**. "
-        "You are the orchestration layer \u2014 the main session. "
-        "Your behavior is fully constrained by deterministic scripts. "
-        "Do not improvise pipeline flow.\n\n"
-        "## On Session Start\n\n"
-        "Run the routing script immediately:\n\n"
-        "```\npython scripts/routing.py --project-root .\n```\n\n"
-        "The routing script reads `pipeline_state.json` and outputs a structured "
-        "action block telling you exactly what to do next. Execute its output. "
-        "Do not reason about what stage the pipeline is in or what should happen next.\n",
+        CLAUDE_MD_TEMPLATE.format(project_name=project_name),
         encoding="utf-8",
     )
 
     return project_root
+
+
+def copy_svp_regression_tests(project_root: Path, plugin_root: Path) -> None:
+    """Copy SVP regression tests to workspace for E/F builds.
+
+    Called by the routing script after Stage 0 completes when
+    is_svp_build is true. A-D projects get an empty tests/ scaffold
+    (test agent populates during Stage 3); E/F projects need SVP's
+    own regression tests as carry-over artifacts.
+    """
+    tests_src = plugin_root / "tests"
+    if not tests_src.is_dir():
+        return
+
+    tests_dst = project_root / "tests"
+    if tests_dst.exists():
+        shutil.rmtree(tests_dst)
+    shutil.copytree(tests_src, tests_dst)
+
+
+def enrich_claude_md_for_svp_build(project_root: Path) -> None:
+    """Append SVP self-build addendum to CLAUDE.md for E/F projects.
+
+    Called by the routing script after Stage 0 completes when
+    is_svp_build is true. Appends Tier 2 content (bug-fixing protocol,
+    stubs-as-source-of-truth, sync instructions) to the existing
+    Tier 1 CLAUDE.md.
+
+    Idempotent: checks if addendum is already present before appending.
+    """
+    claude_md = project_root / "CLAUDE.md"
+    if not claude_md.exists():
+        return
+
+    content = claude_md.read_text(encoding="utf-8")
+
+    # Idempotency check: don't append if already present
+    if "Manual Bug-Fixing Protocol" in content:
+        return
+
+    content += CLAUDE_MD_SVP_ADDENDUM
+    claude_md.write_text(content, encoding="utf-8")
 
 
 def _rewrite_hook_paths(hooks_dir: Path, plugin_root: Path, project_root: Path) -> None:

@@ -194,10 +194,11 @@ doc_sync "$WORKSPACE/references/svp_2_1_lessons_learned.md" \
     "$PASS1_REPO/docs/references/svp_2_1_lessons_learned.md"
 echo ""
 
-# --- Step 3b: Workspace root files (Bug S3-98) ---
-# These files live at workspace root and must be carried over to the repo
-# so that restore_project() can recreate the workspace. Workspace is
-# authoritative (like docs), not bidirectional.
+# --- Step 3b: Workspace root files (Bug S3-98, S3-99) ---
+# Universal files (all projects): project_context.md, ruff.toml.
+# SVP self-build files (E/F only): CLAUDE.md, sync_workspace.sh.
+# Stage 5 assembly is the authoritative delivery mechanism for E/F carry-over;
+# this step is a development convenience to keep the repo current between builds.
 echo "--- Step 3b: Workspace Root Files ---"
 for rootfile in CLAUDE.md project_context.md ruff.toml sync_workspace.sh; do
     if [ -f "$WORKSPACE/$rootfile" ]; then

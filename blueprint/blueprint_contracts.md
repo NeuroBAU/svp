@@ -1781,6 +1781,14 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 - Returns a dict with counts of regenerated files per category.
 - **Invariant:** Every deployed artifact in `svp/commands/`, `svp/agents/`, `svp/skills/`, and `svp/hooks/` must match its source Unit constant after `sync_workspace.sh` runs.
 
+**assemble_svp_workspace_artifacts (Bug S3-99):**
+- Called during Stage 5 assembly when `profile["is_svp_build"]` is true.
+- Writes full CLAUDE.md (Tier 1 + Tier 2) to repo root.
+- Copies `sync_workspace.sh` to repo root.
+- Copies `examples/` directory to repo root.
+- Normal (A-D) projects do NOT call this — their repos stay clean.
+- Makes Stage 5 the authoritative delivery mechanism for workspace carry-over files.
+
 **GIT_REPO_AGENT_DEFINITION:** assembly mapping rules, commit order (conventional commits), delivery compliance awareness, README generation, quality config generation, bounded fix cycle (iteration_limit attempts). Mixed archetype assembly: when profile `archetype` is `"mixed"`, execute two-phase composition — Phase 1 using primary language assembler for root structure, Phase 2 creating `<secondary_language>/` subdirectory for secondary source files and `<secondary_language>/tests/` for secondary tests; generate quality configs for both languages; produce single `environment.yml` listing both languages' dependencies and bridge libraries. **(Bug S3-97 fix.)** Status: `REPO_ASSEMBLY_COMPLETE`.
 
 **CHECKLIST_GENERATION_AGENT_DEFINITION:** produces two checklists (alignment_checker_checklist.md, blueprint_author_checklist.md) for Stage 2 agents. Status: `CHECKLISTS_COMPLETE`.
@@ -2101,10 +2109,17 @@ def parse_args(argv: list = None) -> argparse.Namespace: ...
 
 def preflight_check(project_root: Optional[Path] = None) -> List[str]: ...
 
+CLAUDE_MD_TEMPLATE: str  # Tier 1: universal (action cycle, routing, reminders)
+CLAUDE_MD_SVP_ADDENDUM: str  # Tier 2: SVP self-build only (bug protocol, stubs note)
+
 def create_new_project(
     project_name: str,
     plugin_root: Path,
 ) -> Path: ...
+
+def copy_svp_regression_tests(project_root: Path, plugin_root: Path) -> None: ...
+
+def enrich_claude_md_for_svp_build(project_root: Path) -> None: ...
 
 def restore_project(
     project_name: str,
@@ -2143,17 +2158,25 @@ def main(argv: list = None) -> None: ...
 - External service reachability (plugin projects, advisory only).
 - Returns list of error messages (empty if all pass).
 
+**CLAUDE_MD_TEMPLATE:** Tier 1 universal content — action cycle, routing instructions, verbatim relay, reminders. All projects get this. Contains `{project_name}` placeholder. **(Bug S3-99.)**
+
+**CLAUDE_MD_SVP_ADDENDUM:** Tier 2 SVP self-build content — bug-fixing protocol, stubs-as-source-of-truth, deployed artifacts, sync instructions. Only E/F projects get this (appended post-Stage-0). **(Bug S3-99.)**
+
 **create_new_project:**
 - Creates project directory.
 - Copies scripts from plugin source.
 - Copies toolchain files.
 - Copies `ruff.toml` (set read-only after copy).
-- Copies regression test files.
+- Creates empty `tests/` scaffold with `__init__.py` (SVP regression tests only copied for E/F via `copy_svp_regression_tests` post-Stage-0). **(Bug S3-99.)**
 - Copies hook configuration with path rewriting (plugin paths -> project paths).
-- Creates initial `pipeline_state.json` (with `"sub_stage": "hook_activation"` per Bug S3-38), `svp_config.json`, `CLAUDE.md`.
+- Creates initial `pipeline_state.json` (with `"sub_stage": "hook_activation"` per Bug S3-38), `svp_config.json`, `CLAUDE.md` (Tier 1 only via `CLAUDE_MD_TEMPLATE`).
 - Sets filesystem permissions.
 - Launches session.
 - Returns project root path.
+
+**copy_svp_regression_tests:** Copies full SVP test suite from plugin to workspace. Called post-Stage-0 when `is_svp_build` is true. A-D projects use the empty scaffold from `create_new_project`. **(Bug S3-99.)**
+
+**enrich_claude_md_for_svp_build:** Appends `CLAUDE_MD_SVP_ADDENDUM` (Tier 2) to workspace CLAUDE.md. Called post-Stage-0 when `is_svp_build` is true. Idempotent (checks for existing addendum before appending). **(Bug S3-99.)**
 
 **restore_project:**
 - Creates project directory.
