@@ -65,33 +65,42 @@ claude plugin install svp@svp
 ### Install the Launcher
 
 ```bash
-pip install -e .
+pip install -e . --prefix ~/.local
 ```
 
-This builds the `svp` CLI entry point. The `svp` command is simply a wrapper that invokes `svp/scripts/svp_launcher.py` — the launcher source lives inside the plugin directory and the `pip install` step creates a CLI entry point for it via `pyproject.toml`. The script is placed in pip's script directory, which may not be on your PATH. If `svp --help` does not work after installation, you need to locate the script and make it accessible.
+This installs the `svp` CLI entry point into `~/.local/bin/`. The `-e` flag means "editable install" — pip creates a link to the source code rather than copying it, so any changes to the plugin source are immediately reflected without reinstalling. The `--prefix ~/.local` flag tells pip to install the script into `~/.local/bin/` instead of the system or virtual environment default, which keeps user-installed tools separate from system packages.
 
-#### macOS / Linux
+You can use any directory you prefer instead of `~/.local` — the only requirement is that the `bin/` subdirectory of your chosen prefix is on your shell's `PATH`. If `svp --help` does not work after installation, the install directory is not on your PATH.
 
-Find where pip placed the script, then copy or symlink it to a directory on your PATH:
+#### Adding the install directory to your PATH
+
+The `PATH` environment variable tells your shell where to find executable commands. If pip installs `svp` to a directory not already in your PATH, you need to add it.
+
+**macOS (zsh — default shell since Catalina):**
 
 ```bash
-# Find the script location
-find "$(python -c 'import sysconfig; print(sysconfig.get_path("scripts"))')" -name svp 2>/dev/null
+# Add to ~/.zshrc (loaded on every new terminal)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 
-# If found, copy it to ~/.local/bin/ (create the directory if needed)
-mkdir -p ~/.local/bin
-cp "$(python -c 'import sysconfig; print(sysconfig.get_path("scripts"))')/svp" ~/.local/bin/svp
-chmod +x ~/.local/bin/svp
-
-# Ensure ~/.local/bin is on your PATH (add to ~/.bashrc or ~/.zshrc if not already)
-export PATH="$HOME/.local/bin:$PATH"
+# Apply to current session without restarting terminal
+source ~/.zshrc
 ```
 
-#### Windows (WSL2)
+**Linux (bash — most common default shell):**
 
-Inside WSL2, the same Linux instructions apply. For native Windows with Anaconda, scripts are typically installed to the Anaconda `Scripts` directory (e.g., `C:\Users\<you>\anaconda3\Scripts\svp.exe`), which is usually on PATH after Anaconda installation.
+```bash
+# Add to ~/.bashrc (loaded on every new terminal)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 
-Verify the installation:
+# Apply to current session
+source ~/.bashrc
+```
+
+**Windows (WSL2):**
+
+Inside WSL2, follow the Linux/bash instructions above. For native Windows with Anaconda, scripts are typically installed to the Anaconda `Scripts` directory (e.g., `C:\Users\<you>\anaconda3\Scripts\svp.exe`), which is usually on PATH after Anaconda installation. To add a custom directory to PATH on native Windows, open **Settings > System > About > Advanced system settings > Environment Variables** and edit the `Path` variable under "User variables."
+
+#### Verify the installation
 
 ```bash
 svp --help
