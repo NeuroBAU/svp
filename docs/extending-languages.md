@@ -91,6 +91,19 @@ svp
 
 Select a test project (e.g., GoL Python) and let the oracle run its dry run and green run. An ALL CLEAR result means the baseline is solid.
 
+### 1.5 Understanding Option E vs Option F
+
+SVP offers two self-build archetypes:
+
+- **Option E — Language extension self-build.** Use this to add a new language to SVP. The output is an updated SVP with your language support added. This is what you'll use for the extension build.
+- **Option F — Architectural self-build.** Use this to modify SVP's own pipeline machinery (routing logic, state management, agent protocols, gate structure). Unless you are deliberately changing how SVP itself works, you should not need Option F.
+
+**However, Option F has an important role in troubleshooting.** When you restore a workspace from the repo (Step 1.2), you are recreating the development environment from delivered artifacts. The restore should produce a workspace where all tests pass — but AI-assisted code generation is inherently probabilistic. The pipeline's multi-agent architecture, test suites, and quality gates are designed to guardrail this: tests catch most errors, the red-green cycle forces behavioral verification, and coverage review fills gaps. In practice, a restored workspace should work correctly.
+
+But "should" is not "will." If you restore and find failures that weren't in the original build, the oracle with **F-mode (machinery testing)** is your diagnostic tool. F-mode rebuilds SVP itself as a test — it drives the full pipeline against the SVP spec and blueprint, exercising every routing path, gate presentation, and state transition. Running the oracle in F-mode after a restore tells you whether the machinery is sound or whether something was lost in translation.
+
+In short: **Option E is for building your extension. Option F is for verifying that SVP itself is working correctly after a restore or when troubleshooting pipeline issues.**
+
 ---
 
 ## Phase 2: Build the Language Extension
