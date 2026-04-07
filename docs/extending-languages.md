@@ -82,8 +82,8 @@ All tests should pass with 0 failures and 0 skipped.
 The oracle performs end-to-end validation of the delivered product. Running it before you start confirms the baseline is clean:
 
 ```bash
-# From the workspace, start a Claude Code session
-claude
+# From the workspace, resume the SVP session
+svp
 
 # Then invoke the oracle
 /svp:oracle
