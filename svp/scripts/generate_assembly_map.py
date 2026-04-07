@@ -1093,6 +1093,7 @@ def generate_assembly_map(
     # Build a path stack to track the current directory context
     # path_stack[i] is the directory name at depth i
     path_stack: List[str] = []
+    unmapped_annotations: List[str] = []  # Annotations that couldn't produce a mapping
 
     # Detect indent unit for space-indented trees
     indent_unit = _detect_indent_unit(lines)
@@ -1105,6 +1106,8 @@ def generate_assembly_map(
         # Parse the line
         parsed = _parse_tree_line(line, indent_unit)
         if parsed is None:
+            if unit_number is not None:
+                unmapped_annotations.append(line.strip())
             continue
 
         depth, name, is_root = parsed
@@ -1139,15 +1142,14 @@ def generate_assembly_map(
                 workspace_to_repo[workspace_path] = repo_path
                 repo_to_workspace[repo_path] = workspace_path
 
-    # Verify completeness: every <- Unit N annotation must have an entry
-    annotation_pattern = re.compile(r"<-\s*Unit\s+(\d+)")
-    all_annotations = annotation_pattern.findall(file_tree_text)
-    if len(all_annotations) != len(workspace_to_repo):
-        missing_count = len(all_annotations) - len(workspace_to_repo)
+    # Verify completeness: annotations on unparseable lines are errors.
+    # Directory-level annotations are structural documentation and are
+    # silently skipped (they don't produce mappings).
+    if unmapped_annotations:
         raise ValueError(
-            f"Assembly map incomplete: {missing_count} annotation(s) "
-            f"could not be mapped. Found {len(all_annotations)} annotations "
-            f"but only {len(workspace_to_repo)} mappings."
+            f"Assembly map incomplete: {len(unmapped_annotations)} "
+            f"annotation(s) could not be mapped:\n"
+            + "\n".join(f"  {a}" for a in unmapped_annotations)
         )
 
     # Bijectivity invariant check

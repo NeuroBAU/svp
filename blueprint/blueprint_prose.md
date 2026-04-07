@@ -89,7 +89,7 @@ svp-repo/                              <- repository root
 |   |   |   |-- python_conda_pytest.json  <- Unit 27
 |   |   |   |-- r_renv_testthat.json      <- Unit 27
 |   |   |   +-- ruff.toml                 <- Unit 27
-|   |   |-- delivery_quality_templates/   <- Unit 27
+|   |   |-- delivery_quality_templates/
 |   |   |   |-- python/
 |   |   |   |   |-- ruff.toml.template
 |   |   |   |   |-- flake8.template
@@ -113,11 +113,11 @@ svp-repo/                              <- repository root
 |       |-- test_r_test_output_parsing.py       <- Unit 14 (NEW IN 2.2)
 |       +-- test_behavioral_equivalence.py      <- Unit 14 (NEW IN 2.2)
 +-- examples/
-    |-- game-of-life/                  <- Unit 27
-    |-- gol-r/                         <- Unit 27
-    |-- gol-plugin/                    <- Unit 27
-    |-- gol-python-r/                  <- Unit 27
-    +-- gol-r-python/                  <- Unit 27
+    |-- game-of-life/
+    |-- gol-r/
+    |-- gol-plugin/
+    |-- gol-python-r/
+    +-- gol-r-python/
 ```
 
 ---
