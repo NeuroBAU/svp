@@ -1459,7 +1459,8 @@ def sync_pass1_artifacts(project_root: Path) -> Dict[str, Any]: ...
 - Idempotent: guarded by `.svp/pass1_sync_complete` marker file.
 - Returns summary dict: `synced_files`, `skipped_files`, `merged_files`, `pass1_workspace`, `errors`.
 
-- Script execution contract: cmd_save.py, cmd_quit.py, cmd_status.py, cmd_clean.py all use argparse with `--project-root` argument. cmd_clean.py also accepts `--action`. **(Bug S3-67 fix.)**
+- Script execution contract: `cmd_quit.py`, `cmd_status.py`, `cmd_clean.py` are CLI wrappers that import from `sync_debug_docs.py` and use argparse with `--project-root` argument. `cmd_clean.py` also accepts `--action`. `cmd_save.py` is a re-export wrapper for backward compatibility. **(Bug S3-67 fix, CHANGED Bug S3-98.)**
+- **Stub/script derivation invariant (Bug S3-98):** All Unit 16 functions live in `src/unit_16/stub.py` (source of truth). `scripts/sync_debug_docs.py` is derived from the stub by `derive_scripts_from_stubs.py` (import rewriting). Never edit `scripts/sync_debug_docs.py` or `scripts/cmd_save.py` directly.
 
 ---
 

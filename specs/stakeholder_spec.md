@@ -4928,7 +4928,7 @@ The following are implemented as scripts with no LLM involvement:
 - **Import validator:** executes imports in Conda environment.
 - **Ledger manager:** append, read, compact, clear ledgers.
 - **Hint prompt assembler:** wraps hints in context-dependent prompt blocks.
-- **Command scripts:** `cmd_save.py`, `cmd_quit.py`, `cmd_status.py`, `cmd_clean.py`.
+- **Command scripts:** `sync_debug_docs.py` (all Unit 16 command and sync logic), `cmd_quit.py`, `cmd_status.py`, `cmd_clean.py` (CLI wrappers importing from `sync_debug_docs`), `cmd_save.py` (re-export wrapper for backward compatibility). **(CHANGED IN 2.2 — Bug S3-98.)**
 - **Quality gate scripts (NEW IN 2.1):** execute quality tool commands from `toolchain.json`, parse output, classify residuals, produce quality reports for agent re-passes.
 - **Delivery compliance scan:** reads profile, scans delivered source for banned patterns.
 - **Universal write authorization hooks:** validate writes against pipeline state.
@@ -4938,6 +4938,7 @@ The following are implemented as scripts with no LLM involvement:
 - **Checklist generation (NEW IN 2.2):** Post-Stage-1 agent reads the approved spec and produces two structured checklists for Stage 2 agents. Single-shot invocation.
 - **Oracle session management scripts (NEW IN 2.2):** state tracking for oracle sessions, run ledger management, nested session lifecycle.
 - **Assembly map generator (NEW IN 2.2):** produces `.svp/assembly_map.json` during Stage 5 assembly, providing a bidirectional mapping between workspace paths and delivered repo paths. Generated from blueprint file tree annotations. Updated on every Stage 5 reassembly.
+- **Script derivation (NEW IN 2.2 — Bug S3-98):** `derive_scripts_from_stubs.py` reads each unit stub (`src/unit_N/stub.py`), rewrites `from src.unit_N.stub import` to flat module imports (`from module_name import`), and writes the derived script to `scripts/<module>.py`. Called as Step 0 of `sync_workspace.sh`. **Stubs are the single source of truth; scripts are derived artifacts.** Never edit `scripts/*.py` directly.
 
 **(NEW IN 2.2)** Language-dispatch deterministic components:
 - **Language registry** (`language_registry.py`): Built-in entries for Python, R, Stan. Import-time validation.
