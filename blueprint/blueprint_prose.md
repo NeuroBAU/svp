@@ -77,10 +77,10 @@ svp-repo/                              <- repository root
 |   |   |-- run_tests.py               <- Unit 14
 |   |   |-- quality_gate.py            <- Unit 15
 |   |   |-- update_state.py            <- Unit 14
-|   |   |-- cmd_save.py                <- Unit 16
-|   |   |-- cmd_quit.py                <- Unit 16
-|   |   |-- cmd_status.py              <- Unit 16
-|   |   |-- cmd_clean.py               <- Unit 16
+|   |   |-- cmd_save.py                (re-export wrapper for sync_debug_docs)
+|   |   |-- cmd_quit.py                (CLI wrapper, imports from sync_debug_docs)
+|   |   |-- cmd_status.py              (CLI wrapper, imports from sync_debug_docs)
+|   |   |-- cmd_clean.py               (CLI wrapper, imports from sync_debug_docs)
 |   |   |-- structural_check.py        <- Unit 28
 |   |   |-- adapt_regression_tests.py  <- Unit 23
 |   |   |-- generate_assembly_map.py   <- Unit 23

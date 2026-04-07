@@ -58,6 +58,7 @@ STUB_TO_SCRIPT = {
     "src/unit_13/stub.py": "scripts/prepare_task.py",
     "src/unit_14/stub.py": "scripts/routing.py",
     "src/unit_15/stub.py": "scripts/quality_gate.py",
+    "src/unit_16/stub.py": "scripts/sync_debug_docs.py",
     "src/unit_23/stub.py": "scripts/generate_assembly_map.py",
     "src/unit_28/stub.py": "scripts/structural_check.py",
     "src/unit_29/stub.py": "scripts/svp_launcher.py",

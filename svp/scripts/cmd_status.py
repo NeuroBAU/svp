@@ -7,7 +7,7 @@ Part of Unit 16: Command Logic Scripts.
 
 from pathlib import Path
 
-from cmd_save import cmd_status
+from sync_debug_docs import cmd_status
 
 if __name__ == "__main__":
     import argparse

@@ -158,7 +158,8 @@ class TestLauncherImport:
 class TestCommandScriptsAcceptProjectRoot:
     """All cmd scripts must accept --project-root argument."""
 
-    CMD_SCRIPTS = ["cmd_save.py", "cmd_quit.py", "cmd_status.py", "cmd_clean.py"]
+    # cmd_save.py is a re-export wrapper (Bug S3-98), not a CLI entry point
+    CMD_SCRIPTS = ["cmd_quit.py", "cmd_status.py", "cmd_clean.py"]
 
     @pytest.mark.parametrize("script", CMD_SCRIPTS)
     def test_accepts_project_root_flag(self, script):
