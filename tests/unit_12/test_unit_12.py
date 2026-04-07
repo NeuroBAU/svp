@@ -27,7 +27,7 @@ Synthetic data assumptions:
 
 import pytest
 
-from src.unit_12.stub import assemble_hint_prompt
+from hint_prompt_assembler import assemble_hint_prompt
 
 # ---------------------------------------------------------------------------
 # Constants / fixtures

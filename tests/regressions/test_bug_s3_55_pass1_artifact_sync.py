@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_16.stub import (
+from sync_debug_docs import (
     _derive_pass1_workspace,
     sync_pass1_artifacts,
 )

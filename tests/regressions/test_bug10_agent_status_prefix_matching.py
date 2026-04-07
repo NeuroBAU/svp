@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_5.stub import PipelineState
-from src.unit_14.stub import dispatch_agent_status, AGENT_STATUS_LINES
+from pipeline_state import PipelineState
+from routing import dispatch_agent_status, AGENT_STATUS_LINES
 
 
 def test_exact_match_accepted():

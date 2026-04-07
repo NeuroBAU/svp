@@ -13,7 +13,7 @@ SVP 2.2: parse_args lives in src.unit_29.stub (was svp_launcher).
 
 import unittest
 
-from src.unit_29.stub import parse_args
+from svp_launcher import parse_args
 
 
 class TestBug48BareCommand(unittest.TestCase):

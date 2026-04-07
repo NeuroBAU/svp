@@ -1,7 +1,7 @@
 """Regression test for Bug S3-47: upstream imports behind TYPE_CHECKING."""
 import ast
-from src.unit_10.stub import generate_stub
-from src.unit_2.stub import LANGUAGE_REGISTRY
+from stub_generator import generate_stub
+from language_registry import LANGUAGE_REGISTRY
 
 
 def test_upstream_imports_behind_type_checking():

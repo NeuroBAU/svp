@@ -5,7 +5,7 @@ and quality configuration derived from the project profile, ensuring
 documentation content is not lost during repo reassembly.
 """
 
-from src.unit_23.stub import GIT_REPO_AGENT_DEFINITION
+from generate_assembly_map import GIT_REPO_AGENT_DEFINITION
 
 
 def test_git_repo_agent_mentions_delivered_documentation():

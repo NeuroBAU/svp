@@ -11,7 +11,7 @@ SVP 2.2 adaptation:
   the same purpose.
 """
 
-from src.unit_23.stub import GIT_REPO_AGENT_DEFINITION
+from generate_assembly_map import GIT_REPO_AGENT_DEFINITION
 
 
 def test_git_repo_agent_delivers_documentation():

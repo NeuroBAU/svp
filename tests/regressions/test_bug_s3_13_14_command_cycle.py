@@ -9,9 +9,9 @@ import textwrap
 
 import pytest
 
-from src.unit_5.stub import PipelineState
-from src.unit_10.stub import generate_upstream_stubs, main as stub_main
-from src.unit_14.stub import (
+from pipeline_state import PipelineState
+from stub_generator import generate_upstream_stubs, main as stub_main
+from routing import (
     dispatch_command_status,
     route,
     update_state_main,

@@ -12,7 +12,7 @@ SVP 2.2 adaptation:
 
 from dataclasses import asdict
 
-from src.unit_5.stub import PipelineState
+from pipeline_state import PipelineState
 
 
 def test_total_units_defaults_to_zero():

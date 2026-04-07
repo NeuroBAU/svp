@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_3.stub import DEFAULT_PROFILE, _deep_merge, load_profile
+from profile_schema import DEFAULT_PROFILE, _deep_merge, load_profile
 
 
 _project_root = Path(__file__).resolve().parents[2]

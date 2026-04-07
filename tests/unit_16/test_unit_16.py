@@ -37,7 +37,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.unit_16.stub import (
+from sync_debug_docs import (
     cmd_clean,
     cmd_quit,
     cmd_save,
@@ -165,8 +165,8 @@ SAMPLE_BUILD_LOG_LINES = [
 class TestCmdSave:
     """Tests for cmd_save: flush state to disk, verify integrity, return message."""
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.save_state")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.save_state")
     def test_cmd_save_returns_confirmation_string(
         self, mock_save_state, mock_load_state
     ):
@@ -179,8 +179,8 @@ class TestCmdSave:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.save_state")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.save_state")
     def test_cmd_save_calls_save_state(self, mock_save_state, mock_load_state):
         """cmd_save flushes pipeline state to disk via save_state."""
         mock_state = _make_mock_state()
@@ -196,8 +196,8 @@ class TestCmdSave:
             or args[1].get("project_root") == SAMPLE_PROJECT_ROOT
         )
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.save_state")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.save_state")
     def test_cmd_save_verifies_file_integrity(self, mock_save_state, mock_load_state):
         """cmd_save re-reads and validates the file after saving (integrity check)."""
         mock_state = _make_mock_state()
@@ -208,8 +208,8 @@ class TestCmdSave:
         # load_state should be called at least once (for re-read verification)
         mock_load_state.assert_called()
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.save_state")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.save_state")
     def test_cmd_save_with_various_project_roots(
         self, mock_save_state, mock_load_state
     ):
@@ -221,8 +221,8 @@ class TestCmdSave:
             result = cmd_save(root)
             assert isinstance(result, str)
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.save_state")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.save_state")
     def test_cmd_save_integrity_check_re_reads_after_write(
         self, mock_save_state, mock_load_state
     ):
@@ -247,7 +247,7 @@ class TestCmdSave:
 class TestCmdQuit:
     """Tests for cmd_quit: calls cmd_save first, then returns exit signal."""
 
-    @patch("src.unit_16.stub.cmd_save")
+    @patch("sync_debug_docs.cmd_save")
     def test_cmd_quit_returns_exit_signal(self, mock_cmd_save):
         """cmd_quit returns an exit signal string."""
         mock_cmd_save.return_value = "State saved."
@@ -257,7 +257,7 @@ class TestCmdQuit:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    @patch("src.unit_16.stub.cmd_save")
+    @patch("sync_debug_docs.cmd_save")
     def test_cmd_quit_calls_cmd_save_first(self, mock_cmd_save):
         """cmd_quit calls cmd_save before returning."""
         mock_cmd_save.return_value = "State saved."
@@ -266,7 +266,7 @@ class TestCmdQuit:
 
         mock_cmd_save.assert_called_once_with(SAMPLE_PROJECT_ROOT)
 
-    @patch("src.unit_16.stub.cmd_save")
+    @patch("sync_debug_docs.cmd_save")
     def test_cmd_quit_exit_signal_is_distinguishable(self, mock_cmd_save):
         """The exit signal returned by cmd_quit should be recognizable as an exit."""
         mock_cmd_save.return_value = "State saved."
@@ -281,7 +281,7 @@ class TestCmdQuit:
             for keyword in ["exit", "quit", "bye", "shutdown", "terminate", "stop"]
         ), f"Exit signal '{result}' should contain an exit-related keyword"
 
-    @patch("src.unit_16.stub.cmd_save")
+    @patch("sync_debug_docs.cmd_save")
     def test_cmd_quit_passes_project_root_to_save(self, mock_cmd_save):
         """cmd_quit passes the project_root argument through to cmd_save."""
         mock_cmd_save.return_value = "Saved."
@@ -300,8 +300,8 @@ class TestCmdQuit:
 class TestCmdStatus:
     """Tests for cmd_status: reads state, profile, build log; returns formatted report."""
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_returns_formatted_string(
         self, mock_load_state, mock_load_profile
     ):
@@ -314,8 +314,8 @@ class TestCmdStatus:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_includes_project_name(self, mock_load_state, mock_load_profile):
         """Status output reports the project name."""
         mock_load_state.return_value = _make_mock_state()
@@ -326,8 +326,8 @@ class TestCmdStatus:
         # Project name is derived from project_root.name
         assert SAMPLE_PROJECT_NAME in result
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_includes_stage(self, mock_load_state, mock_load_profile):
         """Status output includes the current stage."""
         mock_load_state.return_value = _make_mock_state(stage="3")
@@ -337,8 +337,8 @@ class TestCmdStatus:
 
         assert "3" in result
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_includes_sub_stage(self, mock_load_state, mock_load_profile):
         """Status output includes the current sub_stage."""
         mock_load_state.return_value = _make_mock_state(sub_stage="test_generation")
@@ -348,8 +348,8 @@ class TestCmdStatus:
 
         assert "test_generation" in result
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_includes_current_unit_and_total(
         self, mock_load_state, mock_load_profile
     ):
@@ -362,8 +362,8 @@ class TestCmdStatus:
         assert "7" in result
         assert "29" in result
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_includes_verified_units_count(
         self, mock_load_state, mock_load_profile
     ):
@@ -381,8 +381,8 @@ class TestCmdStatus:
 
         assert "4" in result
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_includes_pass_history(self, mock_load_state, mock_load_profile):
         """Status output includes pass history information."""
         history = [
@@ -399,8 +399,8 @@ class TestCmdStatus:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_includes_profile_summary(
         self, mock_load_state, mock_load_profile
     ):
@@ -416,8 +416,8 @@ class TestCmdStatus:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_includes_quality_gate_status(
         self, mock_load_state, mock_load_profile
     ):
@@ -431,8 +431,8 @@ class TestCmdStatus:
 
         assert isinstance(result, str)
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_reads_pipeline_state(self, mock_load_state, mock_load_profile):
         """cmd_status calls load_state to read pipeline state."""
         mock_load_state.return_value = _make_mock_state()
@@ -442,8 +442,8 @@ class TestCmdStatus:
 
         mock_load_state.assert_called()
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_reads_profile(self, mock_load_state, mock_load_profile):
         """cmd_status calls load_profile to read the project profile."""
         mock_load_state.return_value = _make_mock_state()
@@ -453,8 +453,8 @@ class TestCmdStatus:
 
         mock_load_profile.assert_called()
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_null_current_unit(self, mock_load_state, mock_load_profile):
         """cmd_status handles null current_unit gracefully (e.g., in Stage 0)."""
         mock_load_state.return_value = _make_mock_state(
@@ -468,8 +468,8 @@ class TestCmdStatus:
 
         assert isinstance(result, str)
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_empty_verified_units(self, mock_load_state, mock_load_profile):
         """cmd_status handles zero verified units."""
         mock_load_state.return_value = _make_mock_state(verified_units=[])
@@ -480,8 +480,8 @@ class TestCmdStatus:
         assert isinstance(result, str)
         assert "0" in result
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_empty_pass_history(self, mock_load_state, mock_load_profile):
         """cmd_status handles empty pass history (first pass, no prior passes)."""
         mock_load_state.return_value = _make_mock_state(pass_history=[])
@@ -491,8 +491,8 @@ class TestCmdStatus:
 
         assert isinstance(result, str)
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_stage_0_report(self, mock_load_state, mock_load_profile):
         """cmd_status produces a valid report at Stage 0."""
         mock_load_state.return_value = _make_mock_state(
@@ -510,8 +510,8 @@ class TestCmdStatus:
         assert isinstance(result, str)
         assert "0" in result  # stage
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_stage_5_report(self, mock_load_state, mock_load_profile):
         """cmd_status produces a valid report at Stage 5."""
         mock_load_state.return_value = _make_mock_state(
@@ -537,10 +537,10 @@ class TestCmdStatus:
 class TestCmdClean:
     """Tests for cmd_clean: environment removal and workspace action."""
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_archive_returns_confirmation(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -555,10 +555,10 @@ class TestCmdClean:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_delete_returns_confirmation(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -573,10 +573,10 @@ class TestCmdClean:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_keep_returns_confirmation(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -591,10 +591,10 @@ class TestCmdClean:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_calls_derive_env_name(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -608,10 +608,10 @@ class TestCmdClean:
 
         mock_derive.assert_called_once_with(SAMPLE_PROJECT_ROOT)
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_calls_load_toolchain(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -625,10 +625,10 @@ class TestCmdClean:
 
         mock_toolchain.assert_called()
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_calls_resolve_command(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -642,10 +642,10 @@ class TestCmdClean:
 
         mock_resolve.assert_called()
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_calls_load_state(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -659,10 +659,10 @@ class TestCmdClean:
 
         mock_load_state.assert_called()
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_does_not_use_load_config(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -679,10 +679,10 @@ class TestCmdClean:
                 if isinstance(func, ast.Name) and func.id == "load_config":
                     pytest.fail("cmd_clean calls load_config, violating Bug S3-7 contract")
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_does_not_use_load_profile(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -705,10 +705,10 @@ class TestCmdClean:
                     )
                 raise
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_invalid_action_raises(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -721,10 +721,10 @@ class TestCmdClean:
         with pytest.raises((ValueError, KeyError)):
             cmd_clean(SAMPLE_PROJECT_ROOT, "invalid_action")
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_env_name_derived_from_project_root(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -742,10 +742,10 @@ class TestCmdClean:
         all_args = str(resolve_args)
         assert "svp-test_svp_project" in all_args
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_all_valid_actions_accepted(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -759,10 +759,10 @@ class TestCmdClean:
             result = cmd_clean(SAMPLE_PROJECT_ROOT, action)
             assert isinstance(result, str), f"action={action} did not return a string"
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_archive_mentions_archive_in_result(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -779,10 +779,10 @@ class TestCmdClean:
             word in result_lower for word in ["archiv", "compress", "zip", "tar"]
         ), f"Archive confirmation should mention archiving: '{result}'"
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_delete_mentions_deletion_in_result(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -799,10 +799,10 @@ class TestCmdClean:
             f"Delete confirmation should mention deletion: '{result}'"
         )
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_keep_mentions_keeping_in_result(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -829,7 +829,7 @@ class TestCmdClean:
 class TestSyncDebugDocs:
     """Tests for sync_debug_docs: copy workspace spec/blueprint to delivered repo docs/."""
 
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_state")
     def test_sync_debug_docs_returns_none(self, mock_load_state, tmp_path):
         """sync_debug_docs returns None."""
         # Set up workspace and delivered repo directories
@@ -854,7 +854,7 @@ class TestSyncDebugDocs:
 
         assert result is None
 
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_state")
     def test_sync_debug_docs_copies_to_delivered_repo_docs(
         self, mock_load_state, tmp_path
     ):
@@ -879,7 +879,7 @@ class TestSyncDebugDocs:
         # The docs dir should contain the copied files
         assert docs_dir.exists()
 
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_state")
     def test_sync_debug_docs_workspace_is_canonical(self, mock_load_state, tmp_path):
         """Workspace is canonical -- delivered repo docs/ is updated to match workspace."""
         delivered_path = tmp_path / "delivered"
@@ -905,7 +905,7 @@ class TestSyncDebugDocs:
         updated_prose = (docs_dir / "blueprint_prose.md").read_text()
         assert "OLD STALE" not in updated_prose or "UPDATED" in updated_prose
 
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_state")
     def test_sync_debug_docs_reads_delivered_repo_path_from_state(
         self, mock_load_state, tmp_path
     ):
@@ -927,7 +927,7 @@ class TestSyncDebugDocs:
 
         mock_load_state.assert_called()
 
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_state")
     def test_sync_debug_docs_creates_docs_dir_if_absent(
         self, mock_load_state, tmp_path
     ):
@@ -950,7 +950,7 @@ class TestSyncDebugDocs:
         docs_dir = delivered_path / "docs"
         assert docs_dir.exists()
 
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_state")
     def test_sync_debug_docs_copies_spec_files(self, mock_load_state, tmp_path):
         """sync_debug_docs copies workspace spec to delivered repo docs/."""
         delivered_path = tmp_path / "delivered"
@@ -976,7 +976,7 @@ class TestSyncDebugDocs:
         docs_dir = delivered_path / "docs"
         assert docs_dir.exists()
 
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_state")
     def test_sync_debug_docs_handles_multiple_blueprint_files(
         self, mock_load_state, tmp_path
     ):
@@ -1010,7 +1010,7 @@ class TestSyncDebugDocs:
 class TestCmdSaveQuitIntegration:
     """Integration tests verifying cmd_quit delegates to cmd_save correctly."""
 
-    @patch("src.unit_16.stub.cmd_save")
+    @patch("sync_debug_docs.cmd_save")
     def test_quit_save_delegation_with_different_roots(self, mock_cmd_save):
         """cmd_quit delegates to cmd_save with the exact project_root it received."""
         mock_cmd_save.return_value = "Saved successfully."
@@ -1025,7 +1025,7 @@ class TestCmdSaveQuitIntegration:
             cmd_quit(root)
             mock_cmd_save.assert_called_with(root)
 
-    @patch("src.unit_16.stub.cmd_save")
+    @patch("sync_debug_docs.cmd_save")
     def test_quit_returns_different_value_than_save(self, mock_cmd_save):
         """cmd_quit's return (exit signal) is distinct from cmd_save's return (confirmation)."""
         save_message = "Pipeline state saved and verified."
@@ -1041,10 +1041,10 @@ class TestCmdSaveQuitIntegration:
 class TestCmdCleanActionValidation:
     """Tests for cmd_clean action parameter validation."""
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_rejects_empty_string_action(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -1057,10 +1057,10 @@ class TestCmdCleanActionValidation:
         with pytest.raises((ValueError, KeyError)):
             cmd_clean(SAMPLE_PROJECT_ROOT, "")
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_rejects_unknown_action(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -1078,10 +1078,10 @@ class TestCmdCleanActionValidation:
 class TestCmdCleanEnvironmentRemoval:
     """Tests that cmd_clean always removes the build environment regardless of action."""
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_archive_removes_environment(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -1096,10 +1096,10 @@ class TestCmdCleanEnvironmentRemoval:
         # resolve_command should be called to build the environment removal command
         mock_resolve.assert_called()
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_delete_removes_environment(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -1113,10 +1113,10 @@ class TestCmdCleanEnvironmentRemoval:
 
         mock_resolve.assert_called()
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_keep_still_removes_environment(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -1135,10 +1135,10 @@ class TestCmdCleanEnvironmentRemoval:
 class TestCmdCleanToolchainUsage:
     """Tests that cmd_clean uses toolchain for language-specific cleanup."""
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_uses_toolchain_env_remove_command(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -1160,7 +1160,7 @@ class TestCmdCleanToolchainUsage:
 class TestSyncDebugDocsEdgeCases:
     """Edge case tests for sync_debug_docs."""
 
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_state")
     def test_sync_debug_docs_with_no_delivered_repo_path(
         self, mock_load_state, tmp_path
     ):
@@ -1182,7 +1182,7 @@ class TestSyncDebugDocsEdgeCases:
             # Acceptable: raises when delivered_repo_path is None
             pass
 
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_state")
     def test_sync_debug_docs_idempotent(self, mock_load_state, tmp_path):
         """Running sync_debug_docs twice produces the same result."""
         delivered_path = tmp_path / "delivered"
@@ -1209,8 +1209,8 @@ class TestSyncDebugDocsEdgeCases:
 class TestCmdStatusBuildLog:
     """Tests for cmd_status interaction with build log."""
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_reads_build_log(
         self, mock_load_state, mock_load_profile, tmp_path
     ):
@@ -1228,8 +1228,8 @@ class TestCmdStatusBuildLog:
 class TestCmdStatusProfileSummaryFormat:
     """Tests for the one-line profile summary format in cmd_status."""
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_profile_summary_shows_pipeline_tools(
         self, mock_load_state, mock_load_profile
     ):
@@ -1244,8 +1244,8 @@ class TestCmdStatusProfileSummaryFormat:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_profile_summary_shows_delivery_quality_tools(
         self, mock_load_state, mock_load_profile
     ):
@@ -1267,23 +1267,23 @@ class TestCmdStatusProfileSummaryFormat:
 class TestReturnTypes:
     """Tests verifying return type contracts for all functions."""
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.save_state")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.save_state")
     def test_cmd_save_return_type_is_str(self, mock_save, mock_load):
         """cmd_save returns str per signature."""
         mock_load.return_value = _make_mock_state()
         result = cmd_save(SAMPLE_PROJECT_ROOT)
         assert isinstance(result, str)
 
-    @patch("src.unit_16.stub.cmd_save")
+    @patch("sync_debug_docs.cmd_save")
     def test_cmd_quit_return_type_is_str(self, mock_save):
         """cmd_quit returns str per signature."""
         mock_save.return_value = "Saved."
         result = cmd_quit(SAMPLE_PROJECT_ROOT)
         assert isinstance(result, str)
 
-    @patch("src.unit_16.stub.load_profile")
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_profile")
+    @patch("sync_debug_docs.load_state")
     def test_cmd_status_return_type_is_str(self, mock_load_state, mock_load_profile):
         """cmd_status returns str per signature."""
         mock_load_state.return_value = _make_mock_state()
@@ -1291,10 +1291,10 @@ class TestReturnTypes:
         result = cmd_status(SAMPLE_PROJECT_ROOT)
         assert isinstance(result, str)
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.resolve_command")
-    @patch("src.unit_16.stub.load_toolchain")
-    @patch("src.unit_16.stub.derive_env_name")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.resolve_command")
+    @patch("sync_debug_docs.load_toolchain")
+    @patch("sync_debug_docs.derive_env_name")
     def test_cmd_clean_return_type_is_str(
         self, mock_derive, mock_toolchain, mock_resolve, mock_load_state
     ):
@@ -1306,7 +1306,7 @@ class TestReturnTypes:
         result = cmd_clean(SAMPLE_PROJECT_ROOT, "keep")
         assert isinstance(result, str)
 
-    @patch("src.unit_16.stub.load_state")
+    @patch("sync_debug_docs.load_state")
     def test_sync_debug_docs_return_type_is_none(self, mock_load_state, tmp_path):
         """sync_debug_docs returns None per signature."""
         delivered_path = tmp_path / "delivered"
@@ -1329,8 +1329,8 @@ class TestReturnTypes:
 class TestCmdSaveIntegrity:
     """Detailed tests for cmd_save's integrity verification behavior."""
 
-    @patch("src.unit_16.stub.load_state")
-    @patch("src.unit_16.stub.save_state")
+    @patch("sync_debug_docs.load_state")
+    @patch("sync_debug_docs.save_state")
     def test_cmd_save_load_is_called_after_save(self, mock_save, mock_load):
         """Integrity verification requires loading state after saving it."""
         call_order = []

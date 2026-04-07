@@ -22,7 +22,7 @@ def test_pass2_repo_has_license():
 
 def test_restore_project_copies_references(tmp_path, monkeypatch):
     """S3-43: restore_project must copy references/ if present in source."""
-    from src.unit_29.stub import restore_project
+    from svp_launcher import restore_project
 
     # Create source workspace with references
     source = tmp_path / "source"

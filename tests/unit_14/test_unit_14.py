@@ -33,7 +33,7 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_14.stub import (
+from routing import (
     GATE_VOCABULARY,
     PHASE_TO_AGENT,
     TEST_OUTPUT_PARSERS,
@@ -45,8 +45,8 @@ from src.unit_14.stub import (
     run_tests_main,
     update_state_main,
 )
-from src.unit_14.unit_2_stub import RunResult
-from src.unit_14.unit_5_stub import PipelineState
+from language_registry import RunResult
+from pipeline_state import PipelineState
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1049,8 +1049,8 @@ class TestRoute:
         )
 
         # Directly invoke _bootstrap_oracle_nested_session
-        from src.unit_14.stub import _bootstrap_oracle_nested_session
-        from src.unit_14.unit_5_stub import PipelineState
+        from routing import _bootstrap_oracle_nested_session
+        from pipeline_state import PipelineState
 
         oracle_state = PipelineState(
             stage="5",
@@ -1082,8 +1082,8 @@ class TestRoute:
 
     def test_emode_bootstrap_fresh_state_when_no_svp_dir(self, tmp_path):
         """Bug S3-90: E-mode bootstrap creates fresh pipeline_state.json even if .svp/ doesn't exist."""
-        from src.unit_14.stub import _bootstrap_oracle_nested_session
-        from src.unit_14.unit_5_stub import PipelineState
+        from routing import _bootstrap_oracle_nested_session
+        from pipeline_state import PipelineState
 
         # Create test project dir WITHOUT .svp/
         examples_dir = tmp_path / "examples" / "gol-plugin"

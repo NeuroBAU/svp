@@ -21,7 +21,7 @@ from typing import Any, Dict
 
 import pytest
 
-from src.unit_1.stub import (
+from svp_config import (
     ARTIFACT_FILENAMES,
     DEFAULT_CONFIG,
     derive_env_name,

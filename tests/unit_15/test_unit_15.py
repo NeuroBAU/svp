@@ -37,8 +37,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-from src.unit_2.stub import QualityResult
-from src.unit_15.stub import (
+from language_registry import QualityResult
+from quality_gate import (
     QUALITY_RUNNERS,
     run_quality_gate,
     run_quality_gate_main,
@@ -214,7 +214,7 @@ class TestQualityRunnersDispatchTable:
 class TestQualityRunnersReturnType:
     """Each runner callable returns a QualityResult NamedTuple."""
 
-    @patch("src.unit_15.stub.subprocess.run" if True else "", create=True)
+    @patch("quality_gate.subprocess.run" if True else "", create=True)
     def test_python_runner_returns_quality_result(self, mock_run=None):
         """Python runner returns QualityResult when invoked."""
         runner = QUALITY_RUNNERS["python"]
@@ -329,7 +329,7 @@ class TestRunQualityGateReturnType:
 class TestRunQualityGateReadsGateComposition:
     """run_quality_gate reads gate composition from toolchain via get_gate_composition."""
 
-    @patch("src.unit_15.stub.get_gate_composition")
+    @patch("quality_gate.get_gate_composition")
     def test_calls_get_gate_composition_with_toolchain_and_gate_id(self, mock_ggc):
         mock_ggc.return_value = [
             {"operation": "quality.format", "command": "ruff format {target}"},
@@ -343,7 +343,7 @@ class TestRunQualityGateReadsGateComposition:
         )
         mock_ggc.assert_called_once_with(PYTHON_TOOLCHAIN_CONFIG, "gate_a")
 
-    @patch("src.unit_15.stub.get_gate_composition")
+    @patch("quality_gate.get_gate_composition")
     def test_calls_get_gate_composition_with_gate_b(self, mock_ggc):
         mock_ggc.return_value = [
             {"operation": "quality.format", "command": "ruff format {target}"},
@@ -359,7 +359,7 @@ class TestRunQualityGateReadsGateComposition:
         )
         mock_ggc.assert_called_once_with(PYTHON_TOOLCHAIN_CONFIG, "gate_b")
 
-    @patch("src.unit_15.stub.get_gate_composition")
+    @patch("quality_gate.get_gate_composition")
     def test_calls_get_gate_composition_with_gate_c(self, mock_ggc):
         mock_ggc.return_value = []
         run_quality_gate(
@@ -380,8 +380,8 @@ class TestRunQualityGateReadsGateComposition:
 class TestRunQualityGateResolvesCommands:
     """run_quality_gate resolves each operation's command template via resolve_command."""
 
-    @patch("src.unit_15.stub.resolve_command")
-    @patch("src.unit_15.stub.get_gate_composition")
+    @patch("quality_gate.resolve_command")
+    @patch("quality_gate.get_gate_composition")
     def test_resolve_command_called_for_each_operation(self, mock_ggc, mock_rc):
         mock_ggc.return_value = [
             {"operation": "quality.format", "command": "ruff format {target}"},
@@ -397,8 +397,8 @@ class TestRunQualityGateResolvesCommands:
         )
         assert mock_rc.call_count == 2
 
-    @patch("src.unit_15.stub.resolve_command")
-    @patch("src.unit_15.stub.get_gate_composition")
+    @patch("quality_gate.resolve_command")
+    @patch("quality_gate.get_gate_composition")
     def test_resolve_command_receives_command_template(self, mock_ggc, mock_rc):
         mock_ggc.return_value = [
             {"operation": "quality.format", "command": "ruff format {target}"},
@@ -426,8 +426,8 @@ class TestRunQualityGateResolvesCommands:
 class TestRunQualityGateExecutionOrder:
     """Operations from gate composition are executed in their specified order."""
 
-    @patch("src.unit_15.stub.resolve_command")
-    @patch("src.unit_15.stub.get_gate_composition")
+    @patch("quality_gate.resolve_command")
+    @patch("quality_gate.get_gate_composition")
     def test_operations_executed_in_composition_order(self, mock_ggc, mock_rc):
         """Commands must be resolved in the same order as the gate composition list."""
         mock_ggc.return_value = [
@@ -640,8 +640,8 @@ class TestStatusValuesExhaustive:
 class TestNoneToolSkipping:
     """For languages where a tool is 'none' in toolchain, the operation is skipped."""
 
-    @patch("src.unit_15.stub.resolve_command")
-    @patch("src.unit_15.stub.get_gate_composition")
+    @patch("quality_gate.resolve_command")
+    @patch("quality_gate.get_gate_composition")
     def test_none_command_is_skipped(self, mock_ggc, mock_rc):
         """An operation with command='none' should not invoke resolve_command for that op."""
         mock_ggc.return_value = [
@@ -660,8 +660,8 @@ class TestNoneToolSkipping:
         assert mock_rc.call_count == 1
         assert isinstance(result, QualityResult)
 
-    @patch("src.unit_15.stub.resolve_command")
-    @patch("src.unit_15.stub.get_gate_composition")
+    @patch("quality_gate.resolve_command")
+    @patch("quality_gate.get_gate_composition")
     def test_all_none_operations_produce_clean_result(self, mock_ggc, mock_rc):
         """If all operations are 'none', result should be QUALITY_CLEAN."""
         mock_ggc.return_value = [
@@ -1004,9 +1004,9 @@ class TestReportField:
 class TestRunQualityGateMainCLI:
     """run_quality_gate_main accepts CLI arguments and prints status to stdout."""
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_main_accepts_all_required_args(self, mock_glc, mock_lt, mock_rqg, capsys):
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
@@ -1030,9 +1030,9 @@ class TestRunQualityGateMainCLI:
         captured = capsys.readouterr()
         assert "QUALITY_CLEAN" in captured.out
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_main_gate_b_argument(self, mock_glc, mock_lt, mock_rqg, capsys):
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
@@ -1059,9 +1059,9 @@ class TestRunQualityGateMainCLI:
         captured = capsys.readouterr()
         assert "QUALITY_AUTO_FIXED" in captured.out
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_main_gate_c_argument(self, mock_glc, mock_lt, mock_rqg, capsys):
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
@@ -1097,9 +1097,9 @@ class TestRunQualityGateMainCLI:
 class TestRunQualityGateMainLoadsDeps:
     """CLI entry point loads language config and toolchain before calling run_quality_gate."""
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_main_calls_get_language_config(self, mock_glc, mock_lt, mock_rqg):
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
@@ -1122,9 +1122,9 @@ class TestRunQualityGateMainLoadsDeps:
         )
         mock_glc.assert_called_once_with("python")
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_main_calls_load_toolchain(self, mock_glc, mock_lt, mock_rqg):
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
@@ -1147,9 +1147,9 @@ class TestRunQualityGateMainLoadsDeps:
         )
         mock_lt.assert_called_once()
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_main_calls_run_quality_gate(self, mock_glc, mock_lt, mock_rqg):
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
@@ -1181,9 +1181,9 @@ class TestRunQualityGateMainLoadsDeps:
 class TestRunQualityGateMainOutput:
     """CLI entry point prints the quality status to stdout."""
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_main_prints_clean_status(self, mock_glc, mock_lt, mock_rqg, capsys):
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
@@ -1208,9 +1208,9 @@ class TestRunQualityGateMainOutput:
         assert len(captured.out.strip()) > 0
         assert "QUALITY_CLEAN" in captured.out
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_main_prints_error_status(self, mock_glc, mock_lt, mock_rqg, capsys):
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
@@ -1234,9 +1234,9 @@ class TestRunQualityGateMainOutput:
         captured = capsys.readouterr()
         assert "QUALITY_ERROR" in captured.out
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_main_prints_residual_status(self, mock_glc, mock_lt, mock_rqg, capsys):
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
@@ -1272,9 +1272,9 @@ class TestRunQualityGateMainOutput:
 class TestRunQualityGateMainDefaultArgv:
     """When argv is None, the CLI should read from sys.argv."""
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_main_with_none_argv_uses_sys_argv(self, mock_glc, mock_lt, mock_rqg):
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
@@ -1434,8 +1434,8 @@ class TestTargetPathType:
     def test_target_path_is_used_in_resolution(self):
         """The target path should be passed through to command resolution."""
         with (
-            patch("src.unit_15.stub.resolve_command") as mock_rc,
-            patch("src.unit_15.stub.get_gate_composition") as mock_ggc,
+            patch("quality_gate.resolve_command") as mock_rc,
+            patch("quality_gate.get_gate_composition") as mock_ggc,
         ):
             mock_ggc.return_value = [
                 {"operation": "quality.format", "command": "ruff format {target}"},
@@ -1553,7 +1553,7 @@ class TestPassFailOnlyRunners:
 class TestEmptyGateComposition:
     """An empty gate composition (no operations) should yield QUALITY_CLEAN."""
 
-    @patch("src.unit_15.stub.get_gate_composition")
+    @patch("quality_gate.get_gate_composition")
     def test_empty_composition_returns_clean(self, mock_ggc):
         mock_ggc.return_value = []
         result = run_quality_gate(
@@ -1576,9 +1576,9 @@ class TestEmptyGateComposition:
 class TestCLIWithRLanguage:
     """CLI entry point works with R language."""
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_main_with_r_language(self, mock_glc, mock_lt, mock_rqg, capsys):
         mock_glc.return_value = R_LANGUAGE_CONFIG
         mock_lt.return_value = R_TOOLCHAIN_CONFIG
@@ -1612,9 +1612,9 @@ class TestCLIWithRLanguage:
 class TestCLIPassesCorrectArgs:
     """CLI entry point passes parsed args to run_quality_gate correctly."""
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_target_path_passed_as_path(self, mock_glc, mock_lt, mock_rqg):
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
@@ -1647,9 +1647,9 @@ class TestCLIPassesCorrectArgs:
         # language should be passed
         assert "python" in str(call_args)
 
-    @patch("src.unit_15.stub.run_quality_gate")
-    @patch("src.unit_15.stub.load_toolchain")
-    @patch("src.unit_15.stub.get_language_config")
+    @patch("quality_gate.run_quality_gate")
+    @patch("quality_gate.load_toolchain")
+    @patch("quality_gate.get_language_config")
     def test_gate_id_passed_correctly(self, mock_glc, mock_lt, mock_rqg):
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG

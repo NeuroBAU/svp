@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from src.unit_17.stub import HOOKS_JSON_SCHEMA, generate_hooks_json
-from src.unit_23.stub import assemble_plugin_components
+from generate_assembly_map import assemble_plugin_components
 
 
 @pytest.fixture

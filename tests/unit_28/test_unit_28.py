@@ -31,7 +31,7 @@ Synthetic Data Assumptions:
 
 import json
 
-from src.unit_28.stub import (
+from structural_check import (
     COMPLIANCE_SCANNERS,
     check_cross_reference_integrity,
     compliance_scan_main,

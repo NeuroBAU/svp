@@ -32,7 +32,7 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_11.stub import (
+from infrastructure_setup import (
     main,
     run_infrastructure_setup,
 )

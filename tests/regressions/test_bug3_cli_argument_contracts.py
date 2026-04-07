@@ -10,7 +10,7 @@ update_state_main remain.
 
 import pytest
 
-from src.unit_14.stub import main as routing_main, update_state_main, run_tests_main
+from routing import main as routing_main, update_state_main, run_tests_main
 
 
 def test_routing_main_accepts_project_root(tmp_path):

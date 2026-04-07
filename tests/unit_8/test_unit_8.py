@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_8.stub import (
+from blueprint_extractor import (
     UnitDefinition,
     build_unit_context,
     detect_code_block_language,

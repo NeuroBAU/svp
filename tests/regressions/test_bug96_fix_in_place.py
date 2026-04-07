@@ -21,8 +21,8 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_5.stub import PipelineState, save_state
-from src.unit_14.stub import dispatch_gate_response, route, GATE_VOCABULARY
+from pipeline_state import PipelineState, save_state
+from routing import dispatch_gate_response, route, GATE_VOCABULARY
 
 
 def _make_state(**kwargs):

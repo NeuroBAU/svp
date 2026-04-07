@@ -19,8 +19,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.unit_5.stub import PipelineState, save_state
-from src.unit_14.stub import dispatch_gate_response
+from pipeline_state import PipelineState, save_state
+from routing import dispatch_gate_response
 
 
 def _make_state(**kwargs):
@@ -48,7 +48,7 @@ def _make_state(**kwargs):
 
 def _route_with_state(state, last_status=""):
     """Save state to disk and call route(project_root)."""
-    from src.unit_14.stub import route
+    from routing import route
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         save_state(root, state)

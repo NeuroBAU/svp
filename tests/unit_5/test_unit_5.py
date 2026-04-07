@@ -26,8 +26,8 @@ from typing import Any, Dict
 
 import pytest
 
-from src.unit_1.stub import ARTIFACT_FILENAMES
-from src.unit_5.stub import (
+from svp_config import ARTIFACT_FILENAMES
+from pipeline_state import (
     VALID_DEBUG_PHASES,
     VALID_FIX_LADDER_POSITIONS,
     VALID_ORACLE_PHASES,

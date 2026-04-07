@@ -1,8 +1,8 @@
 """Regression tests for Bug S3-15: oracle session lifecycle functions."""
 import pytest
 
-from src.unit_5.stub import PipelineState
-from src.unit_6.stub import (
+from pipeline_state import PipelineState
+from state_transitions import (
     enter_oracle_session, complete_oracle_session, abandon_oracle_session, TransitionError
 )
 

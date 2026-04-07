@@ -7,8 +7,8 @@ action_type is 'run_command', for all sub-stages that produce them.
 import tempfile
 from pathlib import Path
 
-from src.unit_5.stub import PipelineState, save_state
-from src.unit_14.stub import route
+from pipeline_state import PipelineState, save_state
+from routing import route
 
 
 def _route_with_state(state, last_status=""):

@@ -13,8 +13,8 @@ S3-21: dispatch_command_status must handle lessons_learned, debug_commit,
 
 import json
 
-from src.unit_5.stub import PipelineState
-from src.unit_14.stub import dispatch_command_status, route
+from pipeline_state import PipelineState
+from routing import dispatch_command_status, route
 
 
 def _make_state(**overrides):

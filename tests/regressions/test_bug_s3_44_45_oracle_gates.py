@@ -11,8 +11,8 @@ S3-45: Gates gate_5_2_assembly_exhausted, gate_5_3_unused_functions,
 import json
 from pathlib import Path
 
-from src.unit_5.stub import PipelineState
-from src.unit_14.stub import dispatch_agent_status, route
+from pipeline_state import PipelineState
+from routing import dispatch_agent_status, route
 
 
 def _make_state(**overrides):

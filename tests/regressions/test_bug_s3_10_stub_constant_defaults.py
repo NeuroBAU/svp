@@ -3,8 +3,8 @@ Regression test for Bug S3-10: stub generator must assign default values
 to module-level annotated constants for importability.
 """
 import ast
-from src.unit_10.stub import generate_stub
-from src.unit_2.stub import LANGUAGE_REGISTRY
+from stub_generator import generate_stub
+from language_registry import LANGUAGE_REGISTRY
 
 
 def test_dict_constant_gets_empty_dict_default():

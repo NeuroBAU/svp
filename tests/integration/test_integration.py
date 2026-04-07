@@ -16,7 +16,7 @@ import pytest
 # ---------------------------------------------------------------------------
 # Unit imports
 # ---------------------------------------------------------------------------
-from src.unit_1.stub import (
+from svp_config import (
     ARTIFACT_FILENAMES,
     DEFAULT_CONFIG,
     derive_env_name,
@@ -25,7 +25,7 @@ from src.unit_1.stub import (
     load_config,
     save_config,
 )
-from src.unit_2.stub import (
+from language_registry import (
     LANGUAGE_REGISTRY,
     QualityResult,
     RunResult,
@@ -33,15 +33,15 @@ from src.unit_2.stub import (
     validate_component_entry,
     validate_registry_entry,
 )
-from src.unit_3.stub import (
+from profile_schema import (
     DEFAULT_PROFILE,
     get_delivery_config,
     get_quality_config,
     load_profile,
     validate_profile,
 )
-from src.unit_4.stub import get_gate_composition, load_toolchain, resolve_command
-from src.unit_5.stub import (
+from toolchain_reader import get_gate_composition, load_toolchain, resolve_command
+from pipeline_state import (
     VALID_DEBUG_PHASES,
     VALID_FIX_LADDER_POSITIONS,
     VALID_ORACLE_PHASES,
@@ -51,7 +51,7 @@ from src.unit_5.stub import (
     load_state,
     save_state,
 )
-from src.unit_6.stub import (
+from state_transitions import (
     ADDITIONAL_SUB_STAGES,
     TransitionError,
     advance_fix_ladder,
@@ -67,10 +67,10 @@ from src.unit_6.stub import (
     rollback_to_unit,
     restart_from_stage,
 )
-from src.unit_8.stub import UnitDefinition, extract_units, build_unit_context
-from src.unit_9.stub import SIGNATURE_PARSERS, parse_signatures
-from src.unit_10.stub import STUB_GENERATORS, generate_stub
-from src.unit_13.stub import (
+from blueprint_extractor import UnitDefinition, extract_units, build_unit_context
+from signature_parser import SIGNATURE_PARSERS, parse_signatures
+from stub_generator import STUB_GENERATORS, generate_stub
+from prepare_task import (
     ALL_GATE_IDS,
     KNOWN_AGENT_TYPES,
     SELECTIVE_LOADING_MATRIX,
@@ -79,7 +79,7 @@ from src.unit_13.stub import (
     prepare_task_prompt,
     prepare_gate_prompt,
 )
-from src.unit_14.stub import (
+from routing import (
     AGENT_STATUS_LINES,
     GATE_VOCABULARY,
     PHASE_TO_AGENT,
@@ -89,8 +89,8 @@ from src.unit_14.stub import (
     dispatch_command_status,
     route,
 )
-from src.unit_15.stub import QUALITY_RUNNERS, run_quality_gate
-from src.unit_23.stub import (
+from quality_gate import QUALITY_RUNNERS, run_quality_gate
+from generate_assembly_map import (
     PROJECT_ASSEMBLERS,
     generate_assembly_map,
 )

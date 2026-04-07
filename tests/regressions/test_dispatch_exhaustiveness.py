@@ -10,7 +10,7 @@ Tests:
 """
 import pytest
 
-from src.unit_28.stub import validate_dispatch_exhaustiveness
+from structural_check import validate_dispatch_exhaustiveness
 
 
 # A minimal set of 6 dispatch table names matching _ALL_DISPATCH_TABLE_NAMES

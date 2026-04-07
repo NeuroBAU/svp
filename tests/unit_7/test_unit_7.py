@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
 
-from src.unit_7.stub import (
+from ledger_manager import (
     append_entry,
     clear_ledger,
     compact_ledger,

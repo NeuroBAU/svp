@@ -27,13 +27,13 @@ import pytest
 _project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_project_root / "scripts"))
 
-from src.unit_5.stub import PipelineState
-from src.unit_6.stub import advance_stage, enter_debug_session
+from pipeline_state import PipelineState
+from state_transitions import advance_stage, enter_debug_session
 
 
 def test_gate_hint_conflict_in_gate_vocabulary():
     """gate_hint_conflict must be in GATE_VOCABULARY."""
-    from src.unit_14.stub import GATE_VOCABULARY
+    from routing import GATE_VOCABULARY
 
     assert "gate_hint_conflict" in GATE_VOCABULARY, (
         "gate_hint_conflict missing from GATE_VOCABULARY"
@@ -63,7 +63,7 @@ def test_gate_5_3_in_all_gate_ids():
 
 def test_regression_test_complete_in_test_agent_status():
     """REGRESSION_TEST_COMPLETE must be in test_agent status lines."""
-    from src.unit_14.stub import AGENT_STATUS_LINES
+    from routing import AGENT_STATUS_LINES
 
     test_agent_lines = AGENT_STATUS_LINES.get("test_agent", [])
     assert "REGRESSION_TEST_COMPLETE" in test_agent_lines, (
@@ -93,7 +93,7 @@ def test_debug_session_has_triage_and_repair_counts():
 
 def test_gate_vocabulary_and_all_gate_ids_synchronized():
     """GATE_VOCABULARY keys must match ALL_GATE_IDS."""
-    from src.unit_14.stub import GATE_VOCABULARY
+    from routing import GATE_VOCABULARY
     from prepare_task import ALL_GATE_IDS
 
     vocab_set = set(GATE_VOCABULARY.keys())

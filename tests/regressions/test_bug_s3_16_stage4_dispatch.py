@@ -9,8 +9,8 @@ dispatch_command_status for Stage 4 test_execution must differentiate:
 Simple retry-increment without gate presentation is incorrect.
 """
 
-from src.unit_5.stub import PipelineState
-from src.unit_14.stub import dispatch_command_status
+from pipeline_state import PipelineState
+from routing import dispatch_command_status
 
 
 def _make_state(**overrides):

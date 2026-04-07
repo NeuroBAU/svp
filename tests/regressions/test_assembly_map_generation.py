@@ -13,7 +13,7 @@ import json
 
 import pytest
 
-from src.unit_23.stub import generate_assembly_map
+from generate_assembly_map import generate_assembly_map
 
 
 @pytest.fixture

@@ -58,7 +58,7 @@ class TestHintBlueprintConflictDispatch:
 
     @pytest.fixture
     def state(self):
-        from src.unit_5.stub import PipelineState
+        from pipeline_state import PipelineState
 
         state = PipelineState(
             stage="3",
@@ -71,7 +71,7 @@ class TestHintBlueprintConflictDispatch:
     def test_hint_conflict_does_not_raise(self, state, agent_type):
         """dispatch_agent_status must not raise ValueError for
         HINT_BLUEPRINT_CONFLICT from hint-receiving agents."""
-        from src.unit_14.stub import dispatch_agent_status
+        from routing import dispatch_agent_status
 
         # Should not raise ValueError
         new = dispatch_agent_status(
@@ -87,7 +87,7 @@ class TestHintBlueprintConflictDispatch:
     def test_hint_conflict_in_agent_status_lines(self, agent_type):
         """AGENT_STATUS_LINES must include HINT_BLUEPRINT_CONFLICT
         for all hint-receiving agents."""
-        from src.unit_14.stub import AGENT_STATUS_LINES
+        from routing import AGENT_STATUS_LINES
 
         assert agent_type in AGENT_STATUS_LINES, (
             f"{agent_type} missing from AGENT_STATUS_LINES"

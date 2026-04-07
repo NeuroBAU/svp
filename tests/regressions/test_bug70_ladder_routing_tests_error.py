@@ -11,8 +11,8 @@ signature. Finding 3 tests skipped (_KNOWN_PHASES removed).
 
 import pytest
 
-from src.unit_5.stub import PipelineState
-from src.unit_14.stub import dispatch_command_status
+from pipeline_state import PipelineState
+from routing import dispatch_command_status
 
 
 def _make_state(**overrides) -> PipelineState:

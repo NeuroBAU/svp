@@ -21,8 +21,8 @@ import pytest
 _project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_project_root / "scripts"))
 
-from src.unit_5.stub import PipelineState
-from src.unit_6.stub import restart_from_stage, complete_unit
+from pipeline_state import PipelineState
+from state_transitions import restart_from_stage, complete_unit
 
 
 class TestOrphanedFunctionsRemoved:

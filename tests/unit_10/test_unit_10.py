@@ -45,7 +45,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.unit_10.stub import (
+from stub_generator import (
     STUB_GENERATORS,
     generate_stub,
     generate_upstream_stubs,

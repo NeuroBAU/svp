@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_5.stub import PipelineState
-from src.unit_14.stub import _route_stage_5
+from pipeline_state import PipelineState
+from routing import _route_stage_5
 
 
 def _make_state(**overrides):

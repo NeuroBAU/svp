@@ -8,7 +8,7 @@ directory exists.
 import json
 from pathlib import Path
 
-from src.unit_29.stub import _validate_plugin_dir
+from svp_launcher import _validate_plugin_dir
 
 
 def test_valid_plugin_dir_accepted(tmp_path):

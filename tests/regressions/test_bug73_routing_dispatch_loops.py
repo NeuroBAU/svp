@@ -30,8 +30,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.unit_5.stub import PipelineState, save_state
-from src.unit_14.stub import dispatch_gate_response
+from pipeline_state import PipelineState, save_state
+from routing import dispatch_gate_response
 
 
 def _make_state(**overrides):
@@ -58,7 +58,7 @@ def _make_state(**overrides):
 
 def _route_with_state(state, last_status=""):
     """Save state to disk and call route(project_root)."""
-    from src.unit_14.stub import route
+    from routing import route
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         save_state(root, state)
@@ -117,7 +117,7 @@ class TestBug73ProfileArtifactFallback(unittest.TestCase):
             (svp_dir / "last_status.txt").write_text("CONTEXT APPROVED")
             (project_root / "project_profile.json").write_text("{}")
 
-            from src.unit_14.stub import route
+            from routing import route
             result = route(project_root)
 
             # Bug 86 fix: agent invoked, not gate presented
@@ -136,7 +136,7 @@ class TestBug73ProfileArtifactFallback(unittest.TestCase):
             (svp_dir / "last_status.txt").write_text("PROFILE REJECTED")
             (project_root / "project_profile.json").write_text("{}")
 
-            from src.unit_14.stub import route
+            from routing import route
             result = route(project_root)
 
             self.assertEqual(result["action_type"], "invoke_agent")

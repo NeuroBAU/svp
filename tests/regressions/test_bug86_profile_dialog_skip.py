@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_14.stub import route
-from src.unit_5.stub import PipelineState
+from routing import route
+from pipeline_state import PipelineState
 
 
 def _write_state(project_dir: Path, **overrides):

@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-from src.unit_28.stub import generate_plugin_json, validate_plugin_manifest
+from structural_check import generate_plugin_json, validate_plugin_manifest
 
 
 def _minimal_profile():

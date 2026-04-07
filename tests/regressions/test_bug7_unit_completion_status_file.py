@@ -1,7 +1,7 @@
 """Bug 11: complete_unit must update verified_units and reset current_unit."""
 
-from src.unit_5.stub import PipelineState
-from src.unit_6.stub import complete_unit
+from pipeline_state import PipelineState
+from state_transitions import complete_unit
 
 
 def _make_state(**kw):

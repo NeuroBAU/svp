@@ -11,8 +11,8 @@ Tests:
 """
 import pytest
 
-from src.unit_14.stub import _parse_testthat_output
-from src.unit_2.stub import RunResult
+from routing import _parse_testthat_output
+from language_registry import RunResult
 
 
 class TestParseOKLines:

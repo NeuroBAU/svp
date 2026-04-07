@@ -16,9 +16,9 @@ S3-29: generate_upstream_stubs must use unit_N_stub{ext} filenames for
 import json
 from pathlib import Path
 
-from src.unit_5.stub import PipelineState
-from src.unit_10.stub import generate_upstream_stubs
-from src.unit_14.stub import dispatch_command_status, dispatch_gate_response, route
+from pipeline_state import PipelineState
+from stub_generator import generate_upstream_stubs
+from routing import dispatch_command_status, dispatch_gate_response, route
 
 
 def _make_state(**overrides):
@@ -538,9 +538,9 @@ class TestS3_29_UpstreamStubsDistinctFilenames:
             "stub_sentinel": "__SVP_STUB__ = True",
         }
 
-        with patch("src.unit_10.stub.get_language_config", return_value=mock_lang_config), \
-             patch("src.unit_10.stub.extract_units", return_value=[mock_unit_1, mock_unit_2]), \
-             patch("src.unit_10.stub.parse_signatures", return_value=mock_module):
+        with patch("stub_generator.get_language_config", return_value=mock_lang_config), \
+             patch("stub_generator.extract_units", return_value=[mock_unit_1, mock_unit_2]), \
+             patch("stub_generator.parse_signatures", return_value=mock_module):
 
             generate_upstream_stubs(
                 blueprint_dir=tmp_path,
@@ -596,9 +596,9 @@ class TestS3_29_UpstreamStubsDistinctFilenames:
             call_count[0] += 1
             return result
 
-        with patch("src.unit_10.stub.get_language_config", return_value=mock_lang_config), \
-             patch("src.unit_10.stub.extract_units", return_value=[mock_unit_1, mock_unit_2]), \
-             patch("src.unit_10.stub.parse_signatures", side_effect=mock_parse):
+        with patch("stub_generator.get_language_config", return_value=mock_lang_config), \
+             patch("stub_generator.extract_units", return_value=[mock_unit_1, mock_unit_2]), \
+             patch("stub_generator.parse_signatures", side_effect=mock_parse):
 
             generate_upstream_stubs(
                 blueprint_dir=tmp_path,

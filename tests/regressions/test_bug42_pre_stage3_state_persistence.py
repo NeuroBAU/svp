@@ -3,8 +3,8 @@
 advance_stage to pre_stage_3 must preserve alignment_iterations (not reset it).
 """
 
-from src.unit_5.stub import PipelineState
-from src.unit_6.stub import advance_stage
+from pipeline_state import PipelineState
+from state_transitions import advance_stage
 
 
 def _make_state(**kw):

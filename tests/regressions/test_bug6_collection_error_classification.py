@@ -5,7 +5,7 @@ errors > 0 when pytest output contains collection-error indicators like
 'ERROR collecting'.
 """
 
-from src.unit_14.stub import TEST_OUTPUT_PARSERS
+from routing import TEST_OUTPUT_PARSERS
 
 
 def _parse_python(output, exit_code=1, context=None):

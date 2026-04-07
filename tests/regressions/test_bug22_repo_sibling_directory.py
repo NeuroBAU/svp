@@ -5,7 +5,7 @@ repository as a sibling directory (at the same level as the project
 directory), not as a subdirectory within the project.
 """
 
-from src.unit_23.stub import GIT_REPO_AGENT_DEFINITION
+from generate_assembly_map import GIT_REPO_AGENT_DEFINITION
 
 
 def test_git_repo_agent_md_mentions_delivery_location():

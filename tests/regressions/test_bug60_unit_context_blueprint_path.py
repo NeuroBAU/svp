@@ -23,7 +23,7 @@ if not _scripts_dir.is_dir():
     _scripts_dir = _project_root / "svp" / "scripts"
 sys.path.insert(0, str(_scripts_dir))
 
-from src.unit_1.stub import ARTIFACT_FILENAMES
+from svp_config import ARTIFACT_FILENAMES
 
 
 def test_artifact_filenames_has_blueprint_dir():

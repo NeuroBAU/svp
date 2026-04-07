@@ -11,9 +11,9 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.unit_15.stub import _execute_gate_operations
+from quality_gate import _execute_gate_operations
 from src.unit_17.stub import HOOKS_JSON_SCHEMA
-from src.unit_29.stub import create_new_project
+from svp_launcher import create_new_project
 
 
 # ---------------------------------------------------------------------------
@@ -31,10 +31,10 @@ def test_quality_gate_error_status_reachable(tmp_path):
     # Mock get_gate_composition to return one operation
     fake_ops = [{"operation": "quality.formatter.check", "command": "false_cmd {target}"}]
 
-    with patch("src.unit_15.stub.get_gate_composition", return_value=fake_ops), \
-         patch("src.unit_15.stub._tool_is_none", return_value=False), \
-         patch("src.unit_15.stub.resolve_command", return_value="will_fail"), \
-         patch("src.unit_15.stub._run_command", side_effect=OSError("command not found")):
+    with patch("quality_gate.get_gate_composition", return_value=fake_ops), \
+         patch("quality_gate._tool_is_none", return_value=False), \
+         patch("quality_gate.resolve_command", return_value="will_fail"), \
+         patch("quality_gate._run_command", side_effect=OSError("command not found")):
         result = _execute_gate_operations(
             target_path=target,
             gate_id="gate_a",
@@ -74,10 +74,10 @@ def test_quality_gate_auto_fixed_reachable(tmp_path):
         mock_result.stderr = ""
         return mock_result
 
-    with patch("src.unit_15.stub.get_gate_composition", return_value=fake_ops), \
-         patch("src.unit_15.stub._tool_is_none", return_value=False), \
-         patch("src.unit_15.stub.resolve_command", return_value="ruff format test_file.py"), \
-         patch("src.unit_15.stub._run_command", side_effect=mock_run_command):
+    with patch("quality_gate.get_gate_composition", return_value=fake_ops), \
+         patch("quality_gate._tool_is_none", return_value=False), \
+         patch("quality_gate.resolve_command", return_value="ruff format test_file.py"), \
+         patch("quality_gate._run_command", side_effect=mock_run_command):
         result = _execute_gate_operations(
             target_path=target,
             gate_id="gate_a",
@@ -149,7 +149,7 @@ def test_new_project_initial_sub_stage_is_hook_activation(tmp_path, monkeypatch)
     )
 
     # Mock launch_session to avoid actually launching claude
-    with patch("src.unit_29.stub.launch_session", return_value=0):
+    with patch("svp_launcher.launch_session", return_value=0):
         project_root = create_new_project("test_project", plugin_root)
 
     state_path = project_root / "pipeline_state.json"

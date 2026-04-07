@@ -9,8 +9,8 @@ SVP 2.2 adaptation:
 - complete_unit from src.unit_6.stub
 """
 
-from src.unit_5.stub import PipelineState
-from src.unit_6.stub import complete_unit
+from pipeline_state import PipelineState
+from state_transitions import complete_unit
 
 
 def test_sub_stage_resets_on_unit_completion():

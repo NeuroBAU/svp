@@ -18,7 +18,7 @@ import json
 
 import pytest
 
-from src.unit_2.stub import (
+from language_registry import (
     COMPONENT_REQUIRED_KEYS,
     FULL_REQUIRED_KEYS,
     LANGUAGE_REGISTRY,

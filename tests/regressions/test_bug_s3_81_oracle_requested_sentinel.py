@@ -16,8 +16,8 @@ Tests:
 import json
 from pathlib import Path
 
-from src.unit_5.stub import PipelineState
-from src.unit_14.stub import dispatch_command_status, route
+from pipeline_state import PipelineState
+from routing import dispatch_command_status, route
 
 
 # ---------------------------------------------------------------------------

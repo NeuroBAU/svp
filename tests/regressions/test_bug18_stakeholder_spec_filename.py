@@ -7,7 +7,7 @@ SVP 2.2 adaptation:
 - stakeholder_spec path is "spec/stakeholder_spec.md" (includes directory prefix)
 """
 
-from src.unit_1.stub import ARTIFACT_FILENAMES
+from svp_config import ARTIFACT_FILENAMES
 
 
 def test_stakeholder_spec_filename():

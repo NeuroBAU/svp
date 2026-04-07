@@ -223,20 +223,20 @@ class TestUnit10RunTestsMain:
 
     def test_accepts_unit(self) -> None:
         """SVP 2.2: run_tests_main uses --unit (not test_path)."""
-        from src.unit_14.stub import run_tests_main
+        from routing import run_tests_main
 
         help_text = _capture_help_argv(run_tests_main)
         assert "--unit" in help_text
 
     def test_accepts_language(self) -> None:
         """SVP 2.2: --env-name replaced by --language."""
-        from src.unit_14.stub import run_tests_main
+        from routing import run_tests_main
 
         help_text = _capture_help_argv(run_tests_main)
         assert "--language" in help_text
 
     def test_accepts_project_root(self) -> None:
-        from src.unit_14.stub import run_tests_main
+        from routing import run_tests_main
 
         help_text = _capture_help_argv(run_tests_main)
         assert "--project-root" in help_text
@@ -249,19 +249,19 @@ class TestUnit10RunQualityGateMain:
     """
 
     def test_accepts_gate_id(self) -> None:
-        from src.unit_15.stub import run_quality_gate_main
+        from quality_gate import run_quality_gate_main
 
         help_text = _capture_help_argv(run_quality_gate_main)
         assert "gate_id" in help_text or "--gate" in help_text
 
     def test_accepts_target(self) -> None:
-        from src.unit_15.stub import run_quality_gate_main
+        from quality_gate import run_quality_gate_main
 
         help_text = _capture_help_argv(run_quality_gate_main)
         assert "--target" in help_text
 
     def test_accepts_project_root(self) -> None:
-        from src.unit_15.stub import run_quality_gate_main
+        from quality_gate import run_quality_gate_main
 
         help_text = _capture_help_argv(run_quality_gate_main)
         assert "--project-root" in help_text
@@ -277,19 +277,19 @@ class TestUnit23ComplianceScanMain:
     """
 
     def test_accepts_project_root(self) -> None:
-        from src.unit_28.stub import compliance_scan_main
+        from structural_check import compliance_scan_main
 
         help_text = _capture_help_argv(compliance_scan_main)
         assert "--project-root" in help_text
 
     def test_accepts_src_dir(self) -> None:
-        from src.unit_28.stub import compliance_scan_main
+        from structural_check import compliance_scan_main
 
         help_text = _capture_help_argv(compliance_scan_main)
         assert "--src-dir" in help_text
 
     def test_accepts_tests_dir(self) -> None:
-        from src.unit_28.stub import compliance_scan_main
+        from structural_check import compliance_scan_main
 
         help_text = _capture_help_argv(compliance_scan_main)
         assert "--tests-dir" in help_text

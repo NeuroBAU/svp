@@ -5,8 +5,8 @@ authorize_debug_session must set authorized=True,
 complete_debug_session must clear the session.
 """
 
-from src.unit_5.stub import PipelineState
-from src.unit_6.stub import (
+from pipeline_state import PipelineState
+from state_transitions import (
     authorize_debug_session,
     complete_debug_session,
     enter_debug_session,

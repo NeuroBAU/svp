@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_28.stub import run_structural_check
+from structural_check import run_structural_check
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 

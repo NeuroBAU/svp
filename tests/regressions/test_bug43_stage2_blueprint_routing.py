@@ -17,8 +17,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.unit_5.stub import PipelineState, save_state
-from src.unit_14.stub import route, GATE_VOCABULARY
+from pipeline_state import PipelineState, save_state
+from routing import route, GATE_VOCABULARY
 
 
 def _make_state(**kwargs):
@@ -211,7 +211,7 @@ class TestGateVocabularyConsistency(unittest.TestCase):
     """Cross-unit consistency: every gate in GATE_VOCABULARY must be in ALL_GATE_IDS."""
 
     def test_all_gate_vocabulary_keys_in_all_gate_ids(self):
-        from src.unit_13.stub import ALL_GATE_IDS
+        from prepare_task import ALL_GATE_IDS
 
         missing = set(GATE_VOCABULARY.keys()) - set(ALL_GATE_IDS)
         self.assertEqual(
@@ -221,7 +221,7 @@ class TestGateVocabularyConsistency(unittest.TestCase):
 
     def test_all_gate_ids_in_gate_vocabulary(self):
         """Every gate ID registered for prompt preparation should have a vocabulary entry."""
-        from src.unit_13.stub import ALL_GATE_IDS
+        from prepare_task import ALL_GATE_IDS
 
         missing = set(ALL_GATE_IDS) - set(GATE_VOCABULARY.keys())
         self.assertEqual(

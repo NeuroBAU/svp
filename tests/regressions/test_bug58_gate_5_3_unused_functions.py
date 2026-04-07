@@ -23,8 +23,8 @@ if not SCRIPTS_DIR.is_dir():
     SCRIPTS_DIR = _PROJECT_ROOT / "svp" / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from src.unit_5.stub import PipelineState
-from src.unit_14.stub import dispatch_gate_response, GATE_VOCABULARY
+from pipeline_state import PipelineState
+from routing import dispatch_gate_response, GATE_VOCABULARY
 
 
 def _make_state(**kwargs):

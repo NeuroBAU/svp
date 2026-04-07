@@ -22,7 +22,7 @@ import json
 
 import pytest
 
-from src.unit_3.stub import (
+from profile_schema import (
     DEFAULT_PROFILE,
     get_delivery_config,
     get_quality_config,

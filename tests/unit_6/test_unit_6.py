@@ -21,8 +21,8 @@ import copy
 
 import pytest
 
-from src.unit_5.stub import PipelineState
-from src.unit_6.stub import (
+from pipeline_state import PipelineState
+from state_transitions import (
     TransitionError,
     abandon_debug_session,
     advance_fix_ladder,

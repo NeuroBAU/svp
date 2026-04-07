@@ -23,7 +23,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.unit_29.stub import (
+from svp_launcher import (
     create_new_project,
     launch_session,
     main,
@@ -680,17 +680,17 @@ class TestLaunchSession:
 class TestMain:
     """Tests for the main function."""
 
-    @patch("src.unit_29.stub.launch_session", return_value=0)
-    @patch("src.unit_29.stub.preflight_check", return_value=[])
-    @patch("src.unit_29.stub.create_new_project", return_value=Path("/tmp/test"))
+    @patch("svp_launcher.launch_session", return_value=0)
+    @patch("svp_launcher.preflight_check", return_value=[])
+    @patch("svp_launcher.create_new_project", return_value=Path("/tmp/test"))
     def test_main_new_project_dispatches_to_create(
         self, mock_create, mock_preflight, mock_launch
     ):
         main(["new", "my_project"])
         mock_create.assert_called_once()
 
-    @patch("src.unit_29.stub.launch_session", return_value=0)
-    @patch("src.unit_29.stub.preflight_check", return_value=[])
+    @patch("svp_launcher.launch_session", return_value=0)
+    @patch("svp_launcher.preflight_check", return_value=[])
     def test_main_bare_svp_dispatches_to_resume(self, mock_preflight, mock_launch):
         """Bare svp (empty argv) should dispatch to resume/route mode."""
         try:
@@ -698,9 +698,9 @@ class TestMain:
         except (SystemExit, FileNotFoundError):
             pass  # May fail due to missing project, but should attempt resume
 
-    @patch("src.unit_29.stub.launch_session", return_value=0)
-    @patch("src.unit_29.stub.preflight_check", return_value=[])
-    @patch("src.unit_29.stub.restore_project", return_value=Path("/tmp/test"))
+    @patch("svp_launcher.launch_session", return_value=0)
+    @patch("svp_launcher.preflight_check", return_value=[])
+    @patch("svp_launcher.restore_project", return_value=Path("/tmp/test"))
     def test_main_restore_dispatches_to_restore(
         self, mock_restore, mock_preflight, mock_launch, tmp_path
     ):
@@ -733,7 +733,7 @@ class TestMain:
         )
         mock_restore.assert_called_once()
 
-    @patch("src.unit_29.stub.preflight_check")
+    @patch("svp_launcher.preflight_check")
     def test_main_runs_preflight(self, mock_preflight):
         mock_preflight.return_value = ["Claude Code not found"]
         try:

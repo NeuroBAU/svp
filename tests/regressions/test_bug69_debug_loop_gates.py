@@ -22,9 +22,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.unit_5.stub import PipelineState, save_state
-from src.unit_6.stub import enter_debug_session, authorize_debug_session
-from src.unit_14.stub import (
+from pipeline_state import PipelineState, save_state
+from state_transitions import enter_debug_session, authorize_debug_session
+from routing import (
     route,
     dispatch_gate_response,
     GATE_VOCABULARY,

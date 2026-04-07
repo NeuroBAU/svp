@@ -198,7 +198,7 @@ class TestDeployedArtifactFreshness:
             HINT_AGENT_DEFINITION,
             REFERENCE_INDEXING_AGENT_DEFINITION,
         )
-        from src.unit_23.stub import (
+        from generate_assembly_map import (
             GIT_REPO_AGENT_DEFINITION,
             CHECKLIST_GENERATION_AGENT_DEFINITION,
             REGRESSION_ADAPTATION_AGENT_DEFINITION,

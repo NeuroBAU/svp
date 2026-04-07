@@ -54,7 +54,7 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_13.stub import (
+from prepare_task import (
     ALL_GATE_IDS,
     KNOWN_AGENT_TYPES,
     SELECTIVE_LOADING_MATRIX,

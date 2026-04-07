@@ -9,7 +9,7 @@ remains and is tested below.
 
 import pytest
 
-from src.unit_14.stub import AGENT_STATUS_LINES
+from routing import AGENT_STATUS_LINES
 
 
 def test_agent_status_lines_has_all_agent_types():

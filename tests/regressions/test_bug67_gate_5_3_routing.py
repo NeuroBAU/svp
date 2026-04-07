@@ -20,8 +20,8 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_5.stub import PipelineState, save_state
-from src.unit_14.stub import route, GATE_VOCABULARY, dispatch_command_status
+from pipeline_state import PipelineState, save_state
+from routing import route, GATE_VOCABULARY, dispatch_command_status
 
 
 def _make_state(**overrides):

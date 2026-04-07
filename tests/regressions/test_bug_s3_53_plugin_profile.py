@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from src.unit_28.stub import generate_marketplace_json, generate_plugin_json
+from structural_check import generate_marketplace_json, generate_plugin_json
 
 
 class TestS3_53_PluginManifestValidation:

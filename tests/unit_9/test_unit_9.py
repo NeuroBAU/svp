@@ -31,7 +31,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.unit_9.stub import (
+from signature_parser import (
     SIGNATURE_PARSERS,
     main,
     parse_signatures,

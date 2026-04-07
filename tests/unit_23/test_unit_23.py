@@ -40,7 +40,7 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_23.stub import (
+from generate_assembly_map import (
     CHECKLIST_GENERATION_AGENT_DEFINITION,
     GIT_REPO_AGENT_DEFINITION,
     ORACLE_AGENT_DEFINITION,

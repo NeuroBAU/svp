@@ -12,8 +12,8 @@ SVP 2.2 adaptation:
 import unittest
 from pathlib import Path
 
-from src.unit_5.stub import PipelineState
-from src.unit_14.stub import dispatch_agent_status
+from pipeline_state import PipelineState
+from routing import dispatch_agent_status
 
 
 def _make_state(**kwargs):

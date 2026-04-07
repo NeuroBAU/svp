@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_4.stub import (
+from toolchain_reader import (
     get_gate_composition,
     load_toolchain,
     resolve_command,

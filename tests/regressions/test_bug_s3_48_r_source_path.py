@@ -5,7 +5,7 @@ from pathlib import Path
 def test_unit_11_generates_helper_svp_r_for_r_projects():
     """S3-48: Infrastructure setup must mention helper-svp.R for R projects."""
     import inspect
-    from src.unit_11.stub import run_infrastructure_setup
+    from infrastructure_setup import run_infrastructure_setup
     source = inspect.getsource(run_infrastructure_setup)
     assert "helper-svp.R" in source or "helper_svp" in source, (
         "Infrastructure setup must create helper-svp.R for R projects"

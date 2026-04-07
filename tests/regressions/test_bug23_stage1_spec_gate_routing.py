@@ -7,8 +7,8 @@ SPEC_DRAFT_COMPLETE -> present human_gate for gate_1_1.
 import tempfile
 from pathlib import Path
 
-from src.unit_5.stub import PipelineState, save_state
-from src.unit_14.stub import _route_stage_1, route
+from pipeline_state import PipelineState, save_state
+from routing import _route_stage_1, route
 
 
 def _route_with_state(state, last_status=""):

@@ -1,7 +1,7 @@
 """Regression tests for Bugs S3-11 and S3-12."""
 import copy
-from src.unit_5.stub import PipelineState
-from src.unit_14.stub import dispatch_command_status, route
+from pipeline_state import PipelineState
+from routing import dispatch_command_status, route
 
 
 def _make_state(**overrides):

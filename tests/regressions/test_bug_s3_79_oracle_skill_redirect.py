@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_5.stub import PipelineState
-from src.unit_14.stub import dispatch_command_status, route
+from pipeline_state import PipelineState
+from routing import dispatch_command_status, route
 from src.unit_25.stub import COMMAND_DEFINITIONS
 
 

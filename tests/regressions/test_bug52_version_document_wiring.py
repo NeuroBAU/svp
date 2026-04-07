@@ -18,9 +18,9 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_5.stub import PipelineState, save_state
-from src.unit_6.stub import version_document
-from src.unit_14.stub import dispatch_gate_response
+from pipeline_state import PipelineState, save_state
+from state_transitions import version_document
+from routing import dispatch_gate_response
 
 
 def _make_state(stage="1", sub_stage=None):
@@ -221,5 +221,5 @@ class TestImportPresent:
 
     def test_version_document_importable(self):
         """Verify the function is importable from src.unit_6.stub."""
-        from src.unit_6.stub import version_document as vd
+        from state_transitions import version_document as vd
         assert callable(vd)

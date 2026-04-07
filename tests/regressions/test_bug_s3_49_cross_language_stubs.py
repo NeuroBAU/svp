@@ -1,6 +1,6 @@
 """Regression test for Bug S3-49: cross-language upstream stub generation."""
 import inspect
-from src.unit_10.stub import generate_upstream_stubs
+from stub_generator import generate_upstream_stubs
 
 
 def test_generate_upstream_stubs_checks_dep_unit_languages():
