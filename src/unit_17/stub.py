@@ -151,6 +151,7 @@ def generate_write_authorization_sh() -> str:
         SUB_STAGE=""
         CURRENT_UNIT=""
         ORACLE_SESSION_ACTIVE="false"
+        ORACLE_PHASE=""
         DEBUG_SESSION=""
         DEBUG_AUTHORIZED="none"
         DEBUG_CLASSIFICATION=""
@@ -159,13 +160,14 @@ def generate_write_authorization_sh() -> str:
         DELIVERED_REPO_PATH=""
 
         if [ -f "$STATE_FILE" ]; then
-            read -r STAGE SUB_STAGE CURRENT_UNIT ORACLE_SESSION_ACTIVE DEBUG_AUTHORIZED DEBUG_CLASSIFICATION DEBUG_PHASE DEBUG_AFFECTED_UNITS DELIVERED_REPO_PATH <<< "$(cat "$STATE_FILE" | python3 -c "
+            read -r STAGE SUB_STAGE CURRENT_UNIT ORACLE_SESSION_ACTIVE ORACLE_PHASE DEBUG_AUTHORIZED DEBUG_CLASSIFICATION DEBUG_PHASE DEBUG_AFFECTED_UNITS DELIVERED_REPO_PATH <<< "$(cat "$STATE_FILE" | python3 -c "
         import sys, json
         data = json.load(sys.stdin)
         stage = data.get('stage', '0')
         sub_stage = data.get('sub_stage', '') or ''
         current_unit = str(data.get('current_unit', '') or '')
         oracle_active = 'true' if data.get('oracle_session_active', False) else 'false'
+        oracle_phase = data.get('oracle_phase', '') or ''
         delivered_repo_path = data.get('delivered_repo_path', '') or ''
         ds = data.get('debug_session')
         if ds:
@@ -178,11 +180,12 @@ def generate_write_authorization_sh() -> str:
             classification = ''
             phase = ''
             affected = ''
-        print(f'{stage} {sub_stage or \"_\"} {current_unit or \"_\"} {oracle_active} {authorized} {classification or \"_\"} {phase or \"_\"} {affected or \"_\"} {delivered_repo_path or \"_\"}')
+        print(f'{stage} {sub_stage or \"_\"} {current_unit or \"_\"} {oracle_active} {oracle_phase or \"_\"} {authorized} {classification or \"_\"} {phase or \"_\"} {affected or \"_\"} {delivered_repo_path or \"_\"}')
         " 2>/dev/null)"
             # Normalize underscore placeholders to empty
             [ "$SUB_STAGE" = "_" ] && SUB_STAGE=""
             [ "$CURRENT_UNIT" = "_" ] && CURRENT_UNIT=""
+            [ "$ORACLE_PHASE" = "_" ] && ORACLE_PHASE=""
             [ "$DEBUG_CLASSIFICATION" = "_" ] && DEBUG_CLASSIFICATION=""
             [ "$DEBUG_PHASE" = "_" ] && DEBUG_PHASE=""
             [ "$DEBUG_AFFECTED_UNITS" = "_" ] && DEBUG_AFFECTED_UNITS=""
@@ -243,10 +246,20 @@ def generate_write_authorization_sh() -> str:
         # Oracle session rules
         if [ "$ORACLE_SESSION_ACTIVE" = "true" ]; then
             case "$FILE_PATH" in
-                .svp/oracle_run_ledger.json)
+                .svp/oracle_run_ledger.json|.svp/oracle_diagnostic_map.json|.svp/oracle_trajectory.json)
                     exit 0
                     ;;
             esac
+        fi
+
+        # Oracle green_run read-only enforcement (Bug S3-95)
+        # When oracle is in green_run and no debug session is active,
+        # block ALL writes except oracle artifacts (already allowed above).
+        # When /svp:bug runs inside oracle (DEBUG_AUTHORIZED=true),
+        # skip this block — existing debug rules apply below.
+        if [ "$ORACLE_SESSION_ACTIVE" = "true" ] && [ "$ORACLE_PHASE" = "green_run" ] && [ "$DEBUG_AUTHORIZED" != "true" ]; then
+            echo "BLOCKED: Oracle is read-only during green_run. Fixes must go through /svp:bug. Path: $FILE_PATH"
+            exit 2
         fi
 
         # Debug session handling

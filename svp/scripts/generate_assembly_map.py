@@ -458,6 +458,50 @@ def assemble_r_project(
     return repo_dir
 
 
+def assemble_plugin_project(
+    project_root: Path,
+    profile: Dict[str, Any],
+    assembly_config: Dict[str, Any],
+) -> Path:
+    """Assemble a Claude Code plugin repository.
+
+    Creates plugin directory structure: repo root with .claude-plugin/
+    marketplace.json, plugin subdirectory with .claude-plugin/plugin.json,
+    agents/, commands/, skills/, hooks/, scripts/.
+    Returns path to created repository.
+
+    (Bug S3-90: PROJECT_ASSEMBLERS must have claude_code_plugin entry per
+    spec Section 35.6 and Section 40.7.9.)
+    """
+    project_name = _get_project_name(profile, assembly_config, project_root.name)
+    repo_dir = project_root.parent / f"{project_name}-repo"
+
+    # Back up existing repo directory
+    _backup_existing(repo_dir)
+
+    # Create repo directory
+    repo_dir.mkdir(parents=True, exist_ok=True)
+
+    # Root-level marketplace catalog directory
+    (repo_dir / ".claude-plugin").mkdir(parents=True, exist_ok=True)
+
+    # Plugin subdirectory structure (spec Section 40.7.9, Section 1.4)
+    plugin_name = project_name.replace("_", "-")
+    plugin_dir = repo_dir / plugin_name
+
+    (plugin_dir / ".claude-plugin").mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "agents").mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "commands").mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "skills").mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "hooks").mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "scripts").mkdir(parents=True, exist_ok=True)
+
+    # Python source directory for plugin Python modules
+    (plugin_dir / "strategies").mkdir(parents=True, exist_ok=True)
+
+    return repo_dir
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table
 # ---------------------------------------------------------------------------
@@ -467,6 +511,7 @@ PROJECT_ASSEMBLERS: Dict[
 ] = {
     "python": assemble_python_project,
     "r": assemble_r_project,
+    "claude_code_plugin": assemble_plugin_project,
 }
 
 

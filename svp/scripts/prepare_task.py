@@ -1492,6 +1492,22 @@ def _prepare_oracle_agent(
                 _format_section("Trajectory Plan", trajectory_content)
             )
 
+        # Green run read-only constraints (Bug S3-95)
+        sections.append(
+            _format_section(
+                "Green Run Constraints",
+                "You are READ-ONLY during green_run. Do NOT edit code, tests, "
+                "specs, blueprints, or any workspace files (except oracle "
+                "ledger/diagnostic map/trajectory). This is enforced by a "
+                "PreToolUse hook — write attempts will be blocked.\n\n"
+                "When you find a bug: (1) document it in your diagnostic map, "
+                "(2) produce ORACLE_FIX_APPLIED as your terminal status with "
+                "a fix plan in your output. The routing script handles Gate B "
+                "presentation and /svp:bug routing. You do NOT fix bugs "
+                "yourself.",
+            )
+        )
+
     else:
         # Other phases: include test project and nested session if available
         if state and state.oracle_test_project:

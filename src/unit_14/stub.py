@@ -557,10 +557,20 @@ def _bootstrap_oracle_nested_session(state: Any, project_root: Path) -> Any:
         if ctx_src.is_file():
             shutil.copy2(str(ctx_src), str(workspace / "project_context.md"))
 
-        # Copy .svp/ for pipeline state skeleton
+        # Copy .svp/ for pipeline state skeleton, then reset to fresh stage=0
+        # (Bug S3-90: copying .svp/ from project_root copies stale stage=5
+        # pipeline_state.json; nested session must start from Stage 0)
         svp_src = project_root / ".svp"
         if svp_src.is_dir():
             shutil.copytree(str(svp_src), str(workspace / ".svp"))
+        else:
+            (workspace / ".svp").mkdir(parents=True, exist_ok=True)
+        # Reset pipeline_state.json to fresh stage=0 for E-mode nested session
+        fresh_state = PipelineState()
+        state_path = workspace / ".svp" / "pipeline_state.json"
+        import dataclasses
+        state_dict = dataclasses.asdict(fresh_state)
+        state_path.write_text(json.dumps(state_dict, indent=2))
     else:
         # F-mode: copy SVP workspace artifacts (existing behavior)
         for item in ["specs", "blueprint", ".svp"]:

@@ -4865,6 +4865,36 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P22 (Incomplete Action Block Fields) + P10 (Error-Path Contract Omission). The counter-exhaustion rule was documented in the spec (Section 3.6 universal counter-exhaustion table) but the blueprint contract for `dispatch_gate_response` and `prepare_gate_prompt` did not specify the conditional behavior. The `gate_6_3_repair_exhausted` dynamic filtering pattern existed but was not applied to `gate_7_a_trajectory_review`. **Detection:** Oracle F-mode green run (Run 19).
 
+### 24.105 Human Gate Action Blocks Missing valid_responses Field (Post-delivery — Bug S3-91, NEW IN 2.2)
+
+**Gate action blocks omit valid responses (NEW IN 2.2 -- Bug S3-91).** When `_make_action_block()` constructs a `human_gate` action block, it includes `gate_id` but not the valid response strings from `GATE_VOCABULARY`. The orchestrator LLM must guess the exact response to write to `.svp/last_status.txt`, violating the deterministic enforcement principle. Example: orchestrator wrote `APPROVED` when the gate expected `APPROVE TRAJECTORY`, causing a `ValueError` in `dispatch_gate_response`. Fix: when `action_type == "human_gate"` and `gate_id` is in `GATE_VOCABULARY`, inject `valid_responses: list[str]` into the action block from the vocabulary lookup. Single-point fix in `_make_action_block()` — covers all 41 human_gate call sites automatically.
+
+**Pattern:** P22 (Incomplete Action Block Fields). The `GATE_VOCABULARY` source of truth existed at module scope but was never surfaced to the orchestrator via the action block JSON. **Detection:** Oracle E-mode dry run (Run 5), Gate A trajectory review.
+
+### 24.106 PROJECT_ASSEMBLERS Missing claude_code_plugin Entry (Post-delivery — Bug S3-92, NEW IN 2.2)
+
+**PROJECT_ASSEMBLERS missing claude_code_plugin key (NEW IN 2.2 -- Bug S3-92).** `PROJECT_ASSEMBLERS` in `generate_assembly_map.py` only had `["python", "r"]` keys. Spec Section 35.6 explicitly states the gol-plugin test project exercises `PROJECT_ASSEMBLERS["claude_code_plugin"]`, and Section 40.7.9 describes the Stage 5 `claude_code_plugin` assembler. Stage 5 assembly of any `claude_code_plugin` project would fail with a KeyError or silently use the wrong assembler (standard Python instead of plugin directory structure). Fix: added `assemble_plugin_project()` function and registered as `PROJECT_ASSEMBLERS["claude_code_plugin"]`.
+
+**Pattern:** P10 (Error-Path Contract Omission). The spec requirement was clear but the blueprint contract for Unit 23 enumerated only language-keyed assemblers, omitting archetype-based keys. **Detection:** Oracle E-mode dry run (Run 7), GoL Plugin test project.
+
+### 24.107 E-mode Nested Session Bootstrap Inherits Stale Stage=5 Pipeline State (Post-delivery — Bug S3-93, NEW IN 2.2)
+
+**Nested session bootstrap copies stale pipeline state (NEW IN 2.2 -- Bug S3-93).** `_bootstrap_oracle_nested_session` E-mode path copied `.svp/` from the current project root (which has `stage=5`, `oracle_session_active=True`) into the nested session workspace. The nested session inherited this stale state, causing routing to skip Stages 0-4 and jump directly to Stage 5 actions. The oracle could not drive the test project through the full pipeline as required by Section 35.4 Phase 3. Fix: after copying `.svp/`, overwrite `pipeline_state.json` with a fresh `PipelineState()` (stage=0, all defaults).
+
+**Pattern:** P17 (Bootstrap State Leakage). The S3-83 fix correctly handled spec artifact isolation but did not address pipeline state reset. **Detection:** Oracle E-mode dry run (Run 7), GoL Plugin test project.
+
+### 24.108 Oracle Session Exit Leaves Stale debug_session (Post-delivery — Bug S3-94, NEW IN 2.2)
+
+**Oracle exit functions don't clear debug_session (NEW IN 2.2 -- Bug S3-94).** `complete_oracle_session` and `abandon_oracle_session` in `state_transitions.py` clear all oracle fields (`oracle_session_active`, `oracle_phase`, `oracle_test_project`, `oracle_nested_session_path`) but do not clear `debug_session`. When gate_7_b APPROVE FIX creates a debug_session during an oracle green run, and the oracle later exits (via all_clear, abort, or human_abort), the stale debug_session persists. Any subsequent `enter_debug_session` call (e.g., FIX BUGS at the pass transition gate) raises `TransitionError("A debug session is already active")`. Fix: both functions now clear any existing `debug_session` (appending it to `debug_history` with `abandoned=True`) before returning.
+
+**Pattern:** P10 (Error-Path Contract Omission). The oracle exit functions were written before gate_7_b APPROVE FIX was added, and were not updated to account for the debug_session it creates. **Detection:** Manual testing during oracle E-mode GoL Plugin run (Run 7).
+
+### 24.109 Oracle Agent Fixes Bugs Directly Instead of Routing Through /svp:bug (Post-delivery — Bug S3-95, NEW IN 2.2)
+
+**Oracle bypasses /svp:bug and edits files directly (NEW IN 2.2 -- Bug S3-95).** Section 35.4 requires the oracle to route all fixes through `/svp:bug` as a surrogate human. The oracle should be READ-ONLY for code during green_run. In practice, the oracle agent edits code files, writes tests, and runs sync directly within its own invocation, bypassing the entire `/svp:bug` debug flow and skipping spec/blueprint amendments. Three gaps allowed this: (1) `oracle_agent.md` lacks an explicit prohibition on direct code editing, (2) `prepare_task.py` green_run section includes no read-only instructions, (3) no structural enforcement — the oracle has full Edit/Write/Bash tool access. Fix: three-layer defense-in-depth per Section 19 — (a) PreToolUse hook in `write_authorization.sh` blocks writes during oracle green_run when no debug_session is active, allowing only oracle artifacts (run ledger, diagnostic map, trajectory), (b) oracle agent definition adds explicit Read-Only Constraint section, (c) `prepare_task.py` green_run adds constraint reminder. The hook check uses `[ -z "$DEBUG_AUTHORIZED" ]` to allow `/svp:bug` debug writes inside an oracle session.
+
+**Pattern:** P10 (Error-Path Contract Omission) + P22 (Incomplete Action Block Fields). Section 35.4 specified the protocol but the agent definition and hook system did not enforce it. The defense-in-depth principle (Section 19) was not applied to oracle write authorization. **Detection:** Manual audit after oracle E-mode GoL Plugin run (Run 7) applied S3-92/S3-93 directly.
+
 ---
 
 ## 25. Test Data

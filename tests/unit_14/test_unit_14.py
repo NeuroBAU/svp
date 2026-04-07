@@ -980,6 +980,133 @@ class TestRoute:
         assert "docs/" in reminder, "Mapping must include docs/ for F-mode"
         assert "examples/demo/" in reminder, "Mapping must include examples/demo/ for E-mode"
 
+    def test_emode_bootstrap_resets_pipeline_state_to_stage_0(self, tmp_path):
+        """Bug S3-90: E-mode bootstrap must reset pipeline_state.json to stage=0.
+
+        When _bootstrap_oracle_nested_session runs in E-mode (oracle_test_project starts
+        with 'examples/'), copying .svp/ from project_root brings in the stale stage=5
+        pipeline_state.json. The fix must overwrite pipeline_state.json with a fresh
+        stage=0 state so the nested session starts at Stage 0.
+
+        This is verified by:
+        1. Setting up a stale .svp/pipeline_state.json with stage=5 in project_root.
+        2. Triggering the green_run oracle routing which calls _bootstrap_oracle_nested_session.
+        3. Verifying the nested session workspace has pipeline_state.json with stage='0'.
+        """
+        import dataclasses
+
+        # Create a stale pipeline_state.json with stage=5 in project_root/.svp/
+        stale_state = _make_state(
+            stage="5",
+            sub_stage="pass_transition",
+            oracle_session_active=True,
+            oracle_phase="green_run",
+            oracle_test_project="examples/gol-plugin",
+            oracle_run_count=7,
+        )
+        svp_dir = tmp_path / ".svp"
+        svp_dir.mkdir()
+        stale_state_dict = {
+            "stage": "5",
+            "sub_stage": "pass_transition",
+            "oracle_session_active": True,
+            "oracle_phase": "green_run",
+            "oracle_test_project": "examples/gol-plugin",
+            "oracle_run_count": 7,
+            "oracle_nested_session_path": None,
+            "oracle_modification_count": 0,
+            "current_unit": None,
+            "total_units": 0,
+            "verified_units": [],
+            "alignment_iterations": 0,
+            "fix_ladder_position": None,
+            "red_run_retries": 0,
+            "pass_history": [],
+            "debug_session": None,
+            "debug_history": [],
+            "redo_triggered_from": None,
+            "delivered_repo_path": None,
+            "primary_language": "python",
+            "component_languages": [],
+            "secondary_language": None,
+            "state_hash": None,
+            "spec_revision_count": 0,
+            "pass_": None,
+            "pass2_nested_session_path": None,
+            "deferred_broken_units": [],
+        }
+        (svp_dir / "pipeline_state.json").write_text(
+            json.dumps(stale_state_dict), encoding="utf-8"
+        )
+        _write_last_status(tmp_path, "")
+
+        # Create the test project directory structure (examples/gol-plugin)
+        examples_dir = tmp_path / "examples" / "gol-plugin"
+        examples_dir.mkdir(parents=True)
+        (examples_dir / "stakeholder_spec.md").write_text("# GoL Plugin Spec")
+        (examples_dir / "oracle_manifest.json").write_text(
+            json.dumps({"name": "GoL Plugin", "oracle_mode": "product", "archetype": "claude_code_plugin"})
+        )
+
+        # Directly invoke _bootstrap_oracle_nested_session
+        from src.unit_14.stub import _bootstrap_oracle_nested_session
+        from src.unit_14.unit_5_stub import PipelineState
+
+        oracle_state = PipelineState(
+            stage="5",
+            sub_stage="pass_transition",
+            oracle_session_active=True,
+            oracle_phase="green_run",
+            oracle_test_project="examples/gol-plugin",
+            oracle_run_count=7,
+        )
+
+        new_state = _bootstrap_oracle_nested_session(oracle_state, tmp_path)
+
+        # Verify the nested session workspace was created
+        workspace = tmp_path.parent / "oracle-session-7"
+        assert workspace.exists(), "Nested session workspace must be created"
+
+        # Verify pipeline_state.json is reset to stage=0
+        nested_state_path = workspace / ".svp" / "pipeline_state.json"
+        assert nested_state_path.exists(), "Nested session must have pipeline_state.json"
+
+        nested_state = json.loads(nested_state_path.read_text())
+        assert nested_state["stage"] == "0", (
+            f"Bug S3-90: E-mode nested session pipeline_state.json must have stage='0', "
+            f"got stage='{nested_state['stage']}' -- stale stage=5 state was not reset"
+        )
+        assert not nested_state.get("oracle_session_active", False), (
+            "Bug S3-90: Nested session pipeline_state.json must not have oracle_session_active=True"
+        )
+
+    def test_emode_bootstrap_fresh_state_when_no_svp_dir(self, tmp_path):
+        """Bug S3-90: E-mode bootstrap creates fresh pipeline_state.json even if .svp/ doesn't exist."""
+        from src.unit_14.stub import _bootstrap_oracle_nested_session
+        from src.unit_14.unit_5_stub import PipelineState
+
+        # Create test project dir WITHOUT .svp/
+        examples_dir = tmp_path / "examples" / "gol-plugin"
+        examples_dir.mkdir(parents=True)
+        (examples_dir / "stakeholder_spec.md").write_text("# Spec")
+
+        oracle_state = PipelineState(
+            stage="5",
+            oracle_session_active=True,
+            oracle_phase="green_run",
+            oracle_test_project="examples/gol-plugin",
+            oracle_run_count=9,
+        )
+
+        new_state = _bootstrap_oracle_nested_session(oracle_state, tmp_path)
+        workspace = tmp_path.parent / "oracle-session-9"
+        nested_state_path = workspace / ".svp" / "pipeline_state.json"
+        assert nested_state_path.exists(), "Fresh pipeline_state.json must be created"
+        nested_state = json.loads(nested_state_path.read_text())
+        assert nested_state["stage"] == "0", (
+            "Bug S3-90: Fresh stage=0 state must be written even without .svp/ in project_root"
+        )
+
     def test_all_invoke_agent_blocks_have_prepare(self, tmp_path):
         """Bug S3-78: every invoke_agent action block must have a prepare field."""
         import re

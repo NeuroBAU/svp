@@ -198,8 +198,9 @@ Produce diagnostic map entries. Status: `ORACLE_DRY_RUN_COMPLETE`.
 2. **gate_a:** Human reviews the planned trajectory. Response: \
 `APPROVE TRAJECTORY` or `MODIFY TRAJECTORY` or `ABORT`.
 3. **green_run:** Execute the test project through the pipeline. Run tests, \
-verify outputs, identify bugs. If bugs found, produce fix plan for Gate B. \
-If no bugs: `ORACLE_ALL_CLEAR`.
+verify outputs, identify bugs. You are READ-ONLY during green_run — all \
+fixes go through `/svp:bug` after Gate B approval. If bugs found, produce \
+fix plan and signal `ORACLE_FIX_APPLIED`. If no bugs: `ORACLE_ALL_CLEAR`.
 4. **gate_b:** Human reviews the fix plan. Response: `APPROVE FIX` or \
 `ABORT`. After fix: `ORACLE_FIX_APPLIED`. After abort: `ORACLE_HUMAN_ABORT`.
 
@@ -228,6 +229,22 @@ For internal `/svp:bug` calls during green run:
 - Auto-respond at Gate 6.0 (authorize debug session)
 - Auto-respond at Gate 6.1 (triage confirmation)
 - Auto-respond at Gate 6.2 (repair approval)
+
+## Read-Only Constraint (Bug S3-95)
+
+During green_run, you are READ-ONLY. You MUST NOT use Edit, Write, or Bash \
+to modify any workspace files except your own oracle artifacts:
+- `.svp/oracle_run_ledger.json` (your run ledger)
+- `.svp/oracle_diagnostic_map.json` (your diagnostic map)
+- `.svp/oracle_trajectory.json` (your trajectory)
+
+You MUST NOT modify source code, specs, blueprints, tests, lessons learned, \
+or deployed artifacts. This is enforced by a PreToolUse hook — attempts \
+will be blocked with exit code 2.
+
+When you find a bug: produce `ORACLE_FIX_APPLIED` as your terminal status \
+with a fix plan in your output. The routing script handles Gate B and \
+`/svp:bug` routing. You do NOT fix bugs yourself.
 
 ## Context Budget Management
 
@@ -458,6 +475,50 @@ def assemble_r_project(
     return repo_dir
 
 
+def assemble_plugin_project(
+    project_root: Path,
+    profile: Dict[str, Any],
+    assembly_config: Dict[str, Any],
+) -> Path:
+    """Assemble a Claude Code plugin repository.
+
+    Creates plugin directory structure: repo root with .claude-plugin/
+    marketplace.json, plugin subdirectory with .claude-plugin/plugin.json,
+    agents/, commands/, skills/, hooks/, scripts/.
+    Returns path to created repository.
+
+    (Bug S3-90: PROJECT_ASSEMBLERS must have claude_code_plugin entry per
+    spec Section 35.6 and Section 40.7.9.)
+    """
+    project_name = _get_project_name(profile, assembly_config, project_root.name)
+    repo_dir = project_root.parent / f"{project_name}-repo"
+
+    # Back up existing repo directory
+    _backup_existing(repo_dir)
+
+    # Create repo directory
+    repo_dir.mkdir(parents=True, exist_ok=True)
+
+    # Root-level marketplace catalog directory
+    (repo_dir / ".claude-plugin").mkdir(parents=True, exist_ok=True)
+
+    # Plugin subdirectory structure (spec Section 40.7.9, Section 1.4)
+    plugin_name = project_name.replace("_", "-")
+    plugin_dir = repo_dir / plugin_name
+
+    (plugin_dir / ".claude-plugin").mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "agents").mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "commands").mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "skills").mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "hooks").mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "scripts").mkdir(parents=True, exist_ok=True)
+
+    # Python source directory for plugin Python modules
+    (plugin_dir / "strategies").mkdir(parents=True, exist_ok=True)
+
+    return repo_dir
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table
 # ---------------------------------------------------------------------------
@@ -467,6 +528,7 @@ PROJECT_ASSEMBLERS: Dict[
 ] = {
     "python": assemble_python_project,
     "r": assemble_r_project,
+    "claude_code_plugin": assemble_plugin_project,
 }
 
 

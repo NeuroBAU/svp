@@ -153,3 +153,28 @@ def test_blueprint_review_review_complete_presents_gate_2_2():
         f"REVIEW_COMPLETE in blueprint_review must present gate_2_2_blueprint_post_review, "
         f"got {action.get('gate_id')!r}"
     )
+
+
+def test_spec_review_sub_stage_routes_to_stakeholder_reviewer():
+    """S3-17: sub_stage='spec_review' must route to stakeholder_reviewer agent."""
+    state = _make_route_state(stage="1", sub_stage="spec_review")
+    action = _route_with_status(state, None)
+    assert action["action_type"] == "invoke_agent", (
+        f"spec_review must invoke an agent, got {action['action_type']!r}"
+    )
+    assert action.get("agent_type") == "stakeholder_reviewer", (
+        f"spec_review must invoke stakeholder_reviewer, got {action.get('agent_type')!r}"
+    )
+
+
+def test_spec_review_review_complete_presents_gate_1_2():
+    """S3-17: REVIEW_COMPLETE in spec_review sub-stage must present gate_1_2_spec_post_review."""
+    state = _make_route_state(stage="1", sub_stage="spec_review")
+    action = _route_with_status(state, "REVIEW_COMPLETE")
+    assert action["action_type"] == "human_gate", (
+        f"REVIEW_COMPLETE in spec_review must present a human gate, got {action['action_type']!r}"
+    )
+    assert action.get("gate_id") == "gate_1_2_spec_post_review", (
+        f"REVIEW_COMPLETE in spec_review must present gate_1_2_spec_post_review, "
+        f"got {action.get('gate_id')!r}"
+    )

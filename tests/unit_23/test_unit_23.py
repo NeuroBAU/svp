@@ -47,6 +47,7 @@ from src.unit_23.stub import (
     PROJECT_ASSEMBLERS,
     REGRESSION_ADAPTATION_AGENT_DEFINITION,
     adapt_regression_tests_main,
+    assemble_plugin_project,
     assemble_python_project,
     assemble_r_project,
     generate_assembly_map,
@@ -294,6 +295,133 @@ class TestProjectAssemblersStructure:
         for key in PROJECT_ASSEMBLERS:
             assert isinstance(key, str)
             assert key == key.lower(), f"Key '{key}' should be lowercase language ID"
+
+    def test_project_assemblers_has_claude_code_plugin_key(self):
+        """Dispatch table must include 'claude_code_plugin' key (Bug S3-90).
+
+        Spec Section 35.6 explicitly states the gol-plugin test project exercises
+        PROJECT_ASSEMBLERS['claude_code_plugin']. This entry is required for E-mode
+        oracle verification of the claude_code_plugin archetype.
+        """
+        assert "claude_code_plugin" in PROJECT_ASSEMBLERS, (
+            "PROJECT_ASSEMBLERS missing 'claude_code_plugin' key -- "
+            "spec Section 35.6 requires it for GoL plugin E-mode oracle verification"
+        )
+
+    def test_plugin_assembler_is_callable(self):
+        """The 'claude_code_plugin' entry must be a callable (Bug S3-90)."""
+        assert callable(PROJECT_ASSEMBLERS["claude_code_plugin"])
+
+    def test_plugin_key_maps_to_assemble_plugin_project(self):
+        """The 'claude_code_plugin' key must dispatch to assemble_plugin_project (Bug S3-90)."""
+        assert PROJECT_ASSEMBLERS["claude_code_plugin"] is assemble_plugin_project
+
+
+class TestAssemblePluginProject:
+    """assemble_plugin_project creates a Claude Code plugin repository structure (Bug S3-90)."""
+
+    @pytest.fixture
+    def plugin_profile(self):
+        return {
+            "name": "gol-plugin",
+            "archetype": "claude_code_plugin",
+            "language": {"primary": "python"},
+            "delivery": {"python": {"source_layout": "flat", "entry_points": False}},
+            "quality": {"python": {}},
+        }
+
+    @pytest.fixture
+    def plugin_assembly_config(self):
+        return {
+            "project_name": "gol-plugin",
+            "description": "GoL plugin",
+        }
+
+    def test_returns_path(self, tmp_path, plugin_profile, plugin_assembly_config):
+        """assemble_plugin_project returns a Path object."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        result = assemble_plugin_project(
+            project_root, plugin_profile, plugin_assembly_config
+        )
+        assert isinstance(result, Path)
+
+    def test_creates_repo_directory(self, tmp_path, plugin_profile, plugin_assembly_config):
+        """assemble_plugin_project creates the repo directory at parent/{project_name}-repo."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        result = assemble_plugin_project(
+            project_root, plugin_profile, plugin_assembly_config
+        )
+        assert result.exists()
+        assert result.name == "gol-plugin-repo"
+
+    def test_creates_root_claude_plugin_dir(
+        self, tmp_path, plugin_profile, plugin_assembly_config
+    ):
+        """Repo root must have .claude-plugin/ directory for marketplace.json."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        result = assemble_plugin_project(
+            project_root, plugin_profile, plugin_assembly_config
+        )
+        assert (result / ".claude-plugin").is_dir()
+
+    def test_creates_plugin_subdirectory(
+        self, tmp_path, plugin_profile, plugin_assembly_config
+    ):
+        """Plugin subdirectory (plugin-name/) must be created inside repo root."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        result = assemble_plugin_project(
+            project_root, plugin_profile, plugin_assembly_config
+        )
+        plugin_dir = result / "gol-plugin"
+        assert plugin_dir.is_dir()
+
+    def test_creates_plugin_manifest_dir(
+        self, tmp_path, plugin_profile, plugin_assembly_config
+    ):
+        """Plugin subdirectory must have .claude-plugin/ for plugin.json."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        result = assemble_plugin_project(
+            project_root, plugin_profile, plugin_assembly_config
+        )
+        assert (result / "gol-plugin" / ".claude-plugin").is_dir()
+
+    def test_creates_agents_directory(
+        self, tmp_path, plugin_profile, plugin_assembly_config
+    ):
+        """Plugin subdirectory must have agents/ directory."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        result = assemble_plugin_project(
+            project_root, plugin_profile, plugin_assembly_config
+        )
+        assert (result / "gol-plugin" / "agents").is_dir()
+
+    def test_creates_commands_directory(
+        self, tmp_path, plugin_profile, plugin_assembly_config
+    ):
+        """Plugin subdirectory must have commands/ directory."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        result = assemble_plugin_project(
+            project_root, plugin_profile, plugin_assembly_config
+        )
+        assert (result / "gol-plugin" / "commands").is_dir()
+
+    def test_creates_skills_directory(
+        self, tmp_path, plugin_profile, plugin_assembly_config
+    ):
+        """Plugin subdirectory must have skills/ directory."""
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+        result = assemble_plugin_project(
+            project_root, plugin_profile, plugin_assembly_config
+        )
+        assert (result / "gol-plugin" / "skills").is_dir()
 
 
 # ===========================================================================

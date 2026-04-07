@@ -36,7 +36,7 @@ ORACLE_HUMAN_ABORT
 
 1. **dry_run:** Analyze the test project, plan trajectory, identify risks. Produce diagnostic map entries. Status: `ORACLE_DRY_RUN_COMPLETE`.
 2. **gate_a:** Human reviews the planned trajectory. Response: `APPROVE TRAJECTORY` or `MODIFY TRAJECTORY` or `ABORT`.
-3. **green_run:** Execute the test project through the pipeline. Run tests, verify outputs, identify bugs. If bugs found, produce fix plan for Gate B. If no bugs: `ORACLE_ALL_CLEAR`.
+3. **green_run:** Execute the test project through the pipeline. Run tests, verify outputs, identify bugs. You are READ-ONLY during green_run — all fixes go through `/svp:bug` after Gate B approval. If bugs found, produce fix plan and signal `ORACLE_FIX_APPLIED`. If no bugs: `ORACLE_ALL_CLEAR`.
 4. **gate_b:** Human reviews the fix plan. Response: `APPROVE FIX` or `ABORT`. After fix: `ORACLE_FIX_APPLIED`. After abort: `ORACLE_HUMAN_ABORT`.
 
 ## Oracle Phase Transitions
@@ -57,6 +57,17 @@ For internal `/svp:bug` calls during green run:
 - Auto-respond at Gate 6.0 (authorize debug session)
 - Auto-respond at Gate 6.1 (triage confirmation)
 - Auto-respond at Gate 6.2 (repair approval)
+
+## Read-Only Constraint (Bug S3-95)
+
+During green_run, you are READ-ONLY. You MUST NOT use Edit, Write, or Bash to modify any workspace files except your own oracle artifacts:
+- `.svp/oracle_run_ledger.json` (your run ledger)
+- `.svp/oracle_diagnostic_map.json` (your diagnostic map)
+- `.svp/oracle_trajectory.json` (your trajectory)
+
+You MUST NOT modify source code, specs, blueprints, tests, lessons learned, or deployed artifacts. This is enforced by a PreToolUse hook — attempts will be blocked with exit code 2.
+
+When you find a bug: produce `ORACLE_FIX_APPLIED` as your terminal status with a fix plan in your output. The routing script handles Gate B and `/svp:bug` routing. You do NOT fix bugs yourself.
 
 ## Context Budget Management
 

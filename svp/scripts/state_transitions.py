@@ -582,7 +582,8 @@ def complete_oracle_session(state: PipelineState, exit_reason: str) -> PipelineS
 
     Precondition: oracle_session_active is True.
     Postcondition: oracle_session_active=False, oracle_phase=None,
-                   oracle_test_project=None, oracle_nested_session_path=None.
+                   oracle_test_project=None, oracle_nested_session_path=None,
+                   debug_session=None (Bug S3-94).
     """
     if not state.oracle_session_active:
         raise TransitionError("Cannot complete oracle session: no active session")
@@ -591,6 +592,11 @@ def complete_oracle_session(state: PipelineState, exit_reason: str) -> PipelineS
     new.oracle_phase = None
     new.oracle_test_project = None
     new.oracle_nested_session_path = None
+    if new.debug_session is not None:
+        session = dict(new.debug_session)
+        session["abandoned"] = True
+        new.debug_history.append(session)
+        new.debug_session = None
     return new
 
 
@@ -599,7 +605,8 @@ def abandon_oracle_session(state: PipelineState) -> PipelineState:
 
     Precondition: oracle_session_active is True.
     Postcondition: oracle_session_active=False, oracle_phase=None,
-                   oracle_test_project=None, oracle_nested_session_path=None.
+                   oracle_test_project=None, oracle_nested_session_path=None,
+                   debug_session=None (Bug S3-94).
     """
     if not state.oracle_session_active:
         raise TransitionError("Cannot abandon oracle session: no active session")
@@ -608,4 +615,9 @@ def abandon_oracle_session(state: PipelineState) -> PipelineState:
     new.oracle_phase = None
     new.oracle_test_project = None
     new.oracle_nested_session_path = None
+    if new.debug_session is not None:
+        session = dict(new.debug_session)
+        session["abandoned"] = True
+        new.debug_history.append(session)
+        new.debug_session = None
     return new

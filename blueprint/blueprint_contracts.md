@@ -581,13 +581,13 @@ def abandon_oracle_session(state: "PipelineState") -> "PipelineState": ...
 - Precondition: `state.oracle_session_active is False`.
 - Postcondition: `state.oracle_session_active = True`, `state.oracle_phase = "dry_run"`, `state.oracle_test_project = test_project`, `state.oracle_run_count` incremented by 1.
 
-**complete_oracle_session (Bug S3-15):**
+**complete_oracle_session (Bug S3-15, S3-94):**
 - Precondition: `state.oracle_session_active is True`.
-- Postcondition: `state.oracle_session_active = False`, `state.oracle_phase = None`, `state.oracle_test_project = None`, `state.oracle_nested_session_path = None`.
+- Postcondition: `state.oracle_session_active = False`, `state.oracle_phase = None`, `state.oracle_test_project = None`, `state.oracle_nested_session_path = None`, `state.debug_session = None` (if one existed, it is appended to `debug_history` with `abandoned=True`). **(Bug S3-94 fix.)**
 
-**abandon_oracle_session (Bug S3-15):**
+**abandon_oracle_session (Bug S3-15, S3-94):**
 - Precondition: `state.oracle_session_active is True`.
-- Postcondition: `state.oracle_session_active = False`, `state.oracle_phase = None`, `state.oracle_test_project = None`, `state.oracle_nested_session_path = None`.
+- Postcondition: `state.oracle_session_active = False`, `state.oracle_phase = None`, `state.oracle_test_project = None`, `state.oracle_nested_session_path = None`, `state.debug_session = None` (if one existed, it is appended to `debug_history` with `abandoned=True`). **(Bug S3-94 fix.)**
 
 ---
 
@@ -984,7 +984,7 @@ Set equality invariant: `set(ALL_GATE_IDS) == set(GATE_VOCABULARY.keys())` (veri
   - `redo_agent`: loads state summary, error description.
   - `bug_triage_agent`: blueprint: both. Loads spec, source, tests, ledger, assembly map, delivered repo path.
   - `repair_agent`: blueprint: both. Loads error diagnosis, environment state, affected unit context.
-  - `oracle_agent`: blueprint: both (dry run only). Loads run ledger, spec, bug catalog, regression tests, test project artifacts, nested session state, assembly map.
+  - `oracle_agent`: blueprint: both (dry run only). Loads run ledger, spec, bug catalog, regression tests, test project artifacts, nested session state, assembly map. **Green run constraint section (Bug S3-95):** when `oracle_phase == "green_run"`, appends a "Green Run Constraints" section reminding the oracle it is READ-ONLY and must produce `ORACLE_FIX_APPLIED` for bug fixes.
 - Injects `LANGUAGE_CONTEXT` section via `build_language_context` for all Stage 3 agents.
 - **Sentinel format in agent prompts (Bug S3-2, S3-4):** For agent types that verify stub presence or absence (`test_agent`, `implementation_agent`, `coverage_review_agent`), the injected `LANGUAGE_CONTEXT` MUST include the verbatim `stub_sentinel` value from `LANGUAGE_REGISTRY[language]["stub_sentinel"]`. This ensures agents check for the exact sentinel string rather than improvising their own pattern.
 - Writes output to `.svp/task_prompt.md`.
@@ -1119,7 +1119,7 @@ def run_tests_main(argv: list = None) -> None: ...
 
 **route():**
 - Reads `pipeline_state.json` and `last_status.txt`.
-- Returns action block dict with keys: `action_type` (str), `agent_type` (str, optional), `command` (str, optional), `gate_id` (str, optional), `prepare` (str, optional), `post` (str, optional), `reminder` (str).
+- Returns action block dict with keys: `action_type` (str), `agent_type` (str, optional), `command` (str, optional), `gate_id` (str, optional), `prepare` (str, optional), `post` (str, optional), `reminder` (str), `valid_responses` (list[str], present when `action_type == "human_gate"` and `gate_id` is in `GATE_VOCABULARY` — Bug S3-91).
 - **Action block prepare invariant (Bug S3-78):** Every `invoke_agent` action block MUST include a `prepare` field containing the `prepare_task.py` command that generates `.svp/task_prompt.md`. Unit-level agents include `--unit N`. The helper `_agent_prepare_cmd(agent_type, unit=None)` builds this command.
 - Valid `action_type` values: `"invoke_agent"`, `"run_command"`, `"human_gate"`, `"session_boundary"`, `"pipeline_complete"`, `"pipeline_held"`, `"break_glass"`, `"oracle_select_test_project"` **(Bug S3-74)**.
 - Two-branch routing invariant: for every sub-stage in the exhaustive list (Section 3.6), checks `last_status.txt` to distinguish "agent not done" from "agent done".
@@ -1335,7 +1335,7 @@ def run_tests_main(argv: list = None) -> None: ...
 - Test project selection: _route_oracle builds the complete numbered test project list in Python (hardcoded F-mode "SVP Pipeline" as item 1 + auto-discovered E-mode from `examples/*/oracle_manifest.json`) and embeds it in the reminder field along with a number-to-path mapping (e.g., `1 → docs/`, `2 → examples/game-of-life/`). The action block includes `post: "python scripts/update_state.py --command oracle_test_project_selection --project-root ."`. The orchestrator presents the list verbatim, writes the selected path to `.svp/last_status.txt`, and runs the POST command. **(Bug S3-76 + S3-77 fix.)**
 - oracle_start command: dispatch_command_status handles "oracle_start" by calling enter_oracle_session.
 - Modification bound: gate_7_a MODIFY increments oracle_modification_count; _route_oracle warns when >= 3.
-- Nested session bootstrap: _bootstrap_oracle_nested_session creates workspace at green_run start.
+- Nested session bootstrap: _bootstrap_oracle_nested_session creates workspace at green_run start. E-mode path copies `.svp/` then overwrites `pipeline_state.json` with fresh `PipelineState()` (stage=0, all defaults) so the nested session starts clean. **(Bug S3-93 fix.)**
 - Internal /svp:bug: gate_7_b APPROVE FIX calls enter_debug_session; oracle_session_active stays True.
 - Fix verification: after debug completes, green_run tears down and recreates nested session.
 - Session cleanup: exit phase cleans workspace (unless E-mode), records run ledger, calls complete_oracle_session.
@@ -1506,7 +1506,7 @@ def generate_monitoring_reminder_sh() -> str: ...
 - Profile: writable during Stage 0 `project_profile` and redo sub-stages only.
 - Toolchain: permanently read-only.
 - `ruff.toml`: permanently read-only.
-- Oracle session rules: `.svp/oracle_run_ledger.json` always writable during oracle sessions.
+- Oracle session rules: `.svp/oracle_run_ledger.json` always writable during oracle sessions. **Oracle green_run read-only enforcement (Bug S3-95):** when `oracle_session_active=True` AND `oracle_phase="green_run"` AND `debug_session` is null (no active `/svp:bug`), only oracle artifacts (`.svp/oracle_run_ledger.json`, `.svp/oracle_diagnostic_map.json`, `.svp/oracle_trajectory.json`) are writable — all other writes are blocked with exit code 2. When `debug_session` is authorized (i.e., `/svp:bug` running inside oracle), existing debug session write rules apply instead.
 - Debug session rules: `tests/regressions/` writable, unit-specific dirs writable, `delivered_repo_path` writable.
 - Exit code 2 for blocked writes (Claude Code hard block convention).
 
@@ -1738,7 +1738,8 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 **PROJECT_ASSEMBLERS dispatch table:**
 - Key `"python"`: `assemble_python_project`. Produces `pyproject.toml`, proper module paths, `__init__.py` files, layout-specific structure (conventional: `src/packagename/`, flat: `packagename/`, svp_native: `scripts/`).
 - Key `"r"`: `assemble_r_project`. Produces `DESCRIPTION`, `NAMESPACE`, R package structure.
-- Keyed by language ID (not dispatch key).
+- Key `"claude_code_plugin"`: `assemble_plugin_project`. Produces plugin directory structure (`.claude-plugin/`, `agents/`, `commands/`, `skills/`, `strategies/`) per spec Section 40.7.9. Keyed by archetype, not language ID. **(Bug S3-92 fix.)**
+- Language keys keyed by language ID; archetype keys keyed by archetype name.
 
 **assemble_python_project:**
 - Reads `assembly_map.json` for path mapping.
@@ -1795,6 +1796,7 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
   - `green_run` -> `exit`: on `ORACLE_ALL_CLEAR` status (no bugs found), routing sets `oracle_phase = "exit"` directly.
 - The oracle agent invocation spans `green_run` + Gate B as a multi-turn session: the oracle's green run invocation continues through the fix plan review gate, maintaining session state between the green run execution and the fix plan presentation.
 - Surrogate human protocol for internal `/svp:bug` calls: auto-responds at Gates 6.0, 6.1, 6.2.
+- **Read-only constraint during green_run (Bug S3-95):** The oracle MUST NOT use Edit, Write, or Bash to modify any workspace files during green_run, except oracle artifacts (run ledger, diagnostic map, trajectory). When a bug is found, the oracle produces `ORACLE_FIX_APPLIED` terminal status with a fix plan; the routing script handles Gate B and `/svp:bug` routing. This is enforced by the `write_authorization.sh` PreToolUse hook (Layer 1) and instructed in the agent definition (Layer 2) and task prompt (Layer 3).
 - Context budget management: selective analysis with reporting.
 - Run ledger as cross-invocation memory.
 - Fix verification: 2 attempts max per bug.
