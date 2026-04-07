@@ -1495,6 +1495,27 @@ def _prepare_oracle_agent(
             sections.append(_format_section("Oracle Mode", oracle_mode))
             sections.append(_format_section("Test Project", test_proj))
 
+            # Bug S3-102: embed test project artifacts in task prompt
+            artifact_dir = (
+                project_root / test_proj
+                if "examples/" in test_proj
+                else project_root / "docs"
+            )
+            for artifact_name in [
+                "oracle_manifest.json",
+                "project_context.md",
+                "stakeholder_spec.md",
+                "blueprint_prose.md",
+                "blueprint_contracts.md",
+            ]:
+                artifact_content = _read_file_safe(artifact_dir / artifact_name)
+                if artifact_content:
+                    sections.append(
+                        _format_section(
+                            f"Test Project: {artifact_name}", artifact_content
+                        )
+                    )
+
     elif oracle_phase == "green_run":
         # Green run: execute trajectory in nested session
         if state and state.oracle_nested_session_path:
@@ -1519,6 +1540,29 @@ def _prepare_oracle_agent(
             sections.append(
                 _format_section("Trajectory Plan", trajectory_content)
             )
+
+        # Bug S3-102: embed test project artifacts for green run too
+        if state and state.oracle_test_project:
+            test_proj = state.oracle_test_project
+            artifact_dir = (
+                project_root / test_proj
+                if "examples/" in test_proj
+                else project_root / "docs"
+            )
+            for artifact_name in [
+                "oracle_manifest.json",
+                "project_context.md",
+                "stakeholder_spec.md",
+                "blueprint_prose.md",
+                "blueprint_contracts.md",
+            ]:
+                artifact_content = _read_file_safe(artifact_dir / artifact_name)
+                if artifact_content:
+                    sections.append(
+                        _format_section(
+                            f"Test Project: {artifact_name}", artifact_content
+                        )
+                    )
 
         # Green run read-only constraints (Bug S3-95)
         sections.append(
