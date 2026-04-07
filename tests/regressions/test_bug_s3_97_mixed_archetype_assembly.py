@@ -14,7 +14,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from src.unit_23.stub import (
+from generate_assembly_map import (
     PROJECT_ASSEMBLERS,
     GIT_REPO_AGENT_DEFINITION,
     assemble_mixed_project,
@@ -107,7 +107,7 @@ class TestComplianceScanDual:
 
     def test_secondary_scanner_invoked_for_mixed(self):
         """compliance_scan_main must invoke secondary scanner when archetype is mixed."""
-        from src.unit_28.stub import compliance_scan_main, COMPLIANCE_SCANNERS
+        from structural_check import compliance_scan_main, COMPLIANCE_SCANNERS
 
         mock_profile = {
             "archetype": "mixed",
@@ -118,7 +118,7 @@ class TestComplianceScanDual:
         r_scan = MagicMock(return_value=[])
 
         with (
-            patch("src.unit_3.stub.load_profile", return_value=mock_profile),
+            patch("profile_schema.load_profile", return_value=mock_profile),
             patch.dict(COMPLIANCE_SCANNERS, {"python": py_scan, "r": r_scan}),
         ):
             compliance_scan_main(
@@ -134,7 +134,7 @@ class TestComplianceScanDual:
 
     def test_secondary_scanner_not_invoked_for_single(self):
         """compliance_scan_main must NOT invoke secondary scanner for non-mixed."""
-        from src.unit_28.stub import compliance_scan_main, COMPLIANCE_SCANNERS
+        from structural_check import compliance_scan_main, COMPLIANCE_SCANNERS
 
         mock_profile = {
             "archetype": "python",
@@ -145,7 +145,7 @@ class TestComplianceScanDual:
         r_scan = MagicMock(return_value=[])
 
         with (
-            patch("src.unit_3.stub.load_profile", return_value=mock_profile),
+            patch("profile_schema.load_profile", return_value=mock_profile),
             patch.dict(COMPLIANCE_SCANNERS, {"python": py_scan, "r": r_scan}),
         ):
             compliance_scan_main(
@@ -161,7 +161,7 @@ class TestComplianceScanDual:
 
     def test_findings_aggregated(self):
         """Findings from both scanners must be aggregated."""
-        from src.unit_28.stub import compliance_scan_main, COMPLIANCE_SCANNERS
+        from structural_check import compliance_scan_main, COMPLIANCE_SCANNERS
         import io
 
         mock_profile = {
@@ -176,7 +176,7 @@ class TestComplianceScanDual:
         r_scan = MagicMock(return_value=r_findings)
 
         with (
-            patch("src.unit_3.stub.load_profile", return_value=mock_profile),
+            patch("profile_schema.load_profile", return_value=mock_profile),
             patch.dict(COMPLIANCE_SCANNERS, {"python": py_scan, "r": r_scan}),
             patch("sys.stdout", new_callable=io.StringIO) as mock_stdout,
         ):
@@ -200,7 +200,7 @@ class TestIntegrationTestBridgeInjection:
 
     def test_bridge_requirement_injected_for_mixed(self, tmp_path):
         """Must inject bridge test requirement for mixed archetype."""
-        from src.unit_13.stub import _prepare_integration_test_author
+        from prepare_task import _prepare_integration_test_author
 
         # Create minimal project structure
         project_root = tmp_path / "test-project"
@@ -235,7 +235,7 @@ class TestIntegrationTestBridgeInjection:
 
     def test_no_bridge_requirement_for_python_only(self, tmp_path):
         """Must NOT inject bridge test requirement for non-mixed archetype."""
-        from src.unit_13.stub import _prepare_integration_test_author
+        from prepare_task import _prepare_integration_test_author
 
         project_root = tmp_path / "test-project"
         project_root.mkdir()
