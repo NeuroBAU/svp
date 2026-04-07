@@ -7,7 +7,6 @@ Verifies that:
 - Import rewriting mechanics work correctly
 """
 
-import os
 import re
 from pathlib import Path
 
@@ -20,10 +19,20 @@ from derive_scripts_from_stubs import (
     rewrite_imports,
 )
 
-WORKSPACE = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-# Detect if running from workspace (has scripts/ dir) or repo (has svp/scripts/)
-_IS_WORKSPACE = (WORKSPACE / "scripts").is_dir() and not (WORKSPACE / "svp" / "scripts").is_dir()
+# Detect layout: workspace has scripts/, repo has svp/scripts/
+_IS_WORKSPACE = (PROJECT_ROOT / "scripts").is_dir()
+
+
+def _resolve_script_path(script_path: str) -> Path:
+    """Resolve a STUB_TO_SCRIPT value to an actual path in either layout."""
+    # STUB_TO_SCRIPT uses workspace paths: "scripts/X.py"
+    if _IS_WORKSPACE:
+        return PROJECT_ROOT / script_path
+    # In repo: scripts/X.py -> svp/scripts/X.py
+    return PROJECT_ROOT / script_path.replace("scripts/", "svp/scripts/", 1)
+
 
 # Units that have NO script equivalent (agents, commands, hooks, skills, configs)
 # These are allowed in test imports because they are definition-only units.
@@ -41,7 +50,6 @@ _NON_SCRIPT_UNITS = {
 }
 
 
-@pytest.mark.skipif(not _IS_WORKSPACE, reason="Drift test only runs from workspace")
 class TestStubScriptDrift:
     """Bug S3-98: Every script must be derivable from its stub."""
 
@@ -52,18 +60,18 @@ class TestStubScriptDrift:
     )
     def test_script_matches_derived_stub(self, stub_path, script_path):
         """Script must equal stub with imports rewritten."""
-        stub_file = WORKSPACE / stub_path
-        script_file = WORKSPACE / script_path
+        stub_file = PROJECT_ROOT / stub_path
+        script_file = _resolve_script_path(script_path)
 
         assert stub_file.exists(), f"Stub not found: {stub_path}"
-        assert script_file.exists(), f"Script not found: {script_path}"
+        assert script_file.exists(), f"Script not found: {script_file}"
 
         stub_content = stub_file.read_text()
         derived = rewrite_imports(stub_content)
         actual = script_file.read_text()
 
         assert derived == actual, (
-            f"{script_path} has drifted from {stub_path}. "
+            f"{script_file.relative_to(PROJECT_ROOT)} has drifted from {stub_path}. "
             f"Run: python3 scripts/derive_scripts_from_stubs.py && bash sync_workspace.sh"
         )
 
@@ -73,7 +81,7 @@ class TestRegressionTestImports:
 
     def _collect_test_files(self):
         """Find all .py files under tests/."""
-        test_dir = WORKSPACE / "tests"
+        test_dir = PROJECT_ROOT / "tests"
         return sorted(test_dir.rglob("*.py"))
 
     def _find_stub_imports(self, filepath):
@@ -100,7 +108,7 @@ class TestRegressionTestImports:
         for test_file in self._collect_test_files():
             violations = self._find_stub_imports(test_file)
             if violations:
-                rel = test_file.relative_to(WORKSPACE)
+                rel = test_file.relative_to(PROJECT_ROOT)
                 all_violations[str(rel)] = violations
 
         if all_violations:
@@ -110,19 +118,19 @@ class TestRegressionTestImports:
             pytest.fail(msg)
 
 
-@pytest.mark.skipif(not _IS_WORKSPACE, reason="Map completeness test only runs from workspace")
 class TestImportRewriteMapCompleteness:
     """Bug S3-98: IMPORT_REWRITE_MAP and STUB_TO_SCRIPT must be complete."""
 
     def test_every_stub_in_map_exists(self):
         """Every stub file referenced in STUB_TO_SCRIPT must exist."""
         for stub_path in STUB_TO_SCRIPT:
-            assert (WORKSPACE / stub_path).exists(), f"Stub missing: {stub_path}"
+            assert (PROJECT_ROOT / stub_path).exists(), f"Stub missing: {stub_path}"
 
     def test_every_script_in_map_exists(self):
         """Every script file referenced in STUB_TO_SCRIPT must exist."""
         for script_path in STUB_TO_SCRIPT.values():
-            assert (WORKSPACE / script_path).exists(), f"Script missing: {script_path}"
+            resolved = _resolve_script_path(script_path)
+            assert resolved.exists(), f"Script missing: {resolved}"
 
     def test_rewrite_map_covers_all_stubs(self):
         """Every stub in STUB_TO_SCRIPT must have a rewrite map entry."""
