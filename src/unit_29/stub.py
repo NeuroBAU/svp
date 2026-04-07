@@ -525,6 +525,15 @@ def restore_project(
                 shutil.copytree(str(candidate), str(examples_dst))
             break
 
+    # Bug S3-98: copy workspace root files from repo or source workspace
+    for rootfile in ("CLAUDE.md", "project_context.md", "ruff.toml"):
+        dst = project_root / rootfile
+        if not dst.exists():
+            for candidate in (repo_root / rootfile, source_workspace / rootfile):
+                if candidate.is_file():
+                    _copy_artifact(candidate, dst)
+                    break
+
     # Create initial pipeline state
     initial_state = {
         "stage": "0",

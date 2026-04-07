@@ -116,6 +116,16 @@ if $FORCE_WS; then echo "Mode: FORCE WORKSPACE"; fi
 if $FORCE_REPO; then echo "Mode: FORCE REPO"; fi
 echo ""
 
+# --- Step 0: Derive scripts from stubs (Bug S3-98) ---
+# Stubs are the single source of truth. Scripts are derived by import rewriting.
+echo "--- Step 0: Derive Scripts from Stubs ---"
+if $DRY_RUN; then
+    python3 "$WORKSPACE/scripts/derive_scripts_from_stubs.py" --workspace "$WORKSPACE" --dry-run
+else
+    python3 "$WORKSPACE/scripts/derive_scripts_from_stubs.py" --workspace "$WORKSPACE"
+fi
+echo ""
+
 # --- Step 1: Scripts (workspace scripts/ ↔ repo svp/scripts/) ---
 echo "--- Step 1: Scripts ---"
 for f in "$WORKSPACE"/scripts/*.py; do
@@ -184,6 +194,20 @@ doc_sync "$WORKSPACE/references/svp_2_1_lessons_learned.md" \
     "$PASS1_REPO/docs/references/svp_2_1_lessons_learned.md"
 echo ""
 
+# --- Step 3b: Workspace root files (Bug S3-98) ---
+# These files live at workspace root and must be carried over to the repo
+# so that restore_project() can recreate the workspace. Workspace is
+# authoritative (like docs), not bidirectional.
+echo "--- Step 3b: Workspace Root Files ---"
+for rootfile in CLAUDE.md project_context.md ruff.toml sync_workspace.sh; do
+    if [ -f "$WORKSPACE/$rootfile" ]; then
+        if [ ! -f "$REPO/$rootfile" ] || ! diff -q "$WORKSPACE/$rootfile" "$REPO/$rootfile" > /dev/null 2>&1; then
+            sync_file "$WORKSPACE/$rootfile" "$REPO/$rootfile" "$rootfile (workspace → repo)"
+        fi
+    fi
+done
+echo ""
+
 # --- Step 4: Tests (workspace tests/ ↔ repo tests/) ---
 echo "--- Step 4: Tests ---"
 # Find all test files in both locations
@@ -208,6 +232,32 @@ if [ "$repo_only" -gt 0 ]; then
 fi
 
 rm -f /tmp/svp_ws_tests.txt /tmp/svp_repo_tests.txt
+echo ""
+
+# --- Step 4b: Deployed Artifacts (Bug S3-80) ---
+# Regenerate deployed plugin artifacts in both repos from source Units.
+# These are the .md files Claude Code loads at runtime (svp/commands/, svp/agents/, etc.)
+echo "--- Step 4b: Deployed Artifacts ---"
+if [ "$DRY_RUN" = true ]; then
+    echo "  [dry-run] would regenerate deployed artifacts in both repos"
+else
+    WORKSPACE="$WORKSPACE" REPO="$REPO" PASS1_REPO="$PASS1_REPO" python3 -c "
+import sys, os
+sys.path.insert(0, os.environ['WORKSPACE'])
+from pathlib import Path
+from src.unit_23.stub import regenerate_deployed_artifacts
+for label, repo in [('pass2', os.environ['REPO']), ('pass1', os.environ['PASS1_REPO'])]:
+    r = regenerate_deployed_artifacts(Path(repo))
+    total = sum(r.values())
+    if total > 0:
+        print(f'  regenerated {total} artifacts in {label} repo ({r})')
+    else:
+        print(f'  no svp/ directory in {label} repo, skipped')
+" 2>&1 || {
+        echo "  ERROR: artifact regeneration failed"
+        ERRORS=$((ERRORS + 1))
+    }
+fi
 echo ""
 
 # --- Step 5: Verify ---
