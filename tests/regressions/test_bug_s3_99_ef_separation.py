@@ -258,7 +258,7 @@ class TestAssembleSvpWorkspaceArtifacts:
         repo = tmp_path / "repo"
         repo.mkdir()
         assemble_svp_workspace_artifacts(repo, ws, "test")
-        assert (repo / "references" / "svp_2_1_lessons_learned.md").exists()
+        assert (repo / "docs" / "references" / "svp_2_1_lessons_learned.md").exists()
 
     def test_copies_project_context(self, tmp_path):
         ws = self._make_workspace(tmp_path)
@@ -338,6 +338,6 @@ class TestEFvsADSeparation:
         assert "Manual Bug-Fixing Protocol" in (repo / "CLAUDE.md").read_text()
         assert (repo / "sync_workspace.sh").exists()
         assert (repo / "examples" / "gol").is_dir()
-        assert (repo / "references" / "svp_2_1_lessons_learned.md").exists()
+        assert (repo / "docs" / "references" / "svp_2_1_lessons_learned.md").exists()
         assert (repo / "project_context.md").exists()
         assert (repo / "ruff.toml").exists()

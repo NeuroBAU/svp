@@ -833,14 +833,15 @@ def assemble_svp_workspace_artifacts(
         shutil.copytree(str(examples_src), str(examples_dst))
         counts["files"] += 1
 
-    # references/ directory (lessons learned, existing_readme.md)
+    # references/ directory → docs/references/ (consolidated repo layout)
     refs_src = workspace_root / "references"
     if refs_src.is_dir():
         import shutil
 
-        refs_dst = repo_dir / "references"
+        refs_dst = repo_dir / "docs" / "references"
         if refs_dst.exists():
             shutil.rmtree(refs_dst)
+        refs_dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(str(refs_src), str(refs_dst))
         counts["files"] += 1
 

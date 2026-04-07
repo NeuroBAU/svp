@@ -637,8 +637,11 @@ def restore_project(
     _copy_artifact(profile_path, project_root / "project_profile.json")
 
     # Bug S3-43: copy references directory from source workspace if present
+    # Try source_workspace/references/ first, then docs/references/ (consolidated repo layout)
     source_workspace = blueprint_dir.parent
     src_refs = source_workspace / "references"
+    if not src_refs.is_dir():
+        src_refs = source_workspace / "docs" / "references"
     if src_refs.is_dir():
         dst_refs = project_root / "references"
         if not dst_refs.exists():

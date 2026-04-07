@@ -274,17 +274,6 @@ def sync_workspace_to_repo(project_root: Path) -> Dict[str, int]:
     sync_debug_docs(project_root)  # Existing function handles docs/
     counts["docs"] += 1
 
-    # Also sync to root-level dirs if they exist in repo
-    for dirname in ("specs", "blueprint", "references"):
-        ws_dir = project_root / dirname
-        repo_dir = repo / dirname
-        if ws_dir.is_dir():
-            repo_dir.mkdir(parents=True, exist_ok=True)
-            for f in ws_dir.iterdir():
-                if f.is_file():
-                    shutil.copy2(str(f), str(repo_dir / f.name))
-                    counts["docs"] += 1
-
     # 3. Sync tests
     for test_subdir in ("regressions", "integration"):
         ws_tests = project_root / "tests" / test_subdir

@@ -20,16 +20,43 @@ PASS1_REPO = WORKSPACE.parent / "svp2.2-repo"
 PASS2_REPO = WORKSPACE.parent / "svp2.2-pass2-repo"
 
 
+def _ws_spec() -> str:
+    """Read spec from workspace (specs/) or consolidated repo (docs/)."""
+    for p in (WORKSPACE / "specs" / "stakeholder_spec.md",
+              WORKSPACE / "docs" / "stakeholder_spec.md"):
+        if p.exists():
+            return p.read_text()
+    raise FileNotFoundError("stakeholder_spec.md not found in workspace")
+
+
+def _ws_blueprint() -> str:
+    """Read blueprint from workspace (blueprint/) or consolidated repo (docs/)."""
+    for p in (WORKSPACE / "blueprint" / "blueprint_contracts.md",
+              WORKSPACE / "docs" / "blueprint_contracts.md"):
+        if p.exists():
+            return p.read_text()
+    raise FileNotFoundError("blueprint_contracts.md not found in workspace")
+
+
+def _ws_lessons() -> str:
+    """Read lessons learned from workspace (references/) or consolidated repo (docs/references/)."""
+    for p in (WORKSPACE / "references" / "svp_2_1_lessons_learned.md",
+              WORKSPACE / "docs" / "references" / "svp_2_1_lessons_learned.md"):
+        if p.exists():
+            return p.read_text()
+    raise FileNotFoundError("svp_2_1_lessons_learned.md not found in workspace")
+
+
 class TestSpecSync:
     """Spec must be identical in workspace and all delivered repos."""
 
     def test_spec_matches_pass1_repo(self):
-        ws = (WORKSPACE / "specs" / "stakeholder_spec.md").read_text()
+        ws = _ws_spec()
         repo = (PASS1_REPO / "docs" / "stakeholder_spec.md").read_text()
         assert ws == repo, "Spec out of sync with Pass 1 repo"
 
     def test_spec_matches_pass2_repo(self):
-        ws = (WORKSPACE / "specs" / "stakeholder_spec.md").read_text()
+        ws = _ws_spec()
         p2 = PASS2_REPO / "docs" / "stakeholder_spec.md"
         if p2.exists():
             assert ws == p2.read_text(), "Spec out of sync with Pass 2 repo"
@@ -39,12 +66,12 @@ class TestBlueprintSync:
     """Blueprint must be identical in workspace and all delivered repos."""
 
     def test_blueprint_matches_pass1_repo(self):
-        ws = (WORKSPACE / "blueprint" / "blueprint_contracts.md").read_text()
+        ws = _ws_blueprint()
         repo = (PASS1_REPO / "docs" / "blueprint_contracts.md").read_text()
         assert ws == repo, "Blueprint out of sync with Pass 1 repo"
 
     def test_blueprint_matches_pass2_repo(self):
-        ws = (WORKSPACE / "blueprint" / "blueprint_contracts.md").read_text()
+        ws = _ws_blueprint()
         p2 = PASS2_REPO / "docs" / "blueprint_contracts.md"
         if p2.exists():
             assert ws == p2.read_text(), "Blueprint out of sync with Pass 2 repo"
@@ -54,12 +81,12 @@ class TestLessonsLearnedSync:
     """Lessons learned must be identical in workspace and all delivered repos."""
 
     def test_lessons_learned_matches_pass1_repo(self):
-        ws = (WORKSPACE / "references" / "svp_2_1_lessons_learned.md").read_text()
+        ws = _ws_lessons()
         repo = (PASS1_REPO / "docs" / "references" / "svp_2_1_lessons_learned.md").read_text()
         assert ws == repo, "Lessons learned out of sync with Pass 1 repo"
 
     def test_lessons_learned_matches_pass2_repo(self):
-        ws = (WORKSPACE / "references" / "svp_2_1_lessons_learned.md").read_text()
+        ws = _ws_lessons()
         p2 = PASS2_REPO / "docs" / "references" / "svp_2_1_lessons_learned.md"
         if p2.exists():
             assert ws == p2.read_text(), "Lessons learned out of sync with Pass 2 repo"
@@ -80,8 +107,8 @@ class TestBugMarkerCompleteness:
     """Every bug referenced in spec must have a lessons learned entry."""
 
     def test_all_spec_bugs_in_lessons_learned(self):
-        spec = (WORKSPACE / "specs" / "stakeholder_spec.md").read_text()
-        lessons = (WORKSPACE / "references" / "svp_2_1_lessons_learned.md").read_text()
+        spec = _ws_spec()
+        lessons = _ws_lessons()
         # Find S3-N markers (the bug catalog format used in this build)
         spec_bugs = set(re.findall(r"S3-\d+", spec))
         lessons_bugs = set(re.findall(r"S3-\d+", lessons))
@@ -96,7 +123,7 @@ class TestBugMarkerCompleteness:
 
     def test_all_regression_test_bugs_in_lessons_learned(self):
         """Every bug with a regression test file should have a lessons learned entry."""
-        lessons = (WORKSPACE / "references" / "svp_2_1_lessons_learned.md").read_text()
+        lessons = _ws_lessons()
         lessons_bugs = set(re.findall(r"S3-\d+", lessons))
         reg_dir = WORKSPACE / "tests" / "regressions"
         for f in reg_dir.glob("test_bug_s3_*.py"):

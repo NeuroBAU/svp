@@ -175,22 +175,18 @@ doc_sync() {
 
 doc_sync "$WORKSPACE/specs/stakeholder_spec.md" \
     "$REPO/docs/stakeholder_spec.md" \
-    "$REPO/specs/stakeholder_spec.md" \
     "$PASS1_REPO/docs/stakeholder_spec.md"
 
 doc_sync "$WORKSPACE/blueprint/blueprint_contracts.md" \
     "$REPO/docs/blueprint_contracts.md" \
-    "$REPO/blueprint/blueprint_contracts.md" \
     "$PASS1_REPO/docs/blueprint_contracts.md"
 
 doc_sync "$WORKSPACE/blueprint/blueprint_prose.md" \
     "$REPO/docs/blueprint_prose.md" \
-    "$REPO/blueprint/blueprint_prose.md" \
     "$PASS1_REPO/docs/blueprint_prose.md"
 
 doc_sync "$WORKSPACE/references/svp_2_1_lessons_learned.md" \
     "$REPO/docs/references/svp_2_1_lessons_learned.md" \
-    "$REPO/references/svp_2_1_lessons_learned.md" \
     "$PASS1_REPO/docs/references/svp_2_1_lessons_learned.md"
 echo ""
 
@@ -220,11 +216,13 @@ comm -12 /tmp/svp_ws_tests.txt /tmp/svp_repo_tests.txt | while read -r tf; do
     sync_pair "$WORKSPACE/$tf" "$REPO/$tf" "$tf"
 done
 
-# Workspace-only
-ws_only=$(comm -23 /tmp/svp_ws_tests.txt /tmp/svp_repo_tests.txt | wc -l | tr -d ' ')
-if [ "$ws_only" -gt 0 ]; then
-    echo "  [$ws_only workspace-only test file(s)]"
-fi
+# Workspace-only → copy to repo
+comm -23 /tmp/svp_ws_tests.txt /tmp/svp_repo_tests.txt | while read -r tf; do
+    mkdir -p "$(dirname "$REPO/$tf")"
+    cp "$WORKSPACE/$tf" "$REPO/$tf"
+    COPIED=$((COPIED + 1))
+    echo "  copied: $tf (workspace-only → repo)"
+done
 
 # Repo-only
 repo_only=$(comm -13 /tmp/svp_ws_tests.txt /tmp/svp_repo_tests.txt | wc -l | tr -d ' ')

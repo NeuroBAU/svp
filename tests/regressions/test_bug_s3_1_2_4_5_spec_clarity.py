@@ -4,8 +4,18 @@ clarified wording for state_hash timing and stub sentinel injection.
 """
 from pathlib import Path
 
-SPEC_PATH = Path(__file__).parent.parent.parent / "specs" / "stakeholder_spec.md"
-CONTRACTS_PATH = Path(__file__).parent.parent.parent / "blueprint" / "blueprint_contracts.md"
+_ROOT = Path(__file__).parent.parent.parent
+# Support both workspace layout (specs/, blueprint/) and consolidated repo layout (docs/)
+SPEC_PATH = (
+    _ROOT / "specs" / "stakeholder_spec.md"
+    if (_ROOT / "specs" / "stakeholder_spec.md").exists()
+    else _ROOT / "docs" / "stakeholder_spec.md"
+)
+CONTRACTS_PATH = (
+    _ROOT / "blueprint" / "blueprint_contracts.md"
+    if (_ROOT / "blueprint" / "blueprint_contracts.md").exists()
+    else _ROOT / "docs" / "blueprint_contracts.md"
+)
 
 def test_spec_state_hash_clarifies_previous_file_state():
     """S3-1/S3-5: state_hash must reference 'previous file state' or 'before the current write'."""
