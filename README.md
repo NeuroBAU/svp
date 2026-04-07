@@ -951,7 +951,7 @@ SVP 2.1.1 introduces a four-layer structural completeness defense: a project-agn
 SVP 2.2 extends the pipeline to support multiple languages and new project archetypes.
 
 **Multi-Language Support**
-SVP 2.2 ships with full support for Python and R projects, plus Stan as a component language (embedded in R or Python projects). A language provider framework makes it straightforward to add new languages as plugins.
+SVP 2.2 ships with full support for Python and R projects, plus Stan as a component language (embedded in R or Python projects). A language provider framework makes it straightforward to add new languages. See [docs/extending-languages.md](docs/extending-languages.md) for a step-by-step guide to adding a new language.
 
 **Six Per-Language Dispatch Tables**
 All language-specific behavior is encapsulated in dispatch tables:
