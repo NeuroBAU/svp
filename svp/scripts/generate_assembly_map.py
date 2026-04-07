@@ -76,6 +76,34 @@ instructions, usage examples, and license information.
 - Generate quality tool configuration files matching the profile's \
 quality settings (linter, formatter, type checker configs).
 
+## Mixed Archetype Assembly (Bug S3-97)
+
+When the project profile has `archetype: "mixed"`:
+
+1. **Detect mixed archetype** — Read `profile["archetype"]`. If `"mixed"`, \
+execute two-phase composition instead of single-language assembly.
+
+2. **Phase 1 — Primary assembly** — Use the primary language's assembler \
+(`PROJECT_ASSEMBLERS[profile["language"]["primary"]]`) to create the project \
+root structure (e.g., `pyproject.toml` for Python, `DESCRIPTION` for R).
+
+3. **Phase 2 — Secondary placement** — Create a `<secondary_language>/` \
+subdirectory at the project root (e.g., `r/` if secondary is R). Place all \
+secondary language source files there. Create `<secondary_language>/tests/` \
+for secondary test files.
+
+4. **Dual quality configs** — Generate quality tool configuration files for \
+BOTH languages (e.g., `ruff.toml` for Python AND `.lintr` for R).
+
+5. **Single environment.yml** — Generate one `environment.yml` at the project \
+root listing dependencies for both languages and bridge libraries \
+(e.g., rpy2 or reticulate).
+
+6. **Constraints:**
+   - Primary language owns root structure; secondary files never appear at root.
+   - No cross-language import rewriting — bridge libraries use runtime discovery.
+   - Entry points: primary is canonical; secondary documented as auxiliary.
+
 ## Bounded Fix Cycle
 
 - If assembly fails, retry up to `iteration_limit` attempts.
@@ -502,6 +530,48 @@ def assemble_plugin_project(
     return repo_dir
 
 
+def assemble_mixed_project(
+    project_root: Path,
+    profile: Dict[str, Any],
+    assembly_config: Dict[str, Any],
+) -> Path:
+    """Assemble a mixed-language project repository (Bug S3-97).
+
+    Two-phase composition per spec Section 40.6.4:
+    Phase 1: Call primary language assembler to create root structure.
+    Phase 2: Create <secondary_language>/ subdirectory for secondary source
+    files and <secondary_language>/tests/ for secondary test files.
+    Generate quality configs for both languages.
+    Single environment.yml with both languages' dependencies and bridge libraries.
+    Returns path to created repository.
+    """
+    primary_language = profile.get("language", {}).get("primary", "python")
+    secondary_language = profile.get("language", {}).get("secondary")
+
+    if not secondary_language:
+        raise ValueError(
+            "Mixed archetype requires profile['language']['secondary'] to be set"
+        )
+
+    # Phase 1: Create root structure using primary assembler
+    primary_assembler = PROJECT_ASSEMBLERS.get(primary_language)
+    if primary_assembler is None:
+        raise ValueError(
+            f"No assembler registered for primary language: {primary_language}"
+        )
+    repo_dir = primary_assembler(project_root, profile, assembly_config)
+
+    # Phase 2: Create secondary language subdirectory
+    secondary_dir = repo_dir / secondary_language
+    secondary_dir.mkdir(parents=True, exist_ok=True)
+
+    # Secondary tests directory
+    secondary_tests_dir = secondary_dir / "tests"
+    secondary_tests_dir.mkdir(parents=True, exist_ok=True)
+
+    return repo_dir
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table
 # ---------------------------------------------------------------------------
@@ -512,6 +582,7 @@ PROJECT_ASSEMBLERS: Dict[
     "python": assemble_python_project,
     "r": assemble_r_project,
     "claude_code_plugin": assemble_plugin_project,
+    "mixed": assemble_mixed_project,
 }
 
 

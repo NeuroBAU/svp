@@ -1013,6 +1013,34 @@ def _prepare_integration_test_author(
     if assembly_map:
         sections.append(_format_section("Assembly Map", assembly_map))
 
+    # Bug S3-97: Inject bridge test requirement for mixed archetype
+    from profile_schema import load_profile
+
+    profile = load_profile(project_root)
+    if profile.get("archetype") == "mixed":
+        communication = profile.get("language", {}).get("communication", {})
+        directions = list(communication.keys())
+        bridge_requirement = (
+            "## Bridge Test Requirement (AC-92, Section 40.6.5)\n\n"
+            "This is a mixed archetype project. You MUST include at least one "
+            "cross-language bridge verification test per declared communication "
+            f"direction. Declared directions: {directions}.\n\n"
+        )
+        for direction in directions:
+            comm_info = communication[direction]
+            library = comm_info.get("library", direction)
+            if direction == "python_r":
+                bridge_requirement += (
+                    f"- Direction `{direction}`: Write a test that invokes R "
+                    f"from Python via {library} and verifies the result.\n"
+                )
+            elif direction == "r_python":
+                bridge_requirement += (
+                    f"- Direction `{direction}`: Write a test that invokes "
+                    f"Python from R via {library} and verifies the result.\n"
+                )
+        sections.append(bridge_requirement)
+
     # Previous failure output if retry
     if context:
         sections.append(_format_section("Previous Failure / Context", context))

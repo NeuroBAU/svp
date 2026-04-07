@@ -1458,6 +1458,21 @@ def compliance_scan_main(argv: list = None) -> None:
 
     findings = scanner(args.src_dir, args.tests_dir, lang_config, {})
 
+    # Bug S3-97: Dual compliance scan for mixed archetype
+    archetype = profile.get("archetype", "")
+    if archetype == "mixed":
+        secondary_language = profile.get("language", {}).get("secondary")
+        if secondary_language:
+            secondary_scanner = COMPLIANCE_SCANNERS.get(secondary_language)
+            if secondary_scanner:
+                secondary_src_dir = args.project_root / secondary_language
+                secondary_tests_dir = args.project_root / secondary_language / "tests"
+                secondary_lang_config = LANGUAGE_REGISTRY.get(secondary_language, {})
+                secondary_findings = secondary_scanner(
+                    secondary_src_dir, secondary_tests_dir, secondary_lang_config, {}
+                )
+                findings.extend(secondary_findings)
+
     # Output results
     if args.format == "json":
         print(json.dumps(findings, indent=2))
