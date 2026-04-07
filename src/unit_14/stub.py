@@ -2984,13 +2984,15 @@ def run_tests_main(argv: list = None) -> None:
             print("TESTS_ERROR")
             return
 
-    test_cmd_template = toolchain.get("test", {}).get("command", "")
+    test_cmd_template = toolchain.get("testing", {}).get("run_command", "")
     if not test_cmd_template:
         print("TESTS_ERROR")
         return
+    # Bug S3-100: normalize {test_path} placeholder to {target} for resolve_command
+    test_cmd_template = test_cmd_template.replace("{test_path}", "{target}")
 
     env_name = derive_env_name(project_root)
-    run_prefix = toolchain.get("run_prefix", "")
+    run_prefix = toolchain.get("environment", {}).get("run_prefix", "")
     test_dir = lang_config.get("test_dir", "tests")
     unit_test_target = f"{test_dir}/unit_{args.unit}"
 

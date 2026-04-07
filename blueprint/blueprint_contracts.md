@@ -850,7 +850,7 @@ def main(argv: list = None) -> None: ...
 2. **Quality tool installation:** reads packages from language-specific toolchain file (`get_gate_composition` compositions reference tool packages). Installs into created environment.
 3. **Dependency extraction:** reads `blueprint_contracts.md` for import statements. Resolves unique dependency list.
 4. **Import validation:** language-specific. Python: `python -c "import X"`. R: `Rscript -e "library(X)"`. Run inside created environment.
-5. **Directory scaffolding:** creates `src/unit_N/` and `tests/unit_N/` for each unit (Python convention). R: `R/` and `tests/testthat/`.
+5. **Directory scaffolding:** creates `src/unit_N/` and `tests/unit_N/` for each unit (Python convention). R: `R/` and `tests/testthat/`. For R/mixed projects: generates `tests/testthat/helper-svp.R` with `svp_source()` using `testthat::test_path()` root navigation per Bug S3-48 (Bug S3-101).
 6. **DAG re-validation:** extracts dependency graph from blueprint, validates no forward edges, no cycles.
 7. **total_units derivation:** counts `## Unit N:` headings in blueprint. Sets `total_units` in pipeline state.
 8. **Regression test adaptation:** if `regression_test_import_map.json` exists, runs `adapt_regression_tests.py` on `tests/regressions/`.
@@ -1320,7 +1320,7 @@ def run_tests_main(argv: list = None) -> None: ...
 
 **run_tests_main (CLI for run_tests.py):**
 - Arguments: `--unit` (int), `--language` (str), `--project-root` (path), `--sub-stage` (str: "red_run" or "green_run").
-- Resolves test command from toolchain.
+- Resolves test command via `toolchain["testing"]["run_command"]`; resolves `run_prefix` via `toolchain["environment"]["run_prefix"]`; normalizes `{test_path}` placeholder to `{target}` before calling `resolve_command` (Bug S3-100).
 - Executes test command.
 - Dispatches output through `TEST_OUTPUT_PARSERS[language_dispatch_key]`.
 - Writes result status to stdout.

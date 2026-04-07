@@ -140,8 +140,8 @@ def _create_toolchain_file(root: Path) -> None:
             "run_prefix": "conda run -n {env_name}",
         },
         "env_name": "svp-test",
-        "test": {
-            "command": "{run_prefix} python -m pytest {flags} {target}",
+        "testing": {
+            "run_command": "{run_prefix} python -m pytest {test_path} -v",
         },
         "quality": {
             "formatter": {
@@ -363,7 +363,7 @@ class TestRegistryDrivesToolchainDispatch:
         _create_toolchain_file(tmp_path)
         toolchain = load_toolchain(tmp_path)
         assert "environment" in toolchain
-        assert "test" in toolchain
+        assert "testing" in toolchain
         assert "quality" in toolchain
 
 
@@ -1122,7 +1122,9 @@ class TestToolchainResolutionChain:
         toolchain = load_toolchain(tmp_path)
         run_prefix = toolchain["environment"]["run_prefix"]
 
-        test_cmd = toolchain["test"]["command"]
+        test_cmd = toolchain["testing"]["run_command"]
+        # Bug S3-100: normalize {test_path} to {target} as run_tests_main does
+        test_cmd = test_cmd.replace("{test_path}", "{target}")
         resolved = resolve_command(
             test_cmd,
             env_name=env_name,
