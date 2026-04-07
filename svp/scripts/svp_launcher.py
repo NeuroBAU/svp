@@ -172,16 +172,20 @@ def parse_args(argv: list = None) -> argparse.Namespace:
         "restore", help="Restore an SVP project from existing artifacts"
     )
     restore_parser.add_argument("project_name", help="Name of the project to restore")
-    restore_parser.add_argument("--spec", required=True, help="Path to spec file")
     restore_parser.add_argument(
-        "--blueprint-dir", required=True, help="Path to blueprint directory"
+        "--repo", default=None,
+        help="Path to repo root for auto-discovering artifacts from docs/"
     )
-    restore_parser.add_argument("--context", required=True, help="Path to context file")
+    restore_parser.add_argument("--spec", default=None, help="Path to spec file")
     restore_parser.add_argument(
-        "--scripts-source", required=True, help="Path to scripts source directory"
+        "--blueprint-dir", default=None, help="Path to blueprint directory"
+    )
+    restore_parser.add_argument("--context", default=None, help="Path to context file")
+    restore_parser.add_argument(
+        "--scripts-source", default=None, help="Path to scripts source directory"
     )
     restore_parser.add_argument(
-        "--profile", required=True, help="Path to project profile"
+        "--profile", default=None, help="Path to project profile"
     )
     restore_parser.add_argument(
         "--plugin-path", default=None, help="Path to SVP plugin root"
@@ -584,6 +588,52 @@ def _copy_artifact(src: Path, dst: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# auto-discover from repo (Bug S3-103)
+# ---------------------------------------------------------------------------
+
+
+def _auto_discover_from_repo(repo_path: Path) -> dict:
+    """Auto-discover artifact paths from a repo's docs/ directory.
+
+    Returns a dict with keys: spec_path, blueprint_dir, context_path,
+    scripts_source, profile_path. Raises FileNotFoundError if required
+    artifacts are missing.
+    """
+    docs = repo_path / "docs"
+    if not docs.is_dir():
+        raise FileNotFoundError(f"No docs/ directory in {repo_path}")
+
+    discovered: dict = {}
+
+    spec = docs / "stakeholder_spec.md"
+    if not spec.exists():
+        raise FileNotFoundError(f"Missing {spec}")
+    discovered["spec_path"] = spec
+
+    for bp_file in ("blueprint_prose.md", "blueprint_contracts.md"):
+        if not (docs / bp_file).exists():
+            raise FileNotFoundError(f"Missing {docs / bp_file}")
+    discovered["blueprint_dir"] = docs
+
+    context = docs / "project_context.md"
+    if not context.exists():
+        raise FileNotFoundError(f"Missing {context}")
+    discovered["context_path"] = context
+
+    scripts = repo_path / "svp" / "scripts"
+    if not scripts.is_dir():
+        raise FileNotFoundError(f"Missing {scripts}")
+    discovered["scripts_source"] = scripts
+
+    profile = docs / "project_profile.json"
+    if not profile.exists():
+        raise FileNotFoundError(f"Missing {profile}")
+    discovered["profile_path"] = profile
+
+    return discovered
+
+
+# ---------------------------------------------------------------------------
 # restore_project
 # ---------------------------------------------------------------------------
 
@@ -597,11 +647,13 @@ def restore_project(
     profile_path: Path,
     plugin_path: Optional[Path] = None,
     skip_to: Optional[str] = None,
+    repo_path: Optional[Path] = None,
 ) -> Path:
     """Restore an SVP project from existing artifacts.
 
     - Creates project directory at CWD/project_name
     - Copies spec, blueprint, context, scripts, profile from provided paths
+    - If repo_path provided: writes .svp/sync_config.json (Bug S3-103)
     - If skip_to provided: sets pipeline state to skip to that stage
     - If plugin_path provided: sets SVP_PLUGIN_ROOT in subprocess environment
     - Returns project root path
@@ -662,14 +714,27 @@ def restore_project(
                 shutil.copytree(str(candidate), str(examples_dst))
             break
 
-    # Bug S3-98: copy workspace root files from repo or source workspace
+    # Bug S3-98, S3-103: copy workspace root files from repo, docs/, or source workspace
     for rootfile in ("CLAUDE.md", "project_context.md", "ruff.toml"):
         dst = project_root / rootfile
         if not dst.exists():
-            for candidate in (repo_root / rootfile, source_workspace / rootfile):
+            for candidate in (
+                repo_root / rootfile,
+                source_workspace / rootfile,
+                repo_root / "docs" / rootfile,
+                source_workspace / "docs" / rootfile,
+            ):
                 if candidate.is_file():
                     _copy_artifact(candidate, dst)
                     break
+
+    # Bug S3-103: write sync config for sync_workspace.sh
+    if repo_path is not None:
+        sync_config = {"repo": str(repo_path)}
+        sync_config_path = svp_dir / "sync_config.json"
+        sync_config_path.write_text(
+            json.dumps(sync_config, indent=2), encoding="utf-8"
+        )
 
     # Create initial pipeline state
     initial_state = {
@@ -794,14 +859,45 @@ def main(argv: list = None) -> None:
         launch_session(project_root, plugin_path=plugin_root)
     elif args.command == "restore":
         plugin_path = Path(args.plugin_path) if args.plugin_path else None
+        resolved_repo_path = None
+
+        # Bug S3-103: auto-discover from repo if --repo provided
+        if args.repo:
+            resolved_repo_path = Path(args.repo).resolve()
+            discovered = _auto_discover_from_repo(resolved_repo_path)
+            spec_path = Path(args.spec) if args.spec else discovered["spec_path"]
+            blueprint_dir = Path(args.blueprint_dir) if args.blueprint_dir else discovered["blueprint_dir"]
+            context_path = Path(args.context) if args.context else discovered["context_path"]
+            scripts_source = Path(args.scripts_source) if args.scripts_source else discovered["scripts_source"]
+            profile_path = Path(args.profile) if args.profile else discovered["profile_path"]
+        else:
+            # Require explicit args when --repo not provided
+            missing = [
+                name for name in ("spec", "blueprint_dir", "context", "scripts_source", "profile")
+                if getattr(args, name) is None
+            ]
+            if missing:
+                print(
+                    f"Error: --{', --'.join(n.replace('_', '-') for n in missing)} "
+                    f"required when --repo is not provided",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            spec_path = Path(args.spec)
+            blueprint_dir = Path(args.blueprint_dir)
+            context_path = Path(args.context)
+            scripts_source = Path(args.scripts_source)
+            profile_path = Path(args.profile)
+
         project_root = restore_project(
             project_name=args.project_name,
-            spec_path=Path(args.spec),
-            blueprint_dir=Path(args.blueprint_dir),
-            context_path=Path(args.context),
-            scripts_source=Path(args.scripts_source),
-            profile_path=Path(args.profile),
+            spec_path=spec_path,
+            blueprint_dir=blueprint_dir,
+            context_path=context_path,
+            scripts_source=scripts_source,
+            profile_path=profile_path,
             plugin_path=plugin_path,
             skip_to=args.skip_to,
+            repo_path=resolved_repo_path,
         )
         launch_session(project_root, plugin_path=plugin_path)

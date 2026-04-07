@@ -1,0 +1,119 @@
+{
+  "pipeline_toolchain": "python_conda_pytest",
+  "archetype": "svp_architectural",
+  "is_svp_build": true,
+  "language": {
+    "primary": "python",
+    "components": [],
+    "communication": {},
+    "notebooks": null
+  },
+  "vcs": {
+    "commit_style": "conventional",
+    "branch_strategy": "main-only",
+    "tagging": "semver",
+    "issue_references": true,
+    "changelog": "conventional_changelog",
+    "github": {
+      "mode": "existing_branch",
+      "repo_url": "https://github.com/NeuroBAU/svp",
+      "branch": "svp2.2"
+    }
+  },
+  "readme": {
+    "mode": "update",
+    "existing_path": "references/existing_readme.md",
+    "target_audience": "domain_expert",
+    "depth": "comprehensive",
+    "sections": "keep_existing",
+    "docstring_convention": "google",
+    "include_math": false,
+    "include_glossary": false,
+    "include_data_formats": false,
+    "include_code_examples": false,
+    "citation_file": false,
+    "contributing_guide": false
+  },
+  "testing": {
+    "coverage_target": 95,
+    "readable_test_names": true,
+    "readme_test_scenarios": false
+  },
+  "license": {
+    "type": "Apache-2.0",
+    "holder": "Carlo Fusco and Leonardo Restivo",
+    "author": "Carlo Fusco and Leonardo Restivo",
+    "year": 2026,
+    "contact": "carlo.fusco@unil.ch, leonardo.restivo@unil.ch",
+    "spdx_headers": false,
+    "additional_metadata": {
+      "citation": null,
+      "funding": null,
+      "acknowledgments": null
+    }
+  },
+  "delivery": {
+    "python": {
+      "environment_recommendation": "conda",
+      "dependency_format": ["environment.yml", "pyproject.toml"],
+      "source_layout": "flat",
+      "entry_points": true,
+      "entry_point_specs": [
+        {
+          "name": "svp",
+          "type": "cli",
+          "description": "Main CLI entry point supporting subcommands (e.g., svp new my-project)"
+        }
+      ]
+    }
+  },
+  "plugin": {
+    "name": "svp",
+    "description": "Stratified Verification Pipeline",
+    "version": "2.2.0",
+    "author": {
+      "name": "Carlo Fusco and Leonardo Restivo",
+      "email": "carlo.fusco@unil.ch"
+    },
+    "commands": "./commands/",
+    "agents": "./agents/",
+    "skills": "./skills/",
+    "hooks": "./hooks/"
+  },
+  "quality": {
+    "python": {
+      "linter": "ruff",
+      "formatter": "ruff",
+      "type_checker": "mypy",
+      "import_sorter": "ruff",
+      "line_length": 88
+    }
+  },
+  "pipeline": {
+    "agent_models": {
+      "stakeholder_dialog": "claude-opus-4-6",
+      "stakeholder_reviewer": "claude-opus-4-6",
+      "blueprint_author": "claude-opus-4-6",
+      "blueprint_checker": "claude-opus-4-6",
+      "blueprint_reviewer": "claude-opus-4-6",
+      "test_agent": "claude-sonnet-4-6",
+      "implementation_agent": "claude-opus-4-6",
+      "coverage_review": "claude-sonnet-4-6",
+      "diagnostic_agent": "claude-opus-4-6",
+      "integration_test_author": "claude-opus-4-6",
+      "git_repo_agent": "claude-sonnet-4-6",
+      "bug_triage": "claude-opus-4-6",
+      "repair_agent": "claude-sonnet-4-6",
+      "reference_indexing": "claude-sonnet-4-6",
+      "setup_agent": "claude-sonnet-4-6",
+      "help_agent": "claude-sonnet-4-6",
+      "hint_agent": "claude-opus-4-6",
+      "redo_agent": "claude-opus-4-6",
+      "checklist_generation": "claude-opus-4-6",
+      "regression_adaptation": "claude-sonnet-4-6",
+      "oracle_agent": "claude-opus-4-6"
+    },
+    "context_budget_override": null,
+    "context_budget_threshold": 65
+  }
+}

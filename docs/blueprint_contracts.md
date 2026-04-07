@@ -2180,10 +2180,12 @@ def main(argv: list = None) -> None: ...
 
 **restore_project:**
 - Creates project directory.
-- Copies spec, blueprint, context, scripts, profile from provided paths.
-- Copies `references/` directory from source workspace if present. **(Bug S3-43)**
+- When `--repo` provided: auto-discovers `docs/stakeholder_spec.md` as spec, `docs/` as blueprint dir, `docs/project_context.md` as context, `svp/scripts/` as scripts source, `docs/project_profile.json` as profile. Explicit args override auto-discovered paths. Writes `.svp/sync_config.json` with repo path. **(Bug S3-103)**
+- Copies spec, blueprint, context, scripts, profile from provided or auto-discovered paths.
+- Copies `references/` from source workspace or `docs/references/` (consolidated layout). **(Bug S3-43)**
 - Copies `sync_workspace.sh` from repo or source workspace if present. **(Bug S3-72)**
 - Copies `examples/` directory from repo or source workspace if present (oracle test projects). **(Bug S3-72)**
+- Copies `CLAUDE.md` and `project_context.md` from `docs/` or repo root (consolidated or legacy layout).
 - If `skip_to` provided: sets pipeline state to skip to that stage.
 - If `plugin_path` provided: sets `SVP_PLUGIN_ROOT` in subprocess environment (for Pass 2 nested session isolation).
 - Returns project root path.

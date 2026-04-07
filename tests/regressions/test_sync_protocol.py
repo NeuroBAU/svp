@@ -153,6 +153,14 @@ class TestCrossRepoConsistency:
         if ws.exists() and repo_f.exists():
             assert ws.read_text() == repo_f.read_text(), "project_context.md out of sync"
 
+    def test_profile_matches(self):
+        """S3-103: workspace project_profile.json matches repo docs/."""
+        repo = _get_repo_path()
+        ws = _ROOT / "project_profile.json"
+        repo_f = repo / "docs" / "project_profile.json"
+        if ws.exists() and repo_f.exists():
+            assert ws.read_text() == repo_f.read_text(), "project_profile.json out of sync"
+
 
 # --- Test Import Standardization Tests ---
 

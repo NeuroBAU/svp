@@ -187,6 +187,12 @@ doc_sync "$WORKSPACE/CLAUDE.md" \
 
 doc_sync "$WORKSPACE/project_context.md" \
     "$REPO/docs/project_context.md"
+
+# Profile (needed for restore auto-discover, Bug S3-103)
+if [ -f "$WORKSPACE/project_profile.json" ]; then
+    doc_sync "$WORKSPACE/project_profile.json" \
+        "$REPO/docs/project_profile.json"
+fi
 echo ""
 
 # --- Step 3b: Workspace root files (non-doc) ---
