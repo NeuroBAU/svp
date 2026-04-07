@@ -118,42 +118,29 @@ configuration, and launches Claude Code with SVP active.
 
 ## Setup Process
 
-When SVP starts a new project, the setup agent guides
-you through a Socratic dialog to capture your project
-context and delivery preferences. The dialog covers six
-areas:
+When SVP starts a new project, the setup agent guides you through a Socratic dialog. The dialog begins with **project archetype selection**:
 
-1. **Version Control Preferences** — Commit style,
-   branch strategy, tagging, changelog format, and
-   GitHub repository configuration (create new, push to
-   existing, or skip).
-2. **README and Documentation** — README mode (generate
-   new or update an existing README), target audience,
-   sections, depth, optional content (math notation,
-   glossary, code examples), docstring convention.
-3. **Test and Quality Preferences** — Coverage target,
-   readable test names, test scenarios in README.
-4. **Licensing, Metadata, and Packaging** — License type,
-   author info, entry points, environment recommendation,
-   dependency format, source layout.
-5. **Delivered Code Quality** — Linter, formatter, type
-   checker, import sorter, and line length for the
-   delivered project.
-6. **Agent Model Configuration** — Choose which Claude
-   model (opus, sonnet, or haiku) each pipeline agent
-   uses. Opus is the default for most agents. Claude Code
-   maps short names to the latest model versions
-   automatically.
+- **Option A** — Python project
+- **Option B** — R project (with optional Stan integration)
+- **Option C** — Claude Code plugin
+- **Option D** — Mixed-language project (Python + R, either direction)
+- **Option E** — SVP language extension self-build (adds a new language to SVP)
+- **Option F** — SVP architectural self-build (modifies SVP's pipeline machinery)
 
-Every area offers a fast path: accept sensible defaults
-with a single response, or dive into detailed options.
-The setup agent explains every choice in plain language,
-recommends the best option, and uses progressive
-disclosure — details only when you ask.
+Your choice determines the language toolchain, test framework, quality tools, and project structure used throughout the build. Options A-D are for building your own software. Options E-F are for extending or rebuilding SVP itself (see [docs/extending-languages.md](docs/extending-languages.md)).
 
-Your preferences are recorded in `project_profile.json`
-and drive everything from Stage 5 delivery to agent
-model selection during the build.
+After archetype selection, the dialog captures your **project context** — what the project does, who it's for, what domain it operates in — and your **delivery preferences** across several areas:
+
+1. **Version Control** — Commit style, branch strategy, changelog format, GitHub repository configuration.
+2. **README and Documentation** — Generate new or update existing, target audience, sections, depth, docstring convention.
+3. **Test and Quality** — Coverage target, readable test names, test scenarios in README.
+4. **Licensing, Metadata, and Packaging** — License type, author info, entry points, environment manager, dependency format, source layout.
+5. **Delivered Code Quality** — Linter, formatter, type checker, import sorter, and line length for the delivered project. Tool choices are language-specific.
+6. **Agent Model Configuration** — Choose which Claude model (opus, sonnet, or haiku) each pipeline agent uses. Opus is the default for most agents.
+
+Every area offers a fast path: accept sensible defaults with a single response, or dive into detailed options. The setup agent explains every choice in plain language and uses progressive disclosure — details only when you ask.
+
+Your choices are recorded in `project_profile.json` and drive everything from Stage 5 delivery to agent model selection during the build.
 
 ## Workspace and Delivered Repository
 
@@ -463,7 +450,7 @@ When `testing.readme_test_scenarios` is set in the profile, the README includes 
 
 SVP 2.1.1 adds unit-level preference capture to the blueprint dialog, enabling domain experts to express non-requirement preferences (output format conventions, naming styles, display choices) during blueprint construction rather than after delivery.
 
-**Unit-Level Preference Capture (RFC-2)**
+**Unit-Level Preference Capture**
 During Stage 2 blueprint construction, the blueprint author agent follows four rules (P1-P4) to capture domain preferences at the unit level:
 
 - **Rule P1 (Ask at the unit level):** After establishing each unit's Tier 1 description and before finalizing its contracts, ask about domain conventions, output appearance preferences, and domain-specific choices that are not requirements but matter.
@@ -518,7 +505,7 @@ SVP 2.2 automatically migrates SVP 2.1 project profiles to the new language-keye
 - **SVP 1.2.1** — Further bug fixes and robustness improvements.
 - **SVP 2.0** — Project Profile (`project_profile.json`) for delivery preferences. Pipeline Toolchain Abstraction (`toolchain.json`). Profile-driven Stage 5 delivery. Delivery compliance scan. `/svp:redo` profile revision support.
 - **SVP 2.1** — Pipeline Quality Gates (A, B, C) as mandatory build-time checkpoints. Delivered quality configuration via `project_profile.json`. Blueprint prose/contracts split for token-efficient agent context. Universal two-branch routing invariant applied across all pipeline stages. 51 bug fixes (Bugs 17-58) spanning routing, dispatch, state persistence, dead code removal, and spec structural gaps. See CHANGELOG.md for detailed bug-by-bug history.
-- **SVP 2.1.1** — RFC-2: unit-level preference capture in blueprint dialog (Rules P1-P4, preference-contract consistency validation). Structural completeness checking system: four-layer defense with project-agnostic AST scanner, 14 automated declaration-vs-usage techniques, 163 structural tests (Bugs 71-72). Configurable agent models (`pipeline.agent_models` in profile -- opus/sonnet/haiku per agent). GitHub repository configuration (`vcs.github` in profile -- new/existing_force/existing_branch/none modes). README mode (`readme.mode` in profile -- generate or update existing). 39 additional bug fixes (Bugs 52-91) including full Stage 3 error handling, Stage 4 failure paths, debug loop gates, selective blueprint loading, routing dispatch loops (Bug 73), test target invariant (Bug 74), and regression test import adaptation (Bug 85). 95 total bugs cataloged across SVP 1.0 through 2.1.1.
+- **SVP 2.1.1** — Unit-level preference capture in blueprint dialog (Rules P1-P4, preference-contract consistency validation). Structural completeness checking system: four-layer defense with project-agnostic AST scanner, 14 automated declaration-vs-usage techniques, 163 structural tests (Bugs 71-72). Configurable agent models (`pipeline.agent_models` in profile -- opus/sonnet/haiku per agent). GitHub repository configuration (`vcs.github` in profile -- new/existing_force/existing_branch/none modes). README mode (`readme.mode` in profile -- generate or update existing). 39 additional bug fixes (Bugs 52-91) including full Stage 3 error handling, Stage 4 failure paths, debug loop gates, selective blueprint loading, routing dispatch loops (Bug 73), test target invariant (Bug 74), and regression test import adaptation (Bug 85). 95 total bugs cataloged across SVP 1.0 through 2.1.1.
 - **SVP 2.2** — Multi-language support: Python, R, mixed Python-R projects, and Claude Code plugins. Language provider framework with per-language dispatch tables (six dispatch tables: signature parsers, stub generators, test output parsers, quality runners, project assemblers, compliance scanners). Language registry (`language_registry.py`) as the single source of truth for all per-language configuration. Three-layer toolchain separation (pipeline toolchain, build-time language toolchain, delivered project quality config). Archetype system (A-F) in setup agent. Pass 1 / Pass 2 bootstrap protocol for SVP self-builds (Options E/F). Oracle agent for trajectory review and systematic post-delivery analysis. Profile migration for SVP 2.1 compatibility. 29-unit build (up from 22 units in SVP 2.1.1).
 
 ## License
