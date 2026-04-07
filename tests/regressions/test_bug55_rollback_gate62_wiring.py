@@ -3,14 +3,14 @@ dispatch_agent_status for bug_triage, build_env fast path,
 phase-based debug routing.
 
 Adapted for SVP 2.2 API:
-- PipelineState is a dataclass from src.unit_5.stub
+- PipelineState is a dataclass from pipeline_state
 - debug_session is a plain dict (not DebugSession class)
 - rollback_to_unit(state, unit_number) -- 2 args (no project_root)
 - dispatch_gate_response(state, gate_id, response, project_root) -- 4 args
 - dispatch_agent_status(state, agent_type, status_line, project_root) -- 4 args
 - route() reads state from disk (no state arg)
 - Action block keys: action_type, agent_type, gate_id (lowercase)
-- TransitionError from src.unit_6.stub
+- TransitionError from state_transitions
 """
 
 import json

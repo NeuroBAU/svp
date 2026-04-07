@@ -5,8 +5,8 @@ next unit, not carried forward from the previous unit.
 
 SVP 2.2 adaptation:
 - complete_unit(state) takes 1 arg (state must have sub_stage=unit_completion)
-- PipelineState from src.unit_5.stub
-- complete_unit from src.unit_6.stub
+- PipelineState from pipeline_state
+- complete_unit from state_transitions
 """
 
 from pipeline_state import PipelineState

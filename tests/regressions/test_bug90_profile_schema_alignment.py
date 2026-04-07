@@ -107,7 +107,7 @@ class TestDeepMergePreservesCorrectSections:
 class TestSetupAgentDefinitionHasSchemaTemplates:
     """The setup agent definition must contain delivery and license guidance.
 
-    SVP 2.2: agent definitions are in src.unit_18.stub. The agent definition
+    SVP 2.2: agent definitions are in setup_agent. The agent definition
     uses delivery.<lang>.environment_recommendation notation (not JSON templates
     with quoted keys). Packaging warning and MANDATORY FOLLOW-UP text patterns
     from SVP 2.1 are replaced by structured area-based dialog flow.
@@ -115,7 +115,7 @@ class TestSetupAgentDefinitionHasSchemaTemplates:
 
     @pytest.fixture
     def agent_definition(self):
-        from src.unit_18.stub import SETUP_AGENT_DEFINITION
+        from setup_agent import SETUP_AGENT_DEFINITION
         return SETUP_AGENT_DEFINITION
 
     def test_delivery_environment_recommendation_present(self, agent_definition):

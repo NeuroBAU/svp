@@ -14,7 +14,7 @@ import json
 
 import pytest
 
-from src.unit_27.stub import (
+from project_templates import (
     DELIVERY_QUALITY_TEMPLATES,
     PIPELINE_RUFF_TOML,
     PYTHON_TOOLCHAIN,

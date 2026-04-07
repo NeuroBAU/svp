@@ -1,7 +1,7 @@
 """Regression test for Bug 60: unit context must use correct blueprint path.
 
 Verifies:
-1. ARTIFACT_FILENAMES has "blueprint_dir" key (from src.unit_1.stub)
+1. ARTIFACT_FILENAMES has "blueprint_dir" key (from svp_config)
 2. build_unit_context accepts a blueprint directory path
 3. build_unit_context uses directory path correctly
 

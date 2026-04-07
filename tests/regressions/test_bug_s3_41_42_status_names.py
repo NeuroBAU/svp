@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from src.unit_18.stub import SETUP_AGENT_DEFINITION
+from setup_agent import SETUP_AGENT_DEFINITION
 
 
 # ---------------------------------------------------------------------------

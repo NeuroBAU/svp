@@ -29,7 +29,7 @@ Synthetic data assumptions:
 
 import re
 
-from src.unit_24.stub import (
+from debug_agents import (
     BUG_TRIAGE_AGENT_DEFINITION,
     REPAIR_AGENT_DEFINITION,
 )

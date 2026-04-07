@@ -10,7 +10,7 @@ SVP 2.2 adaptation:
 - dispatch_command_status(state, command_type, status_line, sub_stage=None)
 - Action block keys lowercase (action_type, gate_id, etc.)
 - COMMAND_STATUS_PATTERNS removed in SVP 2.2 (skipped)
-- PipelineState from src.unit_5.stub
+- PipelineState from pipeline_state
 """
 
 import sys

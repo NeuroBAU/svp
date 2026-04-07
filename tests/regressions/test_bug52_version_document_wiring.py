@@ -6,8 +6,8 @@ during REVISE flows -- versioning is handled differently in the new architecture
 
 Adapted for SVP 2.2 API:
 - dispatch_gate_response(state, gate_id, response, project_root) -- 4 args
-- PipelineState is a dataclass from src.unit_5.stub
-- version_document is in src.unit_6.stub (standalone function)
+- PipelineState is a dataclass from pipeline_state
+- version_document is in state_transitions (standalone function)
 - Tests for automatic versioning during REVISE are skipped (not wired in SVP 2.2)
 - Tests for REVISE gate dispatch behavior are preserved
 """
@@ -220,6 +220,6 @@ class TestImportPresent:
     """version_document must be importable."""
 
     def test_version_document_importable(self):
-        """Verify the function is importable from src.unit_6.stub."""
+        """Verify the function is importable from state_transitions."""
         from state_transitions import version_document as vd
         assert callable(vd)

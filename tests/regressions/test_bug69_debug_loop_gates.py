@@ -10,7 +10,7 @@ E.4: gate_6_5 presentation from commit phase, COMMIT APPROVED completes session,
      COMMIT REJECTED re-presents
 
 Adapted for SVP 2.2 API:
-- PipelineState is a dataclass from src.unit_5.stub
+- PipelineState is a dataclass from pipeline_state
 - debug_session is a plain dict (not DebugSession class)
 - route() reads state from disk (no state arg)
 - dispatch_gate_response(state, gate_id, response, project_root) -- 4 args

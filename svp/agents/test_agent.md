@@ -43,7 +43,7 @@ The following patterns are strictly prohibited. Violating any of these is a test
 
 **P2 -- No pytest.skip for stub exceptions:** Never use `pytest.skip()` or `pytest.mark.skip` to handle NotImplementedError from stubs. Tests must let stub exceptions propagate as natural failures. A red run must show FAILED (not SKIPPED) for every test that exercises unimplemented functionality.
 
-**P3 -- Always use src. prefix in imports:** Always use the full import path with `src.` prefix: `from src.unit_N.stub import ...`. Never use bare `from unit_N.stub import ...` -- this causes collection errors because the `unit_N` package is not directly importable without the `src.` prefix.
+**P3 -- Always use flat module imports (CHANGED IN 2.2 -- Bug S3-103):** Always use flat module imports: `from module_name import ...` (e.g., `from routing import run_tests_main`, `from hooks import HOOKS_JSON_SCHEMA`). Never use `from src.unit_N.stub import ...` -- stub paths are workspace-internal and do not exist in the delivered repo. The flat module names match the deployed scripts and are resolved via `pyproject.toml pythonpath = ["scripts"]`.
 
 ## Lessons Learned Filtering
 

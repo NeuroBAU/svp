@@ -37,7 +37,7 @@ import re
 
 import pytest
 
-from src.unit_25.stub import (
+from slash_commands import (
     COMMAND_DEFINITIONS,
     COMMAND_NAMES,
 )

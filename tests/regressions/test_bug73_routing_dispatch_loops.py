@@ -20,9 +20,9 @@ Verifies that:
 4. dispatch_gate_response for gate_4_1 ASSEMBLY FIX resets sub_stage to None
 
 SVP 2.2 adaptation:
-- PipelineState from src.unit_5.stub (no alignment_iteration, last_action, etc.)
+- PipelineState from pipeline_state (no alignment_iteration, last_action, etc.)
 - route() takes only project_root; state saved to disk first via save_state
-- dispatch_gate_response from src.unit_14.stub (4 args)
+- dispatch_gate_response from routing (4 args)
 - Action block keys are lowercase (action_type, agent_type, gate_id)
 """
 

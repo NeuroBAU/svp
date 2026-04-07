@@ -4,10 +4,10 @@ Every gate ID in GATE_VOCABULARY must be a valid gate that routing
 can actually emit, and vice versa.
 
 SVP 2.2 adaptation:
-- GATE_VOCABULARY from src.unit_14.stub
+- GATE_VOCABULARY from routing
 - route() takes only project_root; state saved to disk via save_state
 - Action block keys lowercase (gate_id)
-- PipelineState from src.unit_5.stub
+- PipelineState from pipeline_state
 """
 
 import tempfile

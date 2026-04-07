@@ -197,7 +197,7 @@ class TestBugS314RunCommandPostField:
 
     def test_stub_generation_block_has_post(self):
         """stub_generation run_command block must include post field."""
-        from src.unit_14 import stub as routing_module
+        import routing as routing_module
         source = inspect.getsource(routing_module._route_stage_3)
         # Find the stub_generation block -- it should have post=
         # We look for the pattern: command="stub_generation" followed by post=
@@ -212,7 +212,7 @@ class TestBugS314RunCommandPostField:
 
     def test_quality_gate_block_has_post(self):
         """quality_gate run_command blocks must include post field."""
-        from src.unit_14 import stub as routing_module
+        import routing as routing_module
         source = inspect.getsource(routing_module._route_stage_3)
         # Find all quality_gate command blocks
         idx = 0
@@ -232,7 +232,7 @@ class TestBugS314RunCommandPostField:
 
     def test_test_execution_block_has_post(self):
         """test_execution run_command blocks must include post field."""
-        from src.unit_14 import stub as routing_module
+        import routing as routing_module
         source = inspect.getsource(routing_module._route_stage_3)
         idx = 0
         found = 0
@@ -251,7 +251,7 @@ class TestBugS314RunCommandPostField:
 
     def test_unit_completion_block_has_post(self):
         """unit_completion run_command block must include post field."""
-        from src.unit_14 import stub as routing_module
+        import routing as routing_module
         source = inspect.getsource(routing_module._route_stage_3)
         idx = source.find('command="unit_completion"')
         assert idx != -1, "unit_completion command not found in _route_stage_3"
@@ -263,7 +263,7 @@ class TestBugS314RunCommandPostField:
 
     def test_compliance_scan_block_has_post(self):
         """compliance_scan run_command block must include post field."""
-        from src.unit_14 import stub as routing_module
+        import routing as routing_module
         source = inspect.getsource(routing_module._route_stage_5)
         idx = source.find('command="compliance_scan"')
         assert idx != -1, "compliance_scan command not found in _route_stage_5"
@@ -275,7 +275,7 @@ class TestBugS314RunCommandPostField:
 
     def test_post_field_invokes_update_state_with_command(self):
         """post fields must invoke update_state.py --command <type>."""
-        from src.unit_14 import stub as routing_module
+        import routing as routing_module
         source = inspect.getsource(routing_module)
         # Every post= that contains update_state.py should use --command
         import re

@@ -6,7 +6,7 @@ The dispatch just returns state unchanged so route() can read last_status.txt.
 
 SVP 2.2 adaptation:
 - dispatch_agent_status(state, agent_type, status_line, project_root) -- 4 args
-- PipelineState from src.unit_5.stub
+- PipelineState from pipeline_state
 """
 
 import unittest

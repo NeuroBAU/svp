@@ -33,7 +33,7 @@ Synthetic data assumptions:
 
 import re
 
-from src.unit_19.stub import BLUEPRINT_CHECKER_DEFINITION
+from blueprint_checker import BLUEPRINT_CHECKER_DEFINITION
 
 # ---------------------------------------------------------------------------
 # Helper utilities

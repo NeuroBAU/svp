@@ -8,7 +8,7 @@ frontmatter name must match this convention: svp:svp_orchestration.
 
 import re
 
-from src.unit_26.stub import ORCHESTRATION_SKILL
+from orchestration_skill import ORCHESTRATION_SKILL
 
 
 class TestSkillNamePrefixConsistency:

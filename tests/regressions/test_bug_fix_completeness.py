@@ -153,7 +153,7 @@ class TestDeployedArtifactFreshness:
 
     def test_commands_match_source_pass2(self):
         """Every command .md in Pass 2 repo must match COMMAND_DEFINITIONS."""
-        from src.unit_25.stub import COMMAND_DEFINITIONS
+        from slash_commands import COMMAND_DEFINITIONS
 
         commands_dir = PASS2_REPO / "svp" / "commands"
         if not commands_dir.is_dir():
@@ -167,7 +167,7 @@ class TestDeployedArtifactFreshness:
 
     def test_commands_match_source_pass1(self):
         """Every command .md in Pass 1 repo must match COMMAND_DEFINITIONS."""
-        from src.unit_25.stub import COMMAND_DEFINITIONS
+        from slash_commands import COMMAND_DEFINITIONS
 
         commands_dir = PASS1_REPO / "svp" / "commands"
         if not commands_dir.is_dir():
@@ -183,7 +183,7 @@ class TestDeployedArtifactFreshness:
 
     def test_skill_matches_source_pass2(self):
         """SKILL.md in Pass 2 repo must match ORCHESTRATION_SKILL."""
-        from src.unit_26.stub import ORCHESTRATION_SKILL
+        from orchestration_skill import ORCHESTRATION_SKILL
 
         skill_file = PASS2_REPO / "svp" / "skills" / "orchestration" / "SKILL.md"
         if not skill_file.is_file():
@@ -194,7 +194,7 @@ class TestDeployedArtifactFreshness:
 
     def test_skill_matches_source_pass1(self):
         """SKILL.md in Pass 1 repo must match ORCHESTRATION_SKILL."""
-        from src.unit_26.stub import ORCHESTRATION_SKILL
+        from orchestration_skill import ORCHESTRATION_SKILL
 
         skill_file = PASS1_REPO / "svp" / "skills" / "orchestration" / "SKILL.md"
         if not skill_file.is_file():
@@ -207,9 +207,9 @@ class TestDeployedArtifactFreshness:
 
     def _get_agent_defs(self):
         """Return the source agent definitions dict (filename -> content)."""
-        from src.unit_18.stub import SETUP_AGENT_DEFINITION
-        from src.unit_19.stub import BLUEPRINT_CHECKER_DEFINITION
-        from src.unit_20.stub import (
+        from setup_agent import SETUP_AGENT_DEFINITION
+        from blueprint_checker import BLUEPRINT_CHECKER_DEFINITION
+        from construction_agents import (
             BLUEPRINT_AUTHOR_DEFINITION,
             BLUEPRINT_REVIEWER_DEFINITION,
             COVERAGE_REVIEW_AGENT_DEFINITION,
@@ -219,8 +219,8 @@ class TestDeployedArtifactFreshness:
             STAKEHOLDER_REVIEWER_DEFINITION,
             TEST_AGENT_DEFINITION,
         )
-        from src.unit_21.stub import DIAGNOSTIC_AGENT_DEFINITION, REDO_AGENT_DEFINITION
-        from src.unit_22.stub import (
+        from diagnostic_agents import DIAGNOSTIC_AGENT_DEFINITION, REDO_AGENT_DEFINITION
+        from support_agents import (
             HELP_AGENT_DEFINITION,
             HINT_AGENT_DEFINITION,
             REFERENCE_INDEXING_AGENT_DEFINITION,
@@ -231,7 +231,7 @@ class TestDeployedArtifactFreshness:
             REGRESSION_ADAPTATION_AGENT_DEFINITION,
             ORACLE_AGENT_DEFINITION,
         )
-        from src.unit_24.stub import BUG_TRIAGE_AGENT_DEFINITION, REPAIR_AGENT_DEFINITION
+        from debug_agents import BUG_TRIAGE_AGENT_DEFINITION, REPAIR_AGENT_DEFINITION
 
         return {
             "setup_agent.md": SETUP_AGENT_DEFINITION,
@@ -288,7 +288,7 @@ class TestDeployedArtifactFreshness:
 
     def test_hooks_json_matches_source_pass2(self):
         """hooks.json in Pass 2 repo must match generate_hooks_json()."""
-        from src.unit_17.stub import generate_hooks_json
+        from hooks import generate_hooks_json
 
         hooks_file = PASS2_REPO / "svp" / "hooks" / "hooks.json"
         if not hooks_file.is_file():
@@ -300,7 +300,7 @@ class TestDeployedArtifactFreshness:
 
     def test_hooks_json_matches_source_pass1(self):
         """hooks.json in Pass 1 repo must match generate_hooks_json()."""
-        from src.unit_17.stub import generate_hooks_json
+        from hooks import generate_hooks_json
 
         hooks_file = PASS1_REPO / "svp" / "hooks" / "hooks.json"
         if not hooks_file.is_file():

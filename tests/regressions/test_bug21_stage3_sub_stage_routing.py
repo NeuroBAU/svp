@@ -8,7 +8,7 @@ unit_completion.
 SVP 2.2 adaptation:
 - route() takes only project_root; state saved to disk via save_state
 - Action block keys lowercase (action_type, agent_type, command)
-- PipelineState from src.unit_5.stub
+- PipelineState from pipeline_state
 """
 
 import tempfile

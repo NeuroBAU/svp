@@ -169,11 +169,11 @@ class TestDerivationMechanics:
         result = rewrite_imports(line)
         assert result == line
 
-    def test_non_script_unit_unchanged(self):
-        """Units without script equivalents (17-27) are not rewritten."""
+    def test_agent_unit_rewritten(self):
+        """Agent definition units (17-27) are in the derive map (Bug S3-103)."""
         line = "from src.unit_17.stub import generate_hooks_json"
         result = rewrite_imports(line)
-        assert result == line  # no rewrite — unit 17 has no script
+        assert result == "from hooks import generate_hooks_json"
 
     def test_multiline_content(self):
         """Full file content with multiple imports is rewritten correctly."""

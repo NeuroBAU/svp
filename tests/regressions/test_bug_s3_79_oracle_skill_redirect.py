@@ -21,7 +21,7 @@ import pytest
 
 from pipeline_state import PipelineState
 from routing import dispatch_command_status, route
-from src.unit_25.stub import COMMAND_DEFINITIONS
+from slash_commands import COMMAND_DEFINITIONS
 
 
 # ---------------------------------------------------------------------------

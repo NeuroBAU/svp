@@ -7,9 +7,9 @@ Verifies that:
 4. dispatch_gate_response handles OVERRIDE CONTINUE (proceed unchanged)
 
 SVP 2.2 adaptation:
-- PipelineState from src.unit_5.stub (no alignment_iteration, last_action, etc.)
-- dispatch_gate_response from src.unit_14.stub (4 args)
-- GATE_VOCABULARY from src.unit_14.stub
+- PipelineState from pipeline_state (no alignment_iteration, last_action, etc.)
+- dispatch_gate_response from routing (4 args)
+- GATE_VOCABULARY from routing
 - ALL_GATE_IDS from scripts/prepare_task.py
 """
 

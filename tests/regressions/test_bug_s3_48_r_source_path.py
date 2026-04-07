@@ -14,7 +14,7 @@ def test_unit_11_generates_helper_svp_r_for_r_projects():
 
 def test_test_agent_definition_mentions_svp_source():
     """S3-48: TEST_AGENT_DEFINITION must mention svp_source for R tests."""
-    from src.unit_20.stub import TEST_AGENT_DEFINITION
+    from construction_agents import TEST_AGENT_DEFINITION
     assert "svp_source" in TEST_AGENT_DEFINITION, (
         "Test agent definition must mention svp_source() for R projects"
     )

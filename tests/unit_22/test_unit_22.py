@@ -24,7 +24,7 @@ Synthetic data assumptions:
 
 import re
 
-from src.unit_22.stub import (
+from support_agents import (
     HELP_AGENT_DEFINITION,
     HINT_AGENT_DEFINITION,
     REFERENCE_INDEXING_AGENT_DEFINITION,

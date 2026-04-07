@@ -18,7 +18,7 @@ Adapted for SVP 2.2 API:
 - dispatch_command_status(state, command_type, status_line, sub_stage=None) -- 3-4 args
 - dispatch_agent_status(state, agent_type, status_line, project_root) -- 4 args
 - Action block keys: action_type, agent_type, command, gate_id, post
-- PipelineState is a dataclass from src.unit_5.stub
+- PipelineState is a dataclass from pipeline_state
 """
 
 import json

@@ -28,7 +28,7 @@ Synthetic data assumptions:
 
 import re
 
-from src.unit_18.stub import (
+from setup_agent import (
     AREA_0_ARCHETYPES,
     DIALOG_AREAS,
     REQUIRED_RULES,

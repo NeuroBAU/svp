@@ -2,7 +2,7 @@
 Regression test for Bugs S3-3, S3-6, S3-9: TEST_AGENT_DEFINITION must contain
 explicit prohibitions against common test generation anti-patterns.
 """
-from src.unit_20.stub import TEST_AGENT_DEFINITION
+from construction_agents import TEST_AGENT_DEFINITION
 
 
 def _lower(text):

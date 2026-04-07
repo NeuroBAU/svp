@@ -6,6 +6,38 @@ The format follows [Conventional Changelog](https://www.conventionalcommits.org/
 
 ---
 
+## [2.2.1] - 2026-04-07
+
+### fix: Bugs S3-100 to S3-103
+
+- **S3-100:** `run_tests_main` read wrong toolchain keys (`test.command` instead of `testing.run_command`), causing all Stage 3 test execution to return TESTS_ERROR
+- **S3-101:** `helper-svp.R` used wrong path resolution (`file.path("R", ...)` instead of `testthat::test_path()` navigation)
+- **S3-102:** Oracle task prompt embedded only test project path, not artifact contents
+- **S3-103:** Sync protocol redesign (see below)
+
+### refactor: sync protocol redesign (Bug S3-103)
+
+- Workspace is single source of truth; repo is derived artifact
+- `sync_workspace.sh` performs one-way sync (workspace → repo) with safety warnings if repo files are newer
+- Removed bidirectional mtime-based sync logic
+- Repo paths stored in `.svp/sync_config.json` (portable, written by `restore_project()`)
+- `restore_project()` auto-discovers artifacts from repo's `docs/` directory
+- All agent definition units (17-27) added to `derive_scripts_from_stubs.py` derivation map
+
+### refactor: repo docs consolidation
+
+- All documentation consolidated into `docs/` — eliminated `specs/`, `blueprint/`, `references/` at repo root
+- `CLAUDE.md` and `project_context.md` moved from repo root to `docs/` (restore-only artifacts)
+- Root `blueprint_contracts.md` stray copy removed
+
+### refactor: test import standardization
+
+- All 46 test files converted from stub imports (`from src.unit_N.stub import ...`) to flat module imports (`from module_name import ...`)
+- Spec rule P3 and TEST_AGENT_DEFINITION updated to mandate flat module imports
+- Tests now work identically whether run from workspace or delivered repo
+
+---
+
 ## [2.2.0] - 2026-03-26
 
 ### feat: multi-language support via language provider framework

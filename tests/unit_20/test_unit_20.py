@@ -34,7 +34,7 @@ import re
 
 import pytest
 
-from src.unit_20.stub import (
+from construction_agents import (
     BLUEPRINT_AUTHOR_DEFINITION,
     BLUEPRINT_REVIEWER_DEFINITION,
     COVERAGE_REVIEW_AGENT_DEFINITION,

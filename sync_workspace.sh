@@ -1,22 +1,34 @@
 #!/usr/bin/env bash
-# sync_workspace.sh — Bidirectional sync between SVP workspace and repos.
-# Run from the workspace root directory (svp2.2-pass2/).
+# sync_workspace.sh — One-way sync from SVP workspace to repos.
+# The workspace is the single source of truth. The repo is a derived artifact.
+# Run from the workspace root directory.
 #
 # Usage:
-#   bash sync_workspace.sh              # sync using file timestamps (newer wins)
+#   bash sync_workspace.sh              # sync workspace → repo
 #   bash sync_workspace.sh --dry-run    # preview only, no changes
-#   bash sync_workspace.sh --force-workspace  # workspace overwrites repo
-#   bash sync_workspace.sh --force-repo       # repo overwrites workspace
+#
+# Repo paths are read from .svp/sync_config.json (portable).
+# Falls back to hardcoded relative paths if config is missing.
+#
+# Bug S3-103: Redesigned from bidirectional (mtime-based) to one-way
+# (workspace always wins) with safety warnings if repo is newer.
 
 set -euo pipefail
 
 WORKSPACE="$(cd "$(dirname "$0")" && pwd)"
-REPO="$WORKSPACE/../svp2.2-pass2-repo"
-PASS1_REPO="$WORKSPACE/../svp2.2-repo"
+
+# Read repo paths from .svp/sync_config.json if available
+SYNC_CONFIG="$WORKSPACE/.svp/sync_config.json"
+if [ -f "$SYNC_CONFIG" ]; then
+    REPO="$(python3 -c "import json; print(json.load(open('$SYNC_CONFIG'))['repo'])")"
+    PASS1_REPO="$(python3 -c "import json; print(json.load(open('$SYNC_CONFIG')).get('pass1_repo', ''))" 2>/dev/null || echo "")"
+else
+    # Fallback to relative paths (backward compatibility)
+    REPO="$WORKSPACE/../svp2.2-pass2-repo"
+    PASS1_REPO="$WORKSPACE/../svp2.2-repo"
+fi
 
 DRY_RUN=false
-FORCE_WS=false
-FORCE_REPO=false
 COPIED=0
 SKIPPED=0
 ERRORS=0
@@ -24,8 +36,6 @@ ERRORS=0
 for arg in "$@"; do
     case "$arg" in
         --dry-run)    DRY_RUN=true ;;
-        --force-workspace) FORCE_WS=true ;;
-        --force-repo)      FORCE_REPO=true ;;
         *) echo "Unknown arg: $arg"; exit 1 ;;
     esac
 done
@@ -33,7 +43,6 @@ done
 # --- helpers ---
 
 get_mtime() {
-    # Portable: try GNU stat (Linux/Windows Git Bash), then macOS stat, then Python fallback
     stat -c %Y "$1" 2>/dev/null \
         || stat -f %m "$1" 2>/dev/null \
         || python3 -c "import os; print(int(os.path.getmtime('$1')))" 2>/dev/null \
@@ -58,7 +67,6 @@ sync_file() {
         echo "  [dry-run] cp $label"
         COPIED=$((COPIED + 1))
     else
-        # handle read-only destination
         if [ -f "$dst" ] && [ ! -w "$dst" ]; then
             chmod u+w "$dst"
         fi
@@ -68,56 +76,35 @@ sync_file() {
     fi
 }
 
-sync_pair() {
-    # Sync two files bidirectionally based on mtime or force flags.
-    local a="$1" b="$2" label="$3"
-    if [ ! -f "$a" ] && [ ! -f "$b" ]; then
+sync_one_way() {
+    # One-way sync: workspace → repo. Warns if repo is newer.
+    local src="$1" dst="$2" label="$3"
+    if [ ! -f "$src" ]; then
         return
     fi
-    if [ ! -f "$a" ]; then
-        echo "  [only-in-b] $label ($(basename "$b"))"
-        SKIPPED=$((SKIPPED + 1))
-        return
-    fi
-    if [ ! -f "$b" ]; then
-        echo "  [only-in-a] $label ($(basename "$a"))"
-        SKIPPED=$((SKIPPED + 1))
-        return
-    fi
-    if diff -q "$a" "$b" > /dev/null 2>&1; then
+    if [ -f "$dst" ] && diff -q "$src" "$dst" > /dev/null 2>&1; then
         return  # identical, nothing to do
     fi
-    # Files differ
-    if $FORCE_WS; then
-        sync_file "$a" "$b" "$label (workspace → repo)"
-    elif $FORCE_REPO; then
-        sync_file "$b" "$a" "$label (repo → workspace)"
-    else
-        local mt_a mt_b
-        mt_a="$(get_mtime "$a")"
-        mt_b="$(get_mtime "$b")"
-        if [ "$mt_a" -gt "$mt_b" ]; then
-            sync_file "$a" "$b" "$label (workspace newer → repo)"
-        elif [ "$mt_b" -gt "$mt_a" ]; then
-            sync_file "$b" "$a" "$label (repo newer → workspace)"
-        else
-            echo "  [CONFLICT] $label — same mtime, different content. Manual resolution needed."
-            ERRORS=$((ERRORS + 1))
+    # Safety check: warn if repo is newer
+    if [ -f "$dst" ]; then
+        local mt_src mt_dst
+        mt_src="$(get_mtime "$src")"
+        mt_dst="$(get_mtime "$dst")"
+        if [ "$mt_dst" -gt "$mt_src" ]; then
+            echo "  [WARN] $label — repo is newer than workspace. Overwriting with workspace version."
         fi
     fi
+    sync_file "$src" "$dst" "$label"
 }
 
 echo "=== SVP Workspace Sync ==="
 echo "Workspace: $WORKSPACE"
 echo "Repo:      $REPO"
-echo "Pass1:     $PASS1_REPO"
+if [ -n "$PASS1_REPO" ]; then echo "Pass1:     $PASS1_REPO"; fi
 if $DRY_RUN; then echo "Mode: DRY RUN"; fi
-if $FORCE_WS; then echo "Mode: FORCE WORKSPACE"; fi
-if $FORCE_REPO; then echo "Mode: FORCE REPO"; fi
 echo ""
 
 # --- Step 0: Derive scripts from stubs (Bug S3-98) ---
-# Stubs are the single source of truth. Scripts are derived by import rewriting.
 echo "--- Step 0: Derive Scripts from Stubs ---"
 if $DRY_RUN; then
     python3 "$WORKSPACE/scripts/derive_scripts_from_stubs.py" --workspace "$WORKSPACE" --dry-run
@@ -126,34 +113,25 @@ else
 fi
 echo ""
 
-# --- Step 1: Scripts (workspace scripts/ ↔ repo svp/scripts/) ---
+# --- Step 1: Scripts (workspace → repo, one-way) ---
 echo "--- Step 1: Scripts ---"
 for f in "$WORKSPACE"/scripts/*.py; do
     [ -f "$f" ] || continue
     name="$(basename "$f")"
-    sync_pair "$f" "$REPO/svp/scripts/$name" "scripts/$name"
-done
-# Check repo-only scripts
-for f in "$REPO"/svp/scripts/*.py; do
-    [ -f "$f" ] || continue
-    name="$(basename "$f")"
-    if [ ! -f "$WORKSPACE/scripts/$name" ]; then
-        echo "  [repo-only] svp/scripts/$name"
-        SKIPPED=$((SKIPPED + 1))
-    fi
+    sync_one_way "$f" "$REPO/svp/scripts/$name" "scripts/$name"
 done
 echo ""
 
-# --- Step 2: Source units (workspace src/unit_*/stub.py ↔ repo src/unit_*/stub.py) ---
+# --- Step 2: Source units (workspace → repo, one-way) ---
 echo "--- Step 2: Source Units ---"
 for d in "$WORKSPACE"/src/unit_*/; do
     [ -d "$d" ] || continue
     unit="$(basename "$d")"
-    sync_pair "$d/stub.py" "$REPO/src/$unit/stub.py" "src/$unit/stub.py"
+    sync_one_way "$d/stub.py" "$REPO/src/$unit/stub.py" "src/$unit/stub.py"
 done
 echo ""
 
-# --- Step 3: Docs (workspace is authoritative → all repo locations) ---
+# --- Step 3: Docs (workspace → repo docs/, one-way) ---
 echo "--- Step 3: Docs ---"
 
 doc_sync() {
@@ -173,10 +151,12 @@ doc_sync() {
     done
 }
 
+# Spec
 doc_sync "$WORKSPACE/specs/stakeholder_spec.md" \
     "$REPO/docs/stakeholder_spec.md" \
     "$PASS1_REPO/docs/stakeholder_spec.md"
 
+# Blueprint
 doc_sync "$WORKSPACE/blueprint/blueprint_contracts.md" \
     "$REPO/docs/blueprint_contracts.md" \
     "$PASS1_REPO/docs/blueprint_contracts.md"
@@ -185,18 +165,33 @@ doc_sync "$WORKSPACE/blueprint/blueprint_prose.md" \
     "$REPO/docs/blueprint_prose.md" \
     "$PASS1_REPO/docs/blueprint_prose.md"
 
+# Blueprint supplementary files
+if [ -f "$WORKSPACE/blueprint/regression_test_import_map.json" ]; then
+    doc_sync "$WORKSPACE/blueprint/regression_test_import_map.json" \
+        "$REPO/docs/regression_test_import_map.json"
+fi
+
+# References
 doc_sync "$WORKSPACE/references/svp_2_1_lessons_learned.md" \
     "$REPO/docs/references/svp_2_1_lessons_learned.md" \
     "$PASS1_REPO/docs/references/svp_2_1_lessons_learned.md"
+
+if [ -f "$WORKSPACE/references/existing_readme.md" ]; then
+    doc_sync "$WORKSPACE/references/existing_readme.md" \
+        "$REPO/docs/references/existing_readme.md"
+fi
+
+# Workspace root docs → repo docs/ (restore-only artifacts)
+doc_sync "$WORKSPACE/CLAUDE.md" \
+    "$REPO/docs/CLAUDE.md"
+
+doc_sync "$WORKSPACE/project_context.md" \
+    "$REPO/docs/project_context.md"
 echo ""
 
-# --- Step 3b: Workspace root files (Bug S3-98, S3-99) ---
-# Universal files (all projects): project_context.md, ruff.toml.
-# SVP self-build files (E/F only): CLAUDE.md, sync_workspace.sh.
-# Stage 5 assembly is the authoritative delivery mechanism for E/F carry-over;
-# this step is a development convenience to keep the repo current between builds.
-echo "--- Step 3b: Workspace Root Files ---"
-for rootfile in CLAUDE.md project_context.md ruff.toml sync_workspace.sh; do
+# --- Step 3b: Workspace root files (non-doc) ---
+echo "--- Step 3b: Root Files ---"
+for rootfile in ruff.toml sync_workspace.sh; do
     if [ -f "$WORKSPACE/$rootfile" ]; then
         if [ ! -f "$REPO/$rootfile" ] || ! diff -q "$WORKSPACE/$rootfile" "$REPO/$rootfile" > /dev/null 2>&1; then
             sync_file "$WORKSPACE/$rootfile" "$REPO/$rootfile" "$rootfile (workspace → repo)"
@@ -205,37 +200,33 @@ for rootfile in CLAUDE.md project_context.md ruff.toml sync_workspace.sh; do
 done
 echo ""
 
-# --- Step 4: Tests (workspace tests/ ↔ repo tests/) ---
+# --- Step 4: Tests (workspace → repo, one-way) ---
 echo "--- Step 4: Tests ---"
-# Find all test files in both locations
 (cd "$WORKSPACE" && find tests -name '*.py' -type f 2>/dev/null) | sort > /tmp/svp_ws_tests.txt
 (cd "$REPO" && find tests -name '*.py' -type f 2>/dev/null) | sort > /tmp/svp_repo_tests.txt
 
-# Files in both
+# Files in both — one-way with warn
 comm -12 /tmp/svp_ws_tests.txt /tmp/svp_repo_tests.txt | while read -r tf; do
-    sync_pair "$WORKSPACE/$tf" "$REPO/$tf" "$tf"
+    sync_one_way "$WORKSPACE/$tf" "$REPO/$tf" "$tf"
 done
 
 # Workspace-only → copy to repo
 comm -23 /tmp/svp_ws_tests.txt /tmp/svp_repo_tests.txt | while read -r tf; do
-    mkdir -p "$(dirname "$REPO/$tf")"
-    cp "$WORKSPACE/$tf" "$REPO/$tf"
-    COPIED=$((COPIED + 1))
-    echo "  copied: $tf (workspace-only → repo)"
+    if $DRY_RUN; then
+        echo "  [dry-run] cp $tf (workspace-only → repo)"
+        COPIED=$((COPIED + 1))
+    else
+        mkdir -p "$(dirname "$REPO/$tf")"
+        cp "$WORKSPACE/$tf" "$REPO/$tf"
+        COPIED=$((COPIED + 1))
+        echo "  copied: $tf (workspace-only → repo)"
+    fi
 done
-
-# Repo-only
-repo_only=$(comm -13 /tmp/svp_ws_tests.txt /tmp/svp_repo_tests.txt | wc -l | tr -d ' ')
-if [ "$repo_only" -gt 0 ]; then
-    echo "  [$repo_only repo-only test file(s)]"
-fi
 
 rm -f /tmp/svp_ws_tests.txt /tmp/svp_repo_tests.txt
 echo ""
 
 # --- Step 4b: Deployed Artifacts (Bug S3-80) ---
-# Regenerate deployed plugin artifacts in both repos from source Units.
-# These are the .md files Claude Code loads at runtime (svp/commands/, svp/agents/, etc.)
 echo "--- Step 4b: Deployed Artifacts ---"
 if [ "$DRY_RUN" = true ]; then
     echo "  [dry-run] would regenerate deployed artifacts in both repos"
@@ -246,6 +237,8 @@ sys.path.insert(0, os.environ['WORKSPACE'])
 from pathlib import Path
 from src.unit_23.stub import regenerate_deployed_artifacts
 for label, repo in [('pass2', os.environ['REPO']), ('pass1', os.environ['PASS1_REPO'])]:
+    if not repo:
+        continue
     r = regenerate_deployed_artifacts(Path(repo))
     total = sum(r.values())
     if total > 0:
@@ -273,29 +266,54 @@ verify_pair() {
     fi
 }
 
-# Spot-check critical files
+# Verify scripts
 for f in "$WORKSPACE"/scripts/*.py; do
     [ -f "$f" ] || continue
     name="$(basename "$f")"
     verify_pair "$f" "$REPO/svp/scripts/$name" "scripts/$name"
 done
+
+# Verify stubs
 for d in "$WORKSPACE"/src/unit_*/; do
     [ -d "$d" ] || continue
     unit="$(basename "$d")"
     verify_pair "$d/stub.py" "$REPO/src/$unit/stub.py" "src/$unit/stub.py"
 done
 
+# Verify docs
+verify_pair "$WORKSPACE/specs/stakeholder_spec.md" "$REPO/docs/stakeholder_spec.md" "docs/stakeholder_spec.md"
+verify_pair "$WORKSPACE/blueprint/blueprint_contracts.md" "$REPO/docs/blueprint_contracts.md" "docs/blueprint_contracts.md"
+verify_pair "$WORKSPACE/blueprint/blueprint_prose.md" "$REPO/docs/blueprint_prose.md" "docs/blueprint_prose.md"
+verify_pair "$WORKSPACE/references/svp_2_1_lessons_learned.md" "$REPO/docs/references/svp_2_1_lessons_learned.md" "docs/references/svp_2_1_lessons_learned.md"
+verify_pair "$WORKSPACE/CLAUDE.md" "$REPO/docs/CLAUDE.md" "docs/CLAUDE.md"
+verify_pair "$WORKSPACE/project_context.md" "$REPO/docs/project_context.md" "docs/project_context.md"
+
+# Verify no scattered dirs in repo
+for scattered in "$REPO/specs" "$REPO/blueprint" "$REPO/references"; do
+    if [ -d "$scattered" ]; then
+        echo "  [WARN] Scattered directory exists: $scattered (should be in docs/)"
+        REMAINING=$((REMAINING + 1))
+    fi
+done
+# Verify no doc files at repo root
+for rootdoc in "$REPO/CLAUDE.md" "$REPO/project_context.md" "$REPO/blueprint_contracts.md"; do
+    if [ -f "$rootdoc" ]; then
+        echo "  [WARN] Doc file at repo root: $(basename "$rootdoc") (should be in docs/)"
+        REMAINING=$((REMAINING + 1))
+    fi
+done
+
 if [ "$REMAINING" -eq 0 ]; then
-    echo "  All paired files in sync."
+    echo "  All files in sync. Repo layout clean."
 else
-    echo "  $REMAINING file(s) still differ after sync."
+    echo "  $REMAINING issue(s) found."
 fi
 echo ""
 
 # --- Summary ---
 echo "=== Summary ==="
 echo "  Copied:   $COPIED"
-echo "  Skipped:  $SKIPPED (one-side-only files)"
+echo "  Skipped:  $SKIPPED"
 echo "  Errors:   $ERRORS"
 if [ "$ERRORS" -gt 0 ]; then
     echo "  !! Resolve errors manually."

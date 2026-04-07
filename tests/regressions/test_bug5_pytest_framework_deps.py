@@ -1,6 +1,6 @@
 """Bug 9: Framework dependency completeness. Toolchain must include test framework."""
 
-from src.unit_27.stub import PYTHON_TOOLCHAIN
+from project_templates import PYTHON_TOOLCHAIN
 
 
 def test_python_toolchain_includes_pytest():

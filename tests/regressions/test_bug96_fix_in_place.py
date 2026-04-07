@@ -8,8 +8,8 @@ Verifies:
 - GATE_VOCABULARY includes "FIX IN PLACE" for gate_6_2
 
 SVP 2.2 adaptation:
-- PipelineState from src.unit_5.stub (no DebugSession class; debug sessions are plain dicts)
-- dispatch_gate_response from src.unit_14.stub
+- PipelineState from pipeline_state (no DebugSession class; debug sessions are plain dicts)
+- dispatch_gate_response from routing
 - route() takes only project_root; state is saved to disk first
 - Action block keys are lowercase (action_type, agent_type, gate_id)
 - debug_session fields accessed as dict keys, not attributes

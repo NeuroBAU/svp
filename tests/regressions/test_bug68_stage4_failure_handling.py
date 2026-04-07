@@ -12,7 +12,7 @@ Verifies that:
 9. dispatch_gate_response for gate_4_2 FIX SPEC restarts to Stage 1
 
 Adapted for SVP 2.2 API:
-- PipelineState is a dataclass from src.unit_5.stub
+- PipelineState is a dataclass from pipeline_state
 - VALID_SUB_STAGES replaces STAGE_4_SUB_STAGES
 - route() reads state from disk (no state arg)
 - dispatch_command_status(state, command_type, status_line, sub_stage=None) -- 3-4 args

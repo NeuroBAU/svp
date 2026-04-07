@@ -40,7 +40,7 @@ def _write_file(tmp_path: Path, name: str, content: str) -> Path:
 
 
 class TestRunStructuralCheck:
-    """Test run_structural_check from src.unit_28.stub."""
+    """Test run_structural_check from structural_check."""
 
     def test_clean_codebase_returns_empty_findings(self, tmp_path):
         _write_file(
@@ -97,24 +97,24 @@ class TestRunStructuralCheck:
 class TestAgentPromptUpdates:
     """Verify agent definitions contain Bug 72 checklist items.
 
-    SVP 2.2: agent definitions are in src.unit_19/20/24.stub constants.
+    SVP 2.2: agent definitions are in blueprint_checker/construction_agents/debug_agents constants.
     """
 
     def test_blueprint_checker_has_registry_completeness(self):
-        from src.unit_19.stub import BLUEPRINT_CHECKER_DEFINITION
+        from blueprint_checker import BLUEPRINT_CHECKER_DEFINITION
         assert "Registry completeness" in BLUEPRINT_CHECKER_DEFINITION or \
                "registry completeness" in BLUEPRINT_CHECKER_DEFINITION or \
                "registry" in BLUEPRINT_CHECKER_DEFINITION.lower()
 
     def test_integration_test_author_has_structural_completeness(self):
-        from src.unit_20.stub import INTEGRATION_TEST_AUTHOR_DEFINITION
+        from construction_agents import INTEGRATION_TEST_AUTHOR_DEFINITION
         lower = INTEGRATION_TEST_AUTHOR_DEFINITION.lower()
         assert "registry-handler alignment" in lower or \
                "registry" in lower or \
                "structural" in lower
 
     def test_bug_triage_has_structural_precheck(self):
-        from src.unit_24.stub import BUG_TRIAGE_AGENT_DEFINITION
+        from debug_agents import BUG_TRIAGE_AGENT_DEFINITION
         assert "Step 0" in BUG_TRIAGE_AGENT_DEFINITION or \
                "Structural Pre-Check" in BUG_TRIAGE_AGENT_DEFINITION or \
                "structural" in BUG_TRIAGE_AGENT_DEFINITION.lower()

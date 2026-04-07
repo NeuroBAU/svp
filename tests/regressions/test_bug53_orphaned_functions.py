@@ -7,7 +7,7 @@ handle their behavior inline.
 
 SVP 2.2 adaptation:
 - state_transitions module is scripts/state_transitions.py
-- PipelineState from src.unit_5.stub (alignment_iterations field, no alignment_iteration)
+- PipelineState from pipeline_state (alignment_iterations field, no alignment_iteration)
 - restart_from_stage(state, target_stage) takes 2 args (no reason/project_root)
 - complete_unit(state) takes 1 arg (state must have sub_stage=unit_completion)
 """

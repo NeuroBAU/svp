@@ -639,9 +639,9 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
     agents_dir = plugin_subdir / "agents"
     agents_dir.mkdir(parents=True, exist_ok=True)
 
-    from src.unit_18.stub import SETUP_AGENT_DEFINITION
-    from src.unit_19.stub import BLUEPRINT_CHECKER_DEFINITION
-    from src.unit_20.stub import (
+    from setup_agent import SETUP_AGENT_DEFINITION
+    from blueprint_checker import BLUEPRINT_CHECKER_DEFINITION
+    from construction_agents import (
         BLUEPRINT_AUTHOR_DEFINITION,
         BLUEPRINT_REVIEWER_DEFINITION,
         COVERAGE_REVIEW_AGENT_DEFINITION,
@@ -651,13 +651,13 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
         STAKEHOLDER_REVIEWER_DEFINITION,
         TEST_AGENT_DEFINITION,
     )
-    from src.unit_21.stub import DIAGNOSTIC_AGENT_DEFINITION, REDO_AGENT_DEFINITION
-    from src.unit_22.stub import (
+    from diagnostic_agents import DIAGNOSTIC_AGENT_DEFINITION, REDO_AGENT_DEFINITION
+    from support_agents import (
         HELP_AGENT_DEFINITION,
         HINT_AGENT_DEFINITION,
         REFERENCE_INDEXING_AGENT_DEFINITION,
     )
-    from src.unit_24.stub import BUG_TRIAGE_AGENT_DEFINITION, REPAIR_AGENT_DEFINITION
+    from debug_agents import BUG_TRIAGE_AGENT_DEFINITION, REPAIR_AGENT_DEFINITION
 
     agent_defs = {
         "setup_agent.md": SETUP_AGENT_DEFINITION,
@@ -735,7 +735,7 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
     commands_dir = plugin_subdir / "commands"
     commands_dir.mkdir(parents=True, exist_ok=True)
 
-    from src.unit_25.stub import COMMAND_DEFINITIONS
+    from slash_commands import COMMAND_DEFINITIONS
 
     for cmd_name, content in COMMAND_DEFINITIONS.items():
         (commands_dir / f"{cmd_name}.md").write_text(content)
@@ -744,7 +744,7 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
     hooks_dir = plugin_subdir / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
 
-    from src.unit_17.stub import (
+    from hooks import (
         generate_hooks_json,
         generate_monitoring_reminder_sh,
         generate_non_svp_protection_sh,
@@ -774,7 +774,7 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
     skill_dir = plugin_subdir / "skills" / "orchestration"
     skill_dir.mkdir(parents=True, exist_ok=True)
 
-    from src.unit_26.stub import ORCHESTRATION_SKILL
+    from orchestration_skill import ORCHESTRATION_SKILL
 
     (skill_dir / "SKILL.md").write_text(ORCHESTRATION_SKILL)
 
@@ -892,7 +892,7 @@ def regenerate_deployed_artifacts(repo_dir: Path) -> Dict[str, int]:
     # --- Command definitions (from Unit 25) ---
     commands_dir = plugin_subdir / "commands"
     if commands_dir.is_dir():
-        from src.unit_25.stub import COMMAND_DEFINITIONS
+        from slash_commands import COMMAND_DEFINITIONS
 
         for cmd_name, content in COMMAND_DEFINITIONS.items():
             (commands_dir / f"{cmd_name}.md").write_text(content)
@@ -901,7 +901,7 @@ def regenerate_deployed_artifacts(repo_dir: Path) -> Dict[str, int]:
     # --- Orchestration skill (from Unit 26) ---
     skill_dir = plugin_subdir / "skills" / "orchestration"
     if skill_dir.is_dir():
-        from src.unit_26.stub import ORCHESTRATION_SKILL
+        from orchestration_skill import ORCHESTRATION_SKILL
 
         (skill_dir / "SKILL.md").write_text(ORCHESTRATION_SKILL)
         counts["skills"] += 1
@@ -909,9 +909,9 @@ def regenerate_deployed_artifacts(repo_dir: Path) -> Dict[str, int]:
     # --- Agent definitions (from Units 18-24) ---
     agents_dir = plugin_subdir / "agents"
     if agents_dir.is_dir():
-        from src.unit_18.stub import SETUP_AGENT_DEFINITION
-        from src.unit_19.stub import BLUEPRINT_CHECKER_DEFINITION
-        from src.unit_20.stub import (
+        from setup_agent import SETUP_AGENT_DEFINITION
+        from blueprint_checker import BLUEPRINT_CHECKER_DEFINITION
+        from construction_agents import (
             BLUEPRINT_AUTHOR_DEFINITION,
             BLUEPRINT_REVIEWER_DEFINITION,
             COVERAGE_REVIEW_AGENT_DEFINITION,
@@ -921,13 +921,13 @@ def regenerate_deployed_artifacts(repo_dir: Path) -> Dict[str, int]:
             STAKEHOLDER_REVIEWER_DEFINITION,
             TEST_AGENT_DEFINITION,
         )
-        from src.unit_21.stub import DIAGNOSTIC_AGENT_DEFINITION, REDO_AGENT_DEFINITION
-        from src.unit_22.stub import (
+        from diagnostic_agents import DIAGNOSTIC_AGENT_DEFINITION, REDO_AGENT_DEFINITION
+        from support_agents import (
             HELP_AGENT_DEFINITION,
             HINT_AGENT_DEFINITION,
             REFERENCE_INDEXING_AGENT_DEFINITION,
         )
-        from src.unit_24.stub import BUG_TRIAGE_AGENT_DEFINITION, REPAIR_AGENT_DEFINITION
+        from debug_agents import BUG_TRIAGE_AGENT_DEFINITION, REPAIR_AGENT_DEFINITION
 
         agent_defs = {
             "setup_agent.md": SETUP_AGENT_DEFINITION,
@@ -1011,7 +1011,7 @@ def regenerate_deployed_artifacts(repo_dir: Path) -> Dict[str, int]:
     # --- Hook configurations (from Unit 17) ---
     hooks_dir = plugin_subdir / "hooks"
     if hooks_dir.is_dir():
-        from src.unit_17.stub import (
+        from hooks import (
             generate_hooks_json,
             generate_monitoring_reminder_sh,
             generate_non_svp_protection_sh,

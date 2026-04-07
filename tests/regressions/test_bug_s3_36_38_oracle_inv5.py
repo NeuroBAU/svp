@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from quality_gate import _execute_gate_operations
-from src.unit_17.stub import HOOKS_JSON_SCHEMA
+from hooks import HOOKS_JSON_SCHEMA
 from svp_launcher import create_new_project
 
 

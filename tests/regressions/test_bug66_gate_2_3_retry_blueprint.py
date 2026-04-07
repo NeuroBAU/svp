@@ -7,8 +7,8 @@ the dispatch must:
 3. Produce a new state (not return unchanged)
 
 SVP 2.2 adaptation:
-- PipelineState from src.unit_5.stub (alignment_iterations, no last_action)
-- dispatch_gate_response from src.unit_14.stub (4 args)
+- PipelineState from pipeline_state (alignment_iterations, no last_action)
+- dispatch_gate_response from routing (4 args)
 - route() takes only project_root; state saved to disk first
 - Action block keys lowercase (action_type, agent_type)
 - No _version_blueprint or _version_spec to mock (internal to dispatch)

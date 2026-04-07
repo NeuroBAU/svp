@@ -5,8 +5,8 @@ unrelated strings that happen to share a prefix.
 
 SVP 2.2 adaptation:
 - dispatch_agent_status(state, agent_type, status_line, project_root) -- 4 args
-- PipelineState from src.unit_5.stub
-- AGENT_STATUS_LINES from src.unit_14.stub
+- PipelineState from pipeline_state
+- AGENT_STATUS_LINES from routing
 """
 
 from pathlib import Path

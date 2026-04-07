@@ -6,7 +6,7 @@ Tests that dispatch_command_status for test_execution:
 
 SVP 2.2 adaptation:
 - dispatch_command_status(state, command_type, status_line, sub_stage=None) -- 3-4 args
-- PipelineState from src.unit_5.stub
+- PipelineState from pipeline_state
 """
 
 import unittest

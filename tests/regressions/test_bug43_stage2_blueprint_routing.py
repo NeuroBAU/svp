@@ -6,10 +6,10 @@ the agent or present the gate.
 
 Adapted for SVP 2.2 API:
 - route() reads state from disk (no state arg)
-- PipelineState is a dataclass from src.unit_5.stub
+- PipelineState is a dataclass from pipeline_state
 - Action block keys: action_type, agent_type, gate_id (lowercase)
 - Redo profile sub-stages are handled in stage 0 routing
-- Gate vocabulary/consistency checks use src.unit_14.stub and src.unit_13.stub
+- Gate vocabulary/consistency checks use routing and prepare_task
 """
 
 import json

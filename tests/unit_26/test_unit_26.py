@@ -36,7 +36,7 @@ import re
 
 import pytest
 
-from src.unit_26.stub import ORCHESTRATION_SKILL
+from orchestration_skill import ORCHESTRATION_SKILL
 
 # ---------------------------------------------------------------------------
 # Helper utilities

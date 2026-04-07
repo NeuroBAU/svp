@@ -34,7 +34,7 @@ Synthetic data assumptions:
 
 import re
 
-from src.unit_21.stub import (
+from diagnostic_agents import (
     DIAGNOSTIC_AGENT_DEFINITION,
     REDO_AGENT_DEFINITION,
 )

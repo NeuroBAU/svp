@@ -1,8 +1,13 @@
 # SVP — Stratified Verification Pipeline
 
-**Version: 2.2**
-
-A Claude Code plugin that turns natural language requirements into verified software projects. SVP 2.2 supports Python, R, mixed Python-R projects, and Claude Code plugins. You describe what you want; SVP orchestrates LLM agents to build, test, and deliver it — with deterministic state management, multi-agent cross-checking, and human decision gates at every critical point.
+A Claude Code plugin that turns natural language
+requirements into verified Python projects. SVP builds
+Python and delivers Python — it is not designed for other
+languages. You describe what you want; SVP orchestrates
+LLM agents to build, test, and deliver it — with
+deterministic state management, multi-agent
+cross-checking, and human decision gates at every
+critical point.
 
 **Paper:** [TODO: link to ArXiv paper] — the theoretical
 foundations, design rationale, and empirical results
@@ -243,7 +248,6 @@ All SVP commands use the `/svp:` namespace.
 | `/svp:ref` | Add a reference document (Stages 0–2 only). |
 | `/svp:redo` | Roll back a previous decision. Supports profile revisions. |
 | `/svp:bug` | Enter the post-delivery debug loop (after Stage 5). |
-| `/svp:oracle` | Run the oracle agent for systematic trajectory review and fix planning. |
 | `/svp:clean` | Archive, delete, or keep the workspace after delivery. |
 
 ## When Things Go Wrong: The Two Fix Ladders
@@ -811,7 +815,12 @@ cluster in SVP's build history (Bugs 52-55).
 SVP includes a complete Game of Life example in `examples/game-of-life/` with a stakeholder spec, blueprint, and project context.
 
 ```bash
-svp restore game-of-life --repo .
+svp restore game-of-life \
+  --spec examples/game-of-life/stakeholder_spec.md \
+  --blueprint-dir examples/game-of-life/ \
+  --context examples/game-of-life/project_context.md \
+  --scripts-source svp/scripts/ \
+  --profile examples/game-of-life/project_profile.json
 ```
 
 ## Project Structure
@@ -825,59 +834,38 @@ svp-repo/
 │   ├── commands/                    <- Slash command files
 │   ├── hooks/                       <- Write authorization hooks
 │   ├── scripts/                     <- Deterministic pipeline scripts
-│   │   └── toolchain_defaults/      <- Default toolchain configuration
+│   │   ├── toolchain_defaults/      <- Default toolchain configuration
+│   │   └── templates/               <- Project template files
 │   └── skills/orchestration/        <- Orchestration skill
-├── src/                             <- Unit stubs (source of truth)
-│   └── unit_N/stub.py              <- One stub per pipeline unit
 ├── tests/                           <- Test suite
-│   ├── unit_N/                     <- Unit tests
-│   ├── integration/                <- Cross-unit integration tests
-│   └── regressions/                <- Carry-forward regression tests
-├── examples/                        <- Bundled examples + oracle test projects
-│   └── game-of-life/
-├── docs/                            <- All documentation (consolidated)
-│   ├── CLAUDE.md                   <- Workspace instructions (restore-only)
-│   ├── project_context.md          <- Project context (restore-only)
-│   ├── stakeholder_spec.md
-│   ├── blueprint_prose.md
-│   ├── blueprint_contracts.md
-│   ├── history/                    <- Document version snapshots
-│   └── references/
-│       ├── svp_2_1_lessons_learned.md
-│       └── existing_readme.md
-├── sync_workspace.sh               <- One-way workspace → repo sync
-├── pyproject.toml                   <- Build/packaging configuration
-├── environment.yml                  <- Conda environment
-├── ruff.toml                       <- Quality tool configuration
-└── README.md                       <- This file
+│   └── regressions/                 <- Carry-forward regression tests
+├── examples/
+│   └── game-of-life/                <- Bundled example
+└── docs/                            <- Documentation
+    ├── stakeholder_spec.md
+    ├── blueprint_prose.md
+    ├── blueprint_contracts.md
+    ├── project_context.md
+    ├── history/
+    └── references/
 ```
-
-### Workspace-Repo Sync Protocol
-
-The workspace is the single source of truth. The repo is a derived artifact.
-
-- **Sync direction:** One-way, workspace → repo. `sync_workspace.sh` copies workspace files to repo, warning if repo files are newer.
-- **Repo paths:** Stored in `.svp/sync_config.json` (written by `restore_project()`, read by `sync_workspace.sh`).
-- **Test imports:** All tests use flat module imports (`from routing import ...`), not workspace-internal stub imports.
-- **Documentation:** Consolidated in `docs/` — no `specs/`, `blueprint/`, `references/` at repo root.
-- **Script derivation:** Stubs (`src/unit_N/stub.py`) are the source of truth. Scripts (`scripts/*.py`) are derived by import rewriting. Never edit scripts directly.
 
 ### Document Version Tracking
 
-Every time a document is revised through a gate decision (REVISE, FIX BLUEPRINT, or FIX SPEC), the routing script's `dispatch_gate_response` function calls `version_document()` to snapshot the current version before the revision occurs. The previous version is copied to `docs/history/` with an incrementing version number (e.g., `stakeholder_spec_v1.md`, `blueprint_prose_v2.md`), and a diff summary is saved alongside it recording the timestamp, trigger context, and what changed. The current working version remains at its canonical path in `docs/`. Blueprint files are always versioned as an atomic pair — both prose and contracts are snapshotted together. This history is included in the delivered repository at `docs/history/`.
+Every time a document is revised through a gate decision (REVISE, FIX BLUEPRINT, or FIX SPEC), the routing script's `dispatch_gate_response` function calls `version_document()` to snapshot the current version before the revision occurs. The previous version is copied to `docs/history/` with an incrementing version number (e.g., `stakeholder_spec_v1.md`, `blueprint_prose_v2.md`), and a diff summary is saved alongside it recording the timestamp, trigger context, and what changed. The current working version remains at its canonical path (`specs/stakeholder_spec.md`, `blueprints/blueprint_prose.md`, `blueprints/blueprint_contracts.md`). Blueprint files are always versioned as an atomic pair — both prose and contracts are snapshotted together. This history is included in the delivered repository at `docs/history/`.
 
 ## Test Scenarios
 
 The SVP test suite covers:
 
 - **Unit tests** (`tests/unit_N/`): One test module per pipeline unit, covering the unit's behavioral contracts.
-- **Regression tests** (`tests/regressions/`): Carry-forward tests for all catalogued bugs. Each file targets a specific bug scenario. New in SVP 2.2: `test_assembly_map_generation.py`, `test_dispatch_exhaustiveness.py`, `test_three_layer_separation.py`, `test_profile_migration.py`, `test_r_test_output_parsing.py`, `test_behavioral_equivalence.py`.
+- **Regression tests** (`tests/regressions/`): Carry-forward tests for all 85 catalogued bugs. Each file targets a specific bug scenario.
 - **Integration tests** (`tests/integration/`): Cross-unit tests covering toolchain resolution, profile flow, blueprint checker preference validation, quality gate execution, and write authorization.
 
 Run the full test suite from the repository root:
 
 ```bash
-conda run -n svp2_2 pytest tests/ -v
+conda run -n svp2_1 pytest tests/ -v
 ```
 
 ## SVP 2.0 Features
@@ -937,37 +925,6 @@ The blueprint checker validates that no stated preference contradicts a Tier 2 s
 **Structural Completeness Checking**
 SVP 2.1.1 introduces a four-layer structural completeness defense: a project-agnostic AST scanner, 14 automated declaration-vs-usage techniques, 163 structural tests, and registry completeness validation. This system catches orphaned functions, missing dispatch paths, and declaration-usage mismatches at build time rather than after delivery.
 
-## SVP 2.2 Features
-
-SVP 2.2 extends the pipeline to support multiple languages and new project archetypes.
-
-**Multi-Language Support**
-SVP 2.2 ships with full support for Python and R projects, plus Stan as a component language (embedded in R or Python projects). A language provider framework makes it straightforward to add new languages as plugins.
-
-**Six Per-Language Dispatch Tables**
-All language-specific behavior is encapsulated in dispatch tables:
-
-| Dispatch Table | Module | Dispatch Key |
-|---|---|---|
-| `SIGNATURE_PARSERS` | `signature_parser.py` | language name |
-| `STUB_GENERATORS` | `stub_generator.py` | language name |
-| `TEST_OUTPUT_PARSERS` | `routing.py` | language name |
-| `QUALITY_RUNNERS` | `quality_gate.py` | language name |
-| `PROJECT_ASSEMBLERS` | `adapt_regression_tests.py` | language name |
-| `COMPLIANCE_SCANNERS` | `structural_check.py` | language name |
-
-**Archetype System (Areas A-F)**
-The setup agent offers six project archetypes: Python project (A), R project (B), Claude Code plugin (C), mixed-language project (D), SVP language extension self-build (E), and SVP architectural self-build (F). Options E and F trigger the Pass 1/Pass 2 bootstrap protocol.
-
-**Three-Layer Toolchain Separation**
-SVP 2.2 enforces strict separation between the pipeline toolchain (`toolchain.json`), the build-time language toolchain (`python_conda_pytest.json` / `r_renv_testthat.json`), and the delivered project quality configuration (from `project_profile.json`). This is enforced by a structural regression test.
-
-**Oracle Agent**
-The oracle agent provides systematic post-delivery analysis with a four-phase protocol: dry run, Gate A (trajectory review), green run with fix plan, Gate B (fix plan approval). Invoked via `/svp:oracle`.
-
-**Profile Migration**
-SVP 2.2 automatically migrates SVP 2.1 project profiles to the new language-keyed format (`delivery.python.*`, `quality.python.*`). No manual migration required.
-
 ## History
 
 - **SVP 1.0** — Initial release. The pipeline scripts and plugin infrastructure were hand-written, then used to build subsequent versions of SVP itself.
@@ -977,7 +934,6 @@ SVP 2.2 automatically migrates SVP 2.1 project profiles to the new language-keye
 - **SVP 2.0** — Project Profile (`project_profile.json`) for delivery preferences. Pipeline Toolchain Abstraction (`toolchain.json`). Profile-driven Stage 5 delivery. Delivery compliance scan. `/svp:redo` profile revision support.
 - **SVP 2.1** — Pipeline Quality Gates (A, B, C) as mandatory build-time checkpoints. Delivered quality configuration via `project_profile.json`. Blueprint prose/contracts split for token-efficient agent context. Universal two-branch routing invariant applied across all pipeline stages. 51 bug fixes (Bugs 17-58) spanning routing, dispatch, state persistence, dead code removal, and spec structural gaps. See CHANGELOG.md for detailed bug-by-bug history.
 - **SVP 2.1.1** — RFC-2: unit-level preference capture in blueprint dialog (Rules P1-P4, preference-contract consistency validation). Structural completeness checking system: four-layer defense with project-agnostic AST scanner, 14 automated declaration-vs-usage techniques, 163 structural tests (Bugs 71-72). Configurable agent models (`pipeline.agent_models` in profile -- opus/sonnet/haiku per agent). GitHub repository configuration (`vcs.github` in profile -- new/existing_force/existing_branch/none modes). README mode (`readme.mode` in profile -- generate or update existing). 39 additional bug fixes (Bugs 52-91) including full Stage 3 error handling, Stage 4 failure paths, debug loop gates, selective blueprint loading, routing dispatch loops (Bug 73), test target invariant (Bug 74), and regression test import adaptation (Bug 85). 95 total bugs cataloged across SVP 1.0 through 2.1.1.
-- **SVP 2.2** — Multi-language support: Python, R, mixed Python-R projects, and Claude Code plugins. Language provider framework with per-language dispatch tables (six dispatch tables: signature parsers, stub generators, test output parsers, quality runners, project assemblers, compliance scanners). Language registry (`language_registry.py`) as the single source of truth for all per-language configuration. Three-layer toolchain separation (pipeline toolchain, build-time language toolchain, delivered project quality config). Archetype system (A-F) in setup agent. Pass 1 / Pass 2 bootstrap protocol for SVP self-builds (Options E/F). Oracle agent for trajectory review and systematic post-delivery analysis. Profile migration for SVP 2.1 compatibility. 29-unit build (up from 22 units in SVP 2.1.1).
 
 ## License
 

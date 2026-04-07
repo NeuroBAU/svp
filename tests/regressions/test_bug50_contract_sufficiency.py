@@ -5,8 +5,8 @@ Verifies that implementations contain the critical data values
 and behavioral details that the contracts should specify.
 
 Adapted for SVP 2.2 API:
-- PipelineState is a dataclass from src.unit_5.stub
-- State transition functions in src.unit_6.stub (no project_root arg)
+- PipelineState is a dataclass from pipeline_state
+- State transition functions in state_transitions (no project_root arg)
 - dispatch_agent_status(state, agent_type, status_line, project_root) -- 4 args
 - route() reads state from disk (no state arg)
 - Action block keys: action_type, agent_type, gate_id (lowercase)

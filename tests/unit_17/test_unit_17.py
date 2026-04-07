@@ -39,7 +39,7 @@ Synthetic data assumptions:
 import json
 from typing import Any, Dict
 
-from src.unit_17.stub import (
+from hooks import (
     HOOKS_JSON_SCHEMA,
     generate_hooks_json,
     generate_monitoring_reminder_sh,

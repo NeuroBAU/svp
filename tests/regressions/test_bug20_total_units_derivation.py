@@ -5,7 +5,7 @@ It must be set from the blueprint extraction, not hardcoded or assumed.
 The state schema must support total_units as int (default 0).
 
 SVP 2.2 adaptation:
-- PipelineState from src.unit_5.stub
+- PipelineState from pipeline_state
 - total_units defaults to 0 (not None) in SVP 2.2
 - No to_dict/from_dict; use dataclasses.asdict for serialization
 """
