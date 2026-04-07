@@ -4895,6 +4895,12 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P10 (Error-Path Contract Omission) + P22 (Incomplete Action Block Fields). Section 35.4 specified the protocol but the agent definition and hook system did not enforce it. The defense-in-depth principle (Section 19) was not applied to oracle write authorization. **Detection:** Manual audit after oracle E-mode GoL Plugin run (Run 7) applied S3-92/S3-93 directly.
 
+### 24.110 Mixed Archetype Two-Phase Assembly and Dual Compliance Scan Not Implemented (Post-delivery — Bug S3-97, NEW IN 2.2)
+
+**Mixed archetype projects have no Stage 5 assembly or compliance scan support (NEW IN 2.2 -- Bug S3-97).** The spec (Section 40.6.4) fully documents two-phase assembly for mixed archetype projects: Phase 1 calls the primary language assembler to create root structure, Phase 2 places secondary language files in a `<secondary_language>/` subdirectory. Section 40.6.4 Constraint 3 requires dual compliance scanning — `COMPLIANCE_SCANNERS[primary]` on the primary source tree and `COMPLIANCE_SCANNERS[secondary]` on the secondary subtree. Section 40.6.5 and AC-92 require bridge verification tests per communication direction. None of these requirements were encoded in the blueprint. Three gaps: (1) Unit 23 `PROJECT_ASSEMBLERS` has no `"mixed"` entry and `GIT_REPO_AGENT_DEFINITION` has no mixed archetype instructions — Stage 5 assembly produces Python-only output for mixed projects, (2) Unit 28 `compliance_scan_main` only runs the primary language scanner — secondary language compliance violations are undetected, (3) Unit 13 `_prepare_integration_test_author` does not inject bridge test requirements for mixed archetype — bridge test coverage is non-deterministic.
+
+**Pattern:** P7 (Specification Omission at blueprint level). The spec requirements were complete and unambiguous (Section 40.6.4, AC-91, AC-92), but the blueprint author did not translate them into Unit 23, 28, or 13 contracts. Same pattern as S3-92 (archetype-based dispatch not encoded in blueprint). **Detection:** Oracle E-mode run 8 with `examples/gol-python-r/` test project. Dry run identified all three gaps; green run confirmed.
+
 ---
 
 ## 25. Test Data

@@ -54,6 +54,25 @@ Follow conventional commits (https://www.conventionalcommits.org/):
 
 - Generate quality tool configuration files matching the profile's quality settings (linter, formatter, type checker configs).
 
+## Mixed Archetype Assembly (Bug S3-97)
+
+When the project profile has `archetype: "mixed"`:
+
+1. **Detect mixed archetype** — Read `profile["archetype"]`. If `"mixed"`, execute two-phase composition instead of single-language assembly.
+
+2. **Phase 1 — Primary assembly** — Use the primary language's assembler (`PROJECT_ASSEMBLERS[profile["language"]["primary"]]`) to create the project root structure (e.g., `pyproject.toml` for Python, `DESCRIPTION` for R).
+
+3. **Phase 2 — Secondary placement** — Create a `<secondary_language>/` subdirectory at the project root (e.g., `r/` if secondary is R). Place all secondary language source files there. Create `<secondary_language>/tests/` for secondary test files.
+
+4. **Dual quality configs** — Generate quality tool configuration files for BOTH languages (e.g., `ruff.toml` for Python AND `.lintr` for R).
+
+5. **Single environment.yml** — Generate one `environment.yml` at the project root listing dependencies for both languages and bridge libraries (e.g., rpy2 or reticulate).
+
+6. **Constraints:**
+   - Primary language owns root structure; secondary files never appear at root.
+   - No cross-language import rewriting — bridge libraries use runtime discovery.
+   - Entry points: primary is canonical; secondary documented as auxiliary.
+
 ## Bounded Fix Cycle
 
 - If assembly fails, retry up to `iteration_limit` attempts.

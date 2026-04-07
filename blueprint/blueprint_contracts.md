@@ -975,7 +975,7 @@ Set equality invariant: `set(ALL_GATE_IDS) == set(GATE_VOCABULARY.keys())` (veri
   - `implementation_agent`: blueprint: contracts only. Injects quality tool notification, diagnostic report if ladder position is `"diagnostic_impl"`.
   - `coverage_review_agent`: blueprint: contracts only. Loads test files, source files.
   - `diagnostic_agent`: blueprint: both. Loads test output, implementation source.
-  - `integration_test_author`: blueprint: contracts only. Loads integration context, previous failure output if retry.
+  - `integration_test_author`: blueprint: contracts only. Loads integration context, previous failure output if retry. For mixed archetype: injects bridge test requirement per AC-92 and Section 40.6.5 — "MUST include at least one bridge verification test per declared communication direction." **(Bug S3-97 fix.)**
   - `regression_adaptation`: loads failing tests, blueprint file tree, module listing, assembly map, previous spec summary.
   - `git_repo_agent`: blueprint: contracts only. Loads assembly config, profile, fix context if retry.
   - `help_agent`: blueprint: prose only. Loads project summary, spec, gate context.
@@ -1739,6 +1739,7 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 - Key `"python"`: `assemble_python_project`. Produces `pyproject.toml`, proper module paths, `__init__.py` files, layout-specific structure (conventional: `src/packagename/`, flat: `packagename/`, svp_native: `scripts/`).
 - Key `"r"`: `assemble_r_project`. Produces `DESCRIPTION`, `NAMESPACE`, R package structure.
 - Key `"claude_code_plugin"`: `assemble_plugin_project`. Produces plugin directory structure (`.claude-plugin/`, `agents/`, `commands/`, `skills/`, `strategies/`) per spec Section 40.7.9. Keyed by archetype, not language ID. **(Bug S3-92 fix.)**
+- Key `"mixed"`: `assemble_mixed_project`. Two-phase composition per spec Section 40.6.4: Phase 1 calls `PROJECT_ASSEMBLERS[profile["language"]["primary"]]` to create root structure; Phase 2 creates `<secondary_language>/` subdirectory at project root and places secondary language source files there, creates `<secondary_language>/tests/` for secondary test files. Generates quality configs for both languages. Single `environment.yml` with both languages' dependencies and bridge libraries. **(Bug S3-97 fix.)**
 - Language keys keyed by language ID; archetype keys keyed by archetype name.
 
 **assemble_python_project:**
@@ -1779,7 +1780,7 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 - Returns a dict with counts of regenerated files per category.
 - **Invariant:** Every deployed artifact in `svp/commands/`, `svp/agents/`, `svp/skills/`, and `svp/hooks/` must match its source Unit constant after `sync_workspace.sh` runs.
 
-**GIT_REPO_AGENT_DEFINITION:** assembly mapping rules, commit order (conventional commits), delivery compliance awareness, README generation, quality config generation, bounded fix cycle (iteration_limit attempts). Status: `REPO_ASSEMBLY_COMPLETE`.
+**GIT_REPO_AGENT_DEFINITION:** assembly mapping rules, commit order (conventional commits), delivery compliance awareness, README generation, quality config generation, bounded fix cycle (iteration_limit attempts). Mixed archetype assembly: when profile `archetype` is `"mixed"`, execute two-phase composition — Phase 1 using primary language assembler for root structure, Phase 2 creating `<secondary_language>/` subdirectory for secondary source files and `<secondary_language>/tests/` for secondary tests; generate quality configs for both languages; produce single `environment.yml` listing both languages' dependencies and bridge libraries. **(Bug S3-97 fix.)** Status: `REPO_ASSEMBLY_COMPLETE`.
 
 **CHECKLIST_GENERATION_AGENT_DEFINITION:** produces two checklists (alignment_checker_checklist.md, blueprint_author_checklist.md) for Stage 2 agents. Status: `CHECKLISTS_COMPLETE`.
 
@@ -2082,6 +2083,7 @@ def compliance_scan_main(argv: list = None) -> None: ...
 
 **compliance_scan_main (CLI):**
 - Arguments: `--project-root` (path), `--src-dir` (path: source directory to scan), `--tests-dir` (path: tests directory to scan), `--format` (str: "json" or "text"), `--strict` (flag).
+- Mixed archetype dual scan **(Bug S3-97 fix):** After running `COMPLIANCE_SCANNERS[primary]` on `--src-dir`, if `profile["archetype"] == "mixed"`, extract `profile["language"]["secondary"]`, construct secondary source path as `project_root / secondary_language`, construct secondary tests path as `project_root / secondary_language / "tests"`, run `COMPLIANCE_SCANNERS[secondary]` on secondary paths, aggregate findings from both scanners before output. Per spec Section 40.6.4 Constraint 3.
 
 ---
 
