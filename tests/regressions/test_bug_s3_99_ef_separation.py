@@ -217,10 +217,15 @@ class TestAssembleSvpWorkspaceArtifacts:
         ws = tmp_path / "workspace"
         ws.mkdir()
         (ws / "sync_workspace.sh").write_text("#!/bin/bash\necho sync")
+        (ws / "project_context.md").write_text("# Project context")
+        (ws / "ruff.toml").write_text("[tool.ruff]\nline-length = 88\n")
         examples = ws / "examples"
         examples.mkdir()
         (examples / "game-of-life").mkdir()
         (examples / "game-of-life" / "spec.md").write_text("# GoL spec")
+        refs = ws / "references"
+        refs.mkdir()
+        (refs / "svp_2_1_lessons_learned.md").write_text("# Lessons learned")
         return ws
 
     def test_writes_claude_md(self, tmp_path):
@@ -248,12 +253,33 @@ class TestAssembleSvpWorkspaceArtifacts:
         assemble_svp_workspace_artifacts(repo, ws, "test")
         assert (repo / "examples" / "game-of-life" / "spec.md").exists()
 
+    def test_copies_references(self, tmp_path):
+        ws = self._make_workspace(tmp_path)
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        assemble_svp_workspace_artifacts(repo, ws, "test")
+        assert (repo / "references" / "svp_2_1_lessons_learned.md").exists()
+
+    def test_copies_project_context(self, tmp_path):
+        ws = self._make_workspace(tmp_path)
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        assemble_svp_workspace_artifacts(repo, ws, "test")
+        assert (repo / "project_context.md").exists()
+
+    def test_copies_ruff_toml(self, tmp_path):
+        ws = self._make_workspace(tmp_path)
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        assemble_svp_workspace_artifacts(repo, ws, "test")
+        assert (repo / "ruff.toml").exists()
+
     def test_returns_counts(self, tmp_path):
         ws = self._make_workspace(tmp_path)
         repo = tmp_path / "repo"
         repo.mkdir()
         result = assemble_svp_workspace_artifacts(repo, ws, "test")
-        assert result["files"] == 3  # CLAUDE.md + sync_workspace.sh + examples/
+        assert result["files"] == 6  # CLAUDE.md + sync_workspace.sh + examples/ + references/ + project_context.md + ruff.toml
 
     def test_graceful_missing_sync(self, tmp_path):
         ws = tmp_path / "workspace"
@@ -291,12 +317,17 @@ class TestEFvsADSeparation:
         assert (project / "tests" / "regressions" / "test_bug42_example.py").exists()
 
     def test_stage5_produces_repo_with_carryover(self, tmp_path):
-        """Stage 5 for E/F: repo has CLAUDE.md + sync_workspace.sh + examples/."""
+        """Stage 5 for E/F: repo has all carry-over artifacts."""
         ws = tmp_path / "workspace"
         ws.mkdir()
         (ws / "sync_workspace.sh").write_text("#!/bin/bash")
+        (ws / "project_context.md").write_text("# Context")
+        (ws / "ruff.toml").write_text("[tool.ruff]")
         (ws / "examples").mkdir()
         (ws / "examples" / "gol").mkdir()
+        refs = ws / "references"
+        refs.mkdir()
+        (refs / "svp_2_1_lessons_learned.md").write_text("# Lessons")
 
         repo = tmp_path / "repo"
         repo.mkdir()
@@ -307,3 +338,6 @@ class TestEFvsADSeparation:
         assert "Manual Bug-Fixing Protocol" in (repo / "CLAUDE.md").read_text()
         assert (repo / "sync_workspace.sh").exists()
         assert (repo / "examples" / "gol").is_dir()
+        assert (repo / "references" / "svp_2_1_lessons_learned.md").exists()
+        assert (repo / "project_context.md").exists()
+        assert (repo / "ruff.toml").exists()

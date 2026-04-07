@@ -833,6 +833,33 @@ def assemble_svp_workspace_artifacts(
         shutil.copytree(str(examples_src), str(examples_dst))
         counts["files"] += 1
 
+    # references/ directory (lessons learned, existing_readme.md)
+    refs_src = workspace_root / "references"
+    if refs_src.is_dir():
+        import shutil
+
+        refs_dst = repo_dir / "references"
+        if refs_dst.exists():
+            shutil.rmtree(refs_dst)
+        shutil.copytree(str(refs_src), str(refs_dst))
+        counts["files"] += 1
+
+    # project_context.md
+    ctx_src = workspace_root / "project_context.md"
+    if ctx_src.is_file():
+        import shutil
+
+        shutil.copy2(ctx_src, repo_dir / "project_context.md")
+        counts["files"] += 1
+
+    # ruff.toml
+    ruff_src = workspace_root / "ruff.toml"
+    if ruff_src.is_file():
+        import shutil
+
+        shutil.copy2(ruff_src, repo_dir / "ruff.toml")
+        counts["files"] += 1
+
     return counts
 
 
