@@ -37,10 +37,11 @@ class TestS3_104_PipelineStatePath:
             f"pipeline_state path must start with .svp/, got: {path}"
         )
 
-    def test_create_new_project_writes_state_in_svp(self, tmp_path):
+    def test_create_new_project_writes_state_in_svp(self, tmp_path, monkeypatch):
         """create_new_project must write pipeline_state.json inside .svp/."""
         from svp_launcher import create_new_project
 
+        monkeypatch.chdir(tmp_path)
         plugin_root = tmp_path / "plugin"
         plugin_root.mkdir()
         scripts_dir = plugin_root / "scripts"
