@@ -552,7 +552,7 @@ def sync_pass1_artifacts(project_root: Path) -> Dict[str, Any]:
             "errors": [str(e)],
         }
 
-    if not pass1.is_dir() or not (pass1 / "pipeline_state.json").is_file():
+    if not pass1.is_dir() or not (pass1 / ".svp" / "pipeline_state.json").is_file():
         return {
             "synced_files": [],
             "skipped_files": [],

@@ -727,27 +727,14 @@ def _load_state_from_dict(data: Dict[str, Any]) -> PipelineState:
 
 
 def _load_state_safe(project_root: Path) -> PipelineState:
-    """Load state from pipeline_state.json, trying multiple locations.
+    """Load state from .svp/pipeline_state.json.
 
-    Searches: project_root/pipeline_state.json, then project_root/.svp/pipeline_state.json.
-    Returns default PipelineState() if neither exists.
+    Returns default PipelineState() if file does not exist.
     """
-    # Try primary location via Unit 5 load_state
     try:
         return load_state(project_root)
     except FileNotFoundError:
-        pass
-
-    # Try .svp/ location (used by routing script infrastructure)
-    svp_state_path = project_root / ".svp" / ARTIFACT_FILENAMES["pipeline_state"]
-    try:
-        with open(svp_state_path, "r") as f:
-            data = json.load(f)
-        return _load_state_from_dict(data)
-    except (FileNotFoundError, json.JSONDecodeError):
-        pass
-
-    return PipelineState()
+        return PipelineState()
 
 
 # ---------------------------------------------------------------------------

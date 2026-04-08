@@ -152,8 +152,8 @@ def test_new_project_initial_sub_stage_is_hook_activation(tmp_path, monkeypatch)
     with patch("svp_launcher.launch_session", return_value=0):
         project_root = create_new_project("test_project", plugin_root)
 
-    state_path = project_root / "pipeline_state.json"
-    assert state_path.exists(), "pipeline_state.json was not created"
+    state_path = project_root / ".svp" / "pipeline_state.json"
+    assert state_path.exists(), ".svp/pipeline_state.json was not created"
 
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["sub_stage"] == "hook_activation", (

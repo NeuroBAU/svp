@@ -498,7 +498,7 @@ def create_new_project(
         "pass2_nested_session_path": None,
         "deferred_broken_units": [],
     }
-    state_path = project_root / "pipeline_state.json"
+    state_path = project_root / ".svp" / "pipeline_state.json"
     state_path.write_text(json.dumps(initial_state, indent=2), encoding="utf-8")
 
     # Create svp_config.json
@@ -775,7 +775,7 @@ def restore_project(
             if plugin_path is not None:
                 initial_state["pass"] = 2
 
-    state_path = project_root / "pipeline_state.json"
+    state_path = project_root / ".svp" / "pipeline_state.json"
     state_path.write_text(json.dumps(initial_state, indent=2), encoding="utf-8")
 
     # Create svp_config.json

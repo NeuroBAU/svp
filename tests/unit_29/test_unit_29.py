@@ -283,7 +283,7 @@ class TestCreateNewProject:
         plugin_root.mkdir()
         self._setup_minimal_plugin(plugin_root)
         project_root = create_new_project("test_project", plugin_root)
-        pipeline_state = project_root / "pipeline_state.json"
+        pipeline_state = project_root / ".svp" / "pipeline_state.json"
         assert pipeline_state.exists()
 
     def test_create_new_project_creates_svp_config(self, tmp_path):
@@ -327,7 +327,7 @@ class TestCreateNewProject:
         plugin_root.mkdir()
         self._setup_minimal_plugin(plugin_root)
         project_root = create_new_project("test_project", plugin_root)
-        pipeline_state = project_root / "pipeline_state.json"
+        pipeline_state = project_root / ".svp" / "pipeline_state.json"
         content = json.loads(pipeline_state.read_text())
         assert isinstance(content, dict)
 
@@ -482,7 +482,7 @@ class TestRestoreProject:
             skip_to="pre_stage_3",
         )
         # Pipeline state should reflect the skip_to stage
-        pipeline_state_path = project_root / "pipeline_state.json"
+        pipeline_state_path = project_root / ".svp" / "pipeline_state.json"
         if pipeline_state_path.exists():
             state = json.loads(pipeline_state_path.read_text())
             assert isinstance(state, dict)

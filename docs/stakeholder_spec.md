@@ -4941,6 +4941,24 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P10 (Architectural Drift). The sync protocol accumulated ad-hoc patches (bidirectional for some files, one-way for others, manual copies for yet others) without a coherent design. Test import convention was inherited from early development and never updated when the stub-script derivation system was introduced. **Detection:** Manual audit during doc consolidation cleanup.
 
+### 24.117 pipeline_state.json Path Mismatch (Post-delivery — Bug S3-104, NEW IN 2.2)
+
+**`ARTIFACT_FILENAMES["pipeline_state"]` maps to `.svp/pipeline_state.json` but five units hardcoded root-level `pipeline_state.json` (NEW IN 2.2 -- Bug S3-104).** `create_new_project()` and `restore_project()` (Unit 29) wrote initial state to `project_root/pipeline_state.json`. `generate_write_authorization_sh()` (Unit 17) read stage from and protected root-level `pipeline_state.json`. `sync_pass1_artifacts()` (Unit 16) validated Pass 1 workspace at root. `_prepare_oracle_agent()` (Unit 13) read nested session state from root. `_load_state_safe()` (Unit 14) had a double-nesting fallback: `project_root / ".svp" / ARTIFACT_FILENAMES["pipeline_state"]` resolved to `.svp/.svp/pipeline_state.json` (dead code). Result: `update_state.py` crashed with `FileNotFoundError` on every new project. Fix: all five units updated to use `.svp/pipeline_state.json`; `_load_state_safe()` simplified to single `load_state()` call with `PipelineState()` default.
+
+**Pattern:** P10 (Architectural Drift) + P4 (Config-Code Divergence). `ARTIFACT_FILENAMES` was authoritative but implementations hardcoded the pre-migration root path. **Detection:** First user project launch after plugin delivery.
+
+### 24.118 build_log Extension Mismatch (Post-delivery — Bug S3-105, NEW IN 2.2)
+
+**`ARTIFACT_FILENAMES["build_log"]` mapped to `.svp/build_log.json` but `run_infrastructure_setup()` (Unit 11) created `.svp/build_log.jsonl` (NEW IN 2.2 -- Bug S3-105).** Routing (Unit 14) appended JSONL lines to the config path (`.json`), creating a second file while the `.jsonl` file sat unused. The actual format is JSONL (one JSON object per line). Fix: config value updated to `.svp/build_log.jsonl`.
+
+**Pattern:** P4 (Config-Code Divergence). Config entry was never updated when the format was changed to JSONL.
+
+### 24.119 oracle_run_ledger Hardcoded Paths (Post-delivery — Bug S3-106, NEW IN 2.2)
+
+**`append_oracle_run_entry()` and `read_oracle_run_ledger()` (Unit 7) hardcoded `project_root / ".svp" / "oracle_run_ledger.json"` instead of using `ARTIFACT_FILENAMES["oracle_run_ledger"]` (NEW IN 2.2 -- Bug S3-106).** Resolved path was correct but fragile — would silently break if config changed. Fix: use `ARTIFACT_FILENAMES["oracle_run_ledger"]` with import from Unit 1.
+
+**Pattern:** P4 (Config-Code Divergence). Hardcoded path duplicated the config value instead of referencing it.
+
 ---
 
 ## 25. Test Data

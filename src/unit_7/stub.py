@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.unit_1.stub import ARTIFACT_FILENAMES
+
 # ---------------------------------------------------------------------------
 # Tag sets used during compaction
 # ---------------------------------------------------------------------------
@@ -152,7 +154,7 @@ def clear_ledger(ledger_path: Path) -> None:
 
 def append_oracle_run_entry(project_root: Path, entry: Dict[str, Any]) -> None:
     """Append an entry to .svp/oracle_run_ledger.json."""
-    ledger_path = project_root / ".svp" / "oracle_run_ledger.json"
+    ledger_path = project_root / ARTIFACT_FILENAMES["oracle_run_ledger"]
     entries = read_oracle_run_ledger(project_root)
     entry["timestamp"] = datetime.now(timezone.utc).isoformat()
     entries.append(entry)
@@ -162,7 +164,7 @@ def append_oracle_run_entry(project_root: Path, entry: Dict[str, Any]) -> None:
 
 def read_oracle_run_ledger(project_root: Path) -> List[Dict[str, Any]]:
     """Read all entries from .svp/oracle_run_ledger.json."""
-    ledger_path = project_root / ".svp" / "oracle_run_ledger.json"
+    ledger_path = project_root / ARTIFACT_FILENAMES["oracle_run_ledger"]
     if not ledger_path.is_file():
         return []
     return json.loads(ledger_path.read_text(encoding="utf-8"))

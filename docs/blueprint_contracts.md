@@ -44,6 +44,7 @@ def get_model_for_agent(
 - Keys include at minimum: `"pipeline_state"`, `"project_profile"`, `"toolchain"`, `"stakeholder_spec"`, `"blueprint_dir"`, `"blueprint_prose"`, `"blueprint_contracts"`, `"build_log"`, `"task_prompt"`, `"gate_prompt"`, `"last_status"`, `"svp_config"`, `"assembly_map"`, `"triage_result"`, `"oracle_run_ledger"`.
 - Every value is a relative path from project root.
 - No hardcoded paths exist anywhere outside this dict.
+- `"build_log"` value uses `.jsonl` extension (JSONL format, not JSON). **(Bug S3-105 fix.)**
 
 **DEFAULT_CONFIG:**
 - Contains keys: `iteration_limit` (int, default 3), `models` (dict with `default` key, default `"claude-opus-4-6"`), `context_budget_override` (null), `context_budget_threshold` (int, default 65), `compaction_character_threshold` (int, default 200), `auto_save` (bool, default True), `skip_permissions` (bool, default True).
@@ -651,8 +652,8 @@ def read_oracle_run_ledger(project_root: Path) -> List[Dict[str, Any]]: ...
 **get_ledger_path:**
 - `ledger_type` maps to deterministic path: `"setup"` -> `ledgers/setup_dialog.jsonl`, `"stakeholder"` -> `ledgers/stakeholder_dialog.jsonl`, `"blueprint"` -> `ledgers/blueprint_dialog.jsonl`, `"spec_revision"` -> `ledgers/spec_revision_{session_number}.jsonl`, `"help"` -> `ledgers/help_session.jsonl`, `"hint"` -> `ledgers/hint_session.jsonl`, `"bug_triage"` -> `ledgers/bug_triage_{session_number}.jsonl`.
 
-**append_oracle_run_entry:** Appends timestamped entry to .svp/oracle_run_ledger.json. Creates file if absent.
-**read_oracle_run_ledger:** Returns list of entries from .svp/oracle_run_ledger.json. Returns [] if absent.
+**append_oracle_run_entry:** Appends timestamped entry to `.svp/oracle_run_ledger.json` via `ARTIFACT_FILENAMES["oracle_run_ledger"]`. Creates file if absent. **(Bug S3-106 fix: path from config, not hardcoded.)**
+**read_oracle_run_ledger:** Returns list of entries from `.svp/oracle_run_ledger.json` via `ARTIFACT_FILENAMES["oracle_run_ledger"]`. Returns [] if absent. **(Bug S3-106 fix.)**
 
 ---
 
@@ -1335,7 +1336,8 @@ def run_tests_main(argv: list = None) -> None: ...
 - Test project selection: _route_oracle builds the complete numbered test project list in Python (hardcoded F-mode "SVP Pipeline" as item 1 + auto-discovered E-mode from `examples/*/oracle_manifest.json`) and embeds it in the reminder field along with a number-to-path mapping (e.g., `1 → docs/`, `2 → examples/game-of-life/`). The action block includes `post: "python scripts/update_state.py --command oracle_test_project_selection --project-root ."`. The orchestrator presents the list verbatim, writes the selected path to `.svp/last_status.txt`, and runs the POST command. **(Bug S3-76 + S3-77 fix.)**
 - oracle_start command: dispatch_command_status handles "oracle_start" by calling enter_oracle_session.
 - Modification bound: gate_7_a MODIFY increments oracle_modification_count; _route_oracle warns when >= 3.
-- Nested session bootstrap: _bootstrap_oracle_nested_session creates workspace at green_run start. E-mode path copies `.svp/` then overwrites `pipeline_state.json` with fresh `PipelineState()` (stage=0, all defaults) so the nested session starts clean. **(Bug S3-93 fix.)**
+- Nested session bootstrap: _bootstrap_oracle_nested_session creates workspace at green_run start. E-mode path copies `.svp/` then overwrites `.svp/pipeline_state.json` with fresh `PipelineState()` (stage=0, all defaults) so the nested session starts clean. **(Bug S3-93 fix.)**
+- `_load_state_safe()`: loads state via `load_state()` (Unit 5), returns `PipelineState()` default on `FileNotFoundError`. No multi-location fallback — single canonical path from `ARTIFACT_FILENAMES`. **(Bug S3-104 fix.)**
 - Internal /svp:bug: gate_7_b APPROVE FIX calls enter_debug_session; oracle_session_active stays True.
 - Fix verification: after debug completes, green_run tears down and recreates nested session.
 - Session cleanup: exit phase cleans workspace (unless E-mode), records run ledger, calls complete_oracle_session.
@@ -1455,7 +1457,8 @@ def sync_pass1_artifacts(project_root: Path) -> Dict[str, Any]: ...
 - Merges lessons learned (Pass 1 as base, appends Pass 2-only Part sections).
 - Merges spec (Pass 2 as base, inserts Pass 1-only bug marker lines at context-matched positions).
 - Copies .svp metadata (checklists, quality report, triage result) if absent.
-- Does NOT sync `src/`, `scripts/`, `pipeline_state.json`, or `blueprint/`.
+- Does NOT sync `src/`, `scripts/`, `.svp/pipeline_state.json`, or `blueprint/`. **(Bug S3-104 fix: path corrected to `.svp/`.)**
+- Validates Pass 1 workspace via `.svp/pipeline_state.json` existence check (not root-level). **(Bug S3-104 fix.)**
 - Idempotent: guarded by `.svp/pass1_sync_complete` marker file.
 - Returns summary dict: `synced_files`, `skipped_files`, `merged_files`, `pass1_workspace`, `errors`.
 
@@ -1501,7 +1504,7 @@ def generate_monitoring_reminder_sh() -> str: ...
 - Paths use `.claude/scripts/` prefix.
 
 **generate_write_authorization_sh:**
-- Hook order: (1) read current stage from `pipeline_state.json`, (2) check `pipeline_state.json` protection (writable only by `update_state.py`), (3) check builder script protection (`.py` files in `scripts/` read-only during Stages 3-5), (4) check remaining path rules.
+- Hook order: (1) read current stage from `.svp/pipeline_state.json`, (2) check `.svp/pipeline_state.json` protection (writable only by `update_state.py`), (3) check builder script protection (`.py` files in `scripts/` read-only during Stages 3-5), (4) check remaining path rules. **(Bug S3-104 fix: state file path corrected to `.svp/`.)**
 - Builder script block message references Hard Stop Protocol (Section 41): "Builder script modification blocked during Stages 3-5. If this script has a bug, follow the Hard Stop Protocol: save artifacts, produce bug analysis, fix via /svp:bug in the SVP N workspace, then restart from checkpoint."
 - Write paths per language from `LANGUAGE_REGISTRY[language]["authorized_write_dirs"]`.
 - Profile: writable during Stage 0 `project_profile` and redo sub-stages only.
@@ -2169,7 +2172,7 @@ def main(argv: list = None) -> None: ...
 - Copies `ruff.toml` (set read-only after copy).
 - Creates empty `tests/` scaffold with `__init__.py` (SVP regression tests only copied for E/F via `copy_svp_regression_tests` post-Stage-0). **(Bug S3-99.)**
 - Copies hook configuration with path rewriting (plugin paths -> project paths).
-- Creates initial `pipeline_state.json` (with `"sub_stage": "hook_activation"` per Bug S3-38), `svp_config.json`, `CLAUDE.md` (Tier 1 only via `CLAUDE_MD_TEMPLATE`).
+- Creates initial `.svp/pipeline_state.json` (with `"sub_stage": "hook_activation"` per Bug S3-38), `svp_config.json`, `CLAUDE.md` (Tier 1 only via `CLAUDE_MD_TEMPLATE`). **(Bug S3-104 fix: state file in `.svp/`, not root.)**
 - Sets filesystem permissions.
 - Launches session.
 - Returns project root path.

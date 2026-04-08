@@ -2749,7 +2749,7 @@ class TestMainCli:
         _write_last_status(tmp_path, "")
         main(["--project-root", str(tmp_path)])
         # Build log should exist and contain the entry
-        build_log_path = svp_dir / "build_log.json"
+        build_log_path = svp_dir / "build_log.jsonl"
         if build_log_path.exists():
             log = json.loads(build_log_path.read_text())
             assert any(
@@ -2809,7 +2809,7 @@ class TestUpdateStateMain:
                 "HELP_SESSION_COMPLETE: no hint",
             ]
         )
-        build_log_path = svp_dir / "build_log.json"
+        build_log_path = svp_dir / "build_log.jsonl"
         if build_log_path.exists():
             log = json.loads(build_log_path.read_text())
             assert any(

@@ -1525,7 +1525,7 @@ def _prepare_oracle_agent(
                 )
             )
             nested_state_path = (
-                Path(state.oracle_nested_session_path) / "pipeline_state.json"
+                Path(state.oracle_nested_session_path) / ".svp" / "pipeline_state.json"
             )
             nested_state = _read_file_safe(nested_state_path)
             if nested_state:
@@ -1591,7 +1591,7 @@ def _prepare_oracle_agent(
 
         if state and state.oracle_nested_session_path:
             nested_state_path = (
-                Path(state.oracle_nested_session_path) / "pipeline_state.json"
+                Path(state.oracle_nested_session_path) / ".svp" / "pipeline_state.json"
             )
             nested_state = _read_file_safe(nested_state_path)
             if nested_state:

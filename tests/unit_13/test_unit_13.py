@@ -255,7 +255,7 @@ def project_root(tmp_path):
 
     (blueprint_dir / "blueprint_prose.md").write_text(BLUEPRINT_PROSE_CONTENT)
     (blueprint_dir / "blueprint_contracts.md").write_text(BLUEPRINT_CONTRACTS_CONTENT)
-    (tmp_path / "pipeline_state.json").write_text(json.dumps(MINIMAL_PIPELINE_STATE))
+    (svp_dir / "pipeline_state.json").write_text(json.dumps(MINIMAL_PIPELINE_STATE))
     (tmp_path / "project_profile.json").write_text(json.dumps(MINIMAL_PROFILE))
     (tmp_path / "toolchain.json").write_text(json.dumps(MINIMAL_TOOLCHAIN))
 
@@ -1403,7 +1403,7 @@ class TestConvergentGatePaths:
         # Modify state to represent a different convergent path
         modified_state = dict(MINIMAL_PIPELINE_STATE)
         modified_state["sub_stage"] = "diagnostic"
-        (project_root / "pipeline_state.json").write_text(json.dumps(modified_state))
+        (project_root / ".svp" / "pipeline_state.json").write_text(json.dumps(modified_state))
         result_2 = prepare_gate_prompt(project_root, "gate_3_2_diagnostic_decision")
         # At minimum, both should be valid; they may or may not differ
         # depending on whether this gate has convergent paths in this state

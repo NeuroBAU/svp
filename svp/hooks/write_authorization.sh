@@ -45,7 +45,7 @@ case "$FILE_PATH" in
 esac
 
 # --- (1) Read current stage from pipeline_state.json ---
-STATE_FILE="pipeline_state.json"
+STATE_FILE=".svp/pipeline_state.json"
 STAGE=""
 SUB_STAGE=""
 CURRENT_UNIT=""
@@ -92,10 +92,10 @@ print(f'{stage} {sub_stage or "_"} {current_unit or "_"} {oracle_active} {oracle
 fi
 
 # --- (2) Check pipeline_state.json protection ---
-# pipeline_state.json is only writable by update_state.py
+# .svp/pipeline_state.json is only writable by update_state.py
 case "$FILE_PATH" in
-    pipeline_state.json)
-        echo "BLOCKED: pipeline_state.json is only writable by update_state.py. Direct writes are not permitted."
+    .svp/pipeline_state.json)
+        echo "BLOCKED: .svp/pipeline_state.json is only writable by update_state.py. Direct writes are not permitted."
         exit 2
         ;;
 esac
@@ -199,7 +199,7 @@ fi
 
 # If state file doesn't exist, block non-infrastructure writes
 if [ ! -f "$STATE_FILE" ]; then
-    echo "BLOCKED: pipeline_state.json not found. Cannot determine write authorization for: $FILE_PATH"
+    echo "BLOCKED: .svp/pipeline_state.json not found. Cannot determine write authorization for: $FILE_PATH"
     exit 2
 fi
 

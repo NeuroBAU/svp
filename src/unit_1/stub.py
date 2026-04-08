@@ -13,7 +13,7 @@ ARTIFACT_FILENAMES: Dict[str, str] = {
     "blueprint_dir": "blueprint",
     "blueprint_prose": "blueprint/blueprint_prose.md",
     "blueprint_contracts": "blueprint/blueprint_contracts.md",
-    "build_log": ".svp/build_log.json",
+    "build_log": ".svp/build_log.jsonl",
     "task_prompt": ".svp/task_prompt.md",
     "gate_prompt": ".svp/gate_prompt.md",
     "last_status": ".svp/last_status.txt",

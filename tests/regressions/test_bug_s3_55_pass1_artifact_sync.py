@@ -25,16 +25,14 @@ def _create_workspace_pair(tmp: Path):
     pass1.mkdir()
     pass2.mkdir()
 
-    # Pass 1 pipeline state
-    (pass1 / "pipeline_state.json").write_text('{"stage": "5", "pass": 1}')
-    (pass2 / "pipeline_state.json").write_text('{"stage": "5", "pass": 2}')
-
     # Pass 1 .svp metadata
     (pass1 / ".svp").mkdir()
     (pass1 / ".svp" / "alignment_checker_checklist.md").write_text("checklist content")
     (pass1 / ".svp" / "quality_report.md").write_text("quality report")
     (pass1 / ".svp" / "triage_result.json").write_text('{"result": "ok"}')
+    (pass1 / ".svp" / "pipeline_state.json").write_text('{"stage": "5", "pass": 1}')
     (pass2 / ".svp").mkdir()
+    (pass2 / ".svp" / "pipeline_state.json").write_text('{"stage": "5", "pass": 2}')
     (pass2 / ".svp" / "last_status.txt").write_text("TESTS PASSED")
 
     # Pass 1 regression tests
