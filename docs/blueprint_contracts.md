@@ -2182,6 +2182,7 @@ def main(argv: list = None) -> None: ...
 - Copies `ruff.toml` (set read-only after copy).
 - Creates empty `tests/` scaffold with `__init__.py` (SVP regression tests only copied for E/F via `copy_svp_regression_tests` post-Stage-0). **(Bug S3-99.)**
 - Copies hook configuration with path rewriting (plugin paths -> project paths).
+- Deploys hook shell scripts from `plugin_root/svp/hooks/*.sh` to `project_root/.claude/scripts/`. Creates directory, copies scripts, sets executable permissions. **(Bug S3-108 fix.)**
 - Creates initial `.svp/pipeline_state.json` (with `"sub_stage": "hook_activation"` per Bug S3-38), `svp_config.json`, `CLAUDE.md` (Tier 1 only via `CLAUDE_MD_TEMPLATE`). **(Bug S3-104 fix: state file in `.svp/`, not root.)**
 - Sets filesystem permissions.
 - Launches session.
@@ -2197,6 +2198,7 @@ def main(argv: list = None) -> None: ...
 - Copies spec, blueprint, context, scripts, profile from provided or auto-discovered paths.
 - Copies `references/` from source workspace or `docs/references/` (consolidated layout). **(Bug S3-43)**
 - Copies `sync_workspace.sh` from repo or source workspace if present. **(Bug S3-72)**
+- Deploys hook shell scripts from `repo_root/svp/hooks/*.sh` to `project_root/.claude/scripts/`. **(Bug S3-108 fix.)**
 - Copies `examples/` directory from repo or source workspace if present (oracle test projects). **(Bug S3-72)**
 - Copies `CLAUDE.md` and `project_context.md` from `docs/` or repo root (consolidated or legacy layout).
 - If `skip_to` provided: sets pipeline state to skip to that stage.

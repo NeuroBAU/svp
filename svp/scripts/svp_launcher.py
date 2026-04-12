@@ -469,6 +469,15 @@ def create_new_project(
         # Rewrite paths in hook config files
         _rewrite_hook_paths(hooks_dst, plugin_root, project_root)
 
+    # Bug S3-108: deploy hook shell scripts to .claude/scripts/
+    hooks_scripts_src = plugin_root / "svp" / "hooks"
+    if hooks_scripts_src.is_dir():
+        hooks_scripts_dst = project_root / ".claude" / "scripts"
+        hooks_scripts_dst.mkdir(parents=True, exist_ok=True)
+        for sh_file in hooks_scripts_src.glob("*.sh"):
+            shutil.copy2(str(sh_file), str(hooks_scripts_dst / sh_file.name))
+            (hooks_scripts_dst / sh_file.name).chmod(0o755)
+
     # Create initial pipeline_state.json
     # Bug S3-38: sub_stage must start as "hook_activation", not None
     initial_state = {
@@ -708,6 +717,16 @@ def restore_project(
         if candidate.is_file():
             _copy_artifact(candidate, project_root / "sync_workspace.sh")
             break
+
+    # Bug S3-108: deploy hook shell scripts to .claude/scripts/
+    # repo_root is scripts_source.parent (e.g., repo/svp/), so hooks are at sibling hooks/
+    hooks_scripts_src = repo_root / "hooks"
+    if hooks_scripts_src.is_dir():
+        hooks_scripts_dst = project_root / ".claude" / "scripts"
+        hooks_scripts_dst.mkdir(parents=True, exist_ok=True)
+        for sh_file in hooks_scripts_src.glob("*.sh"):
+            shutil.copy2(str(sh_file), str(hooks_scripts_dst / sh_file.name))
+            (hooks_scripts_dst / sh_file.name).chmod(0o755)
 
     # Bug S3-72: copy examples/ from repo or source workspace for oracle
     for candidate in (repo_root / "examples", source_workspace / "examples"):

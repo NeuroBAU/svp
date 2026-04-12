@@ -258,6 +258,24 @@ for label, repo in [('pass2', os.environ['REPO']), ('pass1', os.environ['PASS1_R
 fi
 echo ""
 
+# --- Step 4c: Hook Scripts (Bug S3-108) ---
+echo "--- Step 4c: Hook Scripts ---"
+HOOKS_SRC="$REPO/svp/hooks"
+HOOKS_DST="$WORKSPACE/.claude/scripts"
+if [ -d "$HOOKS_SRC" ]; then
+    if [ "$DRY_RUN" = true ]; then
+        echo "  [dry-run] would deploy hook scripts to .claude/scripts/"
+    else
+        mkdir -p "$HOOKS_DST"
+        for sh in "$HOOKS_SRC"/*.sh; do
+            [ -f "$sh" ] && cp "$sh" "$HOOKS_DST/" && COPIED=$((COPIED + 1))
+        done
+        chmod +x "$HOOKS_DST"/*.sh 2>/dev/null
+        echo "  deployed hook scripts to .claude/scripts/"
+    fi
+fi
+echo ""
+
 # --- Step 5: Verify ---
 echo "--- Step 5: Verify ---"
 REMAINING=0
