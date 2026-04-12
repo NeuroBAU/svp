@@ -4981,6 +4981,18 @@ The plugin `hooks.json` references `.claude/scripts/write_authorization.sh`, `.c
 
 **Fix:** Add hook script deployment to `create_new_project()` (after hook config copy), `restore_project()` (after sync_workspace.sh copy), and `sync_workspace.sh` (new Step 4c).
 
+### 24.122 Delivered pyproject.toml Declares Non-Existent Build Backend (Post-delivery — Bug S3-109, NEW IN 2.2)
+
+`_write_pyproject_toml()` in Unit 23 (`src/unit_23/stub.py`, at the helper called by `assemble_python_project()`) hardcoded the build-system block with `build-backend = "setuptools.backends._legacy:_Backend"`. The module `setuptools.backends` does not exist in any setuptools release. Every delivered Python project's `pyproject.toml` was therefore unbuildable: `pip install -e .` failed immediately with a backend-not-found error, regardless of the working directory or package layout. The correct PEP 517 value is `setuptools.build_meta`.
+
+**Root cause:** A hardcoded fictional module string in the generator helper. The existing regression test `TestPyprojectToml.test_build_backend` in `tests/regressions/test_plugin_completeness.py` asserted `"setuptools.build_meta" in content` — but read the hand-authored `svp2.2-pass2-repo/pyproject.toml`, NOT the output of `_write_pyproject_toml()`. The test gave false comfort: it validated the wrong artifact and could never have caught the generator bug.
+
+**Secondary finding (incomplete S3-98 refactor):** An orphaned copy of the same `_write_pyproject_toml()` function exists in `scripts/adapt_regression_tests.py`. This file is a legacy sibling output from the pre-S3-98 composite-unit layout of Unit 23 (see Section 24.111). When S3-98 collapsed Unit 23 into `stub.py`, `scripts/generate_assembly_map.py` was wired into `STUB_TO_SCRIPT` and derived from the stub, but `scripts/adapt_regression_tests.py` was NOT — it remained as a hand-edited standalone file containing stale code. The bug string was duplicated into it and never fixed. `src/unit_11/stub.py:703` still invokes `scripts/adapt_regression_tests.py` via subprocess, but only with `--target/--map` for regression import rewriting; the orphaned `_write_pyproject_toml()` is unreachable today. It is a latent time bomb that must be fixed defensively. Full architectural cleanup (either add `adapt_regression_tests.py` to `STUB_TO_SCRIPT` with multi-output derivation, or delete it and redirect Unit 11 to invoke `generate_assembly_map.py`) is tracked as a separate follow-up bug.
+
+**Fix:** (1) Replace the string in `src/unit_23/stub.py:360` with `'build-backend = "setuptools.build_meta"'`. After `sync_workspace.sh` Step 0, `scripts/generate_assembly_map.py` is re-derived and picks up the fix automatically. (2) Apply the same edit defensively to `scripts/adapt_regression_tests.py:315`. (3) Add `TestDeliveredPyprojectGenerator` class to `tests/regressions/test_plugin_completeness.py` with four tests that actually invoke `assemble_python_project()` from `unit_23.stub` and from `adapt_regression_tests`, parse the emitted `pyproject.toml` with `tomllib`, assert `build-system.build-backend == "setuptools.build_meta"`, verify the backend string resolves to a real module via subprocess import, and grep the source tree to ensure no `setuptools.backends` string remains outside documentation.
+
+**Pattern:** P-NEW — Hand-authored string assertion tests on generator output must actually run the generator; reading a hand-authored fixture defeats the purpose. Add to pattern catalog as a lesson learned (see `references/svp_2_1_lessons_learned.md`).
+
 ---
 
 ## 25. Test Data

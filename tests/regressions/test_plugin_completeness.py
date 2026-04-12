@@ -143,6 +143,119 @@ class TestPyprojectToml:
         assert "setuptools.build_meta" in content
 
 
+class TestDeliveredPyprojectGenerator:
+    """Bug S3-109 regression: the generator for delivered Python projects'
+    pyproject.toml MUST emit a real PEP 517 build backend. An earlier bug
+    hardcoded `setuptools.backends._legacy:_Backend` — a module that does not
+    exist — and broke `pip install -e .` in every delivered repo. This class
+    tests the GENERATOR directly, not a hand-authored fixture."""
+
+    @staticmethod
+    def _minimal_profile():
+        return {"name": "bug_s3_109_fixture", "delivery": {"python": {"source_layout": "conventional"}}}
+
+    @staticmethod
+    def _parse_pyproject(repo_dir):
+        try:
+            import tomllib  # Python 3.11+
+        except ImportError:
+            import tomli as tomllib  # type: ignore
+        return tomllib.loads((repo_dir / "pyproject.toml").read_text())
+
+    def test_unit_23_stub_generator_emits_build_meta(self, tmp_path):
+        import importlib.util
+        stub_path = WORKSPACE / "src" / "unit_23" / "stub.py"
+        if not stub_path.is_file():
+            pytest.skip("src/unit_23/stub.py not present (running from delivered repo?)")
+        spec = importlib.util.spec_from_file_location("unit_23_stub", stub_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        project_root = tmp_path / "bug_s3_109_fixture"
+        project_root.mkdir()
+        repo_dir = mod.assemble_python_project(project_root, self._minimal_profile(), {})
+        data = self._parse_pyproject(repo_dir)
+        assert data["build-system"]["build-backend"] == "setuptools.build_meta"
+
+    def test_generate_assembly_map_generator_emits_build_meta(self, tmp_path):
+        import importlib
+        sys.path.insert(0, str(WORKSPACE / "scripts"))
+        try:
+            mod = importlib.import_module("generate_assembly_map")
+            importlib.reload(mod)
+        finally:
+            sys.path.pop(0)
+
+        project_root = tmp_path / "bug_s3_109_fixture"
+        project_root.mkdir()
+        repo_dir = mod.assemble_python_project(project_root, self._minimal_profile(), {})
+        data = self._parse_pyproject(repo_dir)
+        assert data["build-system"]["build-backend"] == "setuptools.build_meta"
+
+    def test_adapt_regression_tests_generator_emits_build_meta(self, tmp_path):
+        """Defensive: the orphaned duplicate of _write_pyproject_toml in
+        scripts/adapt_regression_tests.py must also be fixed. Unreachable
+        via current production path but latent bug if anyone re-enables it."""
+        import importlib
+        sys.path.insert(0, str(WORKSPACE / "scripts"))
+        try:
+            mod = importlib.import_module("adapt_regression_tests")
+            importlib.reload(mod)
+        finally:
+            sys.path.pop(0)
+
+        project_root = tmp_path / "bug_s3_109_fixture"
+        project_root.mkdir()
+        repo_dir = mod.assemble_python_project(project_root, self._minimal_profile(), {})
+        data = self._parse_pyproject(repo_dir)
+        assert data["build-system"]["build-backend"] == "setuptools.build_meta"
+
+    def test_build_meta_backend_is_importable(self):
+        """The declared backend string must resolve to a real module."""
+        result = subprocess.run(
+            [sys.executable, "-c", "import setuptools.build_meta; print('OK')"],
+            capture_output=True, text=True,
+        )
+        assert "OK" in result.stdout, (
+            f"setuptools.build_meta is not importable: {result.stderr}"
+        )
+
+    def test_no_fictional_setuptools_backends_in_source_tree(self):
+        """Walk source directories and ensure no code file references the
+        fictional `setuptools.backends` module. Allowed: historical mentions
+        in specs and lessons-learned docs (which document this fix), and
+        this test file itself (which contains the bad string as a literal
+        search target)."""
+        bad = "setuptools.backends"
+        # Only search source/script directories. Do NOT search tests/ —
+        # this test file contains `bad` as a literal search target, and
+        # self-skip-by-path is fragile across workspace/repo layouts.
+        search_dirs = [
+            WORKSPACE / "src",
+            WORKSPACE / "scripts",
+            WORKSPACE / "svp",
+        ]
+        offenders = []
+        for d in search_dirs:
+            if not d.exists():
+                continue
+            for path in d.rglob("*"):
+                if not path.is_file():
+                    continue
+                if path.suffix not in (".py", ".md", ".json", ".toml", ".sh"):
+                    continue
+                try:
+                    content = path.read_text(encoding="utf-8", errors="ignore")
+                except OSError:
+                    continue
+                if bad in content:
+                    offenders.append(str(path.relative_to(WORKSPACE)))
+        assert not offenders, (
+            f"Fictional '{bad}' module referenced in: {offenders}. "
+            "The correct PEP 517 backend is 'setuptools.build_meta'."
+        )
+
+
 class TestLauncherImport:
     """Launcher must be importable as installed package."""
 

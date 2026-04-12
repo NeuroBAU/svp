@@ -357,7 +357,7 @@ def _write_pyproject_toml(
     content_lines = [
         "[build-system]",
         'requires = ["setuptools>=61.0"]',
-        'build-backend = "setuptools.backends._legacy:_Backend"',
+        'build-backend = "setuptools.build_meta"',
         "",
         "[project]",
         f'name = "{project_name}"',
