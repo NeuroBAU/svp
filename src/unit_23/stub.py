@@ -1393,3 +1393,63 @@ def adapt_regression_tests_main(argv: list = None) -> None:
         # Only write if content changed (idempotent)
         if new_content != content:
             test_file.write_text(new_content)
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point (Bug S3-110)
+# ---------------------------------------------------------------------------
+#
+# When this stub is derived to scripts/generate_assembly_map.py it becomes
+# the canonical CLI for Unit 23's deterministic utilities. Subcommands:
+#
+#   regression-adapt --target <dir> --map <json> [--language python|r]
+#       Adapt carry-forward regression tests by rewriting imports per the
+#       given map. Invoked by Unit 11 infrastructure setup step 8.
+#
+# Historically this functionality lived in a standalone script
+# scripts/adapt_regression_tests.py. Bug S3-109 revealed that script was
+# an orphaned duplicate of Unit 23 code; Bug S3-110 deleted it entirely
+# and redirected Unit 11 here.
+
+
+def _main(argv=None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="generate_assembly_map.py",
+        description="Unit 23 CLI — deterministic utilities for assembly and regression adaptation.",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_adapt = sub.add_parser(
+        "regression-adapt",
+        help="Adapt carry-forward regression tests by rewriting imports per a map.",
+    )
+    p_adapt.add_argument("--target", required=True, help="Directory of regression tests to adapt.")
+    p_adapt.add_argument(
+        "--map",
+        required=True,
+        dest="map_file",
+        help="Path to regression_test_import_map.json.",
+    )
+    p_adapt.add_argument("--language", choices=["python", "r"], default=None)
+
+    args = parser.parse_args(argv)
+
+    if args.command == "regression-adapt":
+        # Translate the S3-110 outer flag names (--target/--map) to the
+        # inner function's flag names (--tests-dir/--map-file).
+        forwarded = ["--tests-dir", args.target, "--map-file", args.map_file]
+        if args.language:
+            forwarded += ["--language", args.language]
+        adapt_regression_tests_main(forwarded)
+        return 0
+
+    parser.error(f"Unknown command: {args.command}")
+    return 2
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(_main(sys.argv[1:]))

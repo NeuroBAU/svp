@@ -700,11 +700,14 @@ def run_infrastructure_setup(
     regressions_dir = project_root / "tests" / "regressions"
 
     if regression_map.exists() and regressions_dir.exists():
-        adapt_script = project_root / "scripts" / "adapt_regression_tests.py"
+        # Bug S3-110: regression-adapt is now a subcommand of
+        # generate_assembly_map.py (previously standalone adapt_regression_tests.py).
+        adapt_script = project_root / "scripts" / "generate_assembly_map.py"
         if adapt_script.exists():
             adapt_cmd = [
                 sys.executable,
                 str(adapt_script),
+                "regression-adapt",
                 "--target",
                 str(regressions_dir),
                 "--map",

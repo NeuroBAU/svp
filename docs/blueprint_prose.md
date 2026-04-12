@@ -82,8 +82,7 @@ svp-repo/                              <- repository root
 |   |   |-- cmd_status.py              (CLI wrapper, imports from sync_debug_docs)
 |   |   |-- cmd_clean.py               (CLI wrapper, imports from sync_debug_docs)
 |   |   |-- structural_check.py        <- Unit 28
-|   |   |-- adapt_regression_tests.py  <- Unit 23
-|   |   |-- generate_assembly_map.py   <- Unit 23
+|   |   |-- generate_assembly_map.py   <- Unit 23  (also provides 'regression-adapt' CLI subcommand)
 |   |   |-- sync_debug_docs.py         <- Unit 16
 |   |   |-- toolchain_defaults/
 |   |   |   |-- python_conda_pytest.json  <- Unit 27
@@ -248,7 +247,7 @@ Environment creation dispatches via the language registry's `environment_manager
 
 Quality tool installation reads packages from the language-specific toolchain file. Import validation is language-specific (Python: `python -c "import X"`, R: `Rscript -e "library(X)"`). The `total_units` value is derived from the blueprint during this step, not read from pipeline state.
 
-If `regression_test_import_map.json` exists, `adapt_regression_tests.py` runs on `tests/regressions/` to adapt carry-forward regression test imports. The build log (`.svp/build_log.jsonl`) is created during this step.
+If `regression_test_import_map.json` exists, `generate_assembly_map.py regression-adapt` runs on `tests/regressions/` to adapt carry-forward regression test imports. The build log (`.svp/build_log.jsonl`) is created during this step. **(CHANGED IN 2.2 — Bug S3-110, renamed from `adapt_regression_tests.py` to a subcommand of `generate_assembly_map.py`.)**
 
 ---
 
@@ -407,7 +406,7 @@ The help agent definition includes the read-only constraint (tool access restric
 
 ## Unit 23: Utility Agent Definitions and Assembly Dispatch
 
-Unit 23 is a composite unit that produces the git repo agent definition, the checklist generation agent definition, the regression test adaptation agent definition, the oracle agent definition, and the `PROJECT_ASSEMBLERS` dispatch table (the fifth per-language dispatch table). It also produces `adapt_regression_tests.py`.
+Unit 23 is a composite unit that produces the git repo agent definition, the checklist generation agent definition, the regression test adaptation agent definition, the oracle agent definition, and the `PROJECT_ASSEMBLERS` dispatch table (the fifth per-language dispatch table). Unit 23 produces a single script `generate_assembly_map.py` (derived from `src/unit_23/stub.py`) whose CLI exposes the `regression-adapt` subcommand for infrastructure setup step 8. **(CHANGED IN 2.2 — Bug S3-110, previously a standalone `adapt_regression_tests.py`; consolidated into the Unit 23 CLI to eliminate orphaned duplicate source files.)**
 
 The `PROJECT_ASSEMBLERS` dispatch table maps language identifiers to functions with signature `(project_root: Path, profile: Dict, assembly_config: Dict) -> Path`. Python assembly produces `pyproject.toml`, proper module paths, `__init__.py` files, and layout-specific structure. R assembly produces `DESCRIPTION`, `NAMESPACE`, R package structure (with roxygen2 documentation if configured, Shiny variants if applicable).
 
@@ -415,7 +414,7 @@ Unit 23 also provides `generate_assembly_map(blueprint_dir, project_root)` which
 
 The git repo agent definition includes the assembly mapping rules, commit order, delivery compliance awareness, README generation, quality configuration generation, and the bounded fix cycle. The checklist generation agent produces two checklists for Stage 2 agents. The regression test adaptation agent handles import rewrites and behavioral change flagging. The oracle agent definition includes the dual-mode behavior (E-mode product testing, F-mode machinery testing), the four-phase structure, and the surrogate human protocol for internal `/svp:bug` calls. The oracle agent definition also specifies the diagnostic map entry schema (fields: `event_id`, `classification`, `observation`, `expected`, `affected_artifact`) and the run ledger entry schema (fields: `run_number`, `exit_reason`, `abort_phase`, `trajectory_summary`, `discoveries`, `fix_targets`, `root_causes_found`, `root_causes_resolved`).
 
-`adapt_regression_tests.py` is the deterministic regression test import adapter that reads `regression_test_import_map.json` and applies text replacements for `from X import Y`, `import X`, `@patch("X.Y")`, and `patch("X.Y")` forms. It supports per-language import replacements based on file extension.
+The `generate_assembly_map.py regression-adapt` subcommand is the deterministic regression test import adapter that reads `regression_test_import_map.json` and applies text replacements for `from X import Y`, `import X`, `@patch("X.Y")`, and `patch("X.Y")` forms. It supports per-language import replacements based on file extension. The subcommand delegates to the `adapt_regression_tests_main()` function in `src/unit_23/stub.py`, preserving the original function API for direct Python invocation (Unit 23 tests) while consolidating the CLI entry point into a single script. **(CHANGED IN 2.2 — Bug S3-110.)**
 
 ---
 

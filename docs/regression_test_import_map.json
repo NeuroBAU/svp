@@ -36,7 +36,6 @@
     "cmd_status": "cmd_status",
     "cmd_clean": "cmd_clean",
     "structural_check": "structural_check",
-    "adapt_regression_tests": "adapt_regression_tests",
     "svp_launcher": "svp_launcher"
   }
 }

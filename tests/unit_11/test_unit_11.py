@@ -18,7 +18,7 @@ Synthetic data assumptions:
 - regression_test_import_map.json is synthetically written when testing the
   regression test adaptation step.
 - build_log.jsonl creation is tested by checking file existence and empty content.
-- The "adapt_regression_tests.py" script invocation is mocked.
+- The "generate_assembly_map.py regression-adapt" script invocation is mocked (Bug S3-110).
 - env_name is derived as "svp-{project_root.name}" per Unit 1 contract.
 - Directory scaffolding uses Python conventions (src/unit_N, tests/unit_N) for
   Python projects and R conventions (R/, tests/testthat/) for R projects.
@@ -1317,7 +1317,7 @@ class TestRegressionTestAdaptation:
         python_toolchain,
         python_language_registry,
     ):
-        """When regression_test_import_map.json exists, adapt_regression_tests.py runs."""
+        """When regression_test_import_map.json exists, generate_assembly_map.py regression-adapt runs (Bug S3-110)."""
         import_map = {"old_module": "new_module"}
         import_map_file = project_root / "regression_test_import_map.json"
         import_map_file.write_text(json.dumps(import_map))
@@ -1341,7 +1341,7 @@ class TestRegressionTestAdaptation:
         python_toolchain,
         python_language_registry,
     ):
-        """When regression_test_import_map.json does not exist, adaptation is skipped."""
+        """When regression_test_import_map.json does not exist, adaptation is skipped (Bug S3-110)."""
         # Ensure no import map file exists
         import_map_file = project_root / "regression_test_import_map.json"
         assert not import_map_file.exists()
@@ -1363,7 +1363,7 @@ class TestRegressionTestAdaptation:
         python_toolchain,
         python_language_registry,
     ):
-        """adapt_regression_tests.py is run on tests/regressions/ directory."""
+        """generate_assembly_map.py regression-adapt is run on tests/regressions/ directory (Bug S3-110)."""
         import_map = {"old_mod": "new_mod"}
         (project_root / "regression_test_import_map.json").write_text(
             json.dumps(import_map)

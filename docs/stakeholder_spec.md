@@ -2203,7 +2203,7 @@ The script creates the source and test directory structure based on the blueprin
 
 ### 9.4 Regression Test Import Adaptation (NEW IN 2.2)
 
-If `regression_test_import_map.json` exists in the workspace, `adapt_regression_tests.py` is run against `tests/regressions/` to adapt carry-forward regression test imports to the current project's module layout. This is an optional step -- if the mapping file does not exist (e.g., no module reorganization occurred), the step is skipped. See Section 12.1.2 for the mapping format and Section 11.5 for the full adaptation mechanism.
+If `regression_test_import_map.json` exists in the workspace, `generate_assembly_map.py regression-adapt` is run against `tests/regressions/` to adapt carry-forward regression test imports to the current project's module layout. This is an optional step -- if the mapping file does not exist (e.g., no module reorganization occurred), the step is skipped. See Section 12.1.2 for the mapping format and Section 11.5 for the full adaptation mechanism. **(CHANGED IN 2.2 — Bug S3-110.)**
 
 ### 9.5 Output
 
@@ -2749,7 +2749,7 @@ After all units pass individual verification and integration tests pass (Stage 4
 
 The adaptation proceeds in four steps:
 
-1. **Deterministic adaptation first:** `adapt_regression_tests.py` runs with `regression_test_import_map.json` against `tests/regressions/`. This handles the majority of cases (simple import renames) deterministically. See Section 12.1.2 for the mapping format and the script's capabilities.
+1. **Deterministic adaptation first:** `generate_assembly_map.py regression-adapt` runs with `regression_test_import_map.json` against `tests/regressions/`. This handles the majority of cases (simple import renames) deterministically. See Section 12.1.2 for the mapping format and the script's capabilities. **(CHANGED IN 2.2 — Bug S3-110, renamed from `adapt_regression_tests.py` to a subcommand of `generate_assembly_map.py`.)**
 
 2. **Run regression tests:** All regression tests in `tests/regressions/` are executed. If all pass, adaptation is complete -- proceed to Stage 5.
 
@@ -2875,7 +2875,7 @@ When SVP N builds SVP N+1, carry-forward regression tests are copied from SVP N'
 
 SVP 2.2 introduces a deterministic import adaptation mechanism with two components:
 
-1. **`scripts/adapt_regression_tests.py`** -- A deterministic utility script that reads a JSON mapping file and applies text replacements to all `.py` files in a target directory. It handles:
+1. **`scripts/generate_assembly_map.py regression-adapt`** -- The `regression-adapt` subcommand of the Unit 23 CLI reads a JSON mapping file and applies text replacements to all `.py` files in a target directory. **(CHANGED IN 2.2 — Bug S3-110. Previously a standalone `scripts/adapt_regression_tests.py` script; consolidated into the Unit 23 CLI to eliminate orphaned duplicate source files.)** It handles:
    - `from old_module import X` to `from new_module import X`
    - `import old_module` to `import new_module`
    - `@patch("old_module.X")` to `@patch("new_module.X")`
@@ -4993,6 +4993,24 @@ The plugin `hooks.json` references `.claude/scripts/write_authorization.sh`, `.c
 
 **Pattern:** P-NEW — Hand-authored string assertion tests on generator output must actually run the generator; reading a hand-authored fixture defeats the purpose. Add to pattern catalog as a lesson learned (see `references/svp_2_1_lessons_learned.md`).
 
+### 24.123 Orphaned adapt_regression_tests.py Duplicate Collapsed Into generate_assembly_map CLI (Post-delivery — Bug S3-110, NEW IN 2.2)
+
+**Follow-up to Bug S3-109.** While fixing S3-109 (fictional `build-backend` string in delivered `pyproject.toml`), it was discovered that the bad string lived in TWO files: `src/unit_23/stub.py` (the live source of truth, derived to `scripts/generate_assembly_map.py`) AND `scripts/adapt_regression_tests.py` (a standalone 881-line file not wired into `STUB_TO_SCRIPT`). The duplicate `_write_pyproject_toml()` in the standalone file was unreachable via Unit 11's current call shape (`--target/--map` only) but was a latent time bomb — any future caller that imported `assemble_python_project` from that file would re-introduce the same class of bug.
+
+**Root cause:** Incomplete migration from pre-Bug-S3-98 composite-unit layout. Pre-S3-98, Unit 23 had multiple sibling source files under `src/unit_23/` (one per deliverable); S3-98 collapsed them all into `src/unit_23/stub.py` and wired ONE output into `derive_scripts_from_stubs.py`'s `STUB_TO_SCRIPT` dict. The second historical output, `scripts/adapt_regression_tests.py`, was never added to the derive map and never deleted. It sat in `scripts/` as a hand-maintained stale copy (missing 5 newer assembly functions added to the stub post-split), still invoked by `src/unit_11/stub.py:703` via subprocess path. The `.svp/assembly_map.json` also still listed per-unit source paths that no longer exist (see Section 24 follow-up audit).
+
+**Fix (Bug S3-110, chosen approach: delete-and-redirect over wrapper indirection):**
+1. Add a `_main()` function + `if __name__ == "__main__":` block to `src/unit_23/stub.py` with argparse subcommand `regression-adapt --target <dir> --map <json> [--language python|r]`. The subcommand delegates to the existing `adapt_regression_tests_main()` function inside the stub. This propagates automatically to `scripts/generate_assembly_map.py` via the derive pipeline (Step 0 of `sync_workspace.sh`).
+2. Redirect `src/unit_11/stub.py:703`: change the subprocess invocation from `scripts/adapt_regression_tests.py --target X --map Y` to `scripts/generate_assembly_map.py regression-adapt --target X --map Y`.
+3. Delete `scripts/adapt_regression_tests.py` entirely from both the workspace and both deployed repos (`svp2.2-pass2-repo/svp/scripts/` and `svp2.2-repo/svp/scripts/`).
+4. Remove the stale forward and reverse entries for `adapt_regression_tests.py` from `.svp/assembly_map.json`.
+5. Remove the stale `"adapt_regression_tests": "adapt_regression_tests"` alias from `blueprint/regression_test_import_map.json` (it was an import-rewrite alias for the now-deleted module).
+6. Update all spec and blueprint references from `adapt_regression_tests.py` to `generate_assembly_map.py regression-adapt`.
+
+**Architectural rule (NEW):** When a composite unit is collapsed into a single stub, every historical script filename must either (a) be added to `STUB_TO_SCRIPT` for derivation from the stub, OR (b) be deleted entirely with all callers redirected to the derived script's CLI (adding a new subcommand if needed). Orphaned hand-maintained scripts that duplicate stub code are forbidden. Bug S3-110 adopts option (b) because it eliminates the wrapper/indirection layer entirely and restores a single source of truth without requiring multi-output derivation infrastructure.
+
+**Pattern:** P-NEW (augments Lesson B from S3-109) — "Deletion over wrapping for internal callers." When the only caller is an internal unit (editable in the same codebase), prefer deleting the orphaned filename and updating the caller over introducing a wrapper script. Wrappers are acceptable only when the calling filename is a stable external API that cannot be changed.
+
 ---
 
 ## 25. Test Data
@@ -6003,7 +6021,7 @@ Given a delivered project where `is_svp_build` is false in the project profile, 
 
 ### AC-34: Deterministic Import Adaptation (NEW IN 2.2)
 
-Given carry-forward regression tests with imports referencing old module names, when `adapt_regression_tests.py` runs with `regression_test_import_map.json`, then imports are updated to reference the correct new module names. The script handles `from X import Y`, `import X`, `@patch("X.Y")`, and `patch("X.Y")` forms.
+Given carry-forward regression tests with imports referencing old module names, when `generate_assembly_map.py regression-adapt` runs with `regression_test_import_map.json`, then imports are updated to reference the correct new module names. The CLI handles `from X import Y`, `import X`, `@patch("X.Y")`, and `patch("X.Y")` forms. **(CHANGED IN 2.2 — Bug S3-110, renamed from `adapt_regression_tests.py` to a subcommand of `generate_assembly_map.py`.)**
 
 ### AC-35: Agent Adaptation Fallback (NEW IN 2.2)
 

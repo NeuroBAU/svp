@@ -192,23 +192,11 @@ class TestDeliveredPyprojectGenerator:
         data = self._parse_pyproject(repo_dir)
         assert data["build-system"]["build-backend"] == "setuptools.build_meta"
 
-    def test_adapt_regression_tests_generator_emits_build_meta(self, tmp_path):
-        """Defensive: the orphaned duplicate of _write_pyproject_toml in
-        scripts/adapt_regression_tests.py must also be fixed. Unreachable
-        via current production path but latent bug if anyone re-enables it."""
-        import importlib
-        sys.path.insert(0, str(WORKSPACE / "scripts"))
-        try:
-            mod = importlib.import_module("adapt_regression_tests")
-            importlib.reload(mod)
-        finally:
-            sys.path.pop(0)
-
-        project_root = tmp_path / "bug_s3_109_fixture"
-        project_root.mkdir()
-        repo_dir = mod.assemble_python_project(project_root, self._minimal_profile(), {})
-        data = self._parse_pyproject(repo_dir)
-        assert data["build-system"]["build-backend"] == "setuptools.build_meta"
+    # (Bug S3-110) test_adapt_regression_tests_generator_emits_build_meta was
+    # removed when scripts/adapt_regression_tests.py was deleted. Its role is
+    # now covered by TestAdaptRegressionTestsOrphanRemoved below, plus the
+    # two remaining generator tests in this class which exercise the single
+    # source of truth via unit_23.stub and the derived generate_assembly_map.
 
     def test_build_meta_backend_is_importable(self):
         """The declared backend string must resolve to a real module."""
@@ -254,6 +242,131 @@ class TestDeliveredPyprojectGenerator:
             f"Fictional '{bad}' module referenced in: {offenders}. "
             "The correct PEP 517 backend is 'setuptools.build_meta'."
         )
+
+
+class TestAdaptRegressionTestsOrphanRemoved:
+    """Bug S3-110 regression: scripts/adapt_regression_tests.py was an
+    orphaned stale duplicate of Unit 23 code. It is now DELETED and its
+    functionality is exposed via the `regression-adapt` subcommand of
+    scripts/generate_assembly_map.py. These tests prevent the orphan from
+    being silently reintroduced."""
+
+    def test_orphan_not_in_workspace_scripts(self):
+        assert not (WORKSPACE / "scripts" / "adapt_regression_tests.py").exists(), (
+            "scripts/adapt_regression_tests.py must not exist (deleted in Bug S3-110)"
+        )
+
+    def test_orphan_not_in_workspace_src_unit_23(self):
+        assert not (WORKSPACE / "src" / "unit_23" / "adapt_regression_tests.py").exists()
+
+    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    def test_orphan_not_in_deployed_svp_scripts(self, repo):
+        assert not (repo / "svp" / "scripts" / "adapt_regression_tests.py").exists(), (
+            f"{repo.name}/svp/scripts/adapt_regression_tests.py must not exist "
+            "(deleted in Bug S3-110)"
+        )
+
+    def test_unit_11_invokes_generate_assembly_map_for_regression_adapt(self):
+        """Unit 11 subprocess path must point at generate_assembly_map.py,
+        not the deleted adapt_regression_tests.py. Only checks for LIVE
+        code references (string literals in Path construction) — historical
+        comments are allowed."""
+        unit_11_stub = WORKSPACE / "src" / "unit_11" / "stub.py"
+        if not unit_11_stub.is_file():
+            pytest.skip("src/unit_11/stub.py not present (running from delivered repo?)")
+        content = unit_11_stub.read_text()
+        # A live reference is a string literal used in a Path join.
+        assert '"adapt_regression_tests.py"' not in content, (
+            "Unit 11 must not reference the deleted adapt_regression_tests.py "
+            "as a string literal (Bug S3-110)"
+        )
+        assert "'adapt_regression_tests.py'" not in content
+        assert '"regression-adapt"' in content or "'regression-adapt'" in content, (
+            "Unit 11 must invoke the regression-adapt subcommand of generate_assembly_map.py"
+        )
+        assert '"generate_assembly_map.py"' in content, (
+            "Unit 11 must reference generate_assembly_map.py as the subprocess target"
+        )
+
+
+class TestGenerateAssemblyMapCLI:
+    """Bug S3-110: generate_assembly_map.py must expose a working CLI with a
+    regression-adapt subcommand that rewrites test imports end-to-end."""
+
+    @staticmethod
+    def _cli_path():
+        return WORKSPACE / "scripts" / "generate_assembly_map.py"
+
+    def test_cli_help_exits_clean(self):
+        cli = self._cli_path()
+        if not cli.is_file():
+            pytest.skip("scripts/generate_assembly_map.py not present")
+        result = subprocess.run(
+            [sys.executable, str(cli), "--help"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0
+        assert "regression-adapt" in result.stdout
+
+    def test_cli_regression_adapt_help_exits_clean(self):
+        cli = self._cli_path()
+        if not cli.is_file():
+            pytest.skip("scripts/generate_assembly_map.py not present")
+        result = subprocess.run(
+            [sys.executable, str(cli), "regression-adapt", "--help"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0
+        assert "--target" in result.stdout
+        assert "--map" in result.stdout
+
+    def test_cli_regression_adapt_rewrites_imports_end_to_end(self, tmp_path):
+        """The most important test: actually run the subcommand and verify
+        it rewrites imports in a target file. This is what Unit 11 relies on."""
+        cli = self._cli_path()
+        if not cli.is_file():
+            pytest.skip("scripts/generate_assembly_map.py not present")
+
+        target_dir = tmp_path / "tests_dir"
+        target_dir.mkdir()
+        test_file = target_dir / "test_example.py"
+        test_file.write_text(
+            "from old_module import stuff\n"
+            "import another_old\n"
+        )
+        map_file = tmp_path / "map.json"
+        map_file.write_text(
+            '{"old_module": "new_module", "another_old": "another_new"}'
+        )
+
+        result = subprocess.run(
+            [
+                sys.executable, str(cli), "regression-adapt",
+                "--target", str(target_dir),
+                "--map", str(map_file),
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 0, (
+            f"regression-adapt exited {result.returncode}: {result.stderr}"
+        )
+
+        rewritten = test_file.read_text()
+        assert "from new_module import stuff" in rewritten
+        assert "import another_new" in rewritten
+        assert "old_module" not in rewritten
+        assert "another_old" not in rewritten
+
+    def test_cli_regression_adapt_missing_args_errors(self):
+        cli = self._cli_path()
+        if not cli.is_file():
+            pytest.skip("scripts/generate_assembly_map.py not present")
+        result = subprocess.run(
+            [sys.executable, str(cli), "regression-adapt"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode != 0
+        assert "required" in result.stderr.lower() or "required" in result.stdout.lower()
 
 
 class TestLauncherImport:

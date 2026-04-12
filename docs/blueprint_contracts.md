@@ -857,7 +857,7 @@ def main(argv: list = None) -> None: ...
 5. **Directory scaffolding:** creates `src/unit_N/` and `tests/unit_N/` for each unit (Python convention). R: `R/` and `tests/testthat/`. For R/mixed projects: generates `tests/testthat/helper-svp.R` with `svp_source()` using `testthat::test_path()` root navigation per Bug S3-48 (Bug S3-101).
 6. **DAG re-validation:** extracts dependency graph from blueprint, validates no forward edges, no cycles.
 7. **total_units derivation:** counts `## Unit N:` headings in blueprint. Sets `total_units` in pipeline state.
-8. **Regression test adaptation:** if `regression_test_import_map.json` exists, runs `adapt_regression_tests.py` on `tests/regressions/`.
+8. **Regression test adaptation:** if `regression_test_import_map.json` exists, runs `generate_assembly_map.py regression-adapt` on `tests/regressions/`. **(CHANGED IN 2.2 — Bug S3-110, renamed from `adapt_regression_tests.py`.)**
 9. **Build log creation:** creates `.svp/build_log.jsonl` (empty JSONL file). Append-only from this point.
 
 - On any step failure: reports error and exits with non-zero code. No partial cleanup.
