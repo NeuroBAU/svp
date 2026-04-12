@@ -356,8 +356,8 @@ def _sync_lessons_learned(
     pass1: Path, pass2: Path, merged: List[str], errors: List[str]
 ) -> None:
     """Merge lessons learned: Pass 1 as base, append Pass 2-only sections."""
-    p1_file = pass1 / "references" / "svp_2_1_lessons_learned.md"
-    p2_file = pass2 / "references" / "svp_2_1_lessons_learned.md"
+    p1_file = pass1 / ARTIFACT_FILENAMES["lessons_learned"]
+    p2_file = pass2 / ARTIFACT_FILENAMES["lessons_learned"]
     if not p1_file.is_file():
         return
 
@@ -365,7 +365,7 @@ def _sync_lessons_learned(
     if not p2_file.is_file():
         p2_file.parent.mkdir(parents=True, exist_ok=True)
         p2_file.write_text(p1_text, encoding="utf-8")
-        merged.append("references/svp_2_1_lessons_learned.md")
+        merged.append(ARTIFACT_FILENAMES["lessons_learned"])
         return
 
     p2_text = p2_file.read_text(encoding="utf-8")
@@ -388,19 +388,19 @@ def _sync_lessons_learned(
         # Append new sections to Pass 1 content
         result = p1_text.rstrip() + "\n\n" + "".join(new_sections)
         p2_file.write_text(result, encoding="utf-8")
-        merged.append("references/svp_2_1_lessons_learned.md")
+        merged.append(ARTIFACT_FILENAMES["lessons_learned"])
     elif len(p1_text) > len(p2_text):
         # Pass 1 is longer — take it as base
         p2_file.write_text(p1_text, encoding="utf-8")
-        merged.append("references/svp_2_1_lessons_learned.md")
+        merged.append(ARTIFACT_FILENAMES["lessons_learned"])
 
 
 def _sync_spec(
     pass1: Path, pass2: Path, merged: List[str], errors: List[str]
 ) -> None:
     """Merge spec: Pass 2 as base, insert Pass 1-only lines at correct positions."""
-    p1_spec = pass1 / "specs" / "stakeholder_spec.md"
-    p2_spec = pass2 / "specs" / "stakeholder_spec.md"
+    p1_spec = pass1 / ARTIFACT_FILENAMES["stakeholder_spec"]
+    p2_spec = pass2 / ARTIFACT_FILENAMES["stakeholder_spec"]
     if not p1_spec.is_file() or not p2_spec.is_file():
         return
 
@@ -466,7 +466,7 @@ def _sync_spec(
         return
 
     p2_spec.write_text(result, encoding="utf-8")
-    merged.append("specs/stakeholder_spec.md")
+    merged.append(ARTIFACT_FILENAMES["stakeholder_spec"])
 
 
 def _sync_svp_metadata(

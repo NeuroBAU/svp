@@ -4959,6 +4959,20 @@ Both HUMAN FIX and ESCALATE responses at Gate 4.1a were no-ops (just copied stat
 
 **Pattern:** P4 (Config-Code Divergence). Hardcoded path duplicated the config value instead of referencing it.
 
+### 24.120 Systemic Config-Code Path Divergence (Post-delivery — Bug S3-107, NEW IN 2.2)
+
+Three classes of hardcoded paths bypass `ARTIFACT_FILENAMES`:
+
+(a) `ARTIFACT_FILENAMES["stakeholder_spec"]` mapped to `spec/stakeholder_spec.md` (symlink alias) while the real directory was `specs/`. Units 14 and 16 hardcoded `specs/` directly. The `spec → specs` symlink masked the mismatch. When the stakeholder dialog agent was invoked, the task prompt did not inject the canonical output path, causing the agent to write the spec to the root directory.
+
+(b) `references/svp_2_1_lessons_learned.md` was hardcoded in Units 13 and 16 but had no entry in `ARTIFACT_FILENAMES`. Unit 13 used a defensive `.get()` fallback anticipating a future key.
+
+(c) Blueprint filenames (`blueprint_prose.md`, `blueprint_contracts.md`) were hardcoded as string literals in Units 13, 14, 23, and 29 despite having entries in `ARTIFACT_FILENAMES`.
+
+**Pattern:** P4 (Config-Code Divergence). Fourth instance of the same pattern after S3-104/105/106.
+
+**Fix:** (a) Change canonical to `specs/stakeholder_spec.md`; centralize all references. Add mandatory output path injection to task prompt as deterministic guardrail. (b) Add `lessons_learned` key to registry; centralize references. (c) Derive blueprint filenames from `ARTIFACT_FILENAMES` using `Path(...).name`.
+
 ---
 
 ## 25. Test Data

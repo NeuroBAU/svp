@@ -200,4 +200,4 @@ class TestWorkspaceReadiness:
             "Stale root pipeline_state.json exists — should be in .svp/ only"
 
     def test_spec_path_resolves(self):
-        assert (WORKSPACE / "spec" / "stakeholder_spec.md").is_file()
+        assert (WORKSPACE / "specs" / "stakeholder_spec.md").is_file()

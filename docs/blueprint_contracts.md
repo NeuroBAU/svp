@@ -41,10 +41,13 @@ def get_model_for_agent(
 **Dependencies:** None (root unit).
 
 **ARTIFACT_FILENAMES registry:**
-- Keys include at minimum: `"pipeline_state"`, `"project_profile"`, `"toolchain"`, `"stakeholder_spec"`, `"blueprint_dir"`, `"blueprint_prose"`, `"blueprint_contracts"`, `"build_log"`, `"task_prompt"`, `"gate_prompt"`, `"last_status"`, `"svp_config"`, `"assembly_map"`, `"triage_result"`, `"oracle_run_ledger"`.
+- Keys include at minimum: `"pipeline_state"`, `"project_profile"`, `"toolchain"`, `"stakeholder_spec"`, `"blueprint_dir"`, `"blueprint_prose"`, `"blueprint_contracts"`, `"build_log"`, `"task_prompt"`, `"gate_prompt"`, `"last_status"`, `"svp_config"`, `"assembly_map"`, `"triage_result"`, `"oracle_run_ledger"`, `"lessons_learned"`.
 - Every value is a relative path from project root.
 - No hardcoded paths exist anywhere outside this dict.
 - `"build_log"` value uses `.jsonl` extension (JSONL format, not JSON). **(Bug S3-105 fix.)**
+- `ARTIFACT_FILENAMES["stakeholder_spec"]` value is `"specs/stakeholder_spec.md"` (plural directory, matching real filesystem — **Bug S3-107a fix**).
+- `ARTIFACT_FILENAMES["lessons_learned"]` key added with value `"references/svp_2_1_lessons_learned.md"`. **(Bug S3-107b fix.)**
+- ARTIFACT_FILENAMES values must reference real filesystem paths, not symlink aliases.
 
 **DEFAULT_CONFIG:**
 - Contains keys: `iteration_limit` (int, default 3), `models` (dict with `default` key, default `"claude-opus-4-6"`), `context_budget_override` (null), `context_budget_threshold` (int, default 65), `compaction_character_threshold` (int, default 200), `auto_save` (bool, default True), `skip_permissions` (bool, default True).
@@ -1003,6 +1006,9 @@ Set equality invariant: `set(ALL_GATE_IDS) == set(GATE_VOCABULARY.keys())` (veri
 - `load_blueprint`: concatenates both files.
 - `load_blueprint_contracts_only`: reads contracts file only.
 - `load_blueprint_prose_only`: reads prose file only.
+- Derive filenames from `Path(ARTIFACT_FILENAMES["blueprint_prose"]).name` and `Path(ARTIFACT_FILENAMES["blueprint_contracts"]).name`, not hardcoded string literals. **(Bug S3-107c fix.)**
+- `_get_lessons_learned`: uses `ARTIFACT_FILENAMES["lessons_learned"]` directly (no `.get()` fallback). **(Bug S3-107b fix.)**
+- `_prepare_stakeholder_dialog`: injects canonical output path (`ARTIFACT_FILENAMES["stakeholder_spec"]`) as mandatory directive in task prompt (deterministic guardrail). **(Bug S3-107a fix.)**
 
 **build_unit_context:**
 - Extracts unit definition, builds context with `include_tier1` parameter.
@@ -1134,6 +1140,7 @@ def run_tests_main(argv: list = None) -> None: ...
   - `oracle_phase == "gate_b"`: emit `human_gate` with `gate_id: "gate_7_b_fix_plan_review"`. Present fix plan for human review. Gate 7B is exclusively for `ORACLE_FIX_APPLIED`. **(Bug S3-44 fix.)**
   - `oracle_phase == "exit"`: deactivate oracle session. Set `oracle_session_active = False`, clean up nested session workspace, emit `pipeline_complete` or return to Stage 5 complete state.
 - Pass 2 routing: if `sub_stage == "pass2_active"`, delegates to nested session.
+- E-mode workspace setup derives spec destination from `ARTIFACT_FILENAMES["stakeholder_spec"]` and blueprint filenames from `Path(ARTIFACT_FILENAMES["blueprint_prose"]).name` / `Path(ARTIFACT_FILENAMES["blueprint_contracts"]).name`. No hardcoded directory or filename strings. **(Bug S3-107a/c fix.)**
 - Break-glass routing: emits `break_glass` action type when known exhaustion conditions are met during E/F self-builds. Trigger conditions: fix ladder exhausted for a unit, assembly failure after maximum retries, quality gate failure after retry cycle. The action block includes diagnostic context (what failed, how many times, last error).
 - Hard Stop awareness: during Pass 1, if a builder script bug is detected (routing script failure, state transition error), the routing script includes Hard Stop Protocol diagnostic context in the action block.
 - `_validate_stage3_completion()` runs at Stage 3/4 boundary: checks unit count (all units verified), build log sub-stage audit (9 sub-stages per unit), red run validation (`TESTS_FAILED` present for each unit), green run validation (`TESTS_PASSED` present for each unit). On failure, presents `gate_3_completion_failure`.
@@ -1451,6 +1458,8 @@ def sync_pass1_artifacts(project_root: Path) -> Dict[str, Any]: ...
 - Workspace is canonical; delivered repo is updated to match.
 
 **sync_pass1_artifacts (Bug S3-55 fix):**
+- `_sync_spec` derives spec paths from `ARTIFACT_FILENAMES["stakeholder_spec"]`. **(Bug S3-107a fix.)**
+- `_sync_lessons_learned` derives paths from `ARTIFACT_FILENAMES["lessons_learned"]`. **(Bug S3-107b fix.)**
 - Called automatically at `pass_transition` when `pass == 2`, before presenting the gate.
 - Derives Pass 1 workspace path by removing `-pass2` suffix from Pass 2 workspace name.
 - Syncs regression tests (union: copy files from Pass 1 that don't exist in Pass 2).
@@ -1760,6 +1769,7 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 - Returns path to created repository.
 
 **generate_assembly_map:**
+- Derives blueprint prose filename from `Path(ARTIFACT_FILENAMES["blueprint_prose"]).name`. **(Bug S3-107c fix.)**
 - Parses `blueprint_prose.md` from `blueprint_dir` for the Preamble file tree.
 - Extracts every `<- Unit N` annotation line, parsing the indented path and the unit number.
 - Produces a bidirectional mapping dict stored at `.svp/assembly_map.json` with two top-level keys: `"workspace_to_repo"` (maps `src/unit_N/module.py` to `svp/scripts/module.py`) and `"repo_to_workspace"` (the inverse).
@@ -2183,7 +2193,7 @@ def main(argv: list = None) -> None: ...
 
 **restore_project:**
 - Creates project directory.
-- When `--repo` provided: auto-discovers `docs/stakeholder_spec.md` as spec, `docs/` as blueprint dir, `docs/project_context.md` as context, `svp/scripts/` as scripts source, `docs/project_profile.json` as profile. Explicit args override auto-discovered paths. Writes `.svp/sync_config.json` with repo path. **(Bug S3-103)**
+- When `--repo` provided: auto-discovers `docs/stakeholder_spec.md` as spec, `docs/` as blueprint dir, `docs/project_context.md` as context, `svp/scripts/` as scripts source, `docs/project_profile.json` as profile. `_auto_discover_from_repo` derives blueprint filenames from `Path(ARTIFACT_FILENAMES["blueprint_prose"]).name` / `Path(ARTIFACT_FILENAMES["blueprint_contracts"]).name`. **(Bug S3-107c fix.)** Explicit args override auto-discovered paths. Writes `.svp/sync_config.json` with repo path. **(Bug S3-103)**
 - Copies spec, blueprint, context, scripts, profile from provided or auto-discovered paths.
 - Copies `references/` from source workspace or `docs/references/` (consolidated layout). **(Bug S3-43)**
 - Copies `sync_workspace.sh` from repo or source workspace if present. **(Bug S3-72)**

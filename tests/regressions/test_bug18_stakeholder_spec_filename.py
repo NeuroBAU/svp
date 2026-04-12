@@ -4,15 +4,15 @@ ARTIFACT_FILENAMES["stakeholder_spec"] must have the correct path.
 
 SVP 2.2 adaptation:
 - ARTIFACT_FILENAMES is in src.unit_1.stub
-- stakeholder_spec path is "spec/stakeholder_spec.md" (includes directory prefix)
+- stakeholder_spec path is "specs/stakeholder_spec.md" (plural directory — Bug S3-107 fix)
 """
 
 from svp_config import ARTIFACT_FILENAMES
 
 
 def test_stakeholder_spec_filename():
-    """ARTIFACT_FILENAMES['stakeholder_spec'] must be 'spec/stakeholder_spec.md'."""
-    assert ARTIFACT_FILENAMES["stakeholder_spec"] == "spec/stakeholder_spec.md"
+    """ARTIFACT_FILENAMES['stakeholder_spec'] must be 'specs/stakeholder_spec.md'."""
+    assert ARTIFACT_FILENAMES["stakeholder_spec"] == "specs/stakeholder_spec.md"
 
 
 def test_blueprint_filename():

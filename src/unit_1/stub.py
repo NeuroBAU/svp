@@ -9,7 +9,7 @@ ARTIFACT_FILENAMES: Dict[str, str] = {
     "pipeline_state": ".svp/pipeline_state.json",
     "project_profile": "project_profile.json",
     "toolchain": "toolchain.json",
-    "stakeholder_spec": "spec/stakeholder_spec.md",
+    "stakeholder_spec": "specs/stakeholder_spec.md",
     "blueprint_dir": "blueprint",
     "blueprint_prose": "blueprint/blueprint_prose.md",
     "blueprint_contracts": "blueprint/blueprint_contracts.md",
@@ -21,6 +21,7 @@ ARTIFACT_FILENAMES: Dict[str, str] = {
     "assembly_map": ".svp/assembly_map.json",
     "triage_result": ".svp/triage_result.json",
     "oracle_run_ledger": ".svp/oracle_run_ledger.json",
+    "lessons_learned": "references/svp_2_1_lessons_learned.md",
 }
 
 DEFAULT_CONFIG: Dict[str, Any] = {

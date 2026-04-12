@@ -13,6 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List
 
+from svp_config import ARTIFACT_FILENAMES
+
 # ---------------------------------------------------------------------------
 # Agent definition constants
 # ---------------------------------------------------------------------------
@@ -1133,7 +1135,7 @@ def generate_assembly_map(
 
     Returns the mapping dict (also written to disk).
     """
-    blueprint_prose_path = blueprint_dir / "blueprint_prose.md"
+    blueprint_prose_path = blueprint_dir / Path(ARTIFACT_FILENAMES["blueprint_prose"]).name
     if not blueprint_prose_path.exists():
         raise FileNotFoundError(
             f"Blueprint prose file not found: {blueprint_prose_path}"

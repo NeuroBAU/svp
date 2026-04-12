@@ -15,6 +15,7 @@ _scripts_dir = str(Path(__file__).resolve().parent)
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
+from svp_config import ARTIFACT_FILENAMES
 from language_registry import LANGUAGE_REGISTRY
 
 # ---------------------------------------------------------------------------
@@ -610,7 +611,9 @@ def _auto_discover_from_repo(repo_path: Path) -> dict:
         raise FileNotFoundError(f"Missing {spec}")
     discovered["spec_path"] = spec
 
-    for bp_file in ("blueprint_prose.md", "blueprint_contracts.md"):
+    bp_prose_name = Path(ARTIFACT_FILENAMES["blueprint_prose"]).name
+    bp_contracts_name = Path(ARTIFACT_FILENAMES["blueprint_contracts"]).name
+    for bp_file in (bp_prose_name, bp_contracts_name):
         if not (docs / bp_file).exists():
             raise FileNotFoundError(f"Missing {docs / bp_file}")
     discovered["blueprint_dir"] = docs

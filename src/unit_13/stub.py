@@ -204,8 +204,8 @@ _SENTINEL_CHECKING_AGENTS = {
 def load_blueprint(blueprint_dir: Path) -> str:
     """Load and concatenate both blueprint files (prose + contracts)."""
     blueprint_dir = Path(blueprint_dir)
-    prose_path = blueprint_dir / "blueprint_prose.md"
-    contracts_path = blueprint_dir / "blueprint_contracts.md"
+    prose_path = blueprint_dir / Path(ARTIFACT_FILENAMES["blueprint_prose"]).name
+    contracts_path = blueprint_dir / Path(ARTIFACT_FILENAMES["blueprint_contracts"]).name
 
     parts: List[str] = []
     if prose_path.exists():
@@ -219,7 +219,7 @@ def load_blueprint(blueprint_dir: Path) -> str:
 def load_blueprint_contracts_only(blueprint_dir: Path) -> str:
     """Load only the contracts file from the blueprint directory."""
     blueprint_dir = Path(blueprint_dir)
-    contracts_path = blueprint_dir / "blueprint_contracts.md"
+    contracts_path = blueprint_dir / Path(ARTIFACT_FILENAMES["blueprint_contracts"]).name
     if contracts_path.exists():
         return contracts_path.read_text(encoding="utf-8")
     return ""
@@ -228,7 +228,7 @@ def load_blueprint_contracts_only(blueprint_dir: Path) -> str:
 def load_blueprint_prose_only(blueprint_dir: Path) -> str:
     """Load only the prose file from the blueprint directory."""
     blueprint_dir = Path(blueprint_dir)
-    prose_path = blueprint_dir / "blueprint_prose.md"
+    prose_path = blueprint_dir / Path(ARTIFACT_FILENAMES["blueprint_prose"]).name
     if prose_path.exists():
         return prose_path.read_text(encoding="utf-8")
     return ""
@@ -431,9 +431,7 @@ def _get_hint_context(
 
 def _get_lessons_learned(project_root: Path, unit_number: Optional[int]) -> str:
     """Load lessons learned, optionally filtered for a specific unit."""
-    lessons_path = project_root / ARTIFACT_FILENAMES.get(
-        "lessons_learned", "references/svp_2_1_lessons_learned.md"
-    )
+    lessons_path = project_root / ARTIFACT_FILENAMES["lessons_learned"]
     content = _read_file_safe(lessons_path)
     if not content:
         return ""
@@ -529,6 +527,10 @@ def _prepare_stakeholder_dialog(
     """Prepare task prompt for stakeholder_dialog."""
     sections: List[str] = []
     sections.append("# Stakeholder Dialog Task Prompt")
+
+    # Inject canonical output path (deterministic guardrail — Bug S3-107)
+    spec_output_path = ARTIFACT_FILENAMES["stakeholder_spec"]
+    sections.append(f"\n**Output path (mandatory):** Write the final specification to `{spec_output_path}`. Do not write to any other location.")
 
     if mode:
         sections.append(f"\n**Mode:** {mode}")

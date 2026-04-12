@@ -538,19 +538,23 @@ def _bootstrap_oracle_nested_session(
         # E-mode: copy test project artifacts into standard SVP locations
         tp_dir = project_root / test_project
 
-        (workspace / "specs").mkdir(parents=True, exist_ok=True)
-        (workspace / "blueprint").mkdir(parents=True, exist_ok=True)
+        spec_dest = workspace / ARTIFACT_FILENAMES["stakeholder_spec"]
+        spec_dest.parent.mkdir(parents=True, exist_ok=True)
+        bp_dir = workspace / ARTIFACT_FILENAMES["blueprint_dir"]
+        bp_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy spec
         spec_src = tp_dir / "stakeholder_spec.md"
         if spec_src.is_file():
-            shutil.copy2(str(spec_src), str(workspace / "specs" / "stakeholder_spec.md"))
+            shutil.copy2(str(spec_src), str(spec_dest))
 
         # Copy blueprint files
-        for bp_file in ["blueprint_prose.md", "blueprint_contracts.md"]:
+        bp_prose_name = Path(ARTIFACT_FILENAMES["blueprint_prose"]).name
+        bp_contracts_name = Path(ARTIFACT_FILENAMES["blueprint_contracts"]).name
+        for bp_file in [bp_prose_name, bp_contracts_name]:
             src = tp_dir / bp_file
             if src.is_file():
-                shutil.copy2(str(src), str(workspace / "blueprint" / bp_file))
+                shutil.copy2(str(src), str(bp_dir / bp_file))
 
         # Copy project_context.md
         ctx_src = tp_dir / "project_context.md"

@@ -21,6 +21,7 @@ import pytest
 from pipeline_state import PipelineState, save_state
 from state_transitions import version_document
 from routing import dispatch_gate_response
+from svp_config import ARTIFACT_FILENAMES
 
 
 def _make_state(stage="1", sub_stage=None):
@@ -45,9 +46,9 @@ def _dispatch_with_config(state, gate_id, response, project_root):
 @pytest.fixture
 def project_root(tmp_path):
     """Create a project root with spec and blueprint files."""
-    specs_dir = tmp_path / "spec"
-    specs_dir.mkdir()
-    (specs_dir / "stakeholder_spec.md").write_text("# Spec v1\nOriginal content")
+    spec_path = tmp_path / ARTIFACT_FILENAMES["stakeholder_spec"]
+    spec_path.parent.mkdir(parents=True, exist_ok=True)
+    spec_path.write_text("# Spec v1\nOriginal content")
 
     blueprint_dir = tmp_path / "blueprint"
     blueprint_dir.mkdir()
@@ -196,19 +197,19 @@ class TestVersionDocumentStandalone:
     def test_version_document_copies_file(self, project_root):
         """version_document copies document to history directory."""
         state = _make_state(stage="1")
-        doc_path = str(project_root / "spec" / "stakeholder_spec.md")
+        doc_path = str(project_root / ARTIFACT_FILENAMES["stakeholder_spec"])
         result = version_document(state, doc_path)
         # Check that pass_history was updated
         assert len(result.pass_history) == 1
         assert result.pass_history[0]["document"] == doc_path
         # Check that history file was created
-        history_dir = project_root / "spec" / "history"
+        history_dir = project_root / Path(ARTIFACT_FILENAMES["stakeholder_spec"]).parent / "history"
         assert history_dir.exists()
 
     def test_multiple_versions_increment(self, project_root):
         """Multiple version_document calls create incrementing versions."""
         state = _make_state(stage="1")
-        doc_path = str(project_root / "spec" / "stakeholder_spec.md")
+        doc_path = str(project_root / ARTIFACT_FILENAMES["stakeholder_spec"])
         s1 = version_document(state, doc_path)
         s2 = version_document(s1, doc_path)
         assert len(s2.pass_history) == 2
