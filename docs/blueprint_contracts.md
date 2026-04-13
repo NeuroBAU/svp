@@ -63,8 +63,9 @@ def get_model_for_agent(
 - Atomic write (write to temp, rename).
 
 **derive_env_name:**
-- Returns `f"svp-{project_root.name}"`.
-- Deterministic: same input always produces same output.
+- Returns `f"svp-{project_root.resolve().name}"`.
+- **Must resolve `project_root` internally before reading `.name`** (CHANGED IN 2.2 — Bug S3-118). `Path('.').name` is the empty string, which previously produced the nonsense env name `svp-`. Relative paths (including `Path('.')`, `Path('./')`, nested relative paths) MUST produce the same env name as the absolute equivalent.
+- Deterministic: same resolved input always produces same output.
 
 **get_blueprint_dir:**
 - Returns `project_root / ARTIFACT_FILENAMES["blueprint_dir"]`.
@@ -1420,6 +1421,7 @@ def run_quality_gate_main(argv: list = None) -> None: ...
 
 **run_quality_gate_main (CLI):**
 - Arguments: `--target` (path), `--gate` (str: "gate_a", "gate_b", "gate_c"), `--unit` (int), `--language` (str), `--project-root` (path).
+- **Resolves `--project-root` at parse time** with `Path(args.project_root).resolve()` (CHANGED IN 2.2 — Bug S3-118). This is a cross-unit invariant: every CLI `main()` function in every `src/unit_*/stub.py` that takes `--project-root` MUST resolve at parse time. An AST-walking regression test in `tests/regressions/test_bug_s3_118_project_root_resolve.py` locks this convention across all units and fails loudly if any future CLI drifts. The rationale: `Path('.').name` is the empty string, and relying on internal helpers to defensively resolve every input is fragile — resolving once at the CLI boundary lets every downstream helper trust that `project_root.name` is meaningful.
 - Loads language config and toolchain.
 - Calls `run_quality_gate`.
 - Prints status to stdout.

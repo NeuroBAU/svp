@@ -79,7 +79,8 @@ def save_config(project_root: Path, config: Dict[str, Any]) -> None:
 
 
 def derive_env_name(project_root: Path) -> str:
-    return f"svp-{project_root.name}"
+    # Bug S3-118: resolve before reading .name; Path('.').name is ''.
+    return f"svp-{project_root.resolve().name}"
 
 
 def get_blueprint_dir(project_root: Path) -> Path:

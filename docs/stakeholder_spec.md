@@ -5231,6 +5231,30 @@ Applied to seven routing emitters (stub_generation, quality_gate_a, quality_gate
 
 **Regression tests**: new `TestRunCommandActionBlockCmdField` class in `tests/unit_14/test_unit_14.py` covering all 7 script-based sites (concrete CLI shape) and 3 semantic operator sites (no `cmd` field). Each script-based test asserts the `cmd` field exists, starts with the right Python script path, and contains the expected CLI arguments for the state context. The semantic-command tests verify the `cmd` field is absent.
 
+### 24.131 `derive_env_name` Returned `svp-` For Relative Project Roots, Breaking Quality Gate In Consumer Projects (Post-delivery — Bug S3-118, NEW IN 2.2)
+
+**Reported externally.** During the first unit cycle of Stage 3 in a real SVP consumer project (`debrief1.0`), the quality gate crashed with `EnvironmentLocationNotFound: Not a conda environment: /Users/cfusco/anaconda3/envs/svp-`. The env name was literally `svp-` (empty suffix). The orchestrator then spent six rounds of `python -c` probe one-liners diagnosing, ultimately starting to hand-fix E501 test residuals — a protocol violation it resorted to because it could not figure out how to dispatch the broken status back through routing.
+
+**Root cause (two-layer).**
+
+*Layer 1:* `src/unit_1/stub.py:81` `derive_env_name(project_root)` returned `f"svp-{project_root.name}"`. `Path('.').name` is the empty string, so a relative project-root produced `svp-`. The helper had no defensive resolve.
+
+*Layer 2:* Asymmetric `--project-root` handling across CLI `main()` functions. Unit 11 (`setup_env`) and Unit 14 (`routing`, `update_state`, `prepare_task` [Unit 14's]) already resolved `--project-root` at parse time with `Path(args.project_root).resolve()`. But Unit 15 (`quality_gate` — `run_quality_gate_main`) and Unit 13 (`prepare_task`) did not. The inconsistency was the bug: one half of the codebase was defensive, the other silently drifted. Because S3-117's new `_cmd_quality_gate` helper emits `--project-root .`, the unresolved `Path('.')` flowed straight from `quality_gate.py`'s argparse into `derive_env_name` and the failure fired deterministically on every invocation in a consumer project.
+
+**Fix (Bug S3-118) — defensive resolve on both layers plus a convention-lock regression test.**
+
+1. **Layer 1: `src/unit_1/stub.py:82`.** `derive_env_name` now calls `.resolve()` internally: `return f"svp-{project_root.resolve().name}"`. One-line defensive fix that repairs every existing and future caller regardless of how the caller constructed `project_root`. Cost: one `stat()` per call. For already-absolute paths, `.resolve()` is effectively a no-op.
+
+2. **Layer 2: `src/unit_15/stub.py:365` and `src/unit_13/stub.py:1943`.** Both CLI entry points (Unit 15's `run_quality_gate_main` and Unit 13's `main`) now resolve `--project-root` at parse time: `project_root = Path(args.project_root).resolve()`. Brings them into alignment with Unit 11 and Unit 14.
+
+3. **Convention lock: AST-based regression test.** New `tests/regressions/test_bug_s3_118_project_root_resolve.py` walks every `src/unit_*/stub.py`, finds every `project_root = <expr>` assignment whose RHS mentions `args.project_root`, and asserts the RHS is a `.resolve()` call. If any future CLI entry point adds a `--project-root` argument without resolving, the test fails with the offender's file and line number. This is the first SVP test that locks a cross-file convention using AST walk — the pattern generalizes to other invariants.
+
+**Pattern.** Sibling to Bugs S3-111, S3-112, S3-116, and S3-117. Same root-cause shape — **a deterministic invariant left for one half of the codebase to enforce and the other half to drift on.** S3-118 applies the lesson at the CLI boundary: *when half of the codebase is defensive about a deterministic invariant and the other half isn't, the un-defensive half is a bug waiting for its trigger.* Conventions are only real when a test enforces them; the AST convention lock is the general tool.
+
+**Out of scope (follow-ups, not in this fix).** Two issues surfaced by the same bug report but deferred: (a) `.claude/scripts/non_svp_protection.sh` hook scripts missing in consumer projects (non-blocking noise during the debug trace, needs plugin reinstall reproduction); (b) `QUALITY_AUTO_FIXED` status with non-empty residuals has no explicit routing branch, so the orchestrator improvised by directly editing the test file — a protocol gap, separate investigation.
+
+**Regression tests**: 7 new tests — 2 in `tests/unit_1/test_unit_1.py::TestDeriveEnvName` covering `Path('.')` and `Path('./')` at runtime with `monkeypatch.chdir`, and 5 in `tests/regressions/test_bug_s3_118_project_root_resolve.py` covering the Unit 1 source lock, Unit 13/15 source locks, the runtime behavior of `derive_env_name` under a relative dot path, and the AST convention lock across every `src/unit_*/stub.py`.
+
 ---
 
 ## 25. Test Data

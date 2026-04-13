@@ -387,6 +387,24 @@ class TestDeriveEnvName:
         result = derive_env_name(project_root)
         assert result == "svp-svp2.2"
 
+    def test_derive_env_name_handles_dot_relative_path(self, tmp_path, monkeypatch):
+        """Bug S3-118: Path('.').name is '', must resolve before reading .name."""
+        sub = tmp_path / "project"
+        sub.mkdir()
+        monkeypatch.chdir(sub)
+        result = derive_env_name(Path("."))
+        assert result == "svp-project"
+        assert result != "svp-"
+
+    def test_derive_env_name_handles_trailing_slash_relative_path(
+        self, tmp_path, monkeypatch
+    ):
+        """Bug S3-118: Path('./') must resolve identically to Path('.')."""
+        sub = tmp_path / "project"
+        sub.mkdir()
+        monkeypatch.chdir(sub)
+        assert derive_env_name(Path("./")) == "svp-project"
+
 
 # ---------------------------------------------------------------------------
 # get_blueprint_dir

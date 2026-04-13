@@ -1940,7 +1940,9 @@ def main(argv: list = None) -> None:
     )
 
     args = parser.parse_args(argv)
-    project_root = Path(args.project_root)
+    # Bug S3-118: resolve at CLI boundary so downstream helpers see an
+    # absolute path (Path('.').name is '', which breaks derive_env_name).
+    project_root = Path(args.project_root).resolve()
 
     if args.gate:
         # Gate prompt mode
