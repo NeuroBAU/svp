@@ -430,6 +430,52 @@ class TestAssemblyMapFreshness:
         )
 
 
+class TestDeliveredRepoPathInvariant:
+    """Bug S3-112: state.delivered_repo_path must be an absolute path
+    matching the canonical sibling convention. A relative string (like the
+    user-reported "delivered") is an agent-discretion failure."""
+
+    @staticmethod
+    def _load_state_delivered_repo_path():
+        state_path = WORKSPACE / ".svp" / "pipeline_state.json"
+        if not state_path.is_file():
+            pytest.skip("No .svp/pipeline_state.json in workspace")
+        data = json.loads(state_path.read_text())
+        return data.get("delivered_repo_path")
+
+    def test_delivered_repo_path_is_absolute_or_none(self):
+        """If set, delivered_repo_path must be an absolute path."""
+        drp = self._load_state_delivered_repo_path()
+        if drp is None:
+            pytest.skip("delivered_repo_path not yet set")
+        assert Path(drp).is_absolute(), (
+            f"delivered_repo_path must be absolute, got: {drp!r}. "
+            "A relative string like 'delivered' indicates the "
+            "git_repo_agent improvised the destination. See Bug S3-112."
+        )
+
+    def test_delivered_repo_path_matches_sibling_convention(self):
+        """If set, delivered_repo_path must match .*/<name>-repo pattern."""
+        drp = self._load_state_delivered_repo_path()
+        if drp is None:
+            pytest.skip("delivered_repo_path not yet set")
+        name = Path(drp).name
+        assert name.endswith("-repo"), (
+            f"delivered_repo_path basename must end with '-repo', got: {name!r}. "
+            "See Bug S3-112 for the canonical sibling convention."
+        )
+
+    def test_delivered_repo_path_exists_on_disk(self):
+        """If set, delivered_repo_path must point at an existing directory."""
+        drp = self._load_state_delivered_repo_path()
+        if drp is None:
+            pytest.skip("delivered_repo_path not yet set")
+        assert Path(drp).is_dir(), (
+            f"delivered_repo_path must point at an existing directory, "
+            f"got: {drp!r} (not a directory). See Bug S3-112."
+        )
+
+
 class TestLauncherImport:
     """Launcher must be importable as installed package."""
 

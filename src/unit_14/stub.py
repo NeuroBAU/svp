@@ -47,6 +47,7 @@ from src.unit_6.stub import (
     restart_from_stage,
     rollback_to_unit,
     set_debug_classification,
+    set_delivered_repo_path,
     update_debug_phase,
 )
 
@@ -2566,7 +2567,34 @@ def dispatch_agent_status(
     # git_repo_agent
     if agent_type == "git_repo_agent":
         if status_line == "REPO_ASSEMBLY_COMPLETE":
-            return _copy(state)
+            # Bug S3-112: deterministically compute, validate, and set the
+            # delivered repo path. The agent is NOT trusted to choose or
+            # record the destination — it is a deterministic fact derived
+            # from (project_root, project_name).
+            from src.unit_3.stub import load_profile
+            try:
+                profile = load_profile(project_root)
+            except FileNotFoundError:
+                profile = {}
+            project_name = (
+                profile.get("name")
+                or profile.get("project_name")
+                or project_root.name
+            )
+            canonical_path = (
+                project_root.parent / f"{project_name}-repo"
+            ).resolve()
+            if not canonical_path.is_dir():
+                raise ValueError(
+                    f"git_repo_agent reported REPO_ASSEMBLY_COMPLETE but "
+                    f"the canonical delivered repo directory does not "
+                    f"exist: {canonical_path}. The agent likely "
+                    f"improvised a different destination (e.g. "
+                    f"./delivered/). Fix: manually move the delivered "
+                    f"tree to {canonical_path} and re-run Stage 5 "
+                    f"dispatch. See Bug S3-112 in Section 24.125."
+                )
+            return set_delivered_repo_path(state, str(canonical_path))
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 
     # bug_triage_agent

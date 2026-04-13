@@ -1454,6 +1454,66 @@ class TestPrepareTaskPromptPathHandling:
 # ---------------------------------------------------------------------------
 
 
+class TestGitRepoAgentCanonicalPathInjection:
+    """Bug S3-112: _prepare_git_repo_agent must inject the canonical
+    delivered repo path as a REQUIRED directive, computed from
+    (project_root.parent, profile_name)."""
+
+    def test_prepare_injects_delivered_repo_path_section(self, project_root):
+        prompt = prepare_task_prompt(project_root, "git_repo_agent")
+        assert "Delivered Repo Path (REQUIRED)" in prompt
+
+    def test_prepare_injects_absolute_canonical_path(self, project_root):
+        """The injected path must be absolute and match the sibling convention."""
+        prompt = prepare_task_prompt(project_root, "git_repo_agent")
+        # MINIMAL_PROFILE has no "name", so falls back to project_root.name
+        expected_path = (project_root.parent / f"{project_root.name}-repo").resolve()
+        assert str(expected_path) in prompt
+        # Ensure it's absolute and starts at filesystem root (Unix test env).
+        assert str(expected_path).startswith("/")
+
+    def test_prepare_injects_required_directive(self, project_root):
+        """The prompt must contain the MUST directive and forbidden-destination warning."""
+        prompt = prepare_task_prompt(project_root, "git_repo_agent")
+        assert "MUST place the delivered repository" in prompt
+        assert "assemble_python_project" in prompt
+        assert "./delivered/" in prompt  # mentioned in the prohibition
+        assert "S3-112" in prompt
+
+    def test_prepare_uses_profile_name_when_present(self, tmp_path):
+        """When profile["name"] is set, it wins over project_root.name."""
+        project_root = tmp_path / "some_random_dir"
+        project_root.mkdir()
+        (project_root / ".svp").mkdir()
+        (project_root / "blueprint").mkdir()
+        (project_root / "blueprint" / "blueprint_prose.md").write_text(BLUEPRINT_PROSE_CONTENT)
+        (project_root / "blueprint" / "blueprint_contracts.md").write_text(BLUEPRINT_CONTRACTS_CONTENT)
+        (project_root / ".svp" / "pipeline_state.json").write_text(json.dumps(MINIMAL_PIPELINE_STATE))
+        profile = {"name": "foo", "archetype": "python_project", "language": {"primary": "python"}}
+        (project_root / "project_profile.json").write_text(json.dumps(profile))
+        (project_root / "toolchain.json").write_text(json.dumps(MINIMAL_TOOLCHAIN))
+
+        prompt = prepare_task_prompt(project_root, "git_repo_agent")
+        expected = (project_root.parent / "foo-repo").resolve()
+        assert str(expected) in prompt
+
+    def test_prepare_falls_back_to_project_root_name_when_profile_missing(self, tmp_path):
+        """No project_profile.json → fallback to project_root.name."""
+        project_root = tmp_path / "bareproject"
+        project_root.mkdir()
+        (project_root / ".svp").mkdir()
+        (project_root / "blueprint").mkdir()
+        (project_root / "blueprint" / "blueprint_prose.md").write_text(BLUEPRINT_PROSE_CONTENT)
+        (project_root / "blueprint" / "blueprint_contracts.md").write_text(BLUEPRINT_CONTRACTS_CONTENT)
+        (project_root / ".svp" / "pipeline_state.json").write_text(json.dumps(MINIMAL_PIPELINE_STATE))
+        (project_root / "toolchain.json").write_text(json.dumps(MINIMAL_TOOLCHAIN))
+        # Deliberately NO project_profile.json.
+
+        prompt = prepare_task_prompt(project_root, "git_repo_agent")
+        expected = (project_root.parent / "bareproject-repo").resolve()
+        assert str(expected) in prompt
+
+
 class TestAllAgentTypesProducePrompts:
     """Every known agent type produces a valid task prompt without error."""
 

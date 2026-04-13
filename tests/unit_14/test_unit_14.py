@@ -1397,14 +1397,9 @@ class TestDispatchAgentStatus:
         assert result.stage == state.stage
 
     # -- Git repo agent --
-
-    def test_git_repo_agent_complete_no_state_change(self):
-        """git_repo_agent + REPO_ASSEMBLY_COMPLETE: no state change."""
-        state = _make_state(stage="5", sub_stage="repo_assembly")
-        result = dispatch_agent_status(
-            state, "git_repo_agent", "REPO_ASSEMBLY_COMPLETE", Path("/tmp")
-        )
-        assert result.stage == state.stage
+    # (Bug S3-112) REPO_ASSEMBLY_COMPLETE now sets state.delivered_repo_path
+    # to the canonical sibling path and validates the directory exists.
+    # See TestDispatchGitRepoAgentCanonicalPath below for full coverage.
 
     # -- Bug triage agent --
 
@@ -1697,6 +1692,109 @@ class TestDispatchAgentStatus:
             state, "setup_agent", "PROJECT_CONTEXT_COMPLETE", Path("/tmp")
         )
         assert result is not None
+
+
+# ===========================================================================
+# Bug S3-112: git_repo_agent canonical path enforcement
+# ===========================================================================
+
+
+class TestDispatchGitRepoAgentCanonicalPath:
+    """Bug S3-112: dispatch_agent_status for git_repo_agent + REPO_ASSEMBLY_COMPLETE
+    must deterministically compute the canonical sibling path, verify the
+    directory exists, and call set_delivered_repo_path. Closes the
+    agent-discretion gap where the agent improvised `./delivered/`."""
+
+    def _make_project_with_profile(self, tmp_path, name=None, profile_extra=None):
+        """Create project root at tmp_path/<name> and write project_profile.json."""
+        project_name = name or "myproj"
+        project_root = tmp_path / project_name
+        project_root.mkdir()
+        profile: Dict[str, Any] = {"name": project_name, "language": {"primary": "python"}}
+        if profile_extra:
+            profile.update(profile_extra)
+        (project_root / "project_profile.json").write_text(json.dumps(profile))
+        return project_root
+
+    def test_dispatch_sets_absolute_canonical_path(self, tmp_path):
+        """When sibling directory exists, dispatch sets absolute path on state."""
+        project_root = self._make_project_with_profile(tmp_path, name="myproj")
+        sibling = tmp_path / "myproj-repo"
+        sibling.mkdir()
+        state = _make_state(stage="5", sub_stage="repo_assembly")
+        result = dispatch_agent_status(
+            state, "git_repo_agent", "REPO_ASSEMBLY_COMPLETE", project_root
+        )
+        assert result.delivered_repo_path is not None
+        assert Path(result.delivered_repo_path).is_absolute()
+        assert result.delivered_repo_path == str(sibling.resolve())
+
+    def test_dispatch_raises_when_canonical_path_missing(self, tmp_path):
+        """When the sibling directory does NOT exist, dispatch raises ValueError."""
+        project_root = self._make_project_with_profile(tmp_path, name="myproj")
+        # Intentionally do not create tmp_path / "myproj-repo"
+        state = _make_state(stage="5", sub_stage="repo_assembly")
+        with pytest.raises(ValueError, match="S3-112"):
+            dispatch_agent_status(
+                state, "git_repo_agent", "REPO_ASSEMBLY_COMPLETE", project_root
+            )
+
+    def test_dispatch_uses_profile_name_when_present(self, tmp_path):
+        """Profile name wins over project_root.name."""
+        project_root = tmp_path / "some_dir_name"
+        project_root.mkdir()
+        profile = {"name": "from_profile", "language": {"primary": "python"}}
+        (project_root / "project_profile.json").write_text(json.dumps(profile))
+        sibling = tmp_path / "from_profile-repo"
+        sibling.mkdir()
+        state = _make_state(stage="5", sub_stage="repo_assembly")
+        result = dispatch_agent_status(
+            state, "git_repo_agent", "REPO_ASSEMBLY_COMPLETE", project_root
+        )
+        assert result.delivered_repo_path == str(sibling.resolve())
+
+    def test_dispatch_falls_back_to_project_root_name_when_profile_missing(self, tmp_path):
+        """No profile file → use project_root.name."""
+        project_root = tmp_path / "bareproject"
+        project_root.mkdir()
+        sibling = tmp_path / "bareproject-repo"
+        sibling.mkdir()
+        state = _make_state(stage="5", sub_stage="repo_assembly")
+        result = dispatch_agent_status(
+            state, "git_repo_agent", "REPO_ASSEMBLY_COMPLETE", project_root
+        )
+        assert result.delivered_repo_path == str(sibling.resolve())
+
+    def test_dispatch_overwrites_relative_string_in_state(self, tmp_path):
+        """If state already has a bad relative 'delivered' string (from a
+        pre-S3-112 broken run), dispatch overwrites it with the absolute path."""
+        project_root = self._make_project_with_profile(tmp_path, name="myproj")
+        sibling = tmp_path / "myproj-repo"
+        sibling.mkdir()
+        state = _make_state(stage="5", sub_stage="repo_assembly")
+        state.delivered_repo_path = "delivered"  # pre-S3-112 broken value
+        result = dispatch_agent_status(
+            state, "git_repo_agent", "REPO_ASSEMBLY_COMPLETE", project_root
+        )
+        # The absolute path replaces the relative string.
+        assert Path(result.delivered_repo_path).is_absolute()
+        assert result.delivered_repo_path == str(sibling.resolve())
+        assert result.delivered_repo_path != "delivered"
+
+    def test_dispatch_raises_clear_message(self, tmp_path):
+        """Error message must name the expected path and reference Bug S3-112."""
+        project_root = self._make_project_with_profile(tmp_path, name="myproj")
+        state = _make_state(stage="5", sub_stage="repo_assembly")
+        try:
+            dispatch_agent_status(
+                state, "git_repo_agent", "REPO_ASSEMBLY_COMPLETE", project_root
+            )
+            pytest.fail("Expected ValueError but none was raised")
+        except ValueError as e:
+            msg = str(e)
+            assert "S3-112" in msg
+            assert "myproj-repo" in msg
+            assert "canonical delivered repo" in msg.lower()
 
 
 # ===========================================================================

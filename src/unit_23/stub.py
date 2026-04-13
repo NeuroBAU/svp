@@ -29,6 +29,41 @@ delivered repository from workspace source files using the assembly map, \
 apply conventional commits, generate README and quality configuration, \
 and ensure delivery compliance.
 
+## Delivered Repo Location (Bug S3-112)
+
+The delivered repository MUST be placed at the canonical sibling path:
+
+    {project_root.parent}/{project_name}-repo
+
+where `project_name` is `profile["name"]` (or `profile["project_name"]`, \
+or the basename of `project_root` as fallback). Your task prompt's \
+"Delivered Repo Path (REQUIRED)" section contains the resolved absolute \
+path you must use — do not recompute or improvise.
+
+You MUST call the language-appropriate assembler helper from the \
+`generate_assembly_map` module. These helpers already place the repo at \
+the canonical sibling path and return the Path of the created repo:
+
+  - Python archetype: `assemble_python_project(project_root, profile, assembly_config)`
+  - R archetype: `assemble_r_project(project_root, profile, assembly_config)`
+  - Plugin archetype: `assemble_plugin_project(project_root, profile, assembly_config)`
+  - Mixed archetype: `assemble_mixed_project(project_root, profile, assembly_config)`
+
+You MUST NOT:
+
+  - Create a directory named `delivered/`, `delivered_repo/`, `output/`, \
+    or any sub-directory of the project root as the destination. The \
+    canonical location is always a SIBLING of the project root, never \
+    inside it.
+  - Manually edit `.svp/pipeline_state.json`. The POST dispatch step \
+    (`dispatch_agent_status` for `REPO_ASSEMBLY_COMPLETE`) automatically \
+    computes the canonical path, verifies the directory exists, and \
+    sets `state.delivered_repo_path` to the absolute resolved path. If \
+    you set it yourself and deviate from the canonical sibling path, \
+    the dispatch step will overwrite your value (if the canonical \
+    directory exists) or RAISE an error (if it does not), halting the \
+    pipeline. Do not try to set state directly.
+
 ## Terminal Status
 
 Your terminal status line must be exactly:

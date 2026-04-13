@@ -846,6 +846,38 @@ class TestGitRepoAgentDefinitionContent:
             GIT_REPO_AGENT_DEFINITION, "assembly", case_sensitive=False
         )
 
+    # --- Bug S3-112: Delivered Repo Location binding ---
+
+    def test_mentions_canonical_path_convention(self):
+        """Definition must state the {project_root.parent}/{project_name}-repo convention."""
+        assert "Delivered Repo Location" in GIT_REPO_AGENT_DEFINITION
+        assert "{project_root.parent}/{project_name}-repo" in GIT_REPO_AGENT_DEFINITION
+
+    def test_mentions_all_four_assembler_helpers_by_name(self):
+        """All four language-specific assembler helpers must be named."""
+        assert "assemble_python_project" in GIT_REPO_AGENT_DEFINITION
+        assert "assemble_r_project" in GIT_REPO_AGENT_DEFINITION
+        assert "assemble_plugin_project" in GIT_REPO_AGENT_DEFINITION
+        assert "assemble_mixed_project" in GIT_REPO_AGENT_DEFINITION
+
+    def test_forbids_delivered_directory_as_destination(self):
+        """Definition must forbid the anti-pattern `./delivered/` and related names."""
+        # The prohibition block mentions the forbidden names.
+        assert "`delivered/`" in GIT_REPO_AGENT_DEFINITION
+        assert "`delivered_repo/`" in GIT_REPO_AGENT_DEFINITION
+        # And it must say MUST NOT somewhere in proximity.
+        assert "MUST NOT" in GIT_REPO_AGENT_DEFINITION
+
+    def test_forbids_manual_pipeline_state_edit(self):
+        """Definition must forbid direct edits to .svp/pipeline_state.json."""
+        assert ".svp/pipeline_state.json" in GIT_REPO_AGENT_DEFINITION
+        # The prohibition section must mention dispatch-step auto-update.
+        assert "dispatch" in GIT_REPO_AGENT_DEFINITION.lower()
+
+    def test_references_bug_s3_112(self):
+        """Definition must reference Bug S3-112 for traceability."""
+        assert "S3-112" in GIT_REPO_AGENT_DEFINITION
+
     def test_mentions_conventional_commits(self):
         """Definition must reference conventional commits for commit order."""
         assert definition_contains(

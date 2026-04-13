@@ -547,6 +547,13 @@ class TestAgentStatusLinesVsDispatch:
         (tmp_path / "specs" / "stakeholder_spec.md").write_text("spec", encoding="utf-8")
         (tmp_path / "blueprint" / "blueprint_prose.md").write_text("prose", encoding="utf-8")
         (tmp_path / "blueprint" / "blueprint_contracts.md").write_text("contracts", encoding="utf-8")
+        # Bug S3-112: dispatch_agent_status for git_repo_agent +
+        # REPO_ASSEMBLY_COMPLETE validates the canonical sibling directory
+        # exists. Create it here so the structural-completeness sweep
+        # does not fail for that one case. Profile is absent, so fallback
+        # to project_root.name (= tmp_path.name) is used.
+        sibling = tmp_path.parent / f"{tmp_path.name}-repo"
+        sibling.mkdir(exist_ok=True)
         return tmp_path
 
     # Map agent_type to state_kwargs for dispatch (SVP 2.2: no phase/unit args)

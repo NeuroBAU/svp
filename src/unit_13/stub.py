@@ -1128,11 +1128,41 @@ def _prepare_git_repo_agent(
         sections.append(_format_section("Assembly Map", assembly_map))
 
     # Profile
+    profile: Dict[str, Any] = {}
     try:
         profile = load_profile(project_root)
         sections.append(_format_section("Profile", json.dumps(profile, indent=2)))
     except FileNotFoundError:
         pass
+
+    # Bug S3-112: inject canonical delivered repo path as a REQUIRED directive.
+    # The agent must place the delivered repo at exactly this absolute path;
+    # any deviation will be caught by dispatch_agent_status validation.
+    profile_name = (
+        profile.get("name")
+        or profile.get("project_name")
+        or project_root.name
+    )
+    canonical_delivered_path = (
+        project_root.parent / f"{profile_name}-repo"
+    ).resolve()
+    sections.append(
+        _format_section(
+            "Delivered Repo Path (REQUIRED)",
+            f"{canonical_delivered_path}\n\n"
+            "You MUST place the delivered repository at exactly this "
+            "absolute path. It is the canonical sibling of the project "
+            "root. Call the language-appropriate `assemble_*_project()` "
+            "helper from the `generate_assembly_map` module — "
+            "`assemble_python_project`, `assemble_r_project`, "
+            "`assemble_plugin_project`, or `assemble_mixed_project`. "
+            "These helpers already use this path internally. Do NOT "
+            "create `./delivered/`, `./output/`, or any other "
+            "destination. Do NOT manually edit `.svp/pipeline_state.json`. "
+            "See the agent definition's `## Delivered Repo Location` "
+            "section for details. (Bug S3-112)",
+        )
+    )
 
     # Fix context if retry
     if context:
