@@ -2850,24 +2850,23 @@ Rules:
 5. The `src/` directory in the delivered repo is organized by the blueprint file tree, not by unit number.
 6. Non-source deliverables (configuration files, templates, scripts in other languages) are produced as named string constants in the unit's implementation file (using the embedding style from `LANGUAGE_REGISTRY[language]["non_source_embedding"]`), extracted during assembly.
 
-**(NEW IN 2.2)** During Stage 5 assembly, the git repo agent produces `assembly_map.json` -- a machine-readable bidirectional mapping between workspace paths and delivered repo paths. This file is stored at `.svp/assembly_map.json` in the workspace. It is generated automatically from the blueprint file tree annotations during assembly and updated on every Stage 5 reassembly.
+**(NEW IN 2.2; CHANGED IN 2.2 — Bug S3-111)** During Stage 5 assembly, the git repo agent produces `assembly_map.json` -- a machine-readable mapping from each delivered repo path to the stub file that produces it. This file is stored at `.svp/assembly_map.json` in the workspace. It is generated automatically from the blueprint file tree annotations during assembly and updated on every Stage 5 reassembly.
 
 Example format:
 ```json
 {
-  "workspace_to_repo": {
-    "src/unit_14/routing.py": "svp/scripts/routing.py",
-    "src/unit_5/pipeline_state.py": "svp/scripts/pipeline_state.py"
-  },
   "repo_to_workspace": {
-    "svp/scripts/routing.py": "src/unit_14/routing.py",
-    "svp/scripts/pipeline_state.py": "src/unit_5/pipeline_state.py"
+    "svp-repo/svp/scripts/routing.py": "src/unit_14/stub.py",
+    "svp-repo/svp/scripts/pipeline_state.py": "src/unit_5/stub.py",
+    "svp-repo/svp/agents/git_repo_agent.md": "src/unit_23/stub.py",
+    "svp-repo/svp/agents/checklist_generation.md": "src/unit_23/stub.py"
   }
 }
 ```
 
-This artifact is consumed by the triage agent (Stage 6), the oracle agent (Stage 7), and the artifact synchronization mechanism. It eliminates the need for agents to parse blueprint file tree annotations at runtime.
-All paths are relative (workspace paths relative to workspace root, repo paths relative to repo root). The mapping is bijective: every workspace_to_repo entry has a corresponding repo_to_workspace entry. Generated deterministically from blueprint file tree annotations. A structural test verifies bijectivity.
+This artifact is consumed by the triage agent (Stage 6), the oracle agent (Stage 7), and the debug agent for source-location lookup. It eliminates the need for agents to parse blueprint file tree annotations at runtime.
+
+All paths are relative (deployed repo paths relative to repo root, stub paths relative to workspace root). **Post-Bug-S3-98, the mapping is many-to-one**: multiple deployed artifacts (agent `.md` files, derived Python scripts, commands) can map to the same source stub, because all of a unit's deliverables are produced from `src/unit_N/stub.py`. There is no `workspace_to_repo` direction — the forward relationship is many-to-one and not semantically meaningful as a dict. Every value in `repo_to_workspace` must match `^src/unit_\d+/stub\.py$` and must point at a file that exists on disk (staleness invariant). A structural regression test enforces this — see Section 12.17.1.
 
 ### 12.1.2 Regression Test Import Adaptation (NEW IN 2.2)
 
@@ -3140,7 +3139,7 @@ The orchestrator runs the following 10-item detection checklist after Stage 5 as
 
 #### 12.17.1 Cross-Artifact Consistency (7 items)
 
-1. Assembly map bijectivity: every `workspace_to_repo` entry in `assembly_map.json` has a corresponding `repo_to_workspace` entry, and vice versa. No orphaned entries in either direction.
+1. **(CHANGED IN 2.2 — Bug S3-111)** Assembly map staleness invariant: every value in `repo_to_workspace` in `assembly_map.json` must match the regex `^src/unit_\d+/stub\.py$` AND must point at a file that exists on disk relative to the workspace root. Every key must be a plausible deployed path (starting with `svp-repo/` or the configured repo prefix). The map is many-to-one: multiple deployed artifacts from the same unit share one stub source. There is no `workspace_to_repo` direction. Pre-S3-111 bijectivity check replaced by this staleness check.
 2. Assembly map completeness: every blueprint file tree `<- Unit N` annotation has a corresponding assembly map entry. No blueprint-declared deliverable file is missing from the map.
 3. No surviving workspace references: delivered repository source files contain no `src.unit_N` or `src/unit_N` import paths. These workspace-internal paths must all be rewritten to final module paths during assembly (Section 12.1.1 Rule 3).
 4. Commit order matches Section 12.1 prescribed sequence: environment file first, spec second, blueprint third, units in topological order, then integration tests, configuration, history, references, context, quality config, changelog. Expected count equals the number of enabled steps (profile may disable some).
@@ -5010,6 +5009,35 @@ The plugin `hooks.json` references `.claude/scripts/write_authorization.sh`, `.c
 **Architectural rule (NEW):** When a composite unit is collapsed into a single stub, every historical script filename must either (a) be added to `STUB_TO_SCRIPT` for derivation from the stub, OR (b) be deleted entirely with all callers redirected to the derived script's CLI (adding a new subcommand if needed). Orphaned hand-maintained scripts that duplicate stub code are forbidden. Bug S3-110 adopts option (b) because it eliminates the wrapper/indirection layer entirely and restores a single source of truth without requiring multi-output derivation infrastructure.
 
 **Pattern:** P-NEW (augments Lesson B from S3-109) — "Deletion over wrapping for internal callers." When the only caller is an internal unit (editable in the same codebase), prefer deleting the orphaned filename and updating the caller over introducing a wrapper script. Wrappers are acceptable only when the calling filename is a stable external API that cannot be changed.
+
+### 24.124 generate_assembly_map Produces 100% Stale Source Paths (Post-delivery — Bug S3-111, NEW IN 2.2)
+
+**Follow-up to Bug S3-109 / S3-110.** During the S3-110 cleanup, an audit of `.svp/assembly_map.json` revealed that **every one of the 70 `workspace_to_repo` forward entries points at a source file that does not exist on disk**. Example: `"src/unit_14/routing.py": "svp-repo/svp/scripts/routing.py"` — but `src/unit_14/routing.py` has not existed since the Bug S3-98 refactor collapsed all units into `src/unit_N/stub.py`. The assembly map has been producing 100% wrong data since S3-98 shipped.
+
+**Root cause:** `generate_assembly_map()` in `src/unit_23/stub.py` line 1221 constructs workspace paths using a hardcoded formula:
+```python
+workspace_path = f"src/unit_{unit_number}/{name}"
+```
+This formula assumed the pre-S3-98 "composite unit" layout where each deliverable had its own sibling source file. S3-98 collapsed every unit into a single `stub.py`, but `generate_assembly_map()` was never updated. The function is called during every Stage 5 reassembly and deterministically regenerates a stale map every time. Hand-editing `.svp/assembly_map.json` (as done during S3-110) is a band-aid that would be silently undone on next run.
+
+**Why nobody noticed:** the forward direction has no live consumers. Unit 13 embeds the map as raw text in agent task prompts (does not parse JSON structure). Unit 24's debug agent only uses the reverse direction (`repo_to_workspace`). Unit 23's git repo agent text mentions the map but the actual assembly pipeline runs `derive_scripts_from_stubs.py` + `regenerate_deployed_artifacts()` + stub `assemble_*` functions, never iterating the forward map. Tests checked bijectivity but not existence.
+
+**Fix (Bug S3-111):**
+1. Rewrite `generate_assembly_map()` in `src/unit_23/stub.py`:
+   - Drop `workspace_to_repo` entirely. Post-S3-98 the relationship is many-to-one (many deployed artifacts share one stub), which a `Dict[str, str]` cannot represent.
+   - For every annotated file in the blueprint tree, construct the source path as `f"src/unit_{N}/stub.py"` (not `f"src/unit_{N}/{name}"`). This is the correct post-S3-98 source.
+   - Remove the bijectivity invariant check. Replace with a staleness check moved to a regression test.
+   - New schema: `{"repo_to_workspace": {...}}`. One key. Many deployed paths → one stub.
+2. Update `GIT_REPO_AGENT_DEFINITION` (Unit 23) and the debug agent definition (Unit 24) text constants to describe the flat schema.
+3. Regenerate `.svp/assembly_map.json` by running the fixed function.
+4. Update Section 12 schema example and the structural invariant at Section 12.17.1 item 1 ("bijectivity" → "staleness invariant").
+5. Regression tests:
+   - `test_no_workspace_to_repo_key` — catches regressions to the old schema.
+   - `test_every_value_is_an_existing_stub_path` — for every value, assert the file exists. This is what would have caught S3-111 originally.
+   - `test_every_value_follows_stub_py_naming_convention` — regex match on `^src/unit_\d+/stub\.py$`.
+   - `TestAssemblyMapFreshness` in `test_plugin_completeness.py` — end-to-end staleness check against the committed `.svp/assembly_map.json`.
+
+**Pattern:** P4 (Config-Code Path Divergence, extended) — **"Generators must co-migrate with layout changes."** This is the fourth instance in SVP 2.2 after S3-104/105/106/107. Previous instances were hardcoded paths diverging from `ARTIFACT_FILENAMES`; this instance is a hardcoded PATH FORMULA diverging from the layout it assumes. Any `f"src/unit_{N}/..."` string in a generator is a code smell — if it encodes the old layout, it silently drifts. When refactoring file layout, audit every generator function for hardcoded path formulas and update them in the same commit.
 
 ---
 

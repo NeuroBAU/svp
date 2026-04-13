@@ -69,12 +69,13 @@ Read workspace source, tests, blueprint contracts, and the delivered repo (via `
 
 ## Assembly Map Awareness
 
-The `assembly_map.json` file provides bidirectional path mapping between the workspace layout and the delivered repository layout:
+The `.svp/assembly_map.json` file provides a mapping from each delivered repo path to the source stub that produces it. **(CHANGED IN 2.2 — Bug S3-111.)** The map has a single top-level key:
 
-- `workspace_to_repo`: maps workspace paths (e.g., `src/unit_N/module.py`) to delivered repo paths (e.g., `svp/scripts/module.py`).
-- `repo_to_workspace`: the inverse mapping.
+- `repo_to_workspace`: maps delivered repo paths (e.g., `svp-repo/svp/scripts/routing.py`) to the source stub (e.g., `src/unit_14/stub.py`). The relationship is many-to-one: multiple deployed artifacts from the same unit share one stub, because post-Bug-S3-98 every unit has only one source file at `src/unit_N/stub.py`.
 
-When the human reports a bug using delivered repo paths, use the `repo_to_workspace` mapping to locate the corresponding workspace source files for investigation. When referencing files in your triage output, include both workspace and repo paths for clarity.
+There is NO `workspace_to_repo` direction — the forward relationship is many-to-one and cannot be represented as a flat dict.
+
+When the human reports a bug using delivered repo paths, look up the path in `repo_to_workspace` to find the source stub to investigate. All editable source lives in `src/unit_N/stub.py`; derived artifacts (agent `.md` files, `scripts/*.py`) are NOT the source of truth and should not be edited directly — they are regenerated from the stub by sync. When referencing files in your triage output, include both the deployed path and the corresponding stub path for clarity.
 
 ## Bug Number Assignment
 

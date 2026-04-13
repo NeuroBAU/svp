@@ -1772,8 +1772,8 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 - Derives blueprint prose filename from `Path(ARTIFACT_FILENAMES["blueprint_prose"]).name`. **(Bug S3-107c fix.)**
 - Parses `blueprint_prose.md` from `blueprint_dir` for the Preamble file tree.
 - Extracts every `<- Unit N` annotation line, parsing the indented path and the unit number.
-- Produces a bidirectional mapping dict stored at `.svp/assembly_map.json` with two top-level keys: `"workspace_to_repo"` (maps `src/unit_N/module.py` to `svp/scripts/module.py`) and `"repo_to_workspace"` (the inverse).
-- Bijectivity invariant: every `workspace_to_repo` entry has a corresponding `repo_to_workspace` entry, and vice versa. No orphaned entries.
+- Produces a mapping dict stored at `.svp/assembly_map.json` with a single top-level key `"repo_to_workspace"` that maps each deployed repo path (e.g., `svp-repo/svp/scripts/routing.py`) to the source stub that produces it (e.g., `src/unit_14/stub.py`). **(CHANGED IN 2.2 — Bug S3-111.)**
+- Staleness invariant: every value must match `^src/unit_\d+/stub\.py$` AND must point at a file that exists on disk relative to the workspace root. The relationship is many-to-one (many deployed artifacts share one stub) post-Bug-S3-98. No `workspace_to_repo` direction exists.
 - Completeness invariant: every `<- Unit N` annotation in the file tree has a corresponding entry. Missing entries raise `ValueError`.
 - Called during Stage 5 assembly (`assemble_python_project` / `assemble_r_project`) and on every reassembly.
 - Returns the mapping dict (also written to disk).
@@ -1939,7 +1939,7 @@ ORCHESTRATION_SKILL: str  # Complete SKILL.md content
   - Stage 2: 23-item checklist (Section 8.5). Profile-blueprint alignment, contract granularity, DAG validation, pattern catalog cross-reference, cross-language dispatch completeness, machinery unit tagging verification, assembly map annotation completeness.
   - Stage 3: 26-item checklist (Section 10.15). Sub-stage routing correctness, fix ladder progression, quality gate dispatch, red/green run validation, coverage verification, language dispatch correctness, stub sentinel presence, lessons learned integration.
   - Stage 4: 6-item checklist. Integration test coverage of cross-unit interfaces, assembly retry counter tracking, regression adaptation review, Stage 3 completion validation, assembly map currency.
-  - Stage 5: 10-item checklist (Section 12.17). Cross-artifact consistency (7 items: assembly map bijectivity, assembly map completeness, no surviving workspace references, commit order, README content, quality config accuracy, changelog content). Validation meta-oversight (3 items: structural check ran, compliance scan ran, unused function check ran).
+  - Stage 5: 10-item checklist (Section 12.17). Cross-artifact consistency (7 items: assembly map staleness invariant (Bug S3-111), assembly map completeness, no surviving workspace references, commit order, README content, quality config accuracy, changelog content). Validation meta-oversight (3 items: structural check ran, compliance scan ran, unused function check ran).
   - Stage 6: 9-item checkpoint-annotated checklist (Section 12.18.13). After triage (3 items), after repair (2 items), after regression test (2 items), after lessons learned (2 items). The orchestrator detects issues; all fixing flows through agents.
   - Stage 7 (oracle): no separate oversight protocol -- the oracle is itself an orchestrator-level construct.
 - Orchestrator Pipeline Fidelity Invariant.

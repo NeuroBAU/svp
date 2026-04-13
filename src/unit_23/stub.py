@@ -39,11 +39,17 @@ REPO_ASSEMBLY_COMPLETE
 
 ## Assembly Mapping Rules
 
-- Read `assembly_map.json` to determine source-to-destination path mapping.
-- Every workspace file (`src/unit_N/module.py`) maps to its repo location \
-(`svp/scripts/module.py`) according to the bidirectional mapping.
-- The assembly map is authoritative: if a file is not in the map, it is not \
-assembled.
+- Read `.svp/assembly_map.json` to look up the source stub path for any \
+delivered artifact. The map provides deployed-path → source-stub-path \
+lookup via a single top-level key `"repo_to_workspace"`, whose values point \
+at `src/unit_N/stub.py` files — the single source of truth for each unit. \
+**(CHANGED IN 2.2 — Bug S3-111. Pre-S3-111 schema had a second \
+`workspace_to_repo` direction, now removed: the relationship is many-to-one \
+post-Bug-S3-98, which `Dict[str, str]` cannot represent.)**
+- The map is NOT authoritative over HOW to assemble — actual assembly is \
+driven by `regenerate_deployed_artifacts()` (agents, commands, hooks, \
+skills) and `derive_scripts_from_stubs.py` (Python scripts). The map is \
+consulted for source-location path lookup, not iteration.
 
 ## Commit Order
 
@@ -1118,20 +1124,36 @@ def _parse_tree_line(line: str, indent_unit: int):
 def generate_assembly_map(
     blueprint_dir: Path,
     project_root: Path,
-) -> Dict[str, str]:
-    """Parse blueprint file tree annotations and produce bidirectional mapping.
+) -> Dict[str, Dict[str, str]]:
+    """Parse blueprint file tree annotations and produce deployed-to-source map.
 
     Parses blueprint_prose.md from blueprint_dir for the file tree code block.
     Extracts every `<- Unit N` annotation line, parsing the indented path
     and the unit number.
 
-    Produces a bidirectional mapping dict stored at .svp/assembly_map.json
-    with two top-level keys:
-    - "workspace_to_repo": maps src/unit_N/module.py -> repo path
-    - "repo_to_workspace": the inverse mapping
+    Produces a mapping dict stored at .svp/assembly_map.json with a single
+    top-level key "repo_to_workspace" that maps each deployed repo path to
+    the source stub that produces it:
 
-    Bijectivity invariant: every workspace_to_repo entry has a corresponding
-    repo_to_workspace entry, and vice versa.
+        {
+          "repo_to_workspace": {
+            "svp-repo/svp/scripts/routing.py": "src/unit_14/stub.py",
+            "svp-repo/svp/agents/git_repo_agent.md": "src/unit_23/stub.py",
+            ...
+          }
+        }
+
+    The relationship is many-to-one: multiple deployed artifacts from the
+    same unit share one source stub. Post-Bug-S3-98, every Unit N has only
+    one source file at src/unit_N/stub.py — no per-file sources exist.
+
+    Pre-S3-111, this function produced a `workspace_to_repo` forward dict
+    and a `repo_to_workspace` reverse dict with a bijectivity invariant.
+    The forward dict was removed because many-to-one cannot be represented
+    as Dict[str, str] without collision, and no caller actually needs the
+    forward direction (Unit 13 embeds the map as raw text; Unit 24's debug
+    agent uses only the reverse direction; Unit 23's git repo agent docs
+    were vestigial — the actual assembly does not iterate the map).
 
     Returns the mapping dict (also written to disk).
     """
@@ -1165,7 +1187,6 @@ def generate_assembly_map(
                 "Could not find file tree with Unit annotations in blueprint_prose.md"
             )
 
-    workspace_to_repo: Dict[str, str] = {}
     repo_to_workspace: Dict[str, str] = {}
 
     lines = file_tree_text.strip().split("\n")
@@ -1218,8 +1239,12 @@ def generate_assembly_map(
 
             if unit_number is not None:
                 repo_path = "/".join(path_stack + [name])
-                workspace_path = f"src/unit_{unit_number}/{name}"
-                workspace_to_repo[workspace_path] = repo_path
+                # Bug S3-111: post-S3-98, every unit has ONE source stub.
+                # The deployed file (agent .md, derived .py, command .md)
+                # is produced from src/unit_N/stub.py by regenerate_deployed_
+                # artifacts() or derive_scripts_from_stubs.py. The pre-S3-111
+                # formula `f"src/unit_{N}/{name}"` was stale on every run.
+                workspace_path = f"src/unit_{unit_number}/stub.py"
                 repo_to_workspace[repo_path] = workspace_path
 
     # Verify completeness: annotations on unparseable lines are errors.
@@ -1232,25 +1257,10 @@ def generate_assembly_map(
             + "\n".join(f"  {a}" for a in unmapped_annotations)
         )
 
-    # Bijectivity invariant check
-    for ws_path, rp_path in workspace_to_repo.items():
-        if rp_path not in repo_to_workspace:
-            raise ValueError(
-                f"Bijectivity violation: workspace path {ws_path} maps to "
-                f"repo path {rp_path} but reverse mapping is missing."
-            )
-    for rp_path, ws_path in repo_to_workspace.items():
-        if ws_path not in workspace_to_repo:
-            raise ValueError(
-                f"Bijectivity violation: repo path {rp_path} maps to "
-                f"workspace path {ws_path} but forward mapping is missing."
-            )
-
-    # Write to disk
-    assembly_map = {
-        "workspace_to_repo": workspace_to_repo,
-        "repo_to_workspace": repo_to_workspace,
-    }
+    # Write to disk. Single top-level key: repo_to_workspace.
+    # Staleness invariant (enforced by regression tests, not here): every
+    # value matches ^src/unit_\d+/stub\.py$ and points at a file on disk.
+    assembly_map = {"repo_to_workspace": repo_to_workspace}
 
     svp_dir = project_root / ".svp"
     svp_dir.mkdir(parents=True, exist_ok=True)

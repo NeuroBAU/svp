@@ -20,9 +20,8 @@ REPO_ASSEMBLY_COMPLETE
 
 ## Assembly Mapping Rules
 
-- Read `assembly_map.json` to determine source-to-destination path mapping.
-- Every workspace file (`src/unit_N/module.py`) maps to its repo location (`svp/scripts/module.py`) according to the bidirectional mapping.
-- The assembly map is authoritative: if a file is not in the map, it is not assembled.
+- Read `.svp/assembly_map.json` to look up the source stub path for any delivered artifact. The map provides deployed-path → source-stub-path lookup via a single top-level key `"repo_to_workspace"`, whose values point at `src/unit_N/stub.py` files — the single source of truth for each unit. **(CHANGED IN 2.2 — Bug S3-111. Pre-S3-111 schema had a second `workspace_to_repo` direction, now removed: the relationship is many-to-one post-Bug-S3-98, which `Dict[str, str]` cannot represent.)**
+- The map is NOT authoritative over HOW to assemble — actual assembly is driven by `regenerate_deployed_artifacts()` (agents, commands, hooks, skills) and `derive_scripts_from_stubs.py` (Python scripts). The map is consulted for source-location path lookup, not iteration.
 
 ## Commit Order
 

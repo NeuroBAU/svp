@@ -369,6 +369,65 @@ class TestGenerateAssemblyMapCLI:
         assert "required" in result.stderr.lower() or "required" in result.stdout.lower()
 
 
+class TestAssemblyMapFreshness:
+    """Bug S3-111 regression: the committed .svp/assembly_map.json must have
+    the post-S3-111 flat schema AND every value must point at a source stub
+    that actually exists on disk. This catches the stale-path class of bug
+    that went undetected for ~5 months."""
+
+    @staticmethod
+    def _load_map():
+        map_path = WORKSPACE / ".svp" / "assembly_map.json"
+        if not map_path.is_file():
+            pytest.skip("No .svp/assembly_map.json in workspace")
+        return json.loads(map_path.read_text())
+
+    def test_only_repo_to_workspace_top_level_key(self):
+        data = self._load_map()
+        assert list(data.keys()) == ["repo_to_workspace"], (
+            f"assembly_map.json must have only 'repo_to_workspace' at top level; "
+            f"got {list(data.keys())}. Bug S3-111 removed workspace_to_repo."
+        )
+
+    def test_no_workspace_to_repo_key(self):
+        data = self._load_map()
+        assert "workspace_to_repo" not in data, (
+            "Legacy workspace_to_repo key must NOT exist in assembly_map.json "
+            "after Bug S3-111. Has the generator reverted?"
+        )
+
+    def test_every_value_is_an_existing_stub_file(self):
+        """THE staleness-prevention test. Every source value in the map
+        must be a file that exists on disk. Pre-S3-111, all 70 values
+        pointed at non-existent files and no test caught it."""
+        import re as _re
+        data = self._load_map()
+        stub_re = _re.compile(r"^src/unit_\d+/stub\.py$")
+        offenders_shape = []
+        offenders_missing = []
+        for key, value in data["repo_to_workspace"].items():
+            if not stub_re.match(value):
+                offenders_shape.append((key, value))
+                continue
+            abs_path = WORKSPACE / value
+            if not abs_path.exists():
+                offenders_missing.append((key, value))
+        assert not offenders_shape, (
+            f"Values not matching ^src/unit_\\d+/stub\\.py$: {offenders_shape[:5]} "
+            f"(total {len(offenders_shape)}). Bug S3-111."
+        )
+        assert not offenders_missing, (
+            f"Values pointing at non-existent files: {offenders_missing[:5]} "
+            f"(total {len(offenders_missing)}). This is the stale-path bug S3-111."
+        )
+
+    def test_map_is_non_empty(self):
+        data = self._load_map()
+        assert len(data["repo_to_workspace"]) > 0, (
+            "Assembly map is empty — regeneration failure?"
+        )
+
+
 class TestLauncherImport:
     """Launcher must be importable as installed package."""
 

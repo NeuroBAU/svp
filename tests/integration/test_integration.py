@@ -1489,27 +1489,24 @@ class TestStateTransitionSaveLoadRoundtrip:
 class TestAssemblyMapGeneration:
     """Integration: Blueprint (Unit 8) -> Assembly Map (Unit 23)."""
 
-    def test_assembly_map_is_bidirectional(self, tmp_path):
-        """Assembly map produces correct forward and reverse mappings."""
+    def test_assembly_map_has_flat_repo_to_workspace_schema(self, tmp_path):
+        """Bug S3-111: assembly map has one top-level key, every value is a
+        stub path, many-to-one relationship is allowed."""
+        import re as _re
         _create_minimal_workspace(tmp_path)
         _create_blueprint_files(tmp_path)
 
         blueprint_dir = tmp_path / "blueprint"
         assembly_map = generate_assembly_map(blueprint_dir, tmp_path)
 
-        assert "workspace_to_repo" in assembly_map
-        assert "repo_to_workspace" in assembly_map
+        assert list(assembly_map.keys()) == ["repo_to_workspace"]
+        assert "workspace_to_repo" not in assembly_map
 
-        ws_to_repo = assembly_map["workspace_to_repo"]
-        repo_to_ws = assembly_map["repo_to_workspace"]
-
-        for ws_path, repo_path in ws_to_repo.items():
-            assert repo_path in repo_to_ws
-            assert repo_to_ws[repo_path] == ws_path
-
-        for repo_path, ws_path in repo_to_ws.items():
-            assert ws_path in ws_to_repo
-            assert ws_to_repo[ws_path] == repo_path
+        stub_re = _re.compile(r"^src/unit_\d+/stub\.py$")
+        for repo_path, ws_path in assembly_map["repo_to_workspace"].items():
+            assert stub_re.match(ws_path), (
+                f"Non-stub source path for {repo_path}: {ws_path}"
+            )
 
     def test_assembly_map_written_to_disk(self, tmp_path):
         """Assembly map is persisted at .svp/assembly_map.json."""
@@ -1523,8 +1520,8 @@ class TestAssemblyMapGeneration:
         assert map_path.exists()
 
         loaded = json.loads(map_path.read_text())
-        assert "workspace_to_repo" in loaded
-        assert "repo_to_workspace" in loaded
+        assert list(loaded.keys()) == ["repo_to_workspace"]
+        assert "workspace_to_repo" not in loaded
 
 
 # ===================================================================

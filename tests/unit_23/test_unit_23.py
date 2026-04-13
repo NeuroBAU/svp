@@ -14,9 +14,9 @@ Synthetic data assumptions:
   DESCRIPTION, and NAMESPACE files.
 - generate_assembly_map reads blueprint_prose.md from blueprint_dir, extracts
   "<- Unit N" annotations, and produces a bidirectional mapping dict with keys
-  "workspace_to_repo" and "repo_to_workspace". Written to .svp/assembly_map.json.
-  Bijectivity: every entry in workspace_to_repo has a corresponding inverse in
-  repo_to_workspace. Completeness: every annotation produces an entry; missing
+  single top-level "repo_to_workspace" key (Bug S3-111). Written to .svp/assembly_map.json.
+  Staleness invariant: every value matches ^src/unit_\\d+/stub\\.py$ AND points
+  at a file on disk. Relationship is many-to-one. Completeness: every annotation produces an entry; missing
   entries raise ValueError.
 - adapt_regression_tests_main is a CLI entry point that accepts --map-file,
   --tests-dir, and --language. It reads an import map, applies text replacements
@@ -132,17 +132,13 @@ def r_profile():
 
 @pytest.fixture
 def assembly_config_python():
-    """Synthetic assembly config for a Python project."""
+    """Synthetic assembly config for a Python project. (Bug S3-111 schema.)"""
     return {
         "project_name": "myproject",
         "assembly_map": {
-            "workspace_to_repo": {
-                "src/unit_1/core.py": "src/myproject/core.py",
-                "src/unit_2/utils.py": "src/myproject/utils.py",
-            },
             "repo_to_workspace": {
-                "src/myproject/core.py": "src/unit_1/core.py",
-                "src/myproject/utils.py": "src/unit_2/utils.py",
+                "src/myproject/core.py": "src/unit_1/stub.py",
+                "src/myproject/utils.py": "src/unit_2/stub.py",
             },
         },
     }
@@ -150,17 +146,13 @@ def assembly_config_python():
 
 @pytest.fixture
 def assembly_config_r():
-    """Synthetic assembly config for an R project."""
+    """Synthetic assembly config for an R project. (Bug S3-111 schema.)"""
     return {
         "project_name": "mypackage",
         "assembly_map": {
-            "workspace_to_repo": {
-                "src/unit_1/core.R": "R/core.R",
-                "src/unit_2/utils.R": "R/utils.R",
-            },
             "repo_to_workspace": {
-                "R/core.R": "src/unit_1/core.R",
-                "R/utils.R": "src/unit_2/utils.R",
+                "R/core.R": "src/unit_1/stub.py",
+                "R/utils.R": "src/unit_2/stub.py",
             },
         },
     }
@@ -605,9 +597,10 @@ class TestAssemblePythonProjectAssemblyMap:
     def test_uses_assembly_map_for_file_placement(
         self, project_root, python_profile, assembly_config_python
     ):
-        """Files should be placed according to the assembly map."""
-        # Create source files that the assembly map references
-        for ws_path in assembly_config_python["assembly_map"]["workspace_to_repo"]:
+        """Files should be placed according to the assembly map. (Bug S3-111 schema:
+        source stubs are referenced via `repo_to_workspace` values.)"""
+        # Create source stub files that the assembly map references
+        for ws_path in set(assembly_config_python["assembly_map"]["repo_to_workspace"].values()):
             src_file = project_root / ws_path
             src_file.parent.mkdir(parents=True, exist_ok=True)
             src_file.write_text(f"# content for {ws_path}")
@@ -695,17 +688,19 @@ class TestGenerateAssemblyMapBasic:
         result = generate_assembly_map(blueprint_dir, project_root)
         assert isinstance(result, dict)
 
-    def test_has_workspace_to_repo_key(self, blueprint_dir, project_root):
-        result = generate_assembly_map(blueprint_dir, project_root)
-        assert "workspace_to_repo" in result
-
     def test_has_repo_to_workspace_key(self, blueprint_dir, project_root):
         result = generate_assembly_map(blueprint_dir, project_root)
         assert "repo_to_workspace" in result
 
-    def test_workspace_to_repo_is_dict(self, blueprint_dir, project_root):
+    def test_no_workspace_to_repo_key(self, blueprint_dir, project_root):
+        """Bug S3-111: the legacy forward direction must not reappear."""
         result = generate_assembly_map(blueprint_dir, project_root)
-        assert isinstance(result["workspace_to_repo"], dict)
+        assert "workspace_to_repo" not in result
+
+    def test_only_one_top_level_key(self, blueprint_dir, project_root):
+        """Bug S3-111: the map has exactly one top-level key."""
+        result = generate_assembly_map(blueprint_dir, project_root)
+        assert list(result.keys()) == ["repo_to_workspace"]
 
     def test_repo_to_workspace_is_dict(self, blueprint_dir, project_root):
         result = generate_assembly_map(blueprint_dir, project_root)
@@ -715,74 +710,64 @@ class TestGenerateAssemblyMapBasic:
         """Every '<- Unit N' annotation line should produce a mapping entry."""
         result = generate_assembly_map(blueprint_dir, project_root)
         # The blueprint_prose fixture has 4 annotations (Units 1, 2, 3, 10)
-        assert len(result["workspace_to_repo"]) == 4, (
-            f"Expected 4 workspace_to_repo entries, got {len(result['workspace_to_repo'])}"
+        assert len(result["repo_to_workspace"]) == 4, (
+            f"Expected 4 repo_to_workspace entries, got {len(result['repo_to_workspace'])}"
         )
 
     def test_extracts_correct_unit_numbers(self, blueprint_dir, project_root):
-        """Mapping keys should reference the correct unit numbers."""
+        """Mapping values (source stubs) should reference the correct unit numbers."""
         result = generate_assembly_map(blueprint_dir, project_root)
-        ws_keys = list(result["workspace_to_repo"].keys())
-        # Should contain entries for units 1, 2, 3, 10
+        ws_values = list(result["repo_to_workspace"].values())
+        # Should contain stubs for units 1, 2, 3, 10
         unit_refs = []
-        for key in ws_keys:
-            match = re.search(r"unit_(\d+)", key)
+        for value in ws_values:
+            match = re.search(r"unit_(\d+)", value)
             if match:
                 unit_refs.append(int(match.group(1)))
         for expected_unit in [1, 2, 3, 10]:
             assert expected_unit in unit_refs, (
-                f"Unit {expected_unit} annotation not found in workspace_to_repo keys"
+                f"Unit {expected_unit} annotation not found in repo_to_workspace values"
             )
 
 
-class TestGenerateAssemblyMapBijectivity:
-    """Bijectivity invariant: workspace_to_repo and repo_to_workspace are exact inverses."""
+class TestGenerateAssemblyMapStalenessInvariant:
+    """Bug S3-111: every value in repo_to_workspace must match the stub.py
+    naming convention and the relationship is many-to-one. Replaces the
+    pre-S3-111 bijectivity tests (which were meaningless post-S3-98 because
+    the forward direction could not represent the many-to-one layout)."""
 
-    def test_every_workspace_entry_has_inverse(self, blueprint_dir, project_root):
-        """Every workspace_to_repo entry must have a corresponding repo_to_workspace entry."""
+    def test_every_value_matches_stub_py_pattern(self, blueprint_dir, project_root):
+        """Every value must match ^src/unit_\\d+/stub\\.py$ (Bug S3-111)."""
         result = generate_assembly_map(blueprint_dir, project_root)
-        for ws_path, repo_path in result["workspace_to_repo"].items():
-            assert repo_path in result["repo_to_workspace"], (
-                f"repo path '{repo_path}' missing from repo_to_workspace"
-            )
-            assert result["repo_to_workspace"][repo_path] == ws_path, (
-                f"Inverse mismatch: repo_to_workspace['{repo_path}'] = "
-                f"'{result['repo_to_workspace'][repo_path]}', expected '{ws_path}'"
-            )
+        stub_re = re.compile(r"^src/unit_\d+/stub\.py$")
+        bad = [v for v in result["repo_to_workspace"].values() if not stub_re.match(v)]
+        assert not bad, f"Non-stub source paths in repo_to_workspace: {bad}"
 
-    def test_every_repo_entry_has_inverse(self, blueprint_dir, project_root):
-        """Every repo_to_workspace entry must have a corresponding workspace_to_repo entry."""
-        result = generate_assembly_map(blueprint_dir, project_root)
-        for repo_path, ws_path in result["repo_to_workspace"].items():
-            assert ws_path in result["workspace_to_repo"], (
-                f"workspace path '{ws_path}' missing from workspace_to_repo"
-            )
-            assert result["workspace_to_repo"][ws_path] == repo_path, (
-                f"Inverse mismatch: workspace_to_repo['{ws_path}'] = "
-                f"'{result['workspace_to_repo'][ws_path]}', expected '{repo_path}'"
-            )
+    def test_relationship_can_be_many_to_one(self, tmp_path):
+        """Multiple deployed files from one unit share one stub (Bug S3-111)."""
+        bp_dir = tmp_path / "blueprint"
+        bp_dir.mkdir()
+        (bp_dir / "blueprint_prose.md").write_text(textwrap.dedent("""\
+            # File Tree
 
-    def test_same_cardinality(self, blueprint_dir, project_root):
-        """Both directions must have the same number of entries."""
-        result = generate_assembly_map(blueprint_dir, project_root)
-        assert len(result["workspace_to_repo"]) == len(result["repo_to_workspace"]), (
-            f"Cardinality mismatch: workspace_to_repo has {len(result['workspace_to_repo'])} entries, "
-            f"repo_to_workspace has {len(result['repo_to_workspace'])} entries"
-        )
+            ```
+            svp/
+              agents/
+                git_repo_agent.md      <- Unit 23
+                oracle_agent.md        <- Unit 23
+              scripts/
+                generate_assembly_map.py <- Unit 23
+            ```
+        """))
+        proj = tmp_path / "project"
+        proj.mkdir()
+        (proj / ".svp").mkdir()
 
-    def test_no_orphaned_entries(self, blueprint_dir, project_root):
-        """No orphaned entries in either direction."""
-        result = generate_assembly_map(blueprint_dir, project_root)
-        ws_values = set(result["workspace_to_repo"].values())
-        repo_keys = set(result["repo_to_workspace"].keys())
-        assert ws_values == repo_keys, (
-            f"Orphaned entries: ws_to_repo values = {ws_values}, repo_to_ws keys = {repo_keys}"
-        )
-        repo_values = set(result["repo_to_workspace"].values())
-        ws_keys = set(result["workspace_to_repo"].keys())
-        assert repo_values == ws_keys, (
-            f"Orphaned entries: repo_to_ws values = {repo_values}, ws_to_repo keys = {ws_keys}"
-        )
+        result = generate_assembly_map(bp_dir, proj)
+        r2w = result["repo_to_workspace"]
+        # All three deployed files point at src/unit_23/stub.py.
+        assert len(r2w) == 3
+        assert set(r2w.values()) == {"src/unit_23/stub.py"}
 
 
 class TestGenerateAssemblyMapCompleteness:
@@ -825,13 +810,13 @@ class TestGenerateAssemblyMapDiskWrite:
         assert written == result, "Written JSON should match the returned dict"
 
     def test_written_json_has_correct_structure(self, blueprint_dir, project_root):
+        """Bug S3-111: the written JSON has exactly one top-level key."""
         generate_assembly_map(blueprint_dir, project_root)
         map_path = project_root / ".svp" / "assembly_map.json"
         written = json.loads(map_path.read_text())
-        assert "workspace_to_repo" in written
-        assert "repo_to_workspace" in written
-        assert isinstance(written["workspace_to_repo"], dict)
+        assert list(written.keys()) == ["repo_to_workspace"]
         assert isinstance(written["repo_to_workspace"], dict)
+        assert "workspace_to_repo" not in written
 
 
 # ===========================================================================
