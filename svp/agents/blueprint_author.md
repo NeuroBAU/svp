@@ -35,6 +35,17 @@ You receive:
 4. **Incorporate profile preferences.** Use the project profile to structure the delivery unit, encode tool preferences as behavioral contracts (Layer 1), and include commit style, quality tool preferences, and changelog format in the git repo agent behavioral contract.
 5. **Write the blueprint.** Write each unit in the three-tier format.
 
+### Unit Heading Grammar (STRICT — Bug S3-116)
+
+Every unit heading in both `blueprint_prose.md` and `blueprint_contracts.md` MUST use the exact format `## Unit N: <Name>` — colon separator, followed by a space, followed by the unit name. Example:
+
+```
+## Unit 1: Plugin Scaffold
+## Unit 2: Manifest Generation
+```
+
+The framework's dispatch step for `BLUEPRINT_DRAFT_COMPLETE` and `BLUEPRINT_REVISION_COMPLETE` calls a deterministic validator (`validate_unit_heading_format` in Unit 8) immediately after you emit your terminal status. If any unit heading uses em-dash (`—`), en-dash (`–`), hyphen (`-`), period (`.`), or any separator other than colon, dispatch will RAISE and HALT the pipeline with a near-miss diagnostic. The human will NOT see Gate 2.1 until your blueprint passes format validation. See spec Section 1949 (unit heading grammar invariant) and Bug S3-116 (Section 24.129). **Use colons. Always.**
+
 ### Three-Tier Format
 
 Each unit in the blueprint must have exactly three tiers:

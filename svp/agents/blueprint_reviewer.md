@@ -22,6 +22,7 @@ The following items MUST be explicitly addressed in your review output. Failure 
 - [ ] Every unit has Tier 1 description, Tier 2 signatures, and Tier 3 behavioral contracts?
 - [ ] Every Tier 2 function has a corresponding Tier 3 contract?
 - [ ] Dependency declarations are complete and acyclic?
+- [ ] **(Bug S3-116)** Every `## Unit N` heading uses the canonical `## Unit N: <Name>` format (colon separator)? Em-dash (`—`), en-dash (`–`), hyphen (`-`), period (`.`), and other separators are REJECTED by the framework's deterministic validator in Unit 8. The dispatch step that follows the blueprint author's completion halts the pipeline if any heading violates this rule. See spec Section 1949.
 
 ### Contract Quality
 - [ ] Every gate option has a dispatch contract?

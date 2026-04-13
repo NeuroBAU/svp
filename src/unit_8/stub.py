@@ -6,7 +6,7 @@ upstream contracts, and per-unit metadata.
 
 import re
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 
 from src.unit_1.stub import ARTIFACT_FILENAMES
 
@@ -57,6 +57,88 @@ _CODE_FENCE_OPEN_RE = re.compile(r"^```(\w+)?\s*$", re.MULTILINE)
 
 # Pattern for Dependencies line in Tier 3
 _DEPENDENCIES_RE = re.compile(r"\*\*Dependencies:\*\*\s*(.*?)$", re.MULTILINE)
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-116: Unit heading format validation (shared validator)
+# ---------------------------------------------------------------------------
+#
+# These functions are the single source of truth for unit heading format
+# validation. They are called at two enforcement points:
+#   1. dispatch_agent_status for blueprint_author + BLUEPRINT_*_COMPLETE
+#      (Unit 14 -- writing side, halts pipeline on violation before Gate 2.1)
+#   2. run_infrastructure_setup Step 5 in Unit 11 (extraction side,
+#      safety net when _count_unit_headings returns 0)
+# Both callers invoke these functions; no local duplicates permitted.
+
+
+# Loose pattern: catches "## Unit N" followed by any separator or end of
+# name. Used to detect near-miss headings that the strict canonical pattern
+# would reject. Word boundary \b after \d+ ensures we match "## Unit 1 --"
+# but NOT "## Units" or "## Unit Tests".
+_UNIT_HEADING_LOOSE_RE = re.compile(r"^##\s+Unit\s+\d+\b")
+
+# Strict pattern: the canonical "## Unit N:" format. A heading that matches
+# the loose pattern but NOT this strict pattern is a near-miss (wrong
+# separator or missing name).
+_UNIT_HEADING_STRICT_RE = re.compile(r"^##\s+Unit\s+\d+:")
+
+
+def validate_unit_heading_format(
+    blueprint_dir: Path,
+) -> List[Tuple[str, int, str]]:
+    """Validate that every `## Unit N` heading uses the canonical `## Unit N: Name` format.
+
+    Scans blueprint_prose.md and blueprint_contracts.md for lines matching
+    the loose pattern `^## Unit \\d+` and filters to lines that do NOT
+    match the strict canonical pattern `^## Unit \\d+:`. Returns near-miss
+    tuples (filename, line_number, line_text) for violations. Empty list
+    means the blueprint is format-clean.
+
+    Bug S3-116: single source of truth for unit heading format validation.
+    Called at two enforcement points -- see module docstring above.
+    """
+    near_misses: List[Tuple[str, int, str]] = []
+    prose_filename = Path(ARTIFACT_FILENAMES["blueprint_prose"]).name
+    contracts_filename = Path(ARTIFACT_FILENAMES["blueprint_contracts"]).name
+    for filename in (prose_filename, contracts_filename):
+        filepath = blueprint_dir / filename
+        if not filepath.exists():
+            continue
+        content = filepath.read_text(encoding="utf-8")
+        for i, line in enumerate(content.splitlines(), start=1):
+            if _UNIT_HEADING_LOOSE_RE.match(line) and not _UNIT_HEADING_STRICT_RE.match(line):
+                near_misses.append((filename, i, line.rstrip()))
+    return near_misses
+
+
+def format_unit_heading_violations(
+    near_misses: List[Tuple[str, int, str]],
+    max_shown: int = 10,
+) -> str:
+    """Format a list of near-miss heading tuples into a human-readable error message.
+
+    Bug S3-116: shared formatter used by both enforcement points so the
+    error message is identical regardless of which layer catches the
+    violation. Returns empty string for an empty near-miss list.
+    """
+    if not near_misses:
+        return ""
+    shown = near_misses[:max_shown]
+    lines = [f"  {filename}:{lineno}: {text}" for filename, lineno, text in shown]
+    if len(near_misses) > max_shown:
+        lines.append(f"  ... and {len(near_misses) - max_shown} more")
+    return (
+        f"{len(near_misses)} unit heading(s) violate the canonical "
+        "grammar `## Unit N: <Name>` (colon separator). The framework's "
+        "parsers reject em-dash (`\u2014`), en-dash (`\u2013`), hyphen "
+        "(`-`), period (`.`), and other separators -- only colons are "
+        "accepted. See spec Section 1949 (unit heading grammar invariant) "
+        "and Bug S3-116 (Section 24.129).\n\n"
+        "Violations:\n" + "\n".join(lines) + "\n\n"
+        "Please rewrite the headings to use colons, e.g. "
+        "`## Unit 1: Plugin Scaffold`."
+    )
 
 # Resolve blueprint filenames from ARTIFACT_FILENAMES (no hardcoded paths)
 _PROSE_FILENAME = Path(ARTIFACT_FILENAMES["blueprint_prose"]).name

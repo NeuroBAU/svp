@@ -624,8 +624,32 @@ def run_infrastructure_setup(
     total_units = _count_unit_headings(blueprint_dir)
 
     if total_units == 0:
+        # Bug S3-116: call the shared Unit 8 validator to surface
+        # near-miss diagnostics. If the blueprint has lines matching
+        # `## Unit N` with a non-colon separator, the validator returns
+        # them and we format a clear error message. Otherwise, the
+        # blueprint is truly empty of unit headings.
+        from src.unit_8.stub import (
+            format_unit_heading_violations,
+            validate_unit_heading_format,
+        )
+        near_misses = validate_unit_heading_format(blueprint_dir)
+        if near_misses:
+            raise ValueError(
+                "Infrastructure setup cannot derive total_units because "
+                "the blueprint contains unit heading format "
+                "violations.\n\n"
+                + format_unit_heading_violations(near_misses)
+            )
         raise ValueError(
-            "No unit headings found in blueprint. Cannot proceed with setup."
+            "No unit headings found in blueprint. Cannot proceed with "
+            "setup.\n"
+            "Expected format (spec Section 1949): `## Unit N: <Name>` "
+            "(e.g., `## Unit 1: Plugin Scaffold`).\n"
+            "Neither blueprint_prose.md nor blueprint_contracts.md "
+            "contains any `## Unit N` lines -- the blueprint may be "
+            "empty or missing.\n"
+            "See Bug S3-116 (Section 24.129)."
         )
 
     archetype = profile.get("archetype", "python_project")

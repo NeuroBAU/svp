@@ -1806,6 +1806,85 @@ class TestRouteAlignmentCheckSelfHeal:
 
 
 # ===========================================================================
+# Bug S3-116: blueprint_author unit heading format enforcement at dispatch
+# ===========================================================================
+
+
+class TestDispatchBlueprintAuthorHeadingFormat:
+    """Bug S3-116: dispatch_agent_status for blueprint_author +
+    BLUEPRINT_DRAFT_COMPLETE / BLUEPRINT_REVISION_COMPLETE calls the
+    shared validator from Unit 8 and raises ValueError on violations.
+    This is the writing-side enforcement point of the unit heading
+    grammar invariant."""
+
+    def _make_project(self, tmp_path, prose="", contracts=""):
+        project_root = tmp_path / "myproj"
+        project_root.mkdir()
+        (project_root / ".svp").mkdir()
+        blueprint_dir = project_root / "blueprint"
+        blueprint_dir.mkdir()
+        (blueprint_dir / "blueprint_prose.md").write_text(prose, encoding="utf-8")
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
+        return project_root
+
+    def test_draft_complete_accepts_canonical_format(self, tmp_path):
+        """A canonical blueprint passes dispatch without exception."""
+        project_root = self._make_project(
+            tmp_path,
+            prose="## Unit 1: Foo\n\n## Unit 2: Bar\n",
+            contracts="## Unit 1: Foo\n\n## Unit 2: Bar\n",
+        )
+        state = _make_state(stage="2", sub_stage="blueprint_dialog")
+        result = dispatch_agent_status(
+            state, "blueprint_author", "BLUEPRINT_DRAFT_COMPLETE", project_root
+        )
+        assert result is not None
+
+    def test_draft_complete_raises_on_em_dash_headings(self, tmp_path):
+        """Em-dash blueprint → ValueError referencing Bug S3-116."""
+        project_root = self._make_project(
+            tmp_path,
+            prose="## Unit 1 \u2014 Plugin Scaffold\n\n## Unit 2 \u2014 Manifest\n",
+        )
+        state = _make_state(stage="2", sub_stage="blueprint_dialog")
+        with pytest.raises(ValueError) as exc_info:
+            dispatch_agent_status(
+                state, "blueprint_author", "BLUEPRINT_DRAFT_COMPLETE", project_root
+            )
+        msg = str(exc_info.value)
+        assert "BLUEPRINT_DRAFT_COMPLETE" in msg
+        assert "S3-116" in msg
+        assert "Section 1949" in msg
+        assert "## Unit 1 \u2014" in msg
+
+    def test_revision_complete_raises_on_em_dash_headings(self, tmp_path):
+        """Revisions are also validated — em-dash blueprint raises."""
+        project_root = self._make_project(
+            tmp_path,
+            prose="## Unit 1 \u2014 Foo\n",
+        )
+        state = _make_state(stage="2", sub_stage="blueprint_dialog")
+        with pytest.raises(ValueError) as exc_info:
+            dispatch_agent_status(
+                state, "blueprint_author", "BLUEPRINT_REVISION_COMPLETE", project_root
+            )
+        assert "BLUEPRINT_REVISION_COMPLETE" in str(exc_info.value)
+        assert "S3-116" in str(exc_info.value)
+
+    def test_unknown_status_still_raises_existing_error(self, tmp_path):
+        """Other statuses hit the existing unknown-status error path."""
+        project_root = self._make_project(
+            tmp_path,
+            prose="## Unit 1: Foo\n",
+        )
+        state = _make_state(stage="2", sub_stage="blueprint_dialog")
+        with pytest.raises(ValueError, match="Unknown status"):
+            dispatch_agent_status(
+                state, "blueprint_author", "WHATEVER", project_root
+            )
+
+
+# ===========================================================================
 # Bug S3-115: Recursive routing bounded-recursion invariant
 # ===========================================================================
 

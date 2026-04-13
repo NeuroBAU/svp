@@ -30,6 +30,8 @@ from blueprint_extractor import (
     build_unit_context,
     detect_code_block_language,
     extract_units,
+    format_unit_heading_violations,
+    validate_unit_heading_format,
 )
 
 # ---------------------------------------------------------------------------
@@ -1077,3 +1079,130 @@ class TestDetectCodeBlockLanguageEdgeCases:
         # Should return empty set or handle gracefully
         assert isinstance(result, set)
         assert len(result) == 0
+
+
+# ===========================================================================
+# Bug S3-116: Unit heading format validator
+# ===========================================================================
+
+
+class TestValidateUnitHeadingFormat:
+    """Bug S3-116: validate_unit_heading_format is the single source of
+    truth for unit heading grammar validation. Called at two enforcement
+    points (dispatch_agent_status for blueprint_author, and
+    run_infrastructure_setup). Must detect em-dash, en-dash, hyphen,
+    period, and other non-colon separators, while ignoring non-unit
+    headings like '## Units' or '## Unit Tests'."""
+
+    def _write_bp(self, tmp_path, prose: str = "", contracts: str = ""):
+        bp = tmp_path / "blueprint"
+        bp.mkdir(exist_ok=True)
+        (bp / "blueprint_prose.md").write_text(prose, encoding="utf-8")
+        (bp / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
+        return bp
+
+    def test_accepts_canonical_format(self, tmp_path):
+        bp = self._write_bp(
+            tmp_path,
+            prose="## Unit 1: Foo\n\n## Unit 2: Bar\n",
+            contracts="## Unit 1: Foo\n\n## Unit 2: Bar\n",
+        )
+        assert validate_unit_heading_format(bp) == []
+
+    def test_detects_em_dash_separator(self, tmp_path):
+        bp = self._write_bp(tmp_path, prose="## Unit 1 \u2014 Foo\n")
+        near = validate_unit_heading_format(bp)
+        assert len(near) == 1
+        filename, line_no, text = near[0]
+        assert filename == "blueprint_prose.md"
+        assert line_no == 1
+        assert "\u2014" in text
+
+    def test_detects_en_dash_separator(self, tmp_path):
+        bp = self._write_bp(tmp_path, prose="## Unit 1 \u2013 Foo\n")
+        near = validate_unit_heading_format(bp)
+        assert len(near) == 1
+        assert "\u2013" in near[0][2]
+
+    def test_detects_hyphen_separator(self, tmp_path):
+        bp = self._write_bp(tmp_path, prose="## Unit 1 - Foo\n")
+        near = validate_unit_heading_format(bp)
+        assert len(near) == 1
+        assert "- Foo" in near[0][2]
+
+    def test_detects_period_separator(self, tmp_path):
+        bp = self._write_bp(tmp_path, prose="## Unit 1. Foo\n")
+        near = validate_unit_heading_format(bp)
+        assert len(near) == 1
+        assert ". Foo" in near[0][2]
+
+    def test_mixed_valid_and_invalid(self, tmp_path):
+        bp = self._write_bp(
+            tmp_path,
+            prose=(
+                "## Unit 1: Good\n\n"
+                "## Unit 2 \u2014 Bad\n\n"
+                "## Unit 3: Good\n\n"
+                "## Unit 4 - Bad\n"
+            ),
+        )
+        near = validate_unit_heading_format(bp)
+        assert len(near) == 2
+        # The good ones are NOT in the list.
+        violation_texts = [nm[2] for nm in near]
+        assert all("Good" not in t for t in violation_texts)
+        assert any("Unit 2" in t for t in violation_texts)
+        assert any("Unit 4" in t for t in violation_texts)
+
+    def test_ignores_non_unit_headings(self, tmp_path):
+        """## Units (plural), ## Unit Tests (word), ## Section 1 should NOT match."""
+        bp = self._write_bp(
+            tmp_path,
+            prose=(
+                "## Units of Work\n\n"
+                "## Unit Tests Pattern\n\n"
+                "## Section 1: Foo\n\n"
+                "## Unit 1: Real Unit\n"
+            ),
+        )
+        near = validate_unit_heading_format(bp)
+        assert near == []
+
+    def test_returns_filename_and_line_number(self, tmp_path):
+        bp = self._write_bp(
+            tmp_path,
+            prose="# Intro\n\n## Unit 1 \u2014 Foo\n",
+            contracts="# Contracts\n\n\n## Unit 2 - Bar\n",
+        )
+        near = validate_unit_heading_format(bp)
+        assert len(near) == 2
+        # Sorted by filename in iteration order: prose first, contracts second.
+        assert near[0][0] == "blueprint_prose.md"
+        assert near[0][1] == 3
+        assert near[1][0] == "blueprint_contracts.md"
+        assert near[1][1] == 4
+
+
+class TestFormatUnitHeadingViolations:
+    """Bug S3-116: format_unit_heading_violations produces a human-readable
+    error message shared by both enforcement points."""
+
+    def test_includes_spec_reference(self):
+        near = [("blueprint_prose.md", 3, "## Unit 1 \u2014 Foo")]
+        msg = format_unit_heading_violations(near)
+        assert "Section 1949" in msg
+        assert "S3-116" in msg
+        assert "## Unit 1 \u2014 Foo" in msg
+        assert "## Unit 1: Plugin Scaffold" in msg  # the example
+
+    def test_truncates_at_max_shown(self):
+        near = [("f.md", i, f"## Unit {i} \u2014 N") for i in range(1, 16)]
+        msg = format_unit_heading_violations(near, max_shown=10)
+        assert "... and 5 more" in msg
+        assert "15 unit heading(s)" in msg
+        # Count how many violation lines actually appear.
+        shown_count = sum(1 for line in msg.splitlines() if line.startswith("  f.md:"))
+        assert shown_count == 10
+
+    def test_empty_list_returns_empty_string(self):
+        assert format_unit_heading_violations([]) == ""

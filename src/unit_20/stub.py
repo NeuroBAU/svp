@@ -198,6 +198,27 @@ unit, encode tool preferences as behavioral contracts (Layer 1), and include com
 quality tool preferences, and changelog format in the git repo agent behavioral contract.
 5. **Write the blueprint.** Write each unit in the three-tier format.
 
+### Unit Heading Grammar (STRICT — Bug S3-116)
+
+Every unit heading in both `blueprint_prose.md` and `blueprint_contracts.md` \
+MUST use the exact format `## Unit N: <Name>` — colon separator, followed \
+by a space, followed by the unit name. Example:
+
+```
+## Unit 1: Plugin Scaffold
+## Unit 2: Manifest Generation
+```
+
+The framework's dispatch step for `BLUEPRINT_DRAFT_COMPLETE` and \
+`BLUEPRINT_REVISION_COMPLETE` calls a deterministic validator \
+(`validate_unit_heading_format` in Unit 8) immediately after you emit \
+your terminal status. If any unit heading uses em-dash (`—`), en-dash \
+(`–`), hyphen (`-`), period (`.`), or any separator other than colon, \
+dispatch will RAISE and HALT the pipeline with a near-miss diagnostic. \
+The human will NOT see Gate 2.1 until your blueprint passes format \
+validation. See spec Section 1949 (unit heading grammar invariant) \
+and Bug S3-116 (Section 24.129). **Use colons. Always.**
+
 ### Three-Tier Format
 
 Each unit in the blueprint must have exactly three tiers:
@@ -305,6 +326,7 @@ check any item is a review deficiency.
 - [ ] Every unit has Tier 1 description, Tier 2 signatures, and Tier 3 behavioral contracts?
 - [ ] Every Tier 2 function has a corresponding Tier 3 contract?
 - [ ] Dependency declarations are complete and acyclic?
+- [ ] **(Bug S3-116)** Every `## Unit N` heading uses the canonical `## Unit N: <Name>` format (colon separator)? Em-dash (`—`), en-dash (`–`), hyphen (`-`), period (`.`), and other separators are REJECTED by the framework's deterministic validator in Unit 8. The dispatch step that follows the blueprint author's completion halts the pipeline if any heading violates this rule. See spec Section 1949.
 
 ### Contract Quality
 - [ ] Every gate option has a dispatch contract?

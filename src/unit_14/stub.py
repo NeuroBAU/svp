@@ -2496,6 +2496,25 @@ def dispatch_agent_status(
     # blueprint_author
     if agent_type == "blueprint_author":
         if status_line in ("BLUEPRINT_DRAFT_COMPLETE", "BLUEPRINT_REVISION_COMPLETE"):
+            # Bug S3-116: validate unit heading format before advancing.
+            # The shared validator in Unit 8 is the single source of truth;
+            # run_infrastructure_setup (Unit 11) calls the same validator
+            # as a safety net. By halting here BEFORE Gate 2.1 is presented,
+            # we give the operator an immediate near-miss diagnostic
+            # instead of letting a malformed blueprint propagate to Stage 3.
+            from src.unit_8.stub import (
+                format_unit_heading_violations,
+                validate_unit_heading_format,
+            )
+            blueprint_dir = project_root / "blueprint"
+            near_misses = validate_unit_heading_format(blueprint_dir)
+            if near_misses:
+                raise ValueError(
+                    f"blueprint_author emitted {status_line} but the "
+                    f"blueprint contains unit heading format "
+                    f"violations.\n\n"
+                    + format_unit_heading_violations(near_misses)
+                )
             return _copy(state)
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 

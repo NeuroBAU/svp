@@ -692,11 +692,31 @@ def detect_code_block_language(
     blueprint_dir: Path,
     unit_number: int,
 ) -> Set[str]: ...
+
+def validate_unit_heading_format(
+    blueprint_dir: Path,
+) -> List[tuple]: ...  # NEW IN 2.2 (Bug S3-116)
+
+def format_unit_heading_violations(
+    near_misses: List[tuple],
+    max_shown: int = 10,
+) -> str: ...  # NEW IN 2.2 (Bug S3-116)
 ```
 
 ### Tier 3 -- Behavioral Contracts
 
 **Dependencies:** Unit 1, Unit 2.
+
+**validate_unit_heading_format (NEW IN 2.2 — Bug S3-116):**
+- Pure function. Scans `blueprint_prose.md` and `blueprint_contracts.md` in `blueprint_dir` for lines matching the loose pattern `^## Unit \d+\b` and filters to those NOT matching the strict canonical pattern `^## Unit \d+:`. Returns a list of `(filename, line_number, line_text)` tuples representing near-miss violations. Returns `[]` for a format-clean blueprint.
+- This function is the SINGLE SOURCE OF TRUTH for unit heading format validation. It is called at TWO enforcement points:
+  1. `dispatch_agent_status` for `blueprint_author + BLUEPRINT_DRAFT_COMPLETE` / `BLUEPRINT_REVISION_COMPLETE` in Unit 14 (writing side — halts pipeline on violation before Gate 2.1).
+  2. `run_infrastructure_setup` Step 5 in Unit 11 (extraction side — safety net when `_count_unit_headings` returns 0).
+- Both callers MUST use this function; no local duplicates permitted. A blueprint that is format-clean at the first enforcement point is guaranteed format-clean at the second, because the function is strictly deterministic.
+
+**format_unit_heading_violations (NEW IN 2.2 — Bug S3-116):**
+- Pure function. Accepts a list of near-miss tuples and formats them into a human-readable error message. The message includes: the number of violations, up to `max_shown` (default 10) violation lines with file and line number, a "... and N more" tail if truncated, the canonical format example, a spec Section 1949 reference, and a Bug S3-116 (Section 24.129) reference.
+- Shared formatter used by both enforcement points so the error message is identical regardless of which layer catches the violation.
 
 **extract_units:**
 - Parses both `blueprint_prose.md` and `blueprint_contracts.md` from `blueprint_dir`.
@@ -856,7 +876,7 @@ def main(argv: list = None) -> None: ...
 4. **Import validation:** language-specific. Python: `python -c "import X"`. R: `Rscript -e "library(X)"`. Run inside created environment.
 5. **Directory scaffolding:** creates `src/unit_N/` and `tests/unit_N/` for each unit (Python convention). R: `R/` and `tests/testthat/`. For R/mixed projects: generates `tests/testthat/helper-svp.R` with `svp_source()` using `testthat::test_path()` root navigation per Bug S3-48 (Bug S3-101).
 6. **DAG re-validation:** extracts dependency graph from blueprint, validates no forward edges, no cycles.
-7. **total_units derivation:** counts `## Unit N:` headings in blueprint. Sets `total_units` in pipeline state.
+7. **total_units derivation:** counts `## Unit N:` headings in blueprint. Sets `total_units` in pipeline state. **(CHANGED IN 2.2 — Bug S3-116)** When `_count_unit_headings` returns 0, MUST call `validate_unit_heading_format(blueprint_dir)` from Unit 8. If it returns a non-empty list of near-miss violations, raise `ValueError` with `format_unit_heading_violations(...)` as the message (same shared formatter used by dispatch-side enforcement in Unit 14). If it returns an empty list (truly no `## Unit N` lines anywhere), raise a distinct "blueprint may be empty" error. The goal: no operator ever sees the unhelpful pre-S3-116 message "No unit headings found in blueprint" — they see a near-miss diagnostic or a clear "blueprint is empty" error instead.
 8. **Regression test adaptation:** if `regression_test_import_map.json` exists, runs `generate_assembly_map.py regression-adapt` on `tests/regressions/`. **(CHANGED IN 2.2 — Bug S3-110, renamed from `adapt_regression_tests.py`.)**
 9. **Build log creation:** creates `.svp/build_log.jsonl` (empty JSONL file). Append-only from this point.
 
@@ -1155,7 +1175,7 @@ def run_tests_main(argv: list = None) -> None: ...
 - `"setup_agent"` + `PROFILE_COMPLETE`: no state change (two-branch in route).
 - `"stakeholder_dialog"` + `SPEC_DRAFT_COMPLETE` / `SPEC_REVISION_COMPLETE`: no state change (two-branch in route).
 - `"stakeholder_reviewer"` + `REVIEW_COMPLETE`: no state change (two-branch in route).
-- `"blueprint_author"` + `BLUEPRINT_DRAFT_COMPLETE` / `BLUEPRINT_REVISION_COMPLETE`: no state change (two-branch in route).
+- `"blueprint_author"` + `BLUEPRINT_DRAFT_COMPLETE` / `BLUEPRINT_REVISION_COMPLETE`: **(CHANGED IN 2.2 — Bug S3-116)** MUST call `validate_unit_heading_format(project_root / "blueprint")` from Unit 8 before advancing. If the validator returns a non-empty list of near-miss violations, raise `ValueError` with `format_unit_heading_violations(...)` as the message. The pipeline halts at dispatch time with a near-miss diagnostic — BEFORE Gate 2.1 is presented to the human. If the validator returns an empty list (blueprint is format-clean), return `_copy(state)` as before (no state change, two-branch in route). This is the writing-side enforcement point of the unit heading grammar invariant; the extraction side is in Unit 11's `run_infrastructure_setup` Step 5. Both sides use the same Unit 8 validator; they cannot drift.
 - `"blueprint_reviewer"` + `REVIEW_COMPLETE`: no state change (two-branch in route).
 - `"blueprint_checker"` + `ALIGNMENT_CONFIRMED`: advance sub_stage to `"alignment_confirmed"` (gate-presenting state for Gate 2.2). Only Gate 2.2 APPROVE advances to pre_stage_3.
 - `"blueprint_checker"` + `ALIGNMENT_FAILED: blueprint`: reset sub_stage to `"blueprint_dialog"`, increment alignment_iterations. If >= limit: present gate_2_3. Otherwise: fresh blueprint author invocation on next routing cycle.

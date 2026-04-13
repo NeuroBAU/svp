@@ -1300,6 +1300,106 @@ Contracts.
                 assert state["total_units"] == 2
 
 
+class TestUnitHeadingFormatErrorDiagnostic:
+    """Bug S3-116: run_infrastructure_setup Step 5 calls the shared
+    validate_unit_heading_format from Unit 8 when _count_unit_headings
+    returns 0. The error message must either (a) include the near-miss
+    diagnostic for em-dash/hyphen/etc blueprints, or (b) report a
+    distinct 'blueprint may be empty' message when no near-misses exist."""
+
+    def test_error_includes_near_miss_diagnostic(
+        self,
+        project_root,
+        blueprint_dir,
+        python_profile,
+        python_toolchain,
+        python_language_registry,
+    ):
+        """Em-dash blueprint → ValueError with near-miss diagnostic."""
+        contracts = (
+            "# Blueprint Contracts\n\n"
+            "## Unit 1 \u2014 Plugin Scaffold\n\n"
+            "### Tier 2 -- Signatures\n\n```python\ndef foo(): ...\n```\n\n"
+            "### Tier 3 -- Behavioral Contracts\n\nContracts.\n"
+        )
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        # Prose file mirrors the bad heading.
+        (blueprint_dir / "blueprint_prose.md").write_text(
+            "## Unit 1 \u2014 Plugin Scaffold\n\nProse.\n"
+        )
+        state_file = project_root / ".svp" / "pipeline_state.json"
+        state_file.write_text(json.dumps({"stage": "setup"}))
+        import pytest
+        with pytest.raises(ValueError) as exc_info:
+            run_infrastructure_setup(
+                project_root,
+                python_profile,
+                python_toolchain,
+                python_language_registry,
+                blueprint_dir,
+            )
+        msg = str(exc_info.value)
+        assert "S3-116" in msg
+        assert "Section 1949" in msg
+        assert "## Unit 1 \u2014" in msg
+        assert "colon" in msg.lower()
+
+    def test_error_for_truly_empty_blueprint(
+        self,
+        project_root,
+        blueprint_dir,
+        python_profile,
+        python_toolchain,
+        python_language_registry,
+    ):
+        """Blueprint with no `## Unit N` lines at all → distinct error message."""
+        (blueprint_dir / "blueprint_contracts.md").write_text(
+            "# Blueprint Contracts\n\nNothing here.\n"
+        )
+        (blueprint_dir / "blueprint_prose.md").write_text(
+            "# Prose\n\nNothing here either.\n"
+        )
+        state_file = project_root / ".svp" / "pipeline_state.json"
+        state_file.write_text(json.dumps({"stage": "setup"}))
+        import pytest
+        with pytest.raises(ValueError) as exc_info:
+            run_infrastructure_setup(
+                project_root,
+                python_profile,
+                python_toolchain,
+                python_language_registry,
+                blueprint_dir,
+            )
+        msg = str(exc_info.value)
+        assert "may be empty or missing" in msg
+        assert "S3-116" in msg
+        # Should NOT say "violations" — this is the distinct "truly empty" path.
+        assert "violate" not in msg.lower() or "near-miss" not in msg.lower()
+
+    def test_canonical_blueprint_passes_infrastructure_setup(
+        self,
+        project_root,
+        blueprint_dir,
+        python_profile,
+        python_toolchain,
+        python_language_registry,
+        minimal_blueprint_contracts,
+    ):
+        """Sanity check: a canonical blueprint with valid `## Unit N: Name`
+        headings passes infrastructure setup without raising. (Bug S3-116
+        must not have broken the happy path.)"""
+        state_file = project_root / ".svp" / "pipeline_state.json"
+        state_file.write_text(json.dumps({"stage": "setup"}))
+        run_infrastructure_setup(
+            project_root,
+            python_profile,
+            python_toolchain,
+            python_language_registry,
+            blueprint_dir,
+        )
+        # No exception → test passes.
+
+
 # ---------------------------------------------------------------------------
 # Step 8: Regression Test Adaptation
 # ---------------------------------------------------------------------------
