@@ -195,83 +195,86 @@ class TestBugS314RunCommandPostField:
             blocks.append(sub)
         return blocks
 
+    # --- Helper for AST-based action block inspection (Bug S3-117
+    # made the string-search approach brittle because run_command action
+    # blocks now contain nested helper calls like cmd=_cmd_stub_generation(...))
+
+    def _find_action_blocks_for_command(self, func, command_name):
+        """Parse the function source with ast and return a list of dicts
+        mapping keyword arg names to their AST nodes, for every
+        `_make_action_block(...)` call whose `command` keyword equals the
+        given name."""
+        import routing as routing_module
+        source = textwrap.dedent(inspect.getsource(func))
+        tree = ast.parse(source)
+        found = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if not (isinstance(node.func, ast.Name) and node.func.id == "_make_action_block"):
+                continue
+            kwargs = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+            cmd_node = kwargs.get("command")
+            if (
+                isinstance(cmd_node, ast.Constant)
+                and cmd_node.value == command_name
+            ):
+                found.append(kwargs)
+        return found
+
     def test_stub_generation_block_has_post(self):
         """stub_generation run_command block must include post field."""
         import routing as routing_module
-        source = inspect.getsource(routing_module._route_stage_3)
-        # Find the stub_generation block -- it should have post=
-        # We look for the pattern: command="stub_generation" followed by post=
-        idx = source.find('command="stub_generation"')
-        assert idx != -1, "stub_generation command not found in _route_stage_3"
-        # Check that post= appears in the same _make_action_block call
-        block_end = source.find(")", idx)
-        block_text = source[idx:block_end]
-        assert "post=" in block_text, (
-            "stub_generation run_command block missing post field"
+        blocks = self._find_action_blocks_for_command(
+            routing_module._route_stage_3, "stub_generation"
         )
+        assert len(blocks) >= 1, "stub_generation command not found in _route_stage_3"
+        for b in blocks:
+            assert "post" in b, "stub_generation block missing post field"
 
     def test_quality_gate_block_has_post(self):
         """quality_gate run_command blocks must include post field."""
         import routing as routing_module
-        source = inspect.getsource(routing_module._route_stage_3)
-        # Find all quality_gate command blocks
-        idx = 0
-        found = 0
-        while True:
-            idx = source.find('command="quality_gate"', idx)
-            if idx == -1:
-                break
-            block_end = source.find(")", idx)
-            block_text = source[idx:block_end]
-            assert "post=" in block_text, (
-                f"quality_gate run_command block at position {idx} missing post field"
-            )
-            found += 1
-            idx = block_end
-        assert found >= 2, f"Expected at least 2 quality_gate blocks, found {found}"
+        blocks = self._find_action_blocks_for_command(
+            routing_module._route_stage_3, "quality_gate"
+        )
+        assert len(blocks) >= 2, (
+            f"Expected at least 2 quality_gate blocks, found {len(blocks)}"
+        )
+        for b in blocks:
+            assert "post" in b, "quality_gate block missing post field"
 
     def test_test_execution_block_has_post(self):
         """test_execution run_command blocks must include post field."""
         import routing as routing_module
-        source = inspect.getsource(routing_module._route_stage_3)
-        idx = 0
-        found = 0
-        while True:
-            idx = source.find('command="test_execution"', idx)
-            if idx == -1:
-                break
-            block_end = source.find(")", idx)
-            block_text = source[idx:block_end]
-            assert "post=" in block_text, (
-                f"test_execution run_command block at position {idx} missing post field"
-            )
-            found += 1
-            idx = block_end
-        assert found >= 2, f"Expected at least 2 test_execution blocks, found {found}"
+        blocks = self._find_action_blocks_for_command(
+            routing_module._route_stage_3, "test_execution"
+        )
+        assert len(blocks) >= 2, (
+            f"Expected at least 2 test_execution blocks, found {len(blocks)}"
+        )
+        for b in blocks:
+            assert "post" in b, "test_execution block missing post field"
 
     def test_unit_completion_block_has_post(self):
         """unit_completion run_command block must include post field."""
         import routing as routing_module
-        source = inspect.getsource(routing_module._route_stage_3)
-        idx = source.find('command="unit_completion"')
-        assert idx != -1, "unit_completion command not found in _route_stage_3"
-        block_end = source.find(")", idx)
-        block_text = source[idx:block_end]
-        assert "post=" in block_text, (
-            "unit_completion run_command block missing post field"
+        blocks = self._find_action_blocks_for_command(
+            routing_module._route_stage_3, "unit_completion"
         )
+        assert len(blocks) >= 1, "unit_completion command not found in _route_stage_3"
+        for b in blocks:
+            assert "post" in b, "unit_completion block missing post field"
 
     def test_compliance_scan_block_has_post(self):
         """compliance_scan run_command block must include post field."""
         import routing as routing_module
-        source = inspect.getsource(routing_module._route_stage_5)
-        idx = source.find('command="compliance_scan"')
-        assert idx != -1, "compliance_scan command not found in _route_stage_5"
-        block_end = source.find(")", idx)
-        block_text = source[idx:block_end]
-        assert "post=" in block_text, (
-            "compliance_scan run_command block missing post field"
+        blocks = self._find_action_blocks_for_command(
+            routing_module._route_stage_5, "compliance_scan"
         )
+        assert len(blocks) >= 1, "compliance_scan command not found in _route_stage_5"
+        for b in blocks:
+            assert "post" in b, "compliance_scan block missing post field"
 
     def test_post_field_invokes_update_state_with_command(self):
         """post fields must invoke update_state.py --command <type>."""

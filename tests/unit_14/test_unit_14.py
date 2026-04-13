@@ -1806,6 +1806,183 @@ class TestRouteAlignmentCheckSelfHeal:
 
 
 # ===========================================================================
+# Bug S3-117: run_command action blocks carry concrete CLI in `cmd` field
+# ===========================================================================
+
+
+class TestRunCommandActionBlockCmdField:
+    """Bug S3-117: run_command action blocks for script-based commands
+    (stub_generation, quality_gate, test_execution, compliance_scan)
+    MUST carry a concrete `cmd` field with the complete CLI to execute.
+    Semantic operator commands (lessons_learned, debug_commit,
+    unit_completion, stage3_reentry) have no script CLI and keep `cmd`
+    absent; they rely on the `reminder` field for operator guidance."""
+
+    def _make_project(self, tmp_path, language="python", deps_map=None):
+        """Create a tmp project with minimal blueprint + profile + .svp.
+
+        deps_map: optional dict of unit_number -> list of upstream unit numbers.
+        Used to exercise stub_generation dependency parsing.
+        """
+        project_root = tmp_path / "myproj"
+        project_root.mkdir()
+        (project_root / ".svp").mkdir()
+        bp = project_root / "blueprint"
+        bp.mkdir()
+        # Minimal blueprint with 2 units
+        deps_map = deps_map or {1: [], 2: []}
+        dep_lines = {
+            n: ", ".join(f"Unit {d}" for d in deps) if deps else "none"
+            for n, deps in deps_map.items()
+        }
+        prose = (
+            "# Prose\n\n"
+            "## Preamble\n\n"
+            "```\nsvp/\n  scripts/\n    foo.py  <- Unit 1\n    bar.py  <- Unit 2\n```\n\n"
+            "## Unit 1: Foo\n\nProse.\n\n"
+            "## Unit 2: Bar\n\nProse.\n"
+        )
+        contracts = (
+            "## Unit 1: Foo\n\n"
+            "### Tier 2 -- Signatures\n\n```python\ndef foo(): ...\n```\n\n"
+            f"### Tier 3 -- Behavioral Contracts\n\n**Dependencies:** {dep_lines[1]}.\n\nContracts.\n\n"
+            "## Unit 2: Bar\n\n"
+            "### Tier 2 -- Signatures\n\n```python\ndef bar(): ...\n```\n\n"
+            f"### Tier 3 -- Behavioral Contracts\n\n**Dependencies:** {dep_lines[2]}.\n\nContracts.\n"
+        )
+        (bp / "blueprint_prose.md").write_text(prose)
+        (bp / "blueprint_contracts.md").write_text(contracts)
+        profile = {
+            "archetype": "python_project" if language == "python" else f"{language}_project",
+            "language": {"primary": language},
+        }
+        (project_root / "project_profile.json").write_text(json.dumps(profile))
+        return project_root
+
+    # --- stub_generation ---
+
+    def test_stub_generation_action_block_has_cmd_field(self, tmp_path):
+        project_root = self._make_project(tmp_path)
+        state = _make_state(stage="3", sub_stage="stub_generation", current_unit=1, total_units=2)
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        assert result["action_type"] == "run_command"
+        assert result["command"] == "stub_generation"
+        assert "cmd" in result
+        cmd = result["cmd"]
+        assert cmd.startswith("python scripts/stub_generator.py")
+        assert "--unit 1" in cmd
+        assert "--output-dir src/unit_1" in cmd
+        assert "--language python" in cmd
+        assert "--blueprint blueprint/blueprint_contracts.md" in cmd
+
+    def test_stub_generation_cmd_includes_upstream_when_dependencies_exist(self, tmp_path):
+        project_root = self._make_project(tmp_path, deps_map={1: [], 2: [1]})
+        state = _make_state(stage="3", sub_stage="stub_generation", current_unit=2, total_units=2)
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        cmd = result["cmd"]
+        assert '--upstream "1"' in cmd
+
+    def test_stub_generation_cmd_empty_upstream_for_first_unit(self, tmp_path):
+        project_root = self._make_project(tmp_path, deps_map={1: [], 2: [1]})
+        state = _make_state(stage="3", sub_stage="stub_generation", current_unit=1, total_units=2)
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        cmd = result["cmd"]
+        assert '--upstream ""' in cmd
+
+    # --- quality_gate ---
+
+    def test_quality_gate_a_action_block_has_cmd_field(self, tmp_path):
+        project_root = self._make_project(tmp_path)
+        state = _make_state(stage="3", sub_stage="quality_gate_a", current_unit=3, total_units=5)
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        assert result["action_type"] == "run_command"
+        assert "cmd" in result
+        cmd = result["cmd"]
+        assert cmd.startswith("python scripts/quality_gate.py")
+        assert "--gate gate_a" in cmd
+        assert "--unit 3" in cmd
+        assert "--target tests/unit_3" in cmd
+        assert "--language python" in cmd
+        assert "--project-root ." in cmd
+
+    def test_quality_gate_b_action_block_has_cmd_field(self, tmp_path):
+        project_root = self._make_project(tmp_path)
+        state = _make_state(
+            stage="3", sub_stage="quality_gate_b", current_unit=2, total_units=5
+        )
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        cmd = result.get("cmd", "")
+        assert "--gate gate_b" in cmd
+        assert "--unit 2" in cmd
+
+    # --- test_execution ---
+
+    def test_red_run_action_block_has_cmd_field(self, tmp_path):
+        project_root = self._make_project(tmp_path)
+        state = _make_state(stage="3", sub_stage="red_run", current_unit=1, total_units=2)
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        assert "cmd" in result
+        cmd = result["cmd"]
+        assert cmd.startswith("python scripts/run_tests.py")
+        assert "--unit 1" in cmd
+        assert "--sub-stage red_run" in cmd
+        assert "--language python" in cmd
+
+    def test_green_run_action_block_has_cmd_field(self, tmp_path):
+        project_root = self._make_project(tmp_path)
+        state = _make_state(stage="3", sub_stage="green_run", current_unit=1, total_units=2)
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        assert "cmd" in result
+        assert "--sub-stage green_run" in result["cmd"]
+
+    # --- compliance_scan ---
+
+    def test_compliance_scan_action_block_has_cmd_field(self, tmp_path):
+        project_root = self._make_project(tmp_path)
+        state = _make_state(stage="5", sub_stage="compliance_scan", current_unit=None)
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        assert result["action_type"] == "run_command"
+        assert "cmd" in result
+        cmd = result["cmd"]
+        assert cmd.startswith("python scripts/structural_check.py")
+        assert "--project-root ." in cmd
+        assert "--src-dir src" in cmd
+        assert "--tests-dir tests" in cmd
+
+    # --- semantic operator commands keep cmd absent ---
+
+    def test_semantic_unit_completion_omits_cmd_field(self, tmp_path):
+        """unit_completion is a semantic state advance, not a script call."""
+        project_root = self._make_project(tmp_path)
+        state = _make_state(
+            stage="3", sub_stage="unit_completion", current_unit=1, total_units=2
+        )
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        assert result["action_type"] == "run_command"
+        assert result["command"] == "unit_completion"
+        # No cmd field for semantic commands.
+        assert "cmd" not in result
+
+
+# ===========================================================================
 # Bug S3-116: blueprint_author unit heading format enforcement at dispatch
 # ===========================================================================
 

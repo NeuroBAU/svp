@@ -5204,6 +5204,33 @@ For each site, verify the recursion is preceded by a state-advancing operation (
 - **Diagnose-only approach** (no writing-side enforcement, only improved error at extraction) — violation still propagates past Gate 2.1 and Gate 2.2; operator loses Stage 2→3 progress.
 - **Blueprint_checker validation** (LLM-level check at alignment_check) — LLM checks are non-deterministic; the deterministic dispatch layer is the correct home.
 
+### 24.130 run_command Action Blocks Lacked Concrete CLI Strings, Forcing Orchestrator To Guess (Post-delivery — Bug S3-117, NEW IN 2.2)
+
+**Reported externally.** During a real Stage 2 → Stage 3 transition, the orchestrator received an action block like `{"action_type": "run_command", "command": "stub_generation", "post": "...", "reminder": "Generate stub for unit 1."}` and then spent ~15 rounds of grep/read/guess trying to discover: which Python script handled the semantic name `stub_generation`, what CLI arguments it expected, where to find each argument value, whether the script had a `__main__` guard, and where the generated stub would end up on disk.
+
+**Root cause — asymmetric protocol.** Parallel action block types already carried concrete CLIs:
+- `invoke_agent` action blocks had a `prepare` field with the concrete `python scripts/prepare_task.py --agent X --project-root . --output .svp/task_prompt.md [--unit N]` CLI, built by the helper `_agent_prepare_cmd`.
+- `human_gate` and `run_command` action blocks had a `post` field with the concrete `python scripts/update_state.py --command X --project-root .` CLI.
+
+Only `run_command` was missing its concrete **execution** CLI. It had a semantic name (`command`) but no instructions on HOW to run it. The orchestrator had to maintain an implicit mapping from command name to Python script invocation. The mapping wasn't documented anywhere — the orchestration skill (Unit 26) Section 12 had a single-line entry: "`run_command`: Execute the specified command. Record the output/exit code as the status." — with no list of commands, no CLI templates, no mapping table. This asymmetry was the bug.
+
+**Fix (Bug S3-117).** Add a `cmd` field to `run_command` action blocks, carrying the concrete CLI string to execute. The orchestrator runs `cmd` verbatim via its Bash tool; no lookups required. The field is populated by four new private helper functions in Unit 14, each deterministic from `(state, project_root)`:
+
+1. `_cmd_stub_generation` — parses blueprint to find upstream deps, reads profile for language. Builds `python scripts/stub_generator.py --blueprint ... --unit N --output-dir src/unit_N --upstream "..." --language L`.
+2. `_cmd_quality_gate` — reads profile for language. Builds `python scripts/quality_gate.py --target tests/unit_N --gate gate_a|b|c --unit N --language L --project-root .`.
+3. `_cmd_test_execution` — reads profile for language. Builds `python scripts/run_tests.py --unit N --language L --project-root . --sub-stage red_run|green_run|integration`.
+4. `_cmd_compliance_scan` — reads profile for language. Builds `python scripts/structural_check.py --project-root . --src-dir <lang> --tests-dir <lang>`.
+
+Applied to seven routing emitters (stub_generation, quality_gate_a, quality_gate_b, red_run, green_run, integration test_execution, compliance_scan). Four other `run_command` emitters (lessons_learned, debug_commit, unit_completion, stage3_reentry) are semantic operator actions with no script CLI — they retain the old shape (no `cmd` field) and the orchestration skill documents that the orchestrator follows the `reminder` text for those cases.
+
+**Orchestration skill update (Unit 26).** Section 12 "Action Type Handling" entry for `run_command` expanded to explicitly state: "The action block's `cmd` field contains the concrete CLI to execute. The orchestrator runs it verbatim via the Bash tool. ... Prior to S3-117, `run_command` action blocks carried only a semantic `command` name; the orchestrator had to guess the CLI, which caused extensive trial-and-error during Stage 3. The `cmd` field eliminates the guessing."
+
+**Pattern.** Sibling to Bugs S3-111 (generator formula drift), S3-112 (agent discretion on deterministic facts), and S3-116 (deterministic enforcement on both sides). Same root-cause shape: **a deterministic fact was left for someone else to reconstruct.** S3-117 applies the lesson to the orchestrator instead of the LLM agents or the blueprint parsers: *whoever executes a command should not have to guess how to execute it.* The new pattern rule: **"Asymmetric protocols are structural bugs."** Whenever one protocol branch (`invoke_agent` with `prepare`) has more execution detail than a parallel branch (`run_command` with no `cmd`), the less-detailed branch is usually the bug.
+
+**Out of scope (potential follow-up if reproducible): hook script deployment regression.** The same bug report surfaced persistent hook errors (`/bin/sh: .claude/scripts/non_svp_protection.sh: No such file or directory` and similar for `write_authorization.sh`, `stub_sentinel_check.sh`). Bug S3-108 was supposed to deploy these scripts into `.claude/scripts/`, but the reporter's project never got them. Will file as a separate bug if reproducible after S3-117 ships.
+
+**Regression tests**: new `TestRunCommandActionBlockCmdField` class in `tests/unit_14/test_unit_14.py` covering all 7 script-based sites (concrete CLI shape) and 3 semantic operator sites (no `cmd` field). Each script-based test asserts the `cmd` field exists, starts with the right Python script path, and contains the expected CLI arguments for the state context. The semantic-command tests verify the `cmd` field is absent.
+
 ---
 
 ## 25. Test Data

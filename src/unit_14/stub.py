@@ -641,6 +641,7 @@ def _make_action_block(
     action_type: str,
     agent_type: Optional[str] = None,
     command: Optional[str] = None,
+    cmd: Optional[str] = None,  # Bug S3-117: concrete CLI for run_command actions
     gate_id: Optional[str] = None,
     prepare: Optional[str] = None,
     post: Optional[str] = None,
@@ -656,6 +657,8 @@ def _make_action_block(
         block["agent_type"] = agent_type
     if command is not None:
         block["command"] = command
+    if cmd is not None:
+        block["cmd"] = cmd
     if gate_id is not None:
         block["gate_id"] = gate_id
         if action_type == "human_gate" and gate_id in GATE_VOCABULARY:
@@ -678,6 +681,101 @@ def _agent_prepare_cmd(agent_type: str, unit: Optional[int] = None) -> str:
     if unit is not None:
         cmd += f" --unit {unit}"
     return cmd
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-117: concrete CLI builders for run_command action blocks
+# ---------------------------------------------------------------------------
+# Each builder takes (state, project_root) and returns a complete executable
+# string. The orchestrator runs the returned string verbatim via its Bash
+# tool, no lookups required. Script-based run_command emitters use these;
+# semantic operator commands (lessons_learned, debug_commit, unit_completion,
+# stage3_reentry) do not and keep the cmd field absent.
+
+
+def _load_primary_language(project_root: Path) -> str:
+    """Read profile for primary language, falling back to 'python' on any error."""
+    try:
+        from src.unit_3.stub import load_profile
+        profile = load_profile(project_root)
+        return profile.get("language", {}).get("primary", "python")
+    except Exception:
+        return "python"
+
+
+def _cmd_stub_generation(state: "PipelineState", project_root: Path) -> str:
+    """Bug S3-117: build the concrete CLI for Stage 3 stub_generation.
+    Parses the blueprint to find upstream dependencies; reads profile for language."""
+    language = _load_primary_language(project_root)
+    blueprint_dir = project_root / "blueprint"
+    upstream_csv = ""
+    try:
+        from src.unit_8.stub import extract_units
+        units = extract_units(blueprint_dir)
+        unit_map = {u.number: u for u in units}
+        current = unit_map.get(state.current_unit)
+        if current and current.dependencies:
+            upstream_csv = ",".join(str(d) for d in current.dependencies)
+    except Exception:
+        upstream_csv = ""
+    return (
+        f"python scripts/stub_generator.py "
+        f"--blueprint blueprint/blueprint_contracts.md "
+        f"--unit {state.current_unit} "
+        f"--output-dir src/unit_{state.current_unit} "
+        f'--upstream "{upstream_csv}" '
+        f"--language {language}"
+    )
+
+
+def _cmd_quality_gate(
+    state: "PipelineState", project_root: Path, gate_letter: str
+) -> str:
+    """Bug S3-117: build the concrete CLI for run_quality_gate.
+    gate_letter is 'a', 'b', or 'c'."""
+    language = _load_primary_language(project_root)
+    test_dir = "tests/testthat" if language == "r" else "tests"
+    if state.current_unit:
+        target = f"{test_dir}/unit_{state.current_unit}"
+    else:
+        target = test_dir
+    return (
+        f"python scripts/quality_gate.py "
+        f"--target {target} "
+        f"--gate gate_{gate_letter} "
+        f"--unit {state.current_unit or 0} "
+        f"--language {language} "
+        f"--project-root ."
+    )
+
+
+def _cmd_test_execution(
+    state: "PipelineState", project_root: Path, sub_stage: str
+) -> str:
+    """Bug S3-117: build the concrete CLI for run_tests.
+    sub_stage is 'red_run', 'green_run', or 'integration'."""
+    language = _load_primary_language(project_root)
+    unit_arg = state.current_unit if state.current_unit else 0
+    return (
+        f"python scripts/run_tests.py "
+        f"--unit {unit_arg} "
+        f"--language {language} "
+        f"--project-root . "
+        f"--sub-stage {sub_stage}"
+    )
+
+
+def _cmd_compliance_scan(state: "PipelineState", project_root: Path) -> str:
+    """Bug S3-117: build the concrete CLI for compliance_scan."""
+    language = _load_primary_language(project_root)
+    src_dir = "R" if language == "r" else "src"
+    tests_dir = "tests/testthat" if language == "r" else "tests"
+    return (
+        f"python scripts/structural_check.py "
+        f"--project-root . "
+        f"--src-dir {src_dir} "
+        f"--tests-dir {tests_dir}"
+    )
 
 
 def _append_build_log(
@@ -1657,6 +1755,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="run_command",
             command="stub_generation",
+            cmd=_cmd_stub_generation(state, project_root),
             post="python scripts/update_state.py --command stub_generation --project-root .",
             reminder=f"Generate stub for unit {state.current_unit}.",
         )
@@ -1677,6 +1776,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="run_command",
             command="quality_gate",
+            cmd=_cmd_quality_gate(state, project_root, "a"),
             post="python scripts/update_state.py --command quality_gate --project-root .",
             reminder=f"Run quality gate A for unit {state.current_unit}.",
         )
@@ -1685,6 +1785,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="run_command",
             command="test_execution",
+            cmd=_cmd_test_execution(state, project_root, "red_run"),
             post="python scripts/update_state.py --command test_execution --project-root .",
             reminder=f"Red run for unit {state.current_unit}.",
         )
@@ -1735,6 +1836,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="run_command",
             command="quality_gate",
+            cmd=_cmd_quality_gate(state, project_root, "b"),
             post="python scripts/update_state.py --command quality_gate --project-root .",
             reminder=f"Run quality gate B for unit {state.current_unit}.",
         )
@@ -1743,6 +1845,7 @@ def _route_stage_3(
         return _make_action_block(
             action_type="run_command",
             command="test_execution",
+            cmd=_cmd_test_execution(state, project_root, "green_run"),
             post="python scripts/update_state.py --command test_execution --project-root .",
             reminder=f"Green run for unit {state.current_unit}.",
         )
@@ -1877,6 +1980,7 @@ def _route_stage_4(
         return _make_action_block(
             action_type="run_command",
             command="test_execution",
+            cmd=_cmd_test_execution(state, project_root, "integration"),
             post="python scripts/update_state.py --command test_execution --project-root .",
             reminder="Run integration tests.",
         )
@@ -1913,6 +2017,7 @@ def _route_stage_5(
         return _make_action_block(
             action_type="run_command",
             command="compliance_scan",
+            cmd=_cmd_compliance_scan(state, project_root),
             post="python scripts/update_state.py --command compliance_scan --project-root .",
             reminder="Run compliance scan.",
         )

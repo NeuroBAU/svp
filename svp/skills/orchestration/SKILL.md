@@ -283,7 +283,7 @@ The routing script emits action blocks with specific action types. The orchestra
 
 - **`invoke_agent`**: Read the task prompt file and pass its contents verbatim to the specified agent. Wait for the terminal status line.
 - **`human_gate`**: Present the gate prompt to the human. Record the human's response as the status.
-- **`run_command`**: Execute the specified command. Record the output/exit code as the status.
+- **`run_command`**: The action block's `cmd` field contains the concrete CLI to execute. Run it verbatim via the Bash tool. The command's stdout contains the terminal status line (e.g., `TESTS_PASSED`, `COMMAND_SUCCEEDED`, `COMMAND_FAILED`). Write that status to `.svp/last_status.txt`, then run the `post` command (which dispatches state updates), then re-run `routing.py`. **(CHANGED IN 2.2 — Bug S3-117.)** Prior to S3-117, `run_command` action blocks carried only a semantic `command` name; the orchestrator had to discover the CLI by reading source files, which caused extensive trial-and-error during Stage 3. The `cmd` field eliminates the guessing. Some commands (`lessons_learned`, `debug_commit`, `unit_completion`, `stage3_reentry`) are semantic operator actions with no script CLI; they omit the `cmd` field. For these, follow the `reminder` text as a hint for the specific operator action (write a lessons-learned entry, run `git commit` with the debug fix, etc.), then write `COMMAND_SUCCEEDED` to `.svp/last_status.txt` and run `post`.
 - **`advance_stage`**: The routing script has determined a stage transition. Execute the POST command to update state.
 - **`break_glass`**: Enter break-glass mode (see Section 11 above).
 - **`pipeline_complete`**: The pipeline has finished. Present the completion summary to the human.
