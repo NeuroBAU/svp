@@ -1283,8 +1283,8 @@ def run_tests_main(argv: list = None) -> None: ...
 - `gate_6_1a_divergence_warning` + `FIX DIVERGENCE`: re-invoke git repo agent for sync.
 - `gate_6_1a_divergence_warning` + `ABANDON DEBUG`: abandon_debug_session.
 - `gate_6_2_debug_classification` + `FIX UNIT`: set_debug_classification("single_unit"), rollback_to_unit, update_debug_phase("stage3_reentry").
-- `gate_6_2_debug_classification` + `FIX BLUEPRINT`: version_document(prose+contracts), restart_from_stage("2").
-- `gate_6_2_debug_classification` + `FIX SPEC`: version_document(spec), restart_from_stage("1").
+- `gate_6_2_debug_classification` + `FIX BLUEPRINT`: version_document(prose+contracts), abandon_debug_session (when `state.debug_session is not None`), delete `.svp/triage_result.json` (when present), restart_from_stage("2"). **(AMENDED: Bug S3-120 — without abandon+delete, `debug_session.phase=triage` dangles and the routing priority in `route()` re-enters `_route_debug` and re-invokes the triage agent infinitely. Spec authority: §12.18.13 Debug Phase Transition Summary Table.)**
+- `gate_6_2_debug_classification` + `FIX SPEC`: version_document(spec), abandon_debug_session (when `state.debug_session is not None`), delete `.svp/triage_result.json` (when present), restart_from_stage("1"). **(AMENDED: Bug S3-120 — symmetric to FIX BLUEPRINT.)**
 - `gate_6_2_debug_classification` + `FIX IN PLACE`: update_debug_phase("repair").
 - `gate_6_3_repair_exhausted` + `RETRY REPAIR`: reset repair_retry_count, re-invoke repair agent.
 - `gate_6_3_repair_exhausted` + `RECLASSIFY BUG`: if triage_refinement_count < 3: increment triage_refinement_count, reset to triage phase. If >= 3: only RETRY REPAIR and ABANDON DEBUG offered. **(AMENDED: Bug S3-24 -- must increment triage_refinement_count.)**

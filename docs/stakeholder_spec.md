@@ -5307,6 +5307,33 @@ The only pre-existing post-delivery bootstrap was `gate_pass_transition_post_pas
 
 **Out of scope.** The dead `--phase bug_triage` code path in `update_state_main` / `dispatch_agent_status` is not removed — harmless and retained for symmetry with other Group B commands. The user's immediate debrief-plugin unblock (write `TRIAGE_COMPLETE: single_unit` to `last_status.txt` and rerun routing) is a separate one-liner state rescue, not part of this fix.
 
+### 24.133 Gate 6.2 FIX BLUEPRINT / FIX SPEC Leaves debug_session Dangling (Post-delivery — Bug S3-120, NEW IN 2.2)
+
+While running `/svp:bug` against a downstream plugin, the FIX BLUEPRINT branch of `gate_6_2_debug_classification` dispatch called `restart_from_stage(state, "2")` but did not abandon the debug session. State became `stage=2, sub_stage=blueprint_dialog` (correct) while `debug_session.phase` remained `triage`. The routing priority at `routing.py` (top of `route()`: "Debug session routing takes highest priority") sends any non-null `debug_session` to `_route_debug`, which sees `phase=triage` and re-invokes the triage agent, producing an infinite loop. FIX SPEC had the symmetric defect.
+
+**Root cause.** Pattern P7 (Spec Omission in Blueprint). Spec §12.18.13 (Debug Phase Transition Summary Table) explicitly mandates: `Gate 6.2 FIX BLUEPRINT / FIX SPEC: "repair" → session terminated. debug_session: null (via abandon). Delete triage_result.json. All counters reset.` The blueprint contract at `blueprint_contracts.md` (the `dispatch_gate_response` contract list for `gate_6_2_debug_classification`) omitted the `abandon_debug_session` and `triage_result.json` deletion clauses, listing only `version_document` and `restart_from_stage`. The Unit 14 implementation faithfully followed the incomplete blueprint. Same P7 failure class as S3-84 (triage result not loaded into debug session state) and S3-99 (dispatch contract omitted the triage result load).
+
+**Detection.** Orchestrator debrief during a `/svp:bug` session against a downstream plugin. The orchestrator noticed that `_route_debug` would always be re-entered because the FIX BLUEPRINT branch, unlike the adjacent FIX UNIT branch, left `state.debug_session` untouched.
+
+**Fix (Bug S3-120).**
+
+1. Blueprint contract list entries for `gate_6_2_debug_classification` + `FIX BLUEPRINT` and `+ FIX SPEC` amended so each now enumerates, in spec-table order: `version_document(...)`, `abandon_debug_session` (when active), delete `.svp/triage_result.json`, `restart_from_stage(...)`. The blueprint line now matches all four columns of the spec §12.18.13 row instead of only the stage column.
+
+2. `src/unit_14/stub.py` `dispatch_gate_response` for `gate_6_2_debug_classification`:
+   - The FIX BLUEPRINT branch now calls `abandon_debug_session(state)` when `state.debug_session is not None` (falling back to `_copy(state)` when there is no session — same guard pattern as the FIX UNIT and FIX IN PLACE branches), then unlinks `.svp/triage_result.json` when it exists (same pattern used at the existing `stage3_reentry` handler), then calls `restart_from_stage(new, "2")`.
+   - The FIX SPEC branch gets the symmetric treatment with `restart_from_stage(new, "1")`.
+   - No new helpers introduced. `abandon_debug_session` was already imported and already used in four other dispatch branches.
+
+3. Regression tests in new file `tests/regressions/test_bug_s3_120_gate62_fix_blueprint_dangling_debug.py` (10 tests). Coverage:
+   - FIX BLUEPRINT with active session: `debug_session is None`, `debug_history` length increased by 1, stage transitions to 2/blueprint_dialog, `.svp/triage_result.json` deleted.
+   - FIX BLUEPRINT with no active session: still transitions to stage 2 without error (tolerates the missing session).
+   - FIX BLUEPRINT with `triage_result.json` absent on disk: no unlink error.
+   - **Canonical loop guard**: seed a state with `debug_session.phase=triage`, dispatch FIX BLUEPRINT, save to disk, re-enter `route(project_root)` — asserts that the returned action is NOT `bug_triage_agent` invocation. This is the test that would have caught the original bug before it shipped.
+   - Symmetric FIX SPEC cases (abandon, stage 1, delete).
+   - Over-correction guards: FIX UNIT preserves `debug_session` (regression guard against accidentally broadening the abandon), and FIX IN PLACE preserves `debug_session`.
+
+**Follow-up not taken in S3-120 (deferred).** Consider a structural blueprint-checker test that, for every row of the spec §12.18.13 Debug Phase Transition Summary Table, asserts the corresponding Unit 14 `dispatch_gate_response` branch calls every function listed in that row's Action and Artifact columns. Would prevent a whole P7 subclass. Not added here because it touches blueprint-checker invariants outside the narrow bug surface.
+
 ---
 
 ## 25. Test Data

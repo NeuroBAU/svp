@@ -2403,9 +2403,29 @@ def dispatch_gate_response(
             else:
                 new = _copy(state)
         elif response == "FIX BLUEPRINT":
-            new = restart_from_stage(state, "2")
+            # Bug S3-120: abandon the debug session and delete triage_result.json
+            # before restarting from stage 2. Without these, debug_session.phase
+            # stays "triage" and the routing priority at the top of route() sends
+            # the state to _route_debug, which re-invokes the triage agent forever.
+            # Spec authority: §12.18.13 Debug Phase Transition Summary Table.
+            if state.debug_session is not None:
+                new = abandon_debug_session(state)
+            else:
+                new = _copy(state)
+            triage_path = project_root / ".svp" / "triage_result.json"
+            if triage_path.exists():
+                triage_path.unlink()
+            new = restart_from_stage(new, "2")
         elif response == "FIX SPEC":
-            new = restart_from_stage(state, "1")
+            # Bug S3-120: symmetric to FIX BLUEPRINT.
+            if state.debug_session is not None:
+                new = abandon_debug_session(state)
+            else:
+                new = _copy(state)
+            triage_path = project_root / ".svp" / "triage_result.json"
+            if triage_path.exists():
+                triage_path.unlink()
+            new = restart_from_stage(new, "1")
         else:  # FIX IN PLACE
             if state.debug_session is not None:
                 new = update_debug_phase(state, "repair")
