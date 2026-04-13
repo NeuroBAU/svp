@@ -3071,6 +3071,24 @@ def dispatch_command_status(
             raise ValueError(f"Unknown status for {command_type}: {status_line}")
         return new
 
+    # svp_bug_entry — Bug S3-119: /svp:bug must bootstrap debug_session
+    # when called at pipeline_complete. Spec §12.18.13 mandates the
+    # null → "triage" transition on /svp:bug entry; this is the single
+    # code path that implements it, mirroring oracle_start below.
+    if command_type == "svp_bug_entry":
+        if getattr(state, "oracle_session_active", False):
+            raise ValueError(
+                "Cannot enter debug session: /svp:oracle session is active. "
+                "The human is blocked from /svp:bug during active oracle sessions "
+                "(spec §35.3). The oracle enters debug sessions internally via Gate 7.B."
+            )
+        if state.debug_session is not None:
+            raise ValueError(
+                "Cannot enter debug session: a debug session is already active. "
+                "Only one debug session may be active at a time (spec §12.18.1)."
+            )
+        return enter_debug_session(state, 0)
+
     # oracle_start
     if command_type == "oracle_start":
         # The test_project path is passed via the status_line (written by the command skill).

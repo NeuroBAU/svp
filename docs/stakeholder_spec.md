@@ -5272,6 +5272,41 @@ Applied to seven routing emitters (stub_generation, quality_gate_a, quality_gate
 
 **Regression tests**: 7 new tests — 2 in `tests/unit_1/test_unit_1.py::TestDeriveEnvName` covering `Path('.')` and `Path('./')` at runtime with `monkeypatch.chdir`, and 5 in `tests/regressions/test_bug_s3_118_project_root_resolve.py` covering the Unit 1 source lock, Unit 13/15 source locks, the runtime behavior of `derive_env_name` under a relative dot path, and the AST convention lock across every `src/unit_*/stub.py`.
 
+### 24.132 `/svp:bug` Cannot Bootstrap Debug Session From Pipeline Complete (Post-delivery — Bug S3-119, NEW IN 2.2)
+
+**Reported externally.** A user invoked `/svp:bug` while building a Claude Code plugin (`debrief`) to report a blueprint regression (nine SKILL.md files and five agent .md files produced without YAML frontmatter). The triage agent ran, produced a correct diagnosis, and wrote `.svp/triage_result.json`. Routing then refused to advance: the `/svp:bug` action cycle had not created a `debug_session`, so `_route_debug` was unreachable and `dispatch_gate_response("gate_6_0_debug_permission", "AUTHORIZE DEBUG")` was a no-op. The user had no way to reach Gate 6.2 short of manual state mutation.
+
+**Root cause.** Spec §12.18.13 (Debug Phase Transition Summary Table) mandates `/svp:bug entry → triage` as `null → "triage"` with "Create `debug_session` object, set `authorized: false`". No code path implemented this. Specifically:
+
+1. `src/unit_25/stub.py` `_SVP_BUG_DEFINITION` documented a 5-step Group B action cycle (`prepare_task → agent → status → update_state --phase bug_triage → routing`) — none of which create `debug_session`.
+2. `src/unit_13/stub.py` `_prepare_bug_triage` is read-only (builds task prompt).
+3. `src/unit_14/stub.py` `update_state_main` with `--phase bug_triage` and no `--status` falls through to `new_state = state` (no dispatch).
+4. `src/unit_14/stub.py` `route()` calls `_route_debug` only when `state.debug_session is not None` — otherwise falls through to Stage 5 / `pipeline_complete`, and `last_status.txt = "TRIAGE_COMPLETE: ..."` is never consumed.
+5. `src/unit_14/stub.py` `dispatch_gate_response("gate_6_0_debug_permission", "AUTHORIZE DEBUG")` is guarded by `state.debug_session is not None` — no-op when null.
+
+The only pre-existing post-delivery bootstrap was `gate_pass_transition_post_pass2 + FIX BUGS` (one-shot, presented when Stage 5 first reaches `sub_stage=pass_transition`). After that gate has been consumed — e.g., the user selected RUN ORACLE, completed one debug session, or came back later — there was no re-entry path.
+
+**Pattern.** P10 (Error-Path Contract Omission) — sibling to Bugs S3-84 (triage result not loaded into debug session) and S3-86 (PHASE_TO_AGENT mismatch). The spec mandated a state transition that no code implemented. Detection: external user report on a non-SVP project build.
+
+**Fix (Bug S3-119) — new `svp_bug_entry` command mirroring `oracle_start`.**
+
+1. **`src/unit_14/stub.py` `dispatch_command_status`.** New branch next to `oracle_start`:
+   - `command_type == "svp_bug_entry"` → `enter_debug_session(state, 0)` (bug_number 0 is the placeholder convention; the triage agent assigns the real number from `len(debug_history) + 1`, matching existing callers at the gate_3_completion_failure and pass_transition entry points).
+   - Guard 1: raise `ValueError` if `state.oracle_session_active` is True — spec §35.3 blocks `/svp:bug` during active oracle sessions (oracle enters debug internally via Gate 7.B).
+   - Guard 2: raise `ValueError` if `state.debug_session is not None` — spec §12.18.1 "one debug session at a time".
+
+2. **`src/unit_25/stub.py` `_SVP_BUG_DEFINITION`.** Rewritten as a thin state-transition trigger mirroring `_SVP_ORACLE_DEFINITION`:
+   - Step 1: `python scripts/update_state.py --command svp_bug_entry --project-root .`
+   - Step 2: `python scripts/routing.py --project-root .`
+   - Step 3: follow the six-step action cycle from there.
+   - This satisfies the Unit 25 invariant (Bug S3-79) that Group B slash command skill definitions must be thin state-transition triggers, not content-building scripts.
+
+3. Routing once `debug_session` is set: existing `_route_debug` emits Gate 6.0, `dispatch_gate_response` authorizes, routing invokes the bug_triage_agent via `_agent_prepare_cmd("bug_triage_agent")`, the agent writes `.svp/triage_result.json` + `TRIAGE_COMPLETE: ...` to `last_status.txt`, and `_route_debug`'s inline handling at routing.py:1201-1215 (Bug S3-84 fix) loads the triage result and advances to Gate 6.2. No changes needed to `_route_debug`.
+
+**Regression tests**: 5 new tests in `tests/regressions/test_bug_s3_119_svp_bug_bootstrap.py` — (A) `svp_bug_entry` creates `debug_session` with `authorized=False, phase="triage"` from null; (B) raises when `debug_session` already active; (C) raises when `oracle_session_active` True; (D) end-to-end: `dispatch_command_status("svp_bug_entry") → save → route()` at `stage=5/repo_complete/pass_=2` yields `human_gate` with `gate_id="gate_6_0_debug_permission"`; (E) `_SVP_BUG_DEFINITION` contains `svp_bug_entry` and does not contain `prepare_task.py` (locks the thin-trigger pattern).
+
+**Out of scope.** The dead `--phase bug_triage` code path in `update_state_main` / `dispatch_agent_status` is not removed — harmless and retained for symmetry with other Group B commands. The user's immediate debrief-plugin unblock (write `TRIAGE_COMPLETE: single_unit` to `last_status.txt` and rerun routing) is a separate one-liner state rescue, not part of this fix.
+
 ---
 
 ## 25. Test Data

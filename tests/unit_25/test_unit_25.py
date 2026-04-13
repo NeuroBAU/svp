@@ -18,9 +18,14 @@ Synthetic data assumptions:
   oracle session state and defers to the routing script for all content
   construction, including test project selection. It does NOT follow the
   standard 5-step cycle.
+  Exception: svp_bug is a thin redirect (Bug S3-119, extending S3-79) —
+  it enters the debug session state via the svp_bug_entry command and
+  defers to the routing script. Like svp_oracle, it does NOT follow the
+  standard 5-step cycle.
 - Per-command --phase values for standard Group B: help -> "help",
-  hint -> "hint", ref -> "reference_indexing", redo -> "redo",
-  bug -> "bug_triage". Oracle uses --command oracle_start instead.
+  hint -> "hint", ref -> "reference_indexing", redo -> "redo". Bug and
+  oracle are thin redirects and use --command entries instead of --phase:
+  bug uses --command svp_bug_entry, oracle uses --command oracle_start.
 - /svp:oracle command is a thin redirect that enters oracle session state
   and defers to the routing script. It must NOT contain directory-scanning
   instructions (Bug S3-79 / P21 / P23).
@@ -72,14 +77,15 @@ GROUP_B_COMMANDS = [
 ]
 
 # Bug S3-79: svp_oracle is a thin redirect, not a standard 5-step Group B command.
-GROUP_B_STANDARD = [cmd for cmd in GROUP_B_COMMANDS if cmd != "svp_oracle"]
+# Bug S3-119: svp_bug is also a thin redirect (extends S3-79 to cover bug entry).
+GROUP_B_THIN_REDIRECTS = ["svp_bug", "svp_oracle"]
+GROUP_B_STANDARD = [cmd for cmd in GROUP_B_COMMANDS if cmd not in GROUP_B_THIN_REDIRECTS]
 
 PHASE_VALUES = {
     "svp_help": "help",
     "svp_hint": "hint",
     "svp_ref": "reference_indexing",
     "svp_redo": "redo",
-    "svp_bug": "bug_triage",
 }
 
 
@@ -378,12 +384,19 @@ class TestGroupBActionCyclePrepareTask:
     def test_redo_references_prepare_task(self):
         assert cmd_contains("svp_redo", "prepare_task", case_sensitive=False)
 
-    def test_bug_references_prepare_task(self):
-        assert cmd_contains("svp_bug", "prepare_task", case_sensitive=False)
+    def test_bug_does_not_reference_prepare_task(self):
+        """Bug S3-119: svp_bug is a thin redirect like svp_oracle. The thin
+        trigger must not invoke prepare_task.py — that machinery lives in
+        _route_debug after Gate 6.0 authorization."""
+        assert not cmd_contains("svp_bug", "prepare_task", case_sensitive=False)
 
     def test_oracle_references_routing_script(self):
         """Bug S3-79: oracle is a thin redirect to the routing script."""
         assert cmd_contains("svp_oracle", "routing.py", case_sensitive=False)
+
+    def test_bug_references_routing_script(self):
+        """Bug S3-119: svp_bug is also a thin redirect to the routing script."""
+        assert cmd_contains("svp_bug", "routing.py", case_sensitive=False)
 
 
 class TestGroupBActionCycleSpawnAgent:
@@ -423,8 +436,10 @@ class TestGroupBActionCycleLastStatus:
     def test_redo_references_last_status(self):
         assert cmd_contains("svp_redo", "last_status", case_sensitive=False)
 
-    def test_bug_references_last_status(self):
-        assert cmd_contains("svp_bug", "last_status", case_sensitive=False)
+    def test_bug_does_not_reference_last_status(self):
+        """Bug S3-119: svp_bug thin trigger does not write a sentinel to
+        last_status.txt. The svp_bug_entry command dispatch is state-only."""
+        assert not cmd_contains("svp_bug", "last_status", case_sensitive=False)
 
     def test_oracle_references_last_status(self):
         assert cmd_contains("svp_oracle", "last_status", case_sensitive=False)
@@ -553,20 +568,26 @@ class TestGroupBPhaseValueRedo:
 
 
 class TestGroupBPhaseValueBug:
-    """svp_bug must use --phase bug_triage."""
+    """svp_bug uses --command svp_bug_entry (Bug S3-119 — thin redirect).
 
-    def test_bug_phase_value_present(self):
-        content = COMMAND_DEFINITIONS["svp_bug"]
-        assert "bug_triage" in content or "bug triage" in content.lower()
+    Prior to S3-119, svp_bug was modeled as a standard Group B command
+    using --phase bug_triage. That pattern did not create the debug_session
+    object, so /svp:bug could not bootstrap from pipeline_complete. The
+    fix replaces the 5-step cycle with a thin state-transition trigger
+    using --command svp_bug_entry (mirroring /svp:oracle's Bug S3-79 fix)."""
 
-    def test_bug_phase_argument_in_update_state(self):
+    def test_bug_uses_command_svp_bug_entry(self):
+        """Bug S3-119: bug uses --command svp_bug_entry instead of --phase bug_triage."""
         content = COMMAND_DEFINITIONS["svp_bug"]
-        has_phase_bug = (
-            "--phase bug_triage" in content
-            or "--phase=bug_triage" in content
-            or "phase bug_triage" in content.lower()
-        )
-        assert has_phase_bug
+        assert "--command svp_bug_entry" in content or "svp_bug_entry" in content
+
+    def test_bug_does_not_use_phase_argument(self):
+        """Bug S3-119: the thin trigger does not dispatch via --phase.
+        --phase bug_triage would route to dispatch_agent_status, which is
+        the post-agent dispatch path; the entry path is --command instead."""
+        content = COMMAND_DEFINITIONS["svp_bug"]
+        assert "--phase bug_triage" not in content
+        assert "--phase=bug_triage" not in content
 
 
 class TestGroupBPhaseValueOracle:
@@ -899,10 +920,22 @@ class TestGroupAGroupBDistinction:
             )
 
     def test_group_b_standard_commands_have_prepare_task(self):
-        """Standard Group B commands must reference prepare_task (oracle excluded per S3-79)."""
+        """Standard Group B commands must reference prepare_task.
+
+        Thin redirects (svp_bug per S3-119, svp_oracle per S3-79) are
+        excluded — they dispatch agents via routing, not directly."""
         for cmd in GROUP_B_STANDARD:
             assert cmd_contains(cmd, "prepare_task", case_sensitive=False), (
                 f"Group B command {cmd!r} missing prepare_task reference"
+            )
+
+    def test_group_b_thin_redirects_lack_prepare_task(self):
+        """Thin-redirect Group B commands (svp_bug, svp_oracle) must NOT
+        reference prepare_task — that machinery lives in _route_debug /
+        _route_oracle after state entry."""
+        for cmd in GROUP_B_THIN_REDIRECTS:
+            assert not cmd_contains(cmd, "prepare_task", case_sensitive=False), (
+                f"Thin-redirect command {cmd!r} unexpectedly references prepare_task"
             )
 
     def test_group_b_commands_have_update_state(self):
@@ -944,9 +977,12 @@ class TestPhaseValueCorrectness:
         content = COMMAND_DEFINITIONS["svp_redo"]
         assert "redo" in content.lower()
 
-    def test_bug_has_correct_phase_bug_triage(self):
+    def test_bug_has_correct_entry_command(self):
+        """Bug S3-119: svp_bug is a thin redirect using --command svp_bug_entry.
+        The previous contract was --phase bug_triage; see TestGroupBPhaseValueBug
+        for the bootstrap-path rationale."""
         content = COMMAND_DEFINITIONS["svp_bug"]
-        assert "bug_triage" in content
+        assert "svp_bug_entry" in content
 
     def test_oracle_has_correct_phase(self):
         content = COMMAND_DEFINITIONS["svp_oracle"]
@@ -1038,9 +1074,14 @@ class TestGroupBFiveStepCycleCompleteness:
         """Step 2: spawn agent."""
         assert cmd_contains(cmd_name, "agent", case_sensitive=False)
 
-    @pytest.mark.parametrize("cmd_name", GROUP_B_COMMANDS)
+    @pytest.mark.parametrize("cmd_name", GROUP_B_STANDARD)
     def test_step_3_write_last_status(self, cmd_name):
-        """Step 3: write terminal status to last_status.txt."""
+        """Step 3: write terminal status to last_status.txt.
+
+        Thin redirects (svp_bug per S3-119, svp_oracle per S3-79 —
+        though svp_oracle still writes ORACLE_REQUESTED) do not
+        universally participate in this step. Restrict to the
+        standard 5-step commands."""
         assert cmd_contains(cmd_name, "last_status", case_sensitive=False)
 
     @pytest.mark.parametrize("cmd_name", GROUP_B_COMMANDS)

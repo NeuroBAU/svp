@@ -253,26 +253,26 @@ The redo agent classifies the request into one of five categories:
 _SVP_BUG_DEFINITION: str = """\
 # /svp:bug
 
-Report a post-delivery bug or abandon a fix attempt.
+Report a post-delivery bug and enter a Stage 6 debug session.
 
 ## Action Cycle
 
-1. Run `prepare_task.py --agent bug_triage --project-root .` to assemble the task prompt.
-2. Spawn the bug triage agent with the assembled task prompt.
-3. Write the agent's terminal status line to `.svp/last_status.txt`.
-4. Run `update_state.py --phase bug_triage` to update pipeline state.
-5. Re-run the routing script (`python scripts/routing.py --project-root .`).
-
-## Phase Value
-
-`--phase bug_triage`
+1. Run `python scripts/update_state.py --command svp_bug_entry --project-root .` \
+to create the debug session (transitions `debug_session: null → \
+{phase: "triage", authorized: false}`).
+2. Run `python scripts/routing.py --project-root .` to receive the next action \
+block (Gate 6.0 debug permission).
+3. Follow the six-step action cycle from there (the routing script handles debug \
+authorization, triage agent invocation, classification gates, and all subsequent \
+Stage 6 phases).
 
 ## Notes
 
-- This is a Group B command: it follows the complete action cycle above.
 - Available after Stage 5 completion.
-- During an active `/svp:oracle` session, this command is blocked for the \
-human (the oracle agent can call it internally).
+- During an active `/svp:oracle` session, this command is blocked for the human \
+(the oracle agent enters debug sessions internally via Gate 7.B).
+- Only one debug session may be active at a time. If a debug session is already \
+active, `svp_bug_entry` fails with an explanatory error.
 """
 
 _SVP_ORACLE_DEFINITION: str = """\

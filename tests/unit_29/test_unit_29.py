@@ -742,8 +742,26 @@ class TestMain:
             pass
         mock_preflight.assert_called()
 
-    def test_main_accepts_none_argv(self):
-        """main(None) should use sys.argv -- verify it doesn't crash on call signature."""
+    @patch("svp_launcher.launch_session", return_value=0)
+    @patch("svp_launcher.preflight_check", return_value=[])
+    def test_main_accepts_none_argv(self, mock_preflight, mock_launch):
+        """main(None) should use sys.argv -- verify it doesn't crash on call signature.
+
+        Bug S3-119 discovery: prior to this fix, this test did not mock
+        launch_session or preflight_check. With an empty argv, parse_args
+        defaults command to 'resume', which calls
+        launch_session(Path.cwd(), plugin_path=...) — which spawns a real
+        `claude --dangerously-skip-permissions run the routing script`
+        subprocess. In directories with an active .svp/pipeline_state.json
+        (e.g. the workspace), the spawned claude session blocked
+        indefinitely waiting for the routing loop to advance, hanging the
+        entire test run. In directories without pipeline state (e.g. the
+        delivered repo), claude errored out quickly so the hang never
+        showed up in the repo-side sweep — a cross-directory asymmetry
+        that hid the bug. Mocking both callables makes the test
+        cwd-independent, which is the intended contract: it verifies
+        argv=None handling, nothing else.
+        """
         with patch("sys.argv", ["svp"]):
             try:
                 main(None)
