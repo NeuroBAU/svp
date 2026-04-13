@@ -1695,6 +1695,115 @@ class TestDispatchAgentStatus:
 
 
 # ===========================================================================
+# Bug S3-114: Stage 2 alignment_check routing self-heal
+# ===========================================================================
+
+
+class TestRouteAlignmentCheckSelfHeal:
+    """Bug S3-114: routing's _route_stage_2 sub == 'alignment_check' branch
+    must self-heal when last_status starts with ALIGNMENT_FAILED and dispatch
+    was skipped. Before S3-114 the branch recursed into route() without
+    advancing state, causing infinite recursion + stack overflow. The fix
+    mirrors the dispatch state transition inline (increment iterations,
+    advance sub_stage, save_state) before recursing."""
+
+    def test_alignment_failed_blueprint_self_heals_when_dispatch_skipped(self, tmp_path):
+        """ALIGNMENT_FAILED: blueprint at iterations=0 → sub_stage advances
+        to blueprint_dialog, iterations increments to 1, route returns a
+        valid action block (not an infinite recursion)."""
+        state = _make_state(
+            stage="2", sub_stage="alignment_check", alignment_iterations=0
+        )
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "ALIGNMENT_FAILED: blueprint")
+        result = route(tmp_path)
+        assert result["action_type"] == "invoke_agent"
+        assert result["agent_type"] == "blueprint_author"
+        # Re-read saved state: sub_stage advanced, iterations incremented.
+        from pipeline_state import load_state
+        new_state = load_state(tmp_path)
+        assert new_state.sub_stage == "blueprint_dialog"
+        assert new_state.alignment_iterations == 1
+
+    def test_alignment_failed_spec_self_heals_when_dispatch_skipped(self, tmp_path):
+        """ALIGNMENT_FAILED: spec → sub_stage advances to
+        targeted_spec_revision, iterations increments, route returns."""
+        state = _make_state(
+            stage="2", sub_stage="alignment_check", alignment_iterations=0
+        )
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "ALIGNMENT_FAILED: spec")
+        result = route(tmp_path)
+        assert result["action_type"] == "invoke_agent"
+        from pipeline_state import load_state
+        new_state = load_state(tmp_path)
+        assert new_state.sub_stage == "targeted_spec_revision"
+        assert new_state.alignment_iterations == 1
+
+    def test_alignment_failed_at_iteration_limit_presents_gate_2_3(self, tmp_path):
+        """When alignment_iterations >= iteration_limit, route presents
+        gate_2_3 WITHOUT entering the self-heal branch. No double-increment."""
+        state = _make_state(
+            stage="2", sub_stage="alignment_check", alignment_iterations=3
+        )
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "ALIGNMENT_FAILED: blueprint")
+        result = route(tmp_path)
+        assert result["action_type"] == "human_gate"
+        assert result["gate_id"] == "gate_2_3_alignment_exhausted"
+        # State was NOT modified (no self-heal, no advance).
+        from pipeline_state import load_state
+        new_state = load_state(tmp_path)
+        assert new_state.sub_stage == "alignment_check"
+        assert new_state.alignment_iterations == 3
+
+    def test_dispatch_ran_normally_does_not_enter_self_heal_branch(self, tmp_path):
+        """Simulate the dispatch-ran-normally case: sub_stage is already
+        blueprint_dialog with iterations=1. Route should hit the
+        blueprint_dialog branch, NOT alignment_check. Iterations must stay
+        at 1 (no double-increment from a stale last_status.txt)."""
+        state = _make_state(
+            stage="2", sub_stage="blueprint_dialog", alignment_iterations=1
+        )
+        _write_state_file(tmp_path, state)
+        # Stale last_status from before dispatch ran — but we're not in
+        # alignment_check anymore, so it should not trigger anything.
+        _write_last_status(tmp_path, "ALIGNMENT_FAILED: blueprint")
+        result = route(tmp_path)
+        # blueprint_dialog default: invoke blueprint_author.
+        assert result["action_type"] == "invoke_agent"
+        assert result["agent_type"] == "blueprint_author"
+        # iterations unchanged.
+        from pipeline_state import load_state
+        new_state = load_state(tmp_path)
+        assert new_state.alignment_iterations == 1
+        assert new_state.sub_stage == "blueprint_dialog"
+
+    def test_alignment_failed_recursion_terminates(self, tmp_path):
+        """Bounded-recursion regression test: the fix must make route()
+        return within a reasonable recursion budget (not infinite)."""
+        state = _make_state(
+            stage="2", sub_stage="alignment_check", alignment_iterations=0
+        )
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "ALIGNMENT_FAILED: blueprint")
+        # Cap recursion at 100 frames. Without the S3-114 fix, this would
+        # raise RecursionError. With the fix, route() returns in constant
+        # depth (one self-heal + one recursive route() that hits a
+        # non-recursive branch).
+        import sys as _sys
+        old_limit = _sys.getrecursionlimit()
+        try:
+            _sys.setrecursionlimit(100)
+            result = route(tmp_path)
+        finally:
+            _sys.setrecursionlimit(old_limit)
+        assert result["action_type"] in {
+            "invoke_agent", "human_gate", "run_command", "pipeline_held"
+        }
+
+
+# ===========================================================================
 # Bug S3-112: git_repo_agent canonical path enforcement
 # ===========================================================================
 

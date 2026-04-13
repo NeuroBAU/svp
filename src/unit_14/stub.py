@@ -1544,6 +1544,20 @@ def _route_stage_2(
                         "--project-root ."
                     ),
                 )
+            # Bug S3-114: routing self-heal. If we get here with sub_stage
+            # still alignment_check, dispatch_agent_status was skipped
+            # (e.g. a direct write to last_status.txt bypassed the
+            # canonical update_state.py call). Mirror the dispatch state
+            # transition before recursing so route() reads a different
+            # sub_stage on the next pass. Without this advance+save step,
+            # the recursive route() call re-reads the same state and
+            # re-enters this branch — infinite recursion.
+            state = increment_alignment_iteration(state)
+            if last_status == "ALIGNMENT_FAILED: spec":
+                state = advance_sub_stage(state, "targeted_spec_revision")
+            else:
+                state = advance_sub_stage(state, "blueprint_dialog")
+            save_state(project_root, state)
             return route(project_root)
         if last_status == "REVIEW_COMPLETE":
             return _make_action_block(

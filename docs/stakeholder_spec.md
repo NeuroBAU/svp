@@ -5113,6 +5113,32 @@ Layer 3 guarantees the shell; Layer 4 guarantees the filling. Neither replaces t
 - Conventional commit format verification — out of scope.
 - Source layout parity (profile's `source_layout` matches delivered structure) — the assembler already enforces this at write time.
 
+### 24.127 Stage 2 alignment_check Routing Infinite Recursion (Post-delivery — Bug S3-114, NEW IN 2.2)
+
+**Reported externally** by an operator running a real SVP project (`debrief1.0`) through Stage 2. The blueprint checker emitted `ALIGNMENT_FAILED: blueprint`. The operator attempted a workaround by writing the status directly to `.svp/last_status.txt` and re-invoking `routing.py`, bypassing `update_state.py`. Routing hit **infinite recursion** and crashed with a stack overflow.
+
+**Symptom:** `routing.route()` recursed forever through the `alignment_check` sub-stage branch when `last_status.startswith("ALIGNMENT_FAILED")` AND `alignment_iterations < iteration_limit`. The branch at `src/unit_14/stub.py:1547` called `route(project_root)` without first advancing state on disk; the recursive call re-read the same state, entered the same branch, and recursed again — ad infinitum.
+
+**Root cause:** `_route_stage_2` handling of `alignment_check + ALIGNMENT_FAILED + iterations<limit` was structurally broken. The parallel `ALIGNMENT_CONFIRMED` branch (line 1531-1534) correctly advances sub_stage via `advance_sub_stage → save_state → route(project_root)`. The `ALIGNMENT_FAILED` branch skipped the state-advance step and jumped straight to the recursive `route()` call. When the next `route()` invocation read the unchanged state, it entered the same branch and recursed again.
+
+When dispatch runs normally (`dispatch_agent_status` for `blueprint_checker + ALIGNMENT_FAILED: *` at lines 2500-2511), it advances sub_stage to `"blueprint_dialog"` (or `"targeted_spec_revision"` for spec failures). The next `route()` call then hits the `sub == "blueprint_dialog"` branch (line 1492), NOT the `alignment_check` branch. So routing's broken branch is only reachable when dispatch was SKIPPED — which is what happened in the reported case (direct `last_status.txt` write bypassed dispatch).
+
+**Fix (Bug S3-114):** Make routing self-healing for this case. The `alignment_check + ALIGNMENT_FAILED + iterations<limit` branch now mirrors dispatch's state transition:
+1. `state = increment_alignment_iteration(state)`
+2. If `last_status == "ALIGNMENT_FAILED: spec"`: `state = advance_sub_stage(state, "targeted_spec_revision")`. Else: `state = advance_sub_stage(state, "blueprint_dialog")`.
+3. `save_state(project_root, state)`
+4. `return route(project_root)`
+
+The self-heal is guaranteed safe because the post-advance state takes routing to a different branch (`blueprint_dialog` or `targeted_spec_revision`), so the recursion terminates. And it does not double-count iterations: dispatch's successful path advances sub_stage, so routing never enters the broken branch in that scenario; dispatch's iteration-limit path returns with iterations already incremented AND sub_stage still `alignment_check`, which routing catches via the `if state.alignment_iterations >= iteration_limit` check BEFORE the self-heal runs.
+
+**Pattern:** P-NEW — **"If you `return route(project_root)`, the state on disk MUST differ from what the current `route()` call read."** Every recursive `route()` call in routing must be preceded by a state-advancing operation and a `save_state`. Otherwise the recursive call re-reads the same state and re-enters the same branch, recursing forever. The `ALIGNMENT_CONFIRMED` branch at line 1531-1534 is the correct pattern; the `ALIGNMENT_FAILED` branch was the regression.
+
+**Also defense-in-depth:** Routing is the "last line of defense" against skipped dispatch. Even though the canonical flow is dispatch → routing, routing should self-heal (mirror dispatch's state transitions) rather than rely on dispatch having been called correctly. The direct-write-to-`last_status.txt` pattern is an operator anti-pattern but should not cause infinite recursion.
+
+**Operator errors also surfaced (not source-code bugs):** During the operator's manual workaround, three additional errors appeared — an `ImportError` for a function that lives in Unit 6 (not Unit 5) that the operator imported from the wrong module, a `TypeError` from passing `project_root` as a string instead of a `Path`, and a `TransitionError` from an invalid sub-stage name `'blueprint_revision'` (the valid name is `"blueprint_dialog"`, and `advance_sub_stage` correctly rejected the typo). All three are legitimate guardrails catching operator mistakes. None are source-code bugs.
+
+**Regression test:** A new `TestRouteAlignmentCheckSelfHeal` class in `tests/unit_14/test_unit_14.py` with five tests covering: blueprint failure self-heal, spec failure self-heal, iteration-limit gate presentation (no double-count), dispatch-ran-normally no-op at the self-heal branch, and an explicit bounded-recursion test using `sys.setrecursionlimit(100)` that asserts the route() call terminates within the recursion budget.
+
 ---
 
 ## 25. Test Data
