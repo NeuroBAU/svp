@@ -5071,9 +5071,47 @@ Specifically:
 
 **Pattern:** P4 extension — **"Agent Discretion on Deterministic Facts Is a Liability."** New sub-pattern within Config-Code Divergence (P4 family — S3-104/105/106/107/111 are siblings). Previous instances were hardcoded paths diverging from canonical config; this instance is an *absence* of canonical code entirely, leaving the LLM free to improvise. Prevention rule: any fact that is deterministically computable from pipeline inputs (paths, names, hashes, derived schemas) MUST be computed by pipeline code and NEVER by the LLM. If the LLM can see the fact, inject it into the task prompt as a REQUIRED constraint. If the pipeline will consume the fact downstream, compute AND validate it in the POST dispatch step.
 
-**Also rejected (reporter's suggestions 4 and 5):** Suggestion 4 (rename/relocate the assembler functions) was already done by Bug S3-110 earlier this session — `scripts/adapt_regression_tests.py` was deleted, assemblers now live in `src/unit_23/stub.py` → `scripts/generate_assembly_map.py`. Suggestion 5 (add a compliance_scan check) is redundant with Layer 3 dispatch validation, which catches the same issue earlier and routes to an error rather than silently advancing.
+**Also rejected (reporter's suggestions 4 and 5):** Suggestion 4 (rename/relocate the assembler functions) was already done by Bug S3-110 earlier this session — `scripts/adapt_regression_tests.py` was deleted, assemblers now live in `src/unit_23/stub.py` → `scripts/generate_assembly_map.py`. Suggestion 5 (add a compliance_scan check) was initially rejected as redundant with Layer 3 dispatch validation for the EXISTENCE check, but is the right place for a CONTENT check — see Bug S3-113 (Section 24.126) below, which revisited and adopted suggestion 5 for content-level validation.
 
 **Regression test invariant:** A new `TestDeliveredRepoPathInvariant` class in `tests/regressions/test_plugin_completeness.py` loads the committed `.svp/pipeline_state.json` and asserts that `delivered_repo_path` is either `None` or an absolute existing path matching the sibling convention.
+
+### 24.126 Delivered Repo Content Validation Added to compliance_scan (Post-delivery — Bug S3-113, NEW IN 2.2)
+
+**Follow-up to Bug S3-112.** S3-112 closed the agent-discretion gap at the PATH level: after `REPO_ASSEMBLY_COMPLETE`, `dispatch_agent_status` deterministically computes, validates, and sets `state.delivered_repo_path` to an absolute sibling path that exists on disk. But existence ≠ correctness. An empty directory passes S3-112's validation. A directory with stale files from a previous run passes. A Python project missing `pyproject.toml` passes. A project whose delivered files do not match the assembly map passes. The pipeline reports `pipeline_complete` and the human believes delivery succeeded, but downstream tooling (install, oracle, debug) breaks on content issues that only surface much later.
+
+The original S3-112 bug report included suggestion 5: "add a compliance_scan check that verifies the delivered repo lives at the expected sibling path." That suggestion was rejected during S3-112 as redundant with Layer 3 (both check existence). Bug S3-113 revisits suggestion 5 and adopts it for a DIFFERENT purpose: not existence (which Layer 3 already handles), but content. The compliance_scan command is already the "last gate before pipeline_complete" — the exact right place to validate that the delivered artifact is not just present but correct.
+
+**Fix (Bug S3-113):** Add a new function `validate_delivered_repo_contents(project_root: Path) -> List[Dict[str, Any]]` in Unit 28 (`src/unit_28/stub.py`). Wire it into `compliance_scan_main` so its findings are merged with the existing `_python_compliance_scan` / `_r_compliance_scan` output. The function runs three checks, each targeting a specific failure mode that S3-112's existence check does not catch:
+
+1. **Required root-level delivery files** are present for the language archetype. For Python: `pyproject.toml`, `README.md`, `CHANGELOG.md`, `LICENSE`, `.gitignore`, `environment.yml`. For R: `DESCRIPTION`, `NAMESPACE`, `README.md`, `CHANGELOG.md`, `LICENSE`, `.gitignore`, `environment.yml`. Missing files emit findings with messages naming the file, the language, and Bug S3-113.
+
+2. **Assembly-map parity.** Every key in `.svp/assembly_map.json`'s `repo_to_workspace` (post-S3-111 flat schema) must exist at the corresponding path inside `delivered_repo_path`. The `svp-repo/` prefix in map keys is stripped before resolving inside the actual delivered directory. If a declared deployed file is absent, emit a finding naming both the declaration and the expected filesystem location.
+
+3. **Python `pyproject.toml` validity** (archetype-conditional). For Python projects, parse the delivered `pyproject.toml` with `tomllib`. Emit findings for: parse errors, missing `[build-system]` table, `build-backend` other than `"setuptools.build_meta"`. This directly prevents regression of Bug S3-109 in the delivered artifact — the existing S3-109 test checks the GENERATOR's output on a tmp dir; this check validates what was actually WRITTEN to the delivered repo.
+
+**Silent skip for dev mode:** `validate_delivered_repo_contents` silently returns `[]` when `state.delivered_repo_path` is unset or the directory does not exist. This allows `compliance_scan_main` to remain usable for source-tree-only scanning during development. In Stage 5 production runs, S3-112's dispatch guarantees `state.delivered_repo_path` is set before `compliance_scan` runs, so the checks always execute there.
+
+**Failure handling:** Findings bubble up through `compliance_scan_main`. In strict mode, a non-empty findings list produces a non-zero exit. Routing interprets this as `COMMAND_FAILED` and re-enters the Stage 5 bounded fix cycle (`sub_stage = None` → git_repo_agent re-invoked, up to `iteration_limit` attempts). The content failure is surfaced with specific findings, not a generic failure.
+
+**Layer relationship (S3-112 vs S3-113):**
+
+| Layer | Bug | Where | What it checks |
+|---|---|---|---|
+| 1 | S3-112 | `_prepare_git_repo_agent` | Task prompt injection: computed canonical path |
+| 2 | S3-112 | `GIT_REPO_AGENT_DEFINITION` | Agent binding: named helpers, forbidden destinations |
+| 3 | S3-112 | `dispatch_agent_status` git_repo_agent | Existence: canonical path is set, absolute, exists |
+| 4 | S3-113 | `compliance_scan_main` → `validate_delivered_repo_contents` | Content: required files, assembly-map parity, pyproject.toml validity |
+
+Layer 3 guarantees the shell; Layer 4 guarantees the filling. Neither replaces the other — they close different classes of failure at different points in the Stage 5 lifecycle.
+
+**Pattern:** P-NEW — **"Validate at the handoff boundary, not at the consumer."** The delivered repo is the handoff between SVP's pipeline and the user's install/use. Check invariants there, not in `sync_debug_docs.py` or the oracle agent (which are the consumers). `compliance_scan` is the correct home because it already runs as the last Stage 5 gate before `pipeline_complete`. Also: **"Existence checks and content checks are different layers."** Rejecting content validation as "redundant with existence validation" (as I did when initially dismissing S3-112 reporter's suggestion 5) conflates the two. Always ask: is this check about the shell or the filling?
+
+**Regression test invariant:** A new `TestValidateDeliveredRepoContentsAgainstWorkspace` class in `tests/regressions/test_plugin_completeness.py` asserts that `validate_delivered_repo_contents(WORKSPACE)` returns an empty findings list for the current workspace — end-to-end smoke test that the committed `svp2.2-pass2-repo` is content-clean under the new validator.
+
+**Out of scope for S3-113 (future follow-ups):**
+- Git-init check (`.git/` exists, ≥1 commit) — nice-to-have, low priority.
+- Conventional commit format verification — out of scope.
+- Source layout parity (profile's `source_layout` matches delivered structure) — the assembler already enforces this at write time.
 
 ---
 

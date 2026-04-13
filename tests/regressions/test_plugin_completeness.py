@@ -430,6 +430,25 @@ class TestAssemblyMapFreshness:
         )
 
 
+class TestValidateDeliveredRepoContentsAgainstWorkspace:
+    """Bug S3-113: validate_delivered_repo_contents must return no findings
+    when invoked against the current committed workspace. This is the
+    end-to-end smoke test that the committed svp2.2-pass2-repo is
+    content-clean under the new validator."""
+
+    def test_current_workspace_delivered_repo_passes_content_check(self):
+        sys.path.insert(0, str(WORKSPACE / "scripts"))
+        try:
+            from structural_check import validate_delivered_repo_contents
+        finally:
+            sys.path.pop(0)
+        findings = validate_delivered_repo_contents(WORKSPACE)
+        assert findings == [], (
+            f"Expected 0 findings in current workspace, got {len(findings)}:\n"
+            + "\n".join(f"  - {f.get('message', '?')}" for f in findings)
+        )
+
+
 class TestDeliveredRepoPathInvariant:
     """Bug S3-112: state.delivered_repo_path must be an absolute path
     matching the canonical sibling convention. A relative string (like the

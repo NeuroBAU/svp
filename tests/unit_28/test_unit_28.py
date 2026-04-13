@@ -39,6 +39,7 @@ from structural_check import (
     generate_plugin_json,
     run_structural_check,
     validate_agent_frontmatter,
+    validate_delivered_repo_contents,
     validate_dispatch_exhaustiveness,
     validate_hook_definitions,
     validate_lsp_config,
@@ -1648,6 +1649,317 @@ class TestComplianceScanMain:
             pass
         except Exception:
             pass
+
+
+# ===========================================================================
+# Bug S3-113: validate_delivered_repo_contents
+# ===========================================================================
+
+
+class TestValidateDeliveredRepoContents:
+    """Bug S3-113: validate_delivered_repo_contents runs three content checks
+    against the delivered repo pointed to by state.delivered_repo_path.
+    Findings are merged into compliance_scan output so they fail the Stage 5
+    bounded fix cycle. Silently returns [] when state has no delivered_repo_path
+    or the directory does not exist."""
+
+    def _make_project(
+        self, tmp_path, profile=None, state_delivered=None,
+        delivered_files=None, assembly_map=None,
+    ):
+        """Create a synthetic project_root + optional delivered repo sibling.
+
+        - profile: dict to write as project_profile.json (default: python)
+        - state_delivered: value to store at state.delivered_repo_path (default:
+          the sibling path "{tmp_path}/myproj-repo" if delivered_files is truthy,
+          otherwise None)
+        - delivered_files: iterable of relative paths to create inside the
+          sibling, each written with placeholder content. If None, no sibling
+          directory is created.
+        - assembly_map: dict to write as .svp/assembly_map.json (default: None)
+        """
+        project_root = tmp_path / "myproj"
+        project_root.mkdir()
+        (project_root / ".svp").mkdir()
+
+        # Profile
+        if profile is None:
+            profile = {
+                "archetype": "python_project",
+                "language": {"primary": "python"},
+            }
+        (project_root / "project_profile.json").write_text(json.dumps(profile))
+
+        # Delivered repo sibling
+        if delivered_files is not None:
+            sibling = tmp_path / "myproj-repo"
+            sibling.mkdir()
+            for rel in delivered_files:
+                f = sibling / rel
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text("placeholder")
+            if state_delivered is None:
+                state_delivered = str(sibling)
+
+        # State
+        state_data = {"stage": "5", "sub_stage": "compliance_scan"}
+        if state_delivered is not None:
+            state_data["delivered_repo_path"] = state_delivered
+        (project_root / ".svp" / "pipeline_state.json").write_text(
+            json.dumps(state_data)
+        )
+
+        # Assembly map
+        if assembly_map is not None:
+            (project_root / ".svp" / "assembly_map.json").write_text(
+                json.dumps(assembly_map)
+            )
+
+        return project_root
+
+    # --- Silent skip cases ---
+
+    def test_returns_empty_when_state_has_no_delivered_repo_path(self, tmp_path):
+        project_root = self._make_project(tmp_path)
+        findings = validate_delivered_repo_contents(project_root)
+        assert findings == []
+
+    def test_returns_empty_when_delivered_repo_path_missing_on_disk(self, tmp_path):
+        project_root = self._make_project(
+            tmp_path, state_delivered="/nonexistent/path/that/does/not/exist"
+        )
+        findings = validate_delivered_repo_contents(project_root)
+        assert findings == []
+
+    # --- Required root files ---
+
+    def test_reports_missing_required_python_files(self, tmp_path):
+        """Python archetype, delivered repo missing pyproject.toml etc."""
+        project_root = self._make_project(
+            tmp_path,
+            delivered_files=["README.md"],  # only README, missing others
+        )
+        findings = validate_delivered_repo_contents(project_root)
+        messages = [f["message"] for f in findings]
+        assert any("pyproject.toml" in m and "python" in m for m in messages)
+        assert any("CHANGELOG.md" in m for m in messages)
+        assert any("LICENSE" in m for m in messages)
+        assert any(".gitignore" in m for m in messages)
+        assert any("environment.yml" in m for m in messages)
+        assert all("S3-113" in m for m in messages)
+
+    def test_reports_missing_required_r_files(self, tmp_path):
+        """R archetype requires DESCRIPTION + NAMESPACE."""
+        project_root = self._make_project(
+            tmp_path,
+            profile={"archetype": "r_project", "language": {"primary": "r"}},
+            delivered_files=["README.md"],
+        )
+        findings = validate_delivered_repo_contents(project_root)
+        messages = [f["message"] for f in findings]
+        assert any("DESCRIPTION" in m for m in messages)
+        assert any("NAMESPACE" in m for m in messages)
+        # R archetype must NOT flag pyproject.toml
+        assert not any("pyproject.toml" in m for m in messages)
+
+    def test_clean_python_repo_produces_no_findings(self, tmp_path):
+        """All required files present + valid pyproject.toml + no map → 0 findings."""
+        valid_pyproject = (
+            '[build-system]\n'
+            'requires = ["setuptools>=61.0"]\n'
+            'build-backend = "setuptools.build_meta"\n'
+            '\n[project]\nname = "foo"\nversion = "0.1.0"\n'
+        )
+        project_root = self._make_project(
+            tmp_path,
+            delivered_files=[
+                "pyproject.toml",
+                "README.md",
+                "CHANGELOG.md",
+                "LICENSE",
+                ".gitignore",
+                "environment.yml",
+            ],
+        )
+        # Overwrite pyproject.toml with valid content.
+        (tmp_path / "myproj-repo" / "pyproject.toml").write_text(valid_pyproject)
+        findings = validate_delivered_repo_contents(project_root)
+        assert findings == []
+
+    # --- Assembly-map parity ---
+
+    def test_reports_assembly_map_parity_gap(self, tmp_path):
+        """Map declares a file that's missing in delivered → finding."""
+        project_root = self._make_project(
+            tmp_path,
+            delivered_files=[
+                "pyproject.toml",
+                "README.md",
+                "CHANGELOG.md",
+                "LICENSE",
+                ".gitignore",
+                "environment.yml",
+            ],
+            assembly_map={
+                "repo_to_workspace": {
+                    "svp-repo/svp/scripts/routing.py": "src/unit_14/stub.py",
+                }
+            },
+        )
+        # Make pyproject.toml valid so only the assembly-map check fires.
+        (tmp_path / "myproj-repo" / "pyproject.toml").write_text(
+            '[build-system]\nrequires = ["setuptools>=61.0"]\n'
+            'build-backend = "setuptools.build_meta"\n'
+        )
+        findings = validate_delivered_repo_contents(project_root)
+        messages = [f["message"] for f in findings]
+        assert any(
+            "svp-repo/svp/scripts/routing.py" in m and "S3-113" in m
+            for m in messages
+        )
+
+    def test_assembly_map_parity_strips_svp_repo_prefix(self, tmp_path):
+        """The svp-repo/ prefix is stripped before resolving inside delivered."""
+        project_root = self._make_project(
+            tmp_path,
+            delivered_files=[
+                "pyproject.toml",
+                "README.md",
+                "CHANGELOG.md",
+                "LICENSE",
+                ".gitignore",
+                "environment.yml",
+                "svp/scripts/routing.py",  # Exists at the stripped path
+            ],
+            assembly_map={
+                "repo_to_workspace": {
+                    "svp-repo/svp/scripts/routing.py": "src/unit_14/stub.py",
+                }
+            },
+        )
+        (tmp_path / "myproj-repo" / "pyproject.toml").write_text(
+            '[build-system]\nrequires = ["setuptools>=61.0"]\n'
+            'build-backend = "setuptools.build_meta"\n'
+        )
+        findings = validate_delivered_repo_contents(project_root)
+        # Zero findings means the prefix strip worked: we resolved
+        # svp-repo/svp/scripts/routing.py → {delivered}/svp/scripts/routing.py.
+        assert findings == [], (
+            f"Expected 0 findings after prefix strip, got: {findings}"
+        )
+
+    # --- pyproject.toml validity ---
+
+    def test_reports_pyproject_toml_parse_error(self, tmp_path):
+        project_root = self._make_project(
+            tmp_path,
+            delivered_files=[
+                "pyproject.toml",
+                "README.md",
+                "CHANGELOG.md",
+                "LICENSE",
+                ".gitignore",
+                "environment.yml",
+            ],
+        )
+        (tmp_path / "myproj-repo" / "pyproject.toml").write_text(
+            "this is not valid toml [[[\n"
+        )
+        findings = validate_delivered_repo_contents(project_root)
+        messages = [f["message"] for f in findings]
+        assert any("parse error" in m.lower() and "S3-113" in m for m in messages)
+
+    def test_reports_missing_build_system_table(self, tmp_path):
+        project_root = self._make_project(
+            tmp_path,
+            delivered_files=[
+                "pyproject.toml",
+                "README.md",
+                "CHANGELOG.md",
+                "LICENSE",
+                ".gitignore",
+                "environment.yml",
+            ],
+        )
+        (tmp_path / "myproj-repo" / "pyproject.toml").write_text(
+            '[project]\nname = "foo"\nversion = "0.1.0"\n'
+        )
+        findings = validate_delivered_repo_contents(project_root)
+        messages = [f["message"] for f in findings]
+        assert any("[build-system]" in m and "S3-113" in m for m in messages)
+
+    def test_reports_fictional_build_backend(self, tmp_path):
+        """The S3-109 regression: fictional setuptools.backends._legacy is flagged."""
+        project_root = self._make_project(
+            tmp_path,
+            delivered_files=[
+                "pyproject.toml",
+                "README.md",
+                "CHANGELOG.md",
+                "LICENSE",
+                ".gitignore",
+                "environment.yml",
+            ],
+        )
+        (tmp_path / "myproj-repo" / "pyproject.toml").write_text(
+            '[build-system]\nrequires = ["setuptools>=61.0"]\n'
+            'build-backend = "setuptools.backends._legacy:_Backend"\n'
+        )
+        findings = validate_delivered_repo_contents(project_root)
+        messages = [f["message"] for f in findings]
+        assert any(
+            "setuptools.build_meta" in m and "S3-113" in m and "S3-109" in m
+            for m in messages
+        )
+
+    def test_skips_pyproject_check_for_non_python_language(self, tmp_path):
+        """R archetype: no pyproject.toml check, no 'missing pyproject.toml' check."""
+        project_root = self._make_project(
+            tmp_path,
+            profile={"archetype": "r_project", "language": {"primary": "r"}},
+            delivered_files=[
+                "DESCRIPTION",
+                "NAMESPACE",
+                "README.md",
+                "CHANGELOG.md",
+                "LICENSE",
+                ".gitignore",
+                "environment.yml",
+            ],
+        )
+        findings = validate_delivered_repo_contents(project_root)
+        # No pyproject-related finding whatsoever.
+        messages = [f["message"] for f in findings]
+        assert not any("pyproject.toml" in m for m in messages)
+        assert findings == []
+
+    def test_compliance_scan_main_integration_runs_content_checks(self, tmp_path, capsys):
+        """compliance_scan_main merges content-check findings with language scanners."""
+        project_root = self._make_project(
+            tmp_path,
+            delivered_files=["README.md"],  # Missing required Python files
+        )
+        src_dir = project_root / "src"
+        src_dir.mkdir()
+        tests_dir = project_root / "tests"
+        tests_dir.mkdir()
+        import sys as _sys
+        try:
+            compliance_scan_main([
+                "--project-root", str(project_root),
+                "--src-dir", str(src_dir),
+                "--tests-dir", str(tests_dir),
+                "--format", "json",
+            ])
+        except SystemExit:
+            pass
+        out = capsys.readouterr().out
+        findings = json.loads(out)
+        messages = [f["message"] for f in findings]
+        # Must contain content-check findings from S3-113.
+        assert any("S3-113" in m for m in messages), (
+            f"Expected S3-113 content findings, got: {messages}"
+        )
 
 
 # ===========================================================================

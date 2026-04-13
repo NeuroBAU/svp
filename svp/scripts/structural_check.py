@@ -392,6 +392,177 @@ COMPLIANCE_SCANNERS: Dict[
 
 
 # ---------------------------------------------------------------------------
+# Bug S3-113: Delivered repo content validation
+# ---------------------------------------------------------------------------
+
+
+def validate_delivered_repo_contents(project_root: Path) -> List[Dict[str, Any]]:
+    """Validate the contents of the delivered repository at state.delivered_repo_path.
+
+    Returns a list of findings in the same format as _python_compliance_scan:
+      {"file": str, "line": int, "severity": str, "message": str}
+
+    Checks (Bug S3-113):
+      1. Required root-level delivery files are present (language-dependent).
+      2. Every key in .svp/assembly_map.json's repo_to_workspace exists at
+         the corresponding path inside delivered_repo_path (after stripping
+         the svp-repo/ prefix).
+      3. For Python archetype: pyproject.toml parses as TOML, has
+         [build-system], and build-backend == "setuptools.build_meta".
+
+    If state.delivered_repo_path is not set, or the directory does not exist,
+    the function returns [] — content checks are silently skipped. The
+    expectation is that compliance_scan runs after Bug S3-112 dispatch has
+    already validated existence; but this function is defensive and does
+    not raise. This allows compliance_scan_main to remain usable for
+    source-tree-only scanning during development.
+    """
+    findings: List[Dict[str, Any]] = []
+
+    # --- Load state ---
+    try:
+        from pipeline_state import load_state
+        state = load_state(project_root)
+    except Exception:
+        return findings
+    delivered_raw = getattr(state, "delivered_repo_path", None)
+    if not delivered_raw:
+        return findings
+    delivered = Path(delivered_raw)
+    if not delivered.is_dir():
+        return findings
+
+    # --- Load profile ---
+    try:
+        from profile_schema import load_profile
+        profile = load_profile(project_root)
+    except Exception:
+        profile = {}
+    language = profile.get("language", {}).get("primary", "python")
+
+    # --- Check 1: required root-level delivery files ---
+    if language == "python":
+        required = [
+            "pyproject.toml",
+            "README.md",
+            "CHANGELOG.md",
+            "LICENSE",
+            ".gitignore",
+            "environment.yml",
+        ]
+    elif language == "r":
+        required = [
+            "DESCRIPTION",
+            "NAMESPACE",
+            "README.md",
+            "CHANGELOG.md",
+            "LICENSE",
+            ".gitignore",
+            "environment.yml",
+        ]
+    else:
+        required = ["README.md", "LICENSE", ".gitignore"]
+    for fname in required:
+        path = delivered / fname
+        if not path.exists():
+            findings.append(
+                {
+                    "file": str(path),
+                    "line": 0,
+                    "severity": "error",
+                    "message": (
+                        f"delivered repo missing required file '{fname}' "
+                        f"for language '{language}' (Bug S3-113)"
+                    ),
+                }
+            )
+
+    # --- Check 2: assembly-map parity ---
+    map_path = project_root / ".svp" / "assembly_map.json"
+    if map_path.is_file():
+        try:
+            data = json.loads(map_path.read_text())
+            r2w = data.get("repo_to_workspace", {})
+        except Exception:
+            r2w = {}
+        for deployed_rel in sorted(r2w.keys()):
+            # Strip the svp-repo/ prefix to get the path inside delivered.
+            if deployed_rel.startswith("svp-repo/"):
+                rel = deployed_rel[len("svp-repo/"):]
+            else:
+                rel = deployed_rel
+            target = delivered / rel
+            if not target.exists():
+                findings.append(
+                    {
+                        "file": str(target),
+                        "line": 0,
+                        "severity": "error",
+                        "message": (
+                            f"delivered repo missing file declared in "
+                            f"assembly_map.json: {deployed_rel} "
+                            f"(expected at {target}) (Bug S3-113)"
+                        ),
+                    }
+                )
+
+    # --- Check 3: Python pyproject.toml validity ---
+    if language == "python":
+        pyproject = delivered / "pyproject.toml"
+        if pyproject.is_file():
+            try:
+                try:
+                    import tomllib
+                except ImportError:
+                    import tomli as tomllib  # type: ignore
+                pp_data = tomllib.loads(pyproject.read_text())
+            except Exception as e:
+                findings.append(
+                    {
+                        "file": str(pyproject),
+                        "line": 0,
+                        "severity": "error",
+                        "message": (
+                            f"delivered pyproject.toml parse error: {e} "
+                            f"(Bug S3-113)"
+                        ),
+                    }
+                )
+            else:
+                build_system = pp_data.get("build-system", {})
+                if not build_system:
+                    findings.append(
+                        {
+                            "file": str(pyproject),
+                            "line": 0,
+                            "severity": "error",
+                            "message": (
+                                "delivered pyproject.toml missing "
+                                "[build-system] table (Bug S3-113)"
+                            ),
+                        }
+                    )
+                else:
+                    backend = build_system.get("build-backend")
+                    if backend != "setuptools.build_meta":
+                        findings.append(
+                            {
+                                "file": str(pyproject),
+                                "line": 0,
+                                "severity": "error",
+                                "message": (
+                                    f"delivered pyproject.toml "
+                                    f"build-backend is {backend!r}, "
+                                    f"expected 'setuptools.build_meta' "
+                                    f"(Bug S3-113; see also Bug S3-109)"
+                                ),
+                            }
+                        )
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
 # Plugin manifest generation
 # ---------------------------------------------------------------------------
 
@@ -1531,6 +1702,13 @@ def compliance_scan_main(argv: list = None) -> None:
                     secondary_src_dir, secondary_tests_dir, secondary_lang_config, {}
                 )
                 findings.extend(secondary_findings)
+
+    # Bug S3-113: Delivered repo content validation. Runs after language-
+    # specific scanners (including the mixed dual scan). Silently returns []
+    # when state.delivered_repo_path is unset or missing on disk, so this
+    # is safe for dev-mode source-tree-only scans too.
+    delivered_findings = validate_delivered_repo_contents(args.project_root)
+    findings.extend(delivered_findings)
 
     # Output results
     if args.format == "json":
