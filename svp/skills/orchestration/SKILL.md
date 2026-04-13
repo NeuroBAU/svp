@@ -340,3 +340,63 @@ This protocol exists because during SVP 2.2 development, manual bug fixing repea
 - `svp/scripts/` synced but `src/unit_*/stub.py` in repo not synced
 - Tests run only from workspace, masking import errors in repo context
 - Stale file copies accumulated (dual pipeline_state.json, spec/ vs specs/)
+
+---
+
+## 16. Manual State Manipulation (Bug S3-114 / S3-115 guidance)
+
+Occasionally the orchestrator may need to write `.svp/last_status.txt` directly outside the normal action cycle -- for example, to reproduce a bug, to simulate an agent response during testing, or to nudge a stalled pipeline past a specific point during break-glass debugging. **This is discouraged but sometimes necessary.** When you do it, you MUST follow the canonical three-step sequence; deviating from it is how Bug S3-114's infinite recursion was triggered in production.
+
+### The canonical flow (normal six-step action cycle)
+
+1. Routing script emits an action block.
+2. Orchestrator executes the action (agent / command / gate).
+3. Orchestrator writes the terminal status to `.svp/last_status.txt`.
+4. Orchestrator runs the POST command (which calls `update_state.py` and performs dispatch — the state transition is applied in `dispatch_agent_status` / `dispatch_command_status` / `dispatch_gate_response`).
+5. Orchestrator runs `routing.py` for the next action.
+
+Dispatch (step 4) is the layer that advances `state.sub_stage`, `state.alignment_iterations`, `state.debug_session.phase`, and other state fields based on the status line. **Never skip it.**
+
+### When you must bypass the normal flow (break-glass)
+
+If you need to write `last_status.txt` directly without running the full action cycle (e.g. to simulate an agent's status line during a manual debug session), you MUST run dispatch explicitly between the write and the next routing call:
+
+**CORRECT (three-step sequence):**
+
+```bash
+# 1. Write the status line directly
+echo "ALIGNMENT_FAILED: blueprint" > .svp/last_status.txt
+
+# 2. Run dispatch explicitly (this is what the POST command normally does)
+python scripts/update_state.py --phase stage_2 --status "ALIGNMENT_FAILED: blueprint" --project-root .
+
+# 3. Re-run routing
+python scripts/routing.py --project-root .
+```
+
+**WRONG (skips dispatch):**
+
+```bash
+echo "ALIGNMENT_FAILED: blueprint" > .svp/last_status.txt
+python scripts/routing.py --project-root .  # dispatch was never called
+```
+
+The WRONG sequence relies on `routing.py`'s self-heal behavior (Bug S3-114 fix), which advances state on a narrow set of branches when it detects dispatch was skipped. The self-heal is a safety net, not a contract. Relying on it:
+
+- Only works for the specific branches that implement the self-heal (currently: `_route_stage_2` `alignment_check + ALIGNMENT_FAILED`).
+- Silently masks other operator errors — you wouldn't notice if you wrote the wrong status line because the self-heal would "fix" it and march on.
+- Makes it impossible to reproduce the state transition deterministically — the self-heal is defensive, not authoritative.
+
+Always run dispatch explicitly. The self-heal exists to prevent infinite recursion, not to license skipped dispatch.
+
+### Absolute prohibitions
+
+- **NEVER edit `.svp/pipeline_state.json` directly with a text editor, `sed`, `python -c "json.load... json.dump"`, or any other mechanism.** State transitions have invariants validated by Unit 6's transition functions (stage/sub_stage co-invariants, current_unit/sub_stage co-invariants, alignment_iteration bounds, etc.). Direct edits can produce invalid states that fail deep inside the pipeline with confusing errors. The ONLY correct way to modify pipeline state is through `dispatch_agent_status`, `dispatch_command_status`, `dispatch_gate_response`, or the explicit transition functions in `src/unit_6/stub.py` (e.g. `advance_sub_stage`, `increment_alignment_iteration`, `set_delivered_repo_path`).
+- **NEVER rely on `routing.py` to recover from skipped dispatch** outside the S3-114 self-heal path. If you call `routing.py` after a direct `last_status.txt` write without running `update_state.py`, and you are NOT hitting `_route_stage_2 alignment_check + ALIGNMENT_FAILED`, you will hit stale state bugs or (pre-S3-114) infinite recursion.
+- **NEVER call the state-transition functions from `src/unit_6/stub.py` directly from a shell one-liner** unless you ALSO call `save_state(project_root, new_state)` afterwards. The transition functions return a new PipelineState without persisting it; if you forget the save, the next routing cycle reads the unchanged state.
+
+### Why this section exists
+
+Bug S3-114 was discovered when an operator wrote `ALIGNMENT_FAILED: blueprint` directly to `.svp/last_status.txt` during a real Stage 2 debugging session, skipping `update_state.py`, and called `routing.py`. Routing hit infinite recursion because the `alignment_check + ALIGNMENT_FAILED` branch called `route(project_root)` without advancing state first. The operator was following an intuitive pattern (write the status the agent would have written, re-route), but that pattern bypasses dispatch — which is where state transitions actually happen. S3-114 fixed the routing infinite recursion. S3-115 audited every other recursive routing branch and confirmed none had the same bug. This section documents the canonical operator flow so that future operators do not repeat the mistake.
+
+The canonical rule: **`last_status.txt` is the message; `update_state.py` is the delivery. A message without delivery never arrives.**
