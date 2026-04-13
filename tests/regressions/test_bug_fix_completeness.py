@@ -16,7 +16,6 @@ import pytest
 
 # Paths relative to workspace root
 WORKSPACE = Path(__file__).parent.parent.parent
-PASS1_REPO = WORKSPACE.parent / "svp2.2-repo"
 PASS2_REPO = WORKSPACE.parent / "svp2.2-pass2-repo"
 
 
@@ -48,14 +47,7 @@ def _ws_lessons() -> str:
 
 
 class TestSpecSync:
-    """Spec must be identical in workspace and all delivered repos."""
-
-    def test_spec_matches_pass1_repo(self):
-        if not PASS1_REPO.is_dir():
-            pytest.skip("Pass 1 repo retired (2026-04-13)")
-        ws = _ws_spec()
-        repo = (PASS1_REPO / "docs" / "stakeholder_spec.md").read_text()
-        assert ws == repo, "Spec out of sync with Pass 1 repo"
+    """Spec must be identical in workspace and the delivered repo."""
 
     def test_spec_matches_pass2_repo(self):
         ws = _ws_spec()
@@ -65,14 +57,7 @@ class TestSpecSync:
 
 
 class TestBlueprintSync:
-    """Blueprint must be identical in workspace and all delivered repos."""
-
-    def test_blueprint_matches_pass1_repo(self):
-        if not PASS1_REPO.is_dir():
-            pytest.skip("Pass 1 repo retired (2026-04-13)")
-        ws = _ws_blueprint()
-        repo = (PASS1_REPO / "docs" / "blueprint_contracts.md").read_text()
-        assert ws == repo, "Blueprint out of sync with Pass 1 repo"
+    """Blueprint must be identical in workspace and the delivered repo."""
 
     def test_blueprint_matches_pass2_repo(self):
         ws = _ws_blueprint()
@@ -82,14 +67,7 @@ class TestBlueprintSync:
 
 
 class TestLessonsLearnedSync:
-    """Lessons learned must be identical in workspace and all delivered repos."""
-
-    def test_lessons_learned_matches_pass1_repo(self):
-        if not PASS1_REPO.is_dir():
-            pytest.skip("Pass 1 repo retired (2026-04-13)")
-        ws = _ws_lessons()
-        repo = (PASS1_REPO / "docs" / "references" / "svp_2_1_lessons_learned.md").read_text()
-        assert ws == repo, "Lessons learned out of sync with Pass 1 repo"
+    """Lessons learned must be identical in workspace and the delivered repo."""
 
     def test_lessons_learned_matches_pass2_repo(self):
         ws = _ws_lessons()
@@ -99,14 +77,17 @@ class TestLessonsLearnedSync:
 
 
 class TestDeliveryArtifactParity:
-    """S3-50: Pass 2 repo must have all delivery artifacts from Pass 1."""
+    """S3-50: Pass 2 repo must have all expected root-level delivery artifacts.
+
+    Originally a parity check against Pass 1 repo. After Pass 1 retirement
+    (2026-04-13) the test asserts against a canonical hardcoded list instead.
+    """
 
     def test_pass2_repo_has_all_root_delivery_files(self):
         delivery_files = ["environment.yml", "pyproject.toml", "README.md",
                           "CHANGELOG.md", "LICENSE", ".gitignore"]
         for f in delivery_files:
-            if (PASS1_REPO / f).exists():
-                assert (PASS2_REPO / f).exists(), f"Pass 2 repo missing {f} (present in Pass 1)"
+            assert (PASS2_REPO / f).exists(), f"Pass 2 repo missing {f}"
 
 
 class TestBugMarkerCompleteness:
@@ -171,20 +152,6 @@ class TestDeployedArtifactFreshness:
                 f"Deployed {cmd_name}.md does not match source COMMAND_DEFINITIONS"
             )
 
-    def test_commands_match_source_pass1(self):
-        """Every command .md in Pass 1 repo must match COMMAND_DEFINITIONS."""
-        from slash_commands import COMMAND_DEFINITIONS
-
-        commands_dir = PASS1_REPO / "svp" / "commands"
-        if not commands_dir.is_dir():
-            pytest.skip("Pass 1 repo has no svp/commands/")
-        for cmd_name, source_content in COMMAND_DEFINITIONS.items():
-            deployed = commands_dir / f"{cmd_name}.md"
-            assert deployed.is_file(), f"Missing deployed command: {cmd_name}.md"
-            assert deployed.read_text() == source_content, (
-                f"Deployed {cmd_name}.md does not match source COMMAND_DEFINITIONS"
-            )
-
     # --- Orchestration skill (Unit 26 → svp/skills/) ---
 
     def test_skill_matches_source_pass2(self):
@@ -194,17 +161,6 @@ class TestDeployedArtifactFreshness:
         skill_file = PASS2_REPO / "svp" / "skills" / "orchestration" / "SKILL.md"
         if not skill_file.is_file():
             pytest.skip("Pass 2 repo has no svp/skills/orchestration/SKILL.md")
-        assert skill_file.read_text() == ORCHESTRATION_SKILL, (
-            "Deployed SKILL.md does not match source ORCHESTRATION_SKILL"
-        )
-
-    def test_skill_matches_source_pass1(self):
-        """SKILL.md in Pass 1 repo must match ORCHESTRATION_SKILL."""
-        from orchestration_skill import ORCHESTRATION_SKILL
-
-        skill_file = PASS1_REPO / "svp" / "skills" / "orchestration" / "SKILL.md"
-        if not skill_file.is_file():
-            pytest.skip("Pass 1 repo has no svp/skills/orchestration/SKILL.md")
         assert skill_file.read_text() == ORCHESTRATION_SKILL, (
             "Deployed SKILL.md does not match source ORCHESTRATION_SKILL"
         )
@@ -277,19 +233,6 @@ class TestDeployedArtifactFreshness:
                 f"Deployed {filename} body does not match source definition"
             )
 
-    def test_agents_match_source_pass1(self):
-        """Every agent .md body in Pass 1 repo must match source definition."""
-        agents_dir = PASS1_REPO / "svp" / "agents"
-        if not agents_dir.is_dir():
-            pytest.skip("Pass 1 repo has no svp/agents/")
-        for filename, source_content in self._get_agent_defs().items():
-            deployed = agents_dir / filename
-            assert deployed.is_file(), f"Missing deployed agent: {filename}"
-            deployed_text = deployed.read_text()
-            assert source_content in deployed_text, (
-                f"Deployed {filename} body does not match source definition"
-            )
-
     # --- Hooks (Unit 17 → svp/hooks/) ---
 
     def test_hooks_json_matches_source_pass2(self):
@@ -304,14 +247,3 @@ class TestDeployedArtifactFreshness:
             "Deployed hooks.json does not match source generate_hooks_json()"
         )
 
-    def test_hooks_json_matches_source_pass1(self):
-        """hooks.json in Pass 1 repo must match generate_hooks_json()."""
-        from hooks import generate_hooks_json
-
-        hooks_file = PASS1_REPO / "svp" / "hooks" / "hooks.json"
-        if not hooks_file.is_file():
-            pytest.skip("Pass 1 repo has no svp/hooks/hooks.json")
-        expected = generate_hooks_json() + "\n"
-        assert hooks_file.read_text() == expected, (
-            "Deployed hooks.json does not match source generate_hooks_json()"
-        )

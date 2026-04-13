@@ -9,10 +9,9 @@ import pytest
 # Detect context: are we running from workspace or repo?
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# Find repos relative to the parent directory
+# Find repo relative to the parent directory
 _PARENT = _PROJECT_ROOT.parent
 PASS2_REPO = _PARENT / "svp2.2-pass2-repo"
-PASS1_REPO = _PARENT / "svp2.2-repo"
 
 # The workspace is wherever scripts/ and .svp/ live
 # When running from the repo, WORKSPACE is the repo itself if it has scripts/,
@@ -24,7 +23,9 @@ elif (_PARENT / "svp2.2-pass2" / "scripts").is_dir():
 else:
     WORKSPACE = _PROJECT_ROOT  # fallback
 
-REPOS = [r for r in [PASS2_REPO, PASS1_REPO] if r.is_dir()]
+# Pass 1 repo was retired on 2026-04-13. REPOS is a list for historical
+# compatibility with parametrized tests; it now contains only Pass 2.
+REPOS = [PASS2_REPO] if PASS2_REPO.is_dir() else []
 REPO_IDS = [r.name for r in REPOS]
 
 
