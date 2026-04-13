@@ -280,6 +280,64 @@ class TestBlueprintAuthorDefinitionContent:
         assert _contains(BLUEPRINT_AUTHOR_DEFINITION, "P4")
 
 
+class TestBlueprintAuthorSelfReviewSection:
+    """Self-Review Pass methodology step + Self-Review Artifact section.
+
+    Enhancement: blueprint author runs a structural self-review against
+    six universal categories (Schema / Function Reachability / Invariant
+    Coherence / Dispatch Completeness / Branch Reachability / Contract
+    Bidirectional Mapping) and writes the filled review to
+    .svp/blueprint_self_review.md before emitting the terminal status.
+    """
+
+    def test_definition_has_self_review_pass_methodology_step(self):
+        assert _contains(BLUEPRINT_AUTHOR_DEFINITION, "Self-Review Pass"), (
+            "BLUEPRINT_AUTHOR_DEFINITION must include a 'Self-Review Pass' "
+            "methodology step before the terminal status is emitted."
+        )
+
+    def test_definition_has_self_review_artifact_section(self):
+        assert _contains(BLUEPRINT_AUTHOR_DEFINITION, "Self-Review Artifact"), (
+            "BLUEPRINT_AUTHOR_DEFINITION must include a '## Self-Review Artifact' "
+            "section documenting the required output file format."
+        )
+
+    def test_definition_names_self_review_output_file(self):
+        assert _contains(BLUEPRINT_AUTHOR_DEFINITION, ".svp/blueprint_self_review.md"), (
+            "BLUEPRINT_AUTHOR_DEFINITION must reference the self-review "
+            "output artifact at .svp/blueprint_self_review.md."
+        )
+
+    def test_definition_requires_iteration_until_all_pass(self):
+        text = BLUEPRINT_AUTHOR_DEFINITION
+        assert "ALL_PASS" in text, (
+            "Definition must reference the ALL_PASS outcome line."
+        )
+        assert _contains(text, "iterate", case_sensitive=False) or _contains(
+            text, "re-run", case_sensitive=False
+        ), "Definition must explicitly require iteration until ALL_PASS."
+
+    def test_definition_names_six_universal_categories(self):
+        for category in [
+            "Schema Coherence",
+            "Function Reachability",
+            "Invariant Coherence",
+            "Dispatch Completeness",
+            "Branch Reachability",
+            "Contract Bidirectional Mapping",
+        ]:
+            assert _contains(BLUEPRINT_AUTHOR_DEFINITION, category), (
+                f"BLUEPRINT_AUTHOR_DEFINITION must explicitly name the "
+                f"'{category}' self-review category."
+            )
+
+    def test_definition_references_section_44_11(self):
+        assert "44.11" in BLUEPRINT_AUTHOR_DEFINITION, (
+            "Definition must cross-reference spec Section 44.11 where the "
+            "six categories' seed items live."
+        )
+
+
 # ===========================================================================
 # BLUEPRINT_REVIEWER_DEFINITION
 # ===========================================================================

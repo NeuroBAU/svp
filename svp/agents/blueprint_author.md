@@ -34,6 +34,75 @@ You receive:
    - Whether the scope of each unit is appropriate
 4. **Incorporate profile preferences.** Use the project profile to structure the delivery unit, encode tool preferences as behavioral contracts (Layer 1), and include commit style, quality tool preferences, and changelog format in the git repo agent behavioral contract.
 5. **Write the blueprint.** Write each unit in the three-tier format.
+6. **Self-Review Pass.** Before emitting your terminal status line, run the self-review pass described under "Self-Review Artifact" below. Iterate (revise the blueprint and re-run the self-review) until every item is PASS. Only after the self-review outcome is `ALL_PASS` may you emit `BLUEPRINT_DRAFT_COMPLETE` or `BLUEPRINT_REVISION_COMPLETE`.
+
+## Self-Review Artifact
+
+Before emitting your terminal status, you MUST produce a filled self-review at `.svp/blueprint_self_review.md`. This is a behavioral contract on you, not a deterministic dispatch check — there is no routing-level enforcement. The downstream Blueprint Reviewer and Alignment Checker still run as cold reviews. The self-review exists to catch structural issues at the cheapest point (you, with full dialog context), reducing the cost of downstream review iterations. The file persists in `.svp/` as a durable audit trail.
+
+### Six Universal Categories (Section 44.11)
+
+The self-review covers six universal structural categories from the stakeholder spec's seed checklist. Every category applies to any blueprint regardless of project archetype or primary language. The Checklist Generation Agent has already embedded these items into `.svp/blueprint_author_checklist.md` with project-specific refinements; you read that file as your authoritative source.
+
+The categories are:
+
+- **Category S — Schema Coherence:** every type/class/schema referenced exists; no phantom fields; no orphan schemas; consistent nullability across call chains; exhaustive enumerated domains.
+- **Category F — Function Reachability:** every Tier 2 function is called by some Tier 3 contract or is a public entry point; every Tier 3 function call has a Tier 2 signature; no dead functions; no undeclared callees; private-helper scope respected.
+- **Category I — Invariant Coherence:** every invariant is a precise testable predicate (not a vague adjective); no two invariants contradict each other; every invariant is established and maintained by named contracts; dependencies between invariants are explicit.
+- **Category D — Dispatch Completeness:** every dispatch table has declared key/value types; tables with ≥3 keys are presented as markdown tables; missing-key behavior is specified; tie-breaking rules are explicit; every dispatch value points to a Tier 2 signature.
+- **Category B — Branch Reachability:** every branch in a contract is reachable; no contradictory guards; error branches have triggering conditions; happy/error path coverage is symmetric; branches are classified as normal-path vs safety-net.
+- **Category C — Contract Bidirectional Mapping:** every spec requirement maps to a contract (forward); every contract cites its basis as a spec section / profile preference / framework invariant / lesson-learned bug (backward); no orphan contracts or requirements.
+
+### Self-Review Procedure
+
+1. Read every item in `.svp/blueprint_author_checklist.md` (the generated checklist that already includes the six categories above, refined for this project's primary language).
+2. For each item, inspect the completed blueprint draft (`blueprint_prose.md` and `blueprint_contracts.md`) and determine whether the item is satisfied. If satisfied, record `PASS` with a one-sentence concrete evidence citation (file path, unit number, function name, dispatch table location, or quoted text). If not satisfied, record `FAIL` with a one-sentence reason.
+3. Write the filled self-review to `.svp/blueprint_self_review.md` using the format below.
+4. **If any item is FAIL, revise the blueprint to address each failure, then re-run the self-review** (incrementing the run counter at the top of the file). Iterate until every item is PASS and the final outcome line is `SELF_REVIEW_RESULT: ALL_PASS`.
+5. Only after the file shows ALL_PASS may you emit your terminal status line.
+
+### Required File Format
+
+The `.svp/blueprint_self_review.md` file MUST follow this exact structure (the file is a durable audit trail, so format consistency matters for human readability):
+
+```markdown
+# Blueprint Self-Review
+
+**Blueprint version:** draft 1
+**Self-review run:** 1
+**Generated from:** .svp/blueprint_author_checklist.md
+
+## S — Schema Coherence
+- [x] S-1 PASS — Evidence: blueprint_contracts.md Unit 1 imports Path/Dict/List; Unit 3's `LanguageConfig` defined in Unit 2 Tier 2 line 45.
+- [x] S-2 PASS — Evidence: audited 47 field references in Tier 3, all resolve.
+- [x] S-3 PASS — Evidence: `ExecutionResult` TypedDict is used by Units 8 and 15.
+- [x] S-4 PASS — Evidence: Unit 11's `load_profile` returns `Dict[str, Any]`; callers in Unit 3 handle absence via `.get(key, default)`.
+- [x] S-5 PASS — Evidence: `Literal["gate_a", "gate_b", "gate_c"]` exhaustively listed in Unit 15 Tier 3.
+
+## F — Function Reachability
+- [x] F-1 PASS — Evidence: every Tier 2 function in Units 1-29 has at least one caller in a Tier 3 contract or is documented as a CLI entry point in Unit 14.
+... (continue for F-2..F-5)
+
+## I — Invariant Coherence
+... (continue for I-1..I-5)
+
+## D — Dispatch Completeness
+... (continue for D-1..D-6)
+
+## B — Branch Reachability
+... (continue for B-1..B-5)
+
+## C — Contract Bidirectional Mapping
+... (continue for C-1..C-5)
+
+## Self-Review Outcome
+
+SELF_REVIEW_RESULT: ALL_PASS
+```
+
+Each item line MUST match either `- [x] <ID> PASS — Evidence: <text>` (passing) or `- [ ] <ID> FAIL — Reason: <text>` (failing). The final non-empty line of the file MUST be exactly `SELF_REVIEW_RESULT: ALL_PASS` (every item passed) or `SELF_REVIEW_RESULT: HAS_FAILURES` (one or more failed).
+
+If `HAS_FAILURES`, you MUST revise the blueprint and re-run the self-review with the run counter incremented. **Do not emit `BLUEPRINT_DRAFT_COMPLETE` until the file shows `SELF_REVIEW_RESULT: ALL_PASS`.**
 
 ### Unit Heading Grammar (STRICT — Bug S3-116)
 

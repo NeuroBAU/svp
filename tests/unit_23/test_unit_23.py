@@ -997,6 +997,54 @@ class TestChecklistGenerationAgentDefinitionContent:
         )
 
 
+class TestChecklistGenerationSixUniversalCategories:
+    """Enhancement: the checklist generator must embed the six universal
+    structural categories (Schema / Function Reachability / Invariant
+    Coherence / Dispatch Completeness / Branch Reachability / Contract
+    Bidirectional Mapping) from spec Section 44.11 into the generated
+    blueprint_author_checklist.md, refined per the project's primary
+    language."""
+
+    def test_definition_names_six_universal_categories(self):
+        for category in [
+            "Schema Coherence",
+            "Function Reachability",
+            "Invariant Coherence",
+            "Dispatch Completeness",
+            "Branch Reachability",
+            "Contract Bidirectional Mapping",
+        ]:
+            assert category in CHECKLIST_GENERATION_AGENT_DEFINITION, (
+                f"CHECKLIST_GENERATION_AGENT_DEFINITION must explicitly name "
+                f"the '{category}' category from spec Section 44.11."
+            )
+
+    def test_definition_references_section_44_11(self):
+        assert "44.11" in CHECKLIST_GENERATION_AGENT_DEFINITION, (
+            "Definition must cross-reference spec Section 44.11 where the "
+            "six categories' seed items live."
+        )
+
+    def test_definition_requires_per_language_refinement(self):
+        text = CHECKLIST_GENERATION_AGENT_DEFINITION
+        assert definition_contains(text, "Per-Language Refinement") or (
+            definition_contains(text, "language", case_sensitive=False)
+            and definition_contains(text, "refine", case_sensitive=False)
+        ), (
+            "Definition must require per-language refinement of seed items "
+            "based on the project profile's primary language."
+        )
+
+    def test_definition_mentions_blueprint_self_review_artifact(self):
+        """The generator must know that the blueprint author writes a third
+        file (the self-review) that the generator does NOT produce."""
+        assert "blueprint_self_review.md" in CHECKLIST_GENERATION_AGENT_DEFINITION, (
+            "Definition must reference .svp/blueprint_self_review.md so the "
+            "generator agent knows the author produces a third file the "
+            "generator does not generate."
+        )
+
+
 # ===========================================================================
 # REGRESSION_ADAPTATION_AGENT_DEFINITION
 # ===========================================================================

@@ -1830,6 +1830,12 @@ The blueprint author reviews this checklist after completing the blueprint draft
 - **DAG integrity:** Dependencies match the spec's unit architecture, no forward edges
 - **Language framework:** Registry entries, toolchain files, profile schema all contracted
 - **Spec/blueprint boundary:** Every seed checklist item (Section 44) is included — these mark known boundaries where the spec defines WHAT and the blueprint must determine HOW
+- **Schema coherence (Category S, Section 44.11.1):** Type/schema references resolve, no phantom fields, no orphan schemas, consistent nullability, exhaustive enumerations
+- **Function reachability (Category F, Section 44.11.2):** Every function declared is called, every call is declared, no dead functions, no undeclared callees, private-helper scope respected
+- **Invariant coherence (Category I, Section 44.11.3):** Invariants are precise testable predicates, do not contradict each other, are established and maintained by named contracts, dependencies between invariants are explicit
+- **Dispatch completeness (Category D, Section 44.11.4):** Dispatch tables have declared key/value types, are presented as tables when ≥3 keys, specify missing-key behavior, have unambiguous tie-breaking, and reach functions with Tier 2 signatures
+- **Branch reachability (Category B, Section 44.11.5):** Every branch is reachable, no contradictory guards, error branches have triggering conditions, happy/error path coverage is symmetric, branches are classified as normal-path vs safety-net
+- **Contract bidirectional mapping (Category C, Section 44.11.6):** Forward mapping (every spec requirement → contract) and backward mapping (every contract → spec/preference/invariant/bug citation), no orphan contracts or requirements
 
 **Final item (mandatory):** Review ALL lesson learned bugs and regression tests. For each bug:
 - Verify the blueprint does not recreate the failure pattern
@@ -1861,11 +1867,22 @@ Categories include but are not limited to:
 
 #### 7.8.4 Checklist Delivery
 
-The two checklists are written as structured markdown files:
+The two checklists are written as structured markdown files by the Checklist Generation Agent:
 - `.svp/blueprint_author_checklist.md`
 - `.svp/alignment_checker_checklist.md`
 
 These files are passed as additional inputs to the blueprint author agent (Stage 2, Section 8.1) and the blueprint checker agent (Stage 2, Section 8.2) respectively.
+
+**Self-review artifact (NEW IN 2.2).** During the blueprint author step, the author additionally produces a third file at `.svp/blueprint_self_review.md` that records the author's own self-review against the items in `.svp/blueprint_author_checklist.md`. The self-review file is an audit artifact, NOT a deterministic gate; the routing dispatch step does not validate it. The blueprint author agent's prompt instructs the author to:
+
+1. Read each item in `.svp/blueprint_author_checklist.md`.
+2. For each item, inspect the completed blueprint draft and record either `PASS — Evidence: <citation>` or `FAIL — Reason: <explanation>`.
+3. Write the filled self-review to `.svp/blueprint_self_review.md` using a deterministic markdown format (one item per line, `- [x] <ID> PASS — Evidence: <text>` or `- [ ] <ID> FAIL — Reason: <text>`).
+4. End the file with the line `SELF_REVIEW_RESULT: ALL_PASS` if every item passed, or `SELF_REVIEW_RESULT: HAS_FAILURES` otherwise.
+5. **If any item is FAIL, revise the blueprint and re-run the self-review** (incrementing the run counter at the top of the file). Iterate until every item is PASS.
+6. Only after the self-review outcome is `ALL_PASS`, emit the terminal status line `BLUEPRINT_DRAFT_COMPLETE` (or `BLUEPRINT_REVISION_COMPLETE` in revision mode).
+
+The downstream Blueprint Reviewer and Alignment Checker still run after the author completes — the self-review is upstream cost reduction, not a replacement for cold review. The self-review file persists in `.svp/` as a durable audit trail; a human operator can open it to see exactly what was checked, when, and with what evidence.
 
 #### 7.8.5 Agent Definition
 
@@ -7775,6 +7792,86 @@ SC-25. Orchestrator-internal working documents (decision tracking, verification 
 ### 44.10 Checklist Completeness
 
 SC-26. The generated checklist covers all mandatory categories defined in Section 7.8. The category list is a closed required set — the generator MAY add project-specific categories but MUST NOT omit any required category.
+
+### 44.11 Universal Software Engineering Principles (NEW IN 2.2)
+
+The following six categories (S, F, I, D, B, C) encode universal structural principles that apply to any blueprint regardless of project archetype, primary language, or domain. They constitute the **blueprint author self-review checklist** — the author runs each item against the completed draft and iterates until every item is PASS before emitting `BLUEPRINT_DRAFT_COMPLETE`. The Checklist Generation Agent embeds these items into `.svp/blueprint_author_checklist.md`, refining each item with project-specific detail keyed to the project profile's `language` section. Items marked *(language-agnostic)* require no refinement; items with refinement notes in parentheses are specialized per language.
+
+The blueprint author writes the filled self-review to `.svp/blueprint_self_review.md` (see Section 7.8.4). This is a behavioral contract on the blueprint author agent, not a deterministic dispatch check — the agent's prompt instructs it to iterate until ALL_PASS before emitting the terminal status. The downstream Blueprint Reviewer and Alignment Checker continue to run as cold reviews; the self-review is upstream cost reduction, not a new gate.
+
+#### 44.11.1 Schema Coherence (Category S)
+
+SC-27 (S-1). Every type, class, struct, record, or schema name referenced in a Tier 2 signature is either a language built-in, explicitly imported/sourced at the top of the Tier 2 block, or defined in another unit's Tier 2 with an explicit cross-reference. *(Refined per language: Python → type imports; R → S3/S4 class definitions or roxygen2 type tags; Bash → N/A, skipped for typeless archetypes; Stan → explicit type declarations; JSON-schema archetypes → `$ref` resolution.)*
+
+SC-28 (S-2). Every field, attribute, column, named element, or key accessed in a Tier 3 contract exists in a Tier 2 schema. No phantom fields. *(Refined per language: Python → `TypedDict` / `dataclass` fields, dict key schemas stated in Tier 3; R → `data.frame` column sets, named `list` elements, S4 slot names; Bash → documented env vars and positional args; JSON → schema `properties` keys; markdown archetypes → documented section headings.)*
+
+SC-29 (S-3). No orphan schemas: every type, class, or data shape defined explicitly in a Tier 2 block is used by at least one signature, contract, or downstream schema definition in the same or a later unit. *(Language-agnostic.)*
+
+SC-30 (S-4). Nullability / absence is consistently propagated across call chains. If a function can return an absence value, every caller either handles the absence branch in a Tier 3 contract or the contract proves absence is unreachable from the caller's context. *(Refined per language: Python → `Optional[X]` / `None`; R → `NULL` / `NA` / `missing()`; Bash → unset / empty string; Stan → not allowed, flag as a schema error; statically typed languages with `Option<T>` equivalents → the language's own mechanism.)*
+
+SC-31 (S-5). Enumerated domains are exhaustive: every value set constrained to a fixed list in a Tier 2 signature has a Tier 3 contract enumerating the complete set, plus a statement of the behavior for out-of-domain inputs. *(Language-agnostic. The expression mechanism is refined per language: Python `Literal[...]`, R `match.arg`, Bash `case` statements, Stan `int<lower=0, upper=N>`.)*
+
+#### 44.11.2 Function Reachability (Category F)
+
+SC-32 (F-1). Every function declared in any unit's Tier 2 is either (a) called by a Tier 3 contract somewhere in the blueprint, (b) explicitly documented as a public CLI entry point or public API, or (c) a dispatch-table value reachable by the table's declared key set. *(Language-agnostic.)*
+
+SC-33 (F-2). Every function call mentioned in a Tier 3 contract has a corresponding Tier 2 signature in the same unit, in an upstream dependency, or in a documented external library. *(Language-agnostic.)*
+
+SC-34 (F-3). No dead functions: no function appears in Tier 2 with no caller path reaching it from any CLI entry point, gate handler, or public API. *(Language-agnostic.)*
+
+SC-35 (F-4). No undeclared callees: no Tier 3 contract references a function name that does not exist as a Tier 2 signature somewhere reachable. *(Language-agnostic.)*
+
+SC-36 (F-5). Private helper functions — identified by whatever privacy convention the project's primary language uses — are called only from within their defining unit. Cross-unit calls to private helpers are either explicit public exports or a structural bug. *(Refined per language: Python → underscore prefix `_name`; R → non-exported functions per package NAMESPACE or dot-prefix `.name`; Bash → documented "internal" functions per convention; Stan → helper functions in `functions` block not exposed via the model interface. Skipped for languages with no privacy convention.)*
+
+#### 44.11.3 Invariant Coherence (Category I)
+
+SC-37 (I-1). Every invariant is stated as a precise predicate (a condition that is either true or false given concrete state), not as a vague adjective like "correct," "valid," "proper," "reasonable," or "well-formed." *(Language-agnostic.)*
+
+SC-38 (I-2). No two invariants contradict each other. For every pair of invariants `(I_a, I_b)`, there is at least one state in which both hold simultaneously. *(Language-agnostic.)*
+
+SC-39 (I-3). For every invariant `I`, at least one contract establishes `I` (initialization) and at least one contract maintains `I` (preservation under state mutation). If `I` is a system-wide invariant not tied to a specific transition, the blueprint explicitly names it as such. *(Language-agnostic.)*
+
+SC-40 (I-4). If invariant `I_b` depends on invariant `I_a`, the dependency is documented explicitly in the Tier 3 prose for `I_b`. *(Language-agnostic.)*
+
+SC-41 (I-5). Every invariant is testable by a concrete predicate on observable state; no invariant is expressed purely in terms of internal, unobservable properties. *(Language-agnostic.)*
+
+#### 44.11.4 Dispatch Completeness and Consistency (Category D)
+
+SC-42 (D-1). Every dispatch table has an explicit declared key type and an explicit declared value type in Tier 2. The full set of keys is either enumerated in Tier 3 or described by an explicit rule (e.g., "every registered language"). *(Language-agnostic.)*
+
+SC-43 (D-2). Every dispatch table with more than two keys is presented in an explicit markdown table form in the blueprint, not scattered across if-else prose. Tables with two keys MAY be prose. *(Language-agnostic.)*
+
+SC-44 (D-3). For every dispatch table, the behavior for a missing key is specified: raise with a named exception, return a sentinel, call a fallback, or prove statically that missing keys cannot occur. No implicit behavior. *(Language-agnostic.)*
+
+SC-45 (D-4). Overlapping dispatch cases (two entries matching the same input) are either impossible by construction, or tie-breaking rules are stated explicitly. *(Language-agnostic.)*
+
+SC-46 (D-5). Every value in a dispatch table points to a function that has a Tier 2 signature in some unit (this satisfies Category F reachability for dispatch values). *(Language-agnostic.)*
+
+SC-47 (D-6). For dispatch tables keyed by an enumerable domain (languages, gate IDs, agent types, status lines), the blueprint asserts the key set equals the enumerable domain and states where the domain is defined (registry, constant, spec section). *(Language-agnostic.)*
+
+#### 44.11.5 Branch Reachability (Category B)
+
+SC-48 (B-1). Every conditional branch in a Tier 3 contract has at least one input under the declared preconditions that reaches it. No dead branches. *(Language-agnostic.)*
+
+SC-49 (B-2). Within a single contract, no pair of guard conditions is simultaneously mutually exclusive AND jointly required (e.g., "if `X` and if `not X`"). *(Language-agnostic.)*
+
+SC-50 (B-3). Every error branch (raise, return error sentinel, abort) has a matching error-triggering condition stated either in the Tier 3 of the same unit, in the stakeholder spec, or in an upstream contract the unit depends on. *(Language-agnostic.)*
+
+SC-51 (B-4). Happy-path and error-path coverage are symmetric: for every error the implementation can raise, a contract explains when the error triggers and which upstream input causes it. *(Language-agnostic.)*
+
+SC-52 (B-5). For every multi-branch decision (if/elif/else chain, match statement, dispatch call), the blueprint enumerates which branches are exercised by normal operation versus which exist solely as safety nets. *(Language-agnostic.)*
+
+#### 44.11.6 Contract Bidirectional Mapping (Category C)
+
+SC-53 (C-1). Forward mapping: every requirement in the stakeholder spec that lies within this unit's declared scope has at least one corresponding Tier 3 contract. The contract cites the spec by section number or quoted phrase. *(Language-agnostic.)*
+
+SC-54 (C-2). Backward mapping: every Tier 3 contract cites its basis, which is one of: a spec section, a project profile preference, a framework invariant from Section 3, or a lesson-learned pattern (by bug number). No orphan contracts. *(Language-agnostic.)*
+
+SC-55 (C-3). No orphan requirements: no spec requirement within this unit's declared scope lacks a contract, except those explicitly marked out-of-scope in the unit's Tier 1 description with justification. *(Language-agnostic.)*
+
+SC-56 (C-4). When a contract derives from a project profile preference, the preference is cited verbatim (e.g., `profile.quality.linter.light == "ruff"`) so that future preference changes can be traced to the contracts they affect. *(Language-agnostic.)*
+
+SC-57 (C-5). When a contract derives from a lesson-learned bug, the bug is cited by its S-marker (e.g., `Bug S3-117`) so that the contract's motivation stays traceable even after the lesson-learned document is reformatted. *(Language-agnostic.)*
 
 ---
 
