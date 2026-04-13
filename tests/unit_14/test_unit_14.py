@@ -132,7 +132,9 @@ def _write_state_file(tmp_path, state):
         "oracle_nested_session_path": state.oracle_nested_session_path,
         "state_hash": state.state_hash,
         "spec_revision_count": state.spec_revision_count,
-        "pass_": state.pass_,
+        # load_state reads "pass" (not "pass_") because the field is
+        # serialized with the Python-reserved-word name stripped.
+        "pass": state.pass_,
         "pass2_nested_session_path": state.pass2_nested_session_path,
         "deferred_broken_units": state.deferred_broken_units,
     }
@@ -1801,6 +1803,207 @@ class TestRouteAlignmentCheckSelfHeal:
         assert result["action_type"] in {
             "invoke_agent", "human_gate", "run_command", "pipeline_held"
         }
+
+
+# ===========================================================================
+# Bug S3-115: Recursive routing bounded-recursion invariant
+# ===========================================================================
+
+
+_S3_115_RECURSIVE_SITES = [
+    # (id, stage, sub_stage, last_status, overrides, expected_action_type,
+    #  expected_post_state_sub_stage_or_None)
+    # (None for expected_post_state_sub_stage means we don't assert on it.)
+
+    # Line 1430: Stage 1 checklist_generation → Stage 2 blueprint_dialog
+    (
+        "stage_1_checklist_complete",
+        "1", "checklist_generation", "CHECKLISTS_COMPLETE",
+        {}, "invoke_agent", "blueprint_dialog",
+    ),
+    # Line 1484: Stage 2 targeted_spec_revision → blueprint_dialog
+    (
+        "stage_2_targeted_spec_revision_complete",
+        "2", "targeted_spec_revision", "SPEC_DRAFT_COMPLETE",
+        {}, None, "blueprint_dialog",  # may route to a gate in blueprint_dialog
+    ),
+    # Line 1534 is covered by TestRouteAlignmentCheckSelfHeal (S3-114)
+    # Line 1561 is also covered there
+    # Line 1620: pre_stage_3 → stage 3
+    (
+        "pre_stage_3_unconditional",
+        "pre_stage_3", None, "",
+        {"total_units": 5}, None, None,  # advances stage to 3, sub_stage to stub_generation
+    ),
+    # Line 1649: Stage 3 all-units-done → Stage 4. Requires full verified_units.
+    # Skipped — elaborate setup, covered structurally by 1654 and 1668 above.
+    # Line 1654: Stage 3 enter unit build (sub_stage None, current_unit set)
+    (
+        "stage_3_enter_unit_build",
+        "3", None, "",
+        {"current_unit": 1, "total_units": 5}, "run_command", "stub_generation",
+    ),
+    # Line 1668: Stage 3 test_generation → quality_gate_a
+    (
+        "stage_3_test_generation_complete",
+        "3", "test_generation", "TEST_GENERATION_COMPLETE",
+        {"current_unit": 1, "total_units": 5}, "run_command", "quality_gate_a",
+    ),
+    # Line 1696: Stage 3 implementation → quality_gate_b
+    (
+        "stage_3_implementation_complete",
+        "3", "implementation", "IMPLEMENTATION_COMPLETE",
+        {"current_unit": 1, "total_units": 5}, "run_command", "quality_gate_b",
+    ),
+    # Line 1757: Stage 3 coverage_review → unit_completion
+    (
+        "stage_3_coverage_no_gaps",
+        "3", "coverage_review", "COVERAGE_COMPLETE: no gaps",
+        {"current_unit": 1, "total_units": 5}, "run_command", "unit_completion",
+    ),
+    # Line 1821: Stage 4 regression_adaptation → Stage 5
+    (
+        "stage_4_adaptation_complete",
+        "4", "regression_adaptation", "ADAPTATION_COMPLETE",
+        {}, None, None,  # advances stage to 5
+    ),
+    # Line 1906: Stage 5 repo_complete + pass_ in (1, 2) → pass_transition
+    (
+        "stage_5_repo_complete_pass_1",
+        "5", "repo_complete", "",
+        {"pass_": 1}, "human_gate", "pass_transition",
+    ),
+]
+
+
+class TestRoutingRecursionBoundedness:
+    """Bug S3-115: structural regression tests enforcing that every
+    recursive routing call site is preceded by a state-advancing
+    operation. Uses sys.setrecursionlimit(100) as a deterministic
+    recursion budget. If any route() recursion path is broken (state
+    not advanced before recurse), the recursion-limit guard raises
+    RecursionError and the test fails loudly.
+
+    Covers direct `return route(project_root)` sites in
+    src/unit_14/stub.py. The sites at lines 1534 (ALIGNMENT_CONFIRMED)
+    and 1561 (ALIGNMENT_FAILED) are covered by
+    TestRouteAlignmentCheckSelfHeal (S3-114). The _route_debug
+    recursive sites are covered by TestRouteDebugRecursionBoundedness
+    below. The Stage 3 all-units-done site (line 1649) is skipped
+    because it requires elaborate verified_units fixture setup;
+    the Stage 3 structural path is exercised by the other Stage 3 rows.
+    """
+
+    @pytest.mark.parametrize(
+        "test_id,stage,sub_stage,last_status,overrides,expected_action,expected_sub",
+        [(s[0], s[1], s[2], s[3], s[4], s[5], s[6]) for s in _S3_115_RECURSIVE_SITES],
+        ids=[s[0] for s in _S3_115_RECURSIVE_SITES],
+    )
+    def test_recursion_is_bounded(
+        self, tmp_path, test_id, stage, sub_stage, last_status, overrides,
+        expected_action, expected_sub,
+    ):
+        state = _make_state(stage=stage, sub_stage=sub_stage, **overrides)
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, last_status)
+
+        import sys as _sys
+        old = _sys.getrecursionlimit()
+        try:
+            _sys.setrecursionlimit(100)
+            result = route(tmp_path)
+        finally:
+            _sys.setrecursionlimit(old)
+
+        # The test passes iff route() returned a valid action block
+        # without hitting the recursion limit.
+        assert isinstance(result, dict)
+        assert "action_type" in result
+        if expected_action is not None:
+            assert result["action_type"] == expected_action, (
+                f"[{test_id}] expected {expected_action}, got {result['action_type']}"
+            )
+        if expected_sub is not None:
+            from pipeline_state import load_state
+            new_state = load_state(tmp_path)
+            assert new_state.sub_stage == expected_sub, (
+                f"[{test_id}] expected sub_stage {expected_sub}, got {new_state.sub_stage}"
+            )
+
+
+class TestRouteDebugRecursionBoundedness:
+    """Bug S3-115: the _route_debug recursive sites are not parametrized
+    because each has unique debug_session fixture requirements. These
+    tests verify the routing recursion-safety invariant for:
+      - Line 1196: phase == 'repair' + REPAIR_COMPLETE → reassembly
+      - Line 1257: phase == 'reassembly' + REPO_ASSEMBLY_COMPLETE → regression_test
+      - Line 1235: phase == 'stage3_rebuild_active' → delegates to _route_stage_3
+    """
+
+    def _write_debug_state(self, tmp_path, phase, last_status, extra_overrides=None):
+        """Create a state file with an active debug session in the given phase."""
+        debug_session = _make_debug_session(
+            authorized=True, bug_number=1, phase=phase,
+            affected_units=[1], classification="single_unit",
+        )
+        # Default: stage 6, sub_stage None, and current_unit=None to satisfy
+        # the save_state invariant that current_unit and sub_stage are both
+        # None or both non-None.
+        kwargs = {
+            "stage": "6",
+            "sub_stage": None,
+            "current_unit": None,
+            "debug_session": debug_session,
+        }
+        if extra_overrides:
+            kwargs.update(extra_overrides)
+        state = _make_state(**kwargs)
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, last_status)
+
+    def _bounded_route(self, tmp_path):
+        """Call route() with a strict recursion limit."""
+        import sys as _sys
+        old = _sys.getrecursionlimit()
+        try:
+            _sys.setrecursionlimit(100)
+            return route(tmp_path)
+        finally:
+            _sys.setrecursionlimit(old)
+
+    def test_repair_complete_transitions_to_reassembly(self, tmp_path):
+        """Line 1196: REPAIR_COMPLETE in phase=repair must transition
+        debug_phase to reassembly before recursing into _route_debug."""
+        self._write_debug_state(tmp_path, phase="repair", last_status="REPAIR_COMPLETE")
+        result = self._bounded_route(tmp_path)
+        assert isinstance(result, dict)
+        assert "action_type" in result
+        # After the transition, we should be routed somewhere (either
+        # invoke_agent for git_repo_agent reassembly, or another action).
+        # The key assertion is: no RecursionError. The transition worked.
+
+    def test_reassembly_complete_transitions_to_regression_test(self, tmp_path):
+        """Line 1257: REPO_ASSEMBLY_COMPLETE in phase=reassembly must
+        transition debug_phase to regression_test before recursing."""
+        self._write_debug_state(
+            tmp_path, phase="reassembly", last_status="REPO_ASSEMBLY_COMPLETE"
+        )
+        result = self._bounded_route(tmp_path)
+        assert isinstance(result, dict)
+        assert "action_type" in result
+
+    def test_stage3_rebuild_active_delegates_to_route_stage_3(self, tmp_path):
+        """Line 1235: _route_debug delegates to _route_stage_3 when
+        phase == 'stage3_rebuild_active'. The delegation must complete
+        within bounded recursion."""
+        self._write_debug_state(
+            tmp_path, phase="stage3_rebuild_active", last_status="",
+            extra_overrides={"stage": "3", "sub_stage": "stub_generation",
+                             "current_unit": 1, "total_units": 5},
+        )
+        result = self._bounded_route(tmp_path)
+        assert isinstance(result, dict)
+        assert "action_type" in result
 
 
 # ===========================================================================

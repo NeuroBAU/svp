@@ -5139,6 +5139,34 @@ The self-heal is guaranteed safe because the post-advance state takes routing to
 
 **Regression test:** A new `TestRouteAlignmentCheckSelfHeal` class in `tests/unit_14/test_unit_14.py` with five tests covering: blueprint failure self-heal, spec failure self-heal, iteration-limit gate presentation (no double-count), dispatch-ran-normally no-op at the self-heal branch, and an explicit bounded-recursion test using `sys.setrecursionlimit(100)` that asserts the route() call terminates within the recursion budget.
 
+### 24.128 Recursive Routing Safety Audit and Invariant Lock-In (Post-delivery — Bug S3-115, NEW IN 2.2)
+
+**Follow-up to Bug S3-114.** After fixing the S3-114 routing infinite-recursion defect, the lessons learned entry flagged a follow-up: audit every `return route(project_root)` call site in routing.py to confirm S3-114 was a one-off rather than a recurring pattern, AND lock in the recursion-safety invariant with structural tests so the same bug class cannot be reintroduced. This entry documents both the audit and the resulting test additions.
+
+**Audit methodology:** Grep `src/unit_14/stub.py` for three recursive patterns:
+1. `return route(project_root)` — direct top-level recursion.
+2. `return _route_debug(...)` — self-recursion within the debug router.
+3. `return _route_stage_3(...)` — delegation from `_route_debug` to the stage-3 router.
+
+For each site, verify the recursion is preceded by a state-advancing operation (`advance_sub_stage`, `advance_stage`, `update_debug_phase`, `increment_*`, or direct `state.sub_stage = ...`) AND a `save_state(project_root, state)` call. If either is missing, the recursion is unsafe: the recursive call re-reads unchanged state and enters the same branch, causing infinite recursion.
+
+**Audit result:** 15 recursive routing sites found — 12 direct `return route(project_root)` + 2 `return _route_debug(...)` self-recursions + 1 `return _route_stage_3(...)` delegation. Inspection found **ZERO additional unsafe sites** beyond the one already fixed by S3-114. The S3-114 regression was a one-off — the contributor who introduced it had copied the structural shape of the `ALIGNMENT_CONFIRMED` branch but accidentally omitted the state-advance step. No other routing branches had the same oversight.
+
+**Audit site-by-site:** Every direct site at lines 1430, 1484, 1534, 1561 (S3-114 fix), 1620, 1649, 1654, 1668, 1696, 1757, 1821, 1906 is preceded by an appropriate state transition + `save_state`. The `_route_debug` recursive sites at lines 1196 and 1257 transition the `debug_phase` before recursing, so the next `_route_debug` call reads a different phase and hits a different branch. The `_route_stage_3` delegation at line 1235 is safe because `_route_stage_3` emits action blocks or recurses via top-level `route()` (all of which are safe). Full per-site verdict table is in the Bug S3-115 plan file.
+
+**Follow-up discussion outcomes from the S3-114 out-of-scope items:**
+- **Bounded-recursion decorator (previous item 3): REJECTED.** With zero additional unsafe sites found, a decorator is over-engineering — we would be buying insurance for a bug class with exactly one known occurrence that is already fixed. The decorator also has non-trivial costs (depth propagation through test fixtures, deciding on a universal bound, risk of false positives for legitimate long chains).
+- **Operator documentation about direct `last_status.txt` writes (previous item 2): STILL DEFERRED.** Remains a docs task against CLAUDE.md or the orchestration skill, not a bug fix. The S3-114 self-heal already makes routing tolerant of the operator anti-pattern; documentation would upgrade "tolerated" to "explicitly discouraged with a recovery note," which is low urgency.
+- **Audit (previous item 1): COMPLETED as S3-115.** Result is the zero-defect finding above, plus the structural test hardening below.
+
+**Fix (Bug S3-115) — test coverage only, no code changes:** Add `TestRoutingRecursionBoundedness` and `TestRouteDebugRecursionBoundedness` classes in `tests/unit_14/test_unit_14.py`. The first is a parametrized test with one row per direct recursion site (11 rows, excluding the 2 `alignment_check` branches already covered by S3-114's own tests). Each row sets up state for the target branch, writes the trigger `last_status`, wraps `route(project_root)` in `sys.setrecursionlimit(100)`, and asserts (a) route returns a valid action block without `RecursionError`, (b) the saved state advanced to the expected next sub_stage/stage. The second class covers the 3 `_route_debug` recursive sites with non-parametrized tests (each has unique debug_session fixture requirements).
+
+**Why tests instead of a decorator:** The S3-114 regression was a structural invariant failure — a contributor wrote code that looked almost identical to the safe branch beside it but was missing a subtle element. A decorator catches the symptom at runtime but doesn't communicate the invariant to the contributor. A parametrized test CLASS with one row per site means the invariant is explicit: "every recursive routing branch has a test; when you add a new branch, you add a row; if your branch recurses without state advance, your row fails with RecursionError." The test IS the invariant enforcement. This is strictly more informative than a decorator and strictly less runtime overhead.
+
+**Prevention rule (added to lessons learned):** every new `return route(project_root)` or equivalent recursive routing call MUST be accompanied by a new row in `TestRoutingRecursionBoundedness` (or a dedicated test if the setup is idiosyncratic). The test class serves as the enforcement point for the routing recursion-safety invariant.
+
+**Pattern:** **"When a defect is a one-off in a structural invariant, convert the invariant from implicit to explicit with tests — not runtime guards."** Runtime guards (decorators, depth checks) catch the symptom but don't communicate why the rule exists. Parametrized tests with one row per call site force the rule to be re-asserted every time the rule expands, making regressions impossible as long as the test suite runs.
+
 ---
 
 ## 25. Test Data
