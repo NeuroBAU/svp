@@ -145,6 +145,17 @@ doc_sync() {
         return
     fi
     for dst in "$@"; do
+        # Skip empty destinations. This happens when a conditional repo
+        # (e.g. $PASS1_REPO) is configured as empty — callers can then
+        # pass "$PASS1_REPO/docs/X" without guarding, and we filter it
+        # out here. Also skip destinations whose parent is "/" (i.e. the
+        # prefix was empty and we'd be writing to a system root).
+        [ -z "$dst" ] && continue
+        case "$dst" in
+            /docs/*|/svp/*|/tests/*|/src/*)
+                continue
+                ;;
+        esac
         if [ ! -f "$dst" ] || ! diff -q "$ws_file" "$dst" > /dev/null 2>&1; then
             sync_file "$ws_file" "$dst" "$name → $(echo "$dst" | sed "s|$WORKSPACE/../||")"
         fi

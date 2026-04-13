@@ -25,6 +25,7 @@ else:
     WORKSPACE = _PROJECT_ROOT  # fallback
 
 REPOS = [r for r in [PASS2_REPO, PASS1_REPO] if r.is_dir()]
+REPO_IDS = [r.name for r in REPOS]
 
 
 class TestEntryPointScripts:
@@ -65,12 +66,12 @@ class TestRoutingProducesOutput:
 class TestPluginManifests:
     """Plugin manifests must be valid and complete."""
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_marketplace_json_exists(self, repo):
         path = repo / ".claude-plugin" / "marketplace.json"
         assert path.is_file()
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_marketplace_json_valid(self, repo):
         path = repo / ".claude-plugin" / "marketplace.json"
         data = json.loads(path.read_text())
@@ -78,12 +79,12 @@ class TestPluginManifests:
         assert data["plugins"][0]["source"] == "./svp"
         assert data["plugins"][0]["name"] != ""
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_plugin_json_exists(self, repo):
         path = repo / "svp" / ".claude-plugin" / "plugin.json"
         assert path.is_file()
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_plugin_json_valid(self, repo):
         path = repo / "svp" / ".claude-plugin" / "plugin.json"
         data = json.loads(path.read_text())
@@ -94,23 +95,23 @@ class TestPluginManifests:
 class TestPluginComponents:
     """Plugin component directories must be populated."""
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_agents_count(self, repo):
         agents = list((repo / "svp" / "agents").glob("*.md"))
         assert len(agents) == 21
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_agents_have_frontmatter(self, repo):
         for md in (repo / "svp" / "agents").glob("*.md"):
             content = md.read_text()
             assert content.startswith("---"), f"{md.name} missing frontmatter"
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_commands_count(self, repo):
         cmds = list((repo / "svp" / "commands").glob("*.md"))
         assert len(cmds) == 11
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_hooks_json_format(self, repo):
         path = repo / "svp" / "hooks" / "hooks.json"
         data = json.loads(path.read_text())
@@ -118,13 +119,13 @@ class TestPluginComponents:
             for entry in entries:
                 assert "hooks" in entry, "Hook entry uses 'handler' instead of 'hooks'"
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_skill_exists(self, repo):
         path = repo / "svp" / "skills" / "orchestration" / "SKILL.md"
         assert path.is_file()
         assert path.read_text().startswith("---")
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_scripts_init_py(self, repo):
         assert (repo / "svp" / "scripts" / "__init__.py").is_file()
 
@@ -132,12 +133,12 @@ class TestPluginComponents:
 class TestPyprojectToml:
     """pyproject.toml must have correct build config."""
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_has_entry_point(self, repo):
         content = (repo / "pyproject.toml").read_text()
         assert "svp.scripts.svp_launcher:main" in content
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_build_backend(self, repo):
         content = (repo / "pyproject.toml").read_text()
         assert "setuptools.build_meta" in content
@@ -259,7 +260,7 @@ class TestAdaptRegressionTestsOrphanRemoved:
     def test_orphan_not_in_workspace_src_unit_23(self):
         assert not (WORKSPACE / "src" / "unit_23" / "adapt_regression_tests.py").exists()
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_orphan_not_in_deployed_svp_scripts(self, repo):
         assert not (repo / "svp" / "scripts" / "adapt_regression_tests.py").exists(), (
             f"{repo.name}/svp/scripts/adapt_regression_tests.py must not exist "
@@ -431,7 +432,7 @@ class TestAssemblyMapFreshness:
 class TestLauncherImport:
     """Launcher must be importable as installed package."""
 
-    @pytest.mark.parametrize("repo", REPOS, ids=["pass2", "pass1"])
+    @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_launcher_importable(self, repo):
         result = subprocess.run(
             [sys.executable, "-c", "from svp.scripts.svp_launcher import main; print('OK')"],

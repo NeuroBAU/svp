@@ -51,6 +51,8 @@ class TestSpecSync:
     """Spec must be identical in workspace and all delivered repos."""
 
     def test_spec_matches_pass1_repo(self):
+        if not PASS1_REPO.is_dir():
+            pytest.skip("Pass 1 repo retired (2026-04-13)")
         ws = _ws_spec()
         repo = (PASS1_REPO / "docs" / "stakeholder_spec.md").read_text()
         assert ws == repo, "Spec out of sync with Pass 1 repo"
@@ -66,6 +68,8 @@ class TestBlueprintSync:
     """Blueprint must be identical in workspace and all delivered repos."""
 
     def test_blueprint_matches_pass1_repo(self):
+        if not PASS1_REPO.is_dir():
+            pytest.skip("Pass 1 repo retired (2026-04-13)")
         ws = _ws_blueprint()
         repo = (PASS1_REPO / "docs" / "blueprint_contracts.md").read_text()
         assert ws == repo, "Blueprint out of sync with Pass 1 repo"
@@ -81,6 +85,8 @@ class TestLessonsLearnedSync:
     """Lessons learned must be identical in workspace and all delivered repos."""
 
     def test_lessons_learned_matches_pass1_repo(self):
+        if not PASS1_REPO.is_dir():
+            pytest.skip("Pass 1 repo retired (2026-04-13)")
         ws = _ws_lessons()
         repo = (PASS1_REPO / "docs" / "references" / "svp_2_1_lessons_learned.md").read_text()
         assert ws == repo, "Lessons learned out of sync with Pass 1 repo"
