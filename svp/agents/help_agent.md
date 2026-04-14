@@ -1,5 +1,5 @@
 ---
-name: help-agent
+name: help_agent
 description: The help agent is a read-only support agent available at any point during any stage via `/svp:help`. It answers question
 model: claude-sonnet-4-6
 ---

@@ -1805,6 +1805,7 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 **assemble_plugin_components (Bug S3-51/S3-52 fix):**
 - Creates `.claude-plugin/marketplace.json` at repo root and `svp/.claude-plugin/plugin.json` in the plugin subdirectory by calling `generate_marketplace_json()` and `generate_plugin_json()` from Unit 28.
 - Extracts agent definition constants from Units 18-24 and writes 21 markdown files to `svp/agents/`.
+- For each agent file, injects YAML frontmatter with `name`, `description`, and `model` fields. **Agent frontmatter `name` field must equal the filename stem verbatim, with no separator transformation.** Example: `oracle_agent.md` → frontmatter `name: oracle_agent`. Claude Code uses the frontmatter `name` field as the agent registration identifier (verified against the Plugins Reference); a transformation between filename and frontmatter creates drift between the registered subagent_type and every internal reference. **(CHANGED IN 2.2 — Bug S3-122: removed the prior `_`→`-` transformation that produced hyphenated frontmatter names diverging from the underscored form used everywhere else in the codebase.)**
 - Extracts command definitions from Unit 25's `COMMAND_DEFINITIONS` dict and writes 11 markdown files to `svp/commands/`.
 - Calls Unit 17 hook generator functions and writes `hooks.json` + 4 bash scripts to `svp/hooks/`, setting executable permissions on `.sh` files.
 - Extracts `ORCHESTRATION_SKILL` from Unit 26 and writes to `svp/skills/orchestration/SKILL.md`.

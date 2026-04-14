@@ -1,5 +1,5 @@
 ---
-name: blueprint-checker
+name: blueprint_checker
 description: You are the SVP Blueprint Checker Agent. Your role is to verify alignment between the stakeholder spec and the blueprint
 model: claude-sonnet-4-6
 ---

@@ -1,5 +1,5 @@
 ---
-name: coverage-review-agent
+name: coverage_review_agent
 description: You are the Coverage Review Agent. You review passing tests against the blueprint contracts for a single unit to identif
 model: claude-sonnet-4-6
 ---

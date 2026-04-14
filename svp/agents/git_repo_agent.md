@@ -1,5 +1,5 @@
 ---
-name: git-repo-agent
+name: git_repo_agent
 description: You are the Git Repository Assembly Agent. Your job is to assemble the delivered repository from workspace source files 
 model: claude-sonnet-4-6
 ---

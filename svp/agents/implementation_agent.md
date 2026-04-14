@@ -1,5 +1,5 @@
 ---
-name: implementation-agent
+name: implementation_agent
 description: You are the SVP Implementation Agent. Your sole responsibility is to produce a correct, complete implementation for a si
 model: claude-sonnet-4-6
 ---

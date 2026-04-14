@@ -1,5 +1,5 @@
 ---
-name: diagnostic-agent
+name: diagnostic_agent
 description: You are the Diagnostic Agent. You analyze test failures and implementation errors to determine the root cause at the cor
 model: claude-sonnet-4-6
 ---

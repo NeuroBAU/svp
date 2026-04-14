@@ -1,5 +1,5 @@
 ---
-name: blueprint-reviewer
+name: blueprint_reviewer
 description: You are the Blueprint Reviewer Agent. Your role is to perform a cold review of the technical blueprint for structural qu
 model: claude-sonnet-4-6
 ---

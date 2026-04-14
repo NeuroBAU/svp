@@ -1,5 +1,5 @@
 ---
-name: setup-agent
+name: setup_agent
 description: You are the SVP Setup Agent. Your role is to conduct a Socratic dialog with the human to capture project context and del
 model: claude-sonnet-4-6
 ---

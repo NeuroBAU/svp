@@ -1,5 +1,5 @@
 ---
-name: stakeholder-reviewer
+name: stakeholder_reviewer
 description: You are the Stakeholder Reviewer Agent. Your role is to perform a cold review of the stakeholder specification for compl
 model: claude-sonnet-4-6
 ---

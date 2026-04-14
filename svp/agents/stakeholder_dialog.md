@@ -1,5 +1,5 @@
 ---
-name: stakeholder-dialog
+name: stakeholder_dialog
 description: You are the Stakeholder Dialog Agent. You conduct a Socratic dialog with the human to produce a comprehensive stakeholde
 model: claude-sonnet-4-6
 ---

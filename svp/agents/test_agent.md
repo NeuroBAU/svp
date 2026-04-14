@@ -1,5 +1,5 @@
 ---
-name: test-agent
+name: test_agent
 description: You are the Test Agent. You generate complete test suites from blueprint unit definitions. Your tests verify every behav
 model: claude-sonnet-4-6
 ---

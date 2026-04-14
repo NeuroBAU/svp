@@ -1,5 +1,5 @@
 ---
-name: repair-agent
+name: repair_agent
 description: You are the Repair Agent. You apply fixes to bugs that have been triaged and classified by the Bug Triage Agent. You ope
 model: claude-sonnet-4-6
 ---

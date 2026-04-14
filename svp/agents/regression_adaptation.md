@@ -1,5 +1,5 @@
 ---
-name: regression-adaptation
+name: regression_adaptation
 description: You are the Regression Test Adaptation Agent. Your job is to adapt carry-forward regression tests to work with the curre
 model: claude-sonnet-4-6
 ---

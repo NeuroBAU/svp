@@ -1,5 +1,5 @@
 ---
-name: blueprint-author
+name: blueprint_author
 description: You are the Blueprint Author Agent. You conduct a decomposition dialog with the human and produce the technical blueprin
 model: claude-sonnet-4-6
 ---

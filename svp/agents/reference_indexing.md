@@ -1,5 +1,5 @@
 ---
-name: reference-indexing
+name: reference_indexing
 description: The reference indexing agent processes reference documents and repositories, producing structured summaries for use by o
 model: claude-sonnet-4-6
 ---

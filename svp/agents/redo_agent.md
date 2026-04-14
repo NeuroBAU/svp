@@ -1,5 +1,5 @@
 ---
-name: redo-agent
+name: redo_agent
 description: You are the Redo Agent. You trace the relevant term through the document hierarchy to classify what needs to be redone w
 model: claude-sonnet-4-6
 ---

@@ -834,7 +834,13 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
             if stripped and not stripped.startswith("#") and not stripped.startswith("---"):
                 desc_line = stripped[:120]
                 break
-        name = stem.replace("_", "-")
+        # Bug S3-122: frontmatter `name` MUST equal the filename stem verbatim.
+        # Claude Code uses the frontmatter `name` field as the agent registration
+        # identifier; transforming it (e.g., `_` -> `-`) creates drift between the
+        # registered subagent_type and every internal reference (PHASE_TO_AGENT,
+        # AGENT_STATUS_LINES, action block agent_type, etc.) which all use the
+        # underscored form.
+        name = stem
         frontmatter = (
             f"---\n"
             f"name: {name}\n"
@@ -1118,7 +1124,9 @@ def regenerate_deployed_artifacts(repo_dir: Path) -> Dict[str, int]:
                 if stripped and not stripped.startswith("#") and not stripped.startswith("---"):
                     desc_line = stripped[:120]
                     break
-            name = stem.replace("_", "-")
+            # Bug S3-122: frontmatter `name` is the filename stem verbatim
+            # (see assemble_plugin_components above for the full rationale).
+            name = stem
             frontmatter = (
                 f"---\n"
                 f"name: {name}\n"

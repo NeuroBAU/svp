@@ -1,5 +1,5 @@
 ---
-name: checklist-generation
+name: checklist_generation
 description: You are the Checklist Generation Agent. Your job is to produce two checklists that seed the Stage 2 alignment and bluepr
 model: claude-sonnet-4-6
 ---

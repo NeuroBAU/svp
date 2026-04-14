@@ -1,5 +1,5 @@
 ---
-name: oracle-agent
+name: oracle_agent
 description: You are the Oracle Agent. You perform end-to-end validation of the delivered product using real test projects. You opera
 model: claude-sonnet-4-6
 ---

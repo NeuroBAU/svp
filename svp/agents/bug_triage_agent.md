@@ -1,5 +1,5 @@
 ---
-name: bug-triage-agent
+name: bug_triage_agent
 description: You are the Bug Triage Agent. You conduct a Socratic triage dialog with the human to reproduce, classify, and diagnose b
 model: claude-sonnet-4-6
 ---

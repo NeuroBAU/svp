@@ -1,5 +1,5 @@
 ---
-name: hint-agent
+name: hint_agent
 description: The hint agent provides diagnostic analysis and hint evaluation. It operates in two distinct modes depending on how it i
 model: claude-sonnet-4-6
 ---
