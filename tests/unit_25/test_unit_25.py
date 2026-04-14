@@ -25,7 +25,8 @@ Synthetic data assumptions:
 - Per-command --phase values for standard Group B: help -> "help",
   hint -> "hint", ref -> "reference_indexing", redo -> "redo". Bug and
   oracle are thin redirects and use --command entries instead of --phase:
-  bug uses --command svp_bug_entry, oracle uses --command oracle_start.
+  bug uses --command bug_entry, oracle uses --command oracle_start.
+  (Renamed from svp_bug_entry in Bug S3-125 — see TestGroupBPhaseValueBug.)
 - /svp:oracle command is a thin redirect that enters oracle session state
   and defers to the routing script. It must NOT contain directory-scanning
   instructions (Bug S3-79 / P21 / P23).
@@ -568,18 +569,30 @@ class TestGroupBPhaseValueRedo:
 
 
 class TestGroupBPhaseValueBug:
-    """svp_bug uses --command svp_bug_entry (Bug S3-119 — thin redirect).
+    """svp_bug uses --command bug_entry (Bug S3-119 thin redirect; renamed in Bug S3-125).
 
     Prior to S3-119, svp_bug was modeled as a standard Group B command
     using --phase bug_triage. That pattern did not create the debug_session
     object, so /svp:bug could not bootstrap from pipeline_complete. The
     fix replaces the 5-step cycle with a thin state-transition trigger
-    using --command svp_bug_entry (mirroring /svp:oracle's Bug S3-79 fix)."""
+    using --command bug_entry (mirroring /svp:oracle's Bug S3-79 fix).
 
-    def test_bug_uses_command_svp_bug_entry(self):
-        """Bug S3-119: bug uses --command svp_bug_entry instead of --phase bug_triage."""
+    The dispatch key was originally `svp_bug_entry`; renamed to bare
+    `bug_entry` in Bug S3-125 to close the half-applied rename from S3-121.
+    See test_bug_s3_125_bug_entry_rename.py for the explicit regression
+    guard (positive dispatch + negative sentinel)."""
+
+    def test_bug_uses_command_bug_entry(self):
+        """Bug S3-125: bug uses --command bug_entry (was svp_bug_entry pre-S3-125)."""
         content = COMMAND_DEFINITIONS["bug"]
-        assert "--command svp_bug_entry" in content or "svp_bug_entry" in content
+        assert "--command bug_entry" in content, (
+            "/svp:bug body must invoke --command bug_entry. "
+            "Pre-S3-125 it was --command svp_bug_entry; S3-125 renamed to bare."
+        )
+        assert "svp_bug_entry" not in content, (
+            "Bug S3-125 regression: /svp:bug body must NOT contain the old "
+            "svp_bug_entry string. Hard rename, no dual form."
+        )
 
     def test_bug_does_not_use_phase_argument(self):
         """Bug S3-119: the thin trigger does not dispatch via --phase.
@@ -978,11 +991,13 @@ class TestPhaseValueCorrectness:
         assert "redo" in content.lower()
 
     def test_bug_has_correct_entry_command(self):
-        """Bug S3-119: svp_bug is a thin redirect using --command svp_bug_entry.
+        """Bug S3-119 + S3-125: /svp:bug is a thin redirect using --command bug_entry.
         The previous contract was --phase bug_triage; see TestGroupBPhaseValueBug
-        for the bootstrap-path rationale."""
+        for the bootstrap-path rationale. S3-125 renamed the dispatch key from
+        svp_bug_entry to bare bug_entry."""
         content = COMMAND_DEFINITIONS["bug"]
-        assert "svp_bug_entry" in content
+        assert "bug_entry" in content
+        assert "svp_bug_entry" not in content  # S3-125 negative sentinel
 
     def test_oracle_has_correct_phase(self):
         content = COMMAND_DEFINITIONS["oracle"]

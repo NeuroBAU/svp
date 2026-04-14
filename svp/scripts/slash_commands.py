@@ -262,7 +262,7 @@ Report a post-delivery bug and enter a Stage 6 debug session.
 
 ## Action Cycle
 
-1. Run `python scripts/update_state.py --command svp_bug_entry --project-root .` \
+1. Run `python scripts/update_state.py --command bug_entry --project-root .` \
 to create the debug session (transitions `debug_session: null → \
 {phase: "triage", authorized: false}`).
 2. Run `python scripts/routing.py --project-root .` to receive the next action \
@@ -277,7 +277,7 @@ Stage 6 phases).
 - During an active `/svp:oracle` session, this command is blocked for the human \
 (the oracle agent enters debug sessions internally via Gate 7.B).
 - Only one debug session may be active at a time. If a debug session is already \
-active, `svp_bug_entry` fails with an explanatory error.
+active, `bug_entry` fails with an explanatory error.
 """
 
 _SVP_ORACLE_DEFINITION: str = """\

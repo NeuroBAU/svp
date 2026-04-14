@@ -14,13 +14,17 @@ The fix mirrors the /svp:oracle thin-trigger pattern (Bug S3-79):
    oracle_session_active and already-active debug_session.
 
 2. _SVP_BUG_DEFINITION (unit 25) rewritten as a thin trigger that
-   runs update_state.py --command svp_bug_entry, then routing.py.
+   runs update_state.py --command bug_entry, then routing.py.
+   (Renamed from svp_bug_entry → bug_entry in Bug S3-125 — dispatcher
+   consistency fix. This test file uses the renamed command; see
+   test_bug_s3_125_bug_entry_rename.py for the rename's explicit
+   regression guards.)
 
 This test file locks all five behaviors against regression:
 
-- Test A: svp_bug_entry creates debug_session when null.
-- Test B: svp_bug_entry refuses when debug_session already active.
-- Test C: svp_bug_entry refuses when oracle_session_active.
+- Test A: bug_entry creates debug_session when null.
+- Test B: bug_entry refuses when debug_session already active.
+- Test C: bug_entry refuses when oracle_session_active.
 - Test D: end-to-end bootstrap yields Gate 6.0 from pipeline_complete.
 - Test E: _SVP_BUG_DEFINITION is a thin trigger (no prepare_task.py).
 """
@@ -39,9 +43,13 @@ from routing import dispatch_command_status, route
 
 
 def test_svp_bug_entry_creates_debug_session_from_null():
-    """dispatch_command_status('svp_bug_entry', ...) must create a
+    """dispatch_command_status('bug_entry', ...) must create a
     debug_session with authorized=False, phase='triage', bug_number=0,
     matching spec §12.18.13 (null -> 'triage' transition).
+
+    Note: command was renamed svp_bug_entry → bug_entry in Bug S3-125.
+    This test (kept with its historical S3-119 name in the function
+    identifier) uses the renamed command.
     """
     state = PipelineState(
         stage="5",
@@ -50,10 +58,10 @@ def test_svp_bug_entry_creates_debug_session_from_null():
         pass_=2,
         debug_session=None,
     )
-    new_state = dispatch_command_status(state, "svp_bug_entry", "")
+    new_state = dispatch_command_status(state, "bug_entry", "")
 
     assert new_state.debug_session is not None, (
-        "svp_bug_entry must create a debug_session object "
+        "bug_entry must create a debug_session object "
         "(spec §12.18.13: null -> 'triage')"
     )
     assert new_state.debug_session["authorized"] is False, (
@@ -77,9 +85,10 @@ def test_svp_bug_entry_creates_debug_session_from_null():
 
 
 def test_svp_bug_entry_refuses_when_debug_session_active():
-    """Spec §12.18.1: 'one debug session at a time'. svp_bug_entry must
+    """Spec §12.18.1: 'one debug session at a time'. bug_entry must
     raise ValueError if debug_session is already populated, rather than
-    silently overwriting an active session.
+    silently overwriting an active session. (Command renamed from
+    svp_bug_entry in Bug S3-125.)
     """
     state = PipelineState(
         stage="5",
@@ -98,7 +107,7 @@ def test_svp_bug_entry_refuses_when_debug_session_active():
         },
     )
     with pytest.raises(ValueError, match="already active"):
-        dispatch_command_status(state, "svp_bug_entry", "")
+        dispatch_command_status(state, "bug_entry", "")
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +129,7 @@ def test_svp_bug_entry_refuses_when_oracle_session_active():
         oracle_session_active=True,
     )
     with pytest.raises(ValueError, match="oracle"):
-        dispatch_command_status(state, "svp_bug_entry", "")
+        dispatch_command_status(state, "bug_entry", "")
 
 
 # ---------------------------------------------------------------------------
@@ -130,10 +139,11 @@ def test_svp_bug_entry_refuses_when_oracle_session_active():
 
 def test_svp_bug_entry_end_to_end_reaches_gate_6_0():
     """The end-to-end contract: from a clean pipeline_complete state
-    with debug_session=None, invoking svp_bug_entry and then routing()
+    with debug_session=None, invoking bug_entry and then routing()
     must yield a human_gate action block with gate_id
     'gate_6_0_debug_permission'. This is the full bootstrap path the
-    /svp:bug slash command will exercise.
+    /svp:bug slash command will exercise. (Command renamed from
+    svp_bug_entry in Bug S3-125.)
     """
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
@@ -145,7 +155,7 @@ def test_svp_bug_entry_end_to_end_reaches_gate_6_0():
             debug_session=None,
             oracle_session_active=False,
         )
-        new_state = dispatch_command_status(state, "svp_bug_entry", "")
+        new_state = dispatch_command_status(state, "bug_entry", "")
         save_state(root, new_state)
 
         svp_dir = root / ".svp"
@@ -172,10 +182,12 @@ def test_svp_bug_entry_end_to_end_reaches_gate_6_0():
 def test_svp_bug_definition_is_thin_state_trigger():
     """Per the Unit 25 invariant (Bug S3-79, extended by S3-119),
     /svp:bug's skill definition must be a thin state-transition
-    trigger: run update_state.py --command svp_bug_entry, then
+    trigger: run update_state.py --command bug_entry, then
     routing.py. It must NOT contain the Group B 5-step cycle
     (prepare_task, spawn agent, write status, update_state --phase).
     That machinery lives in _route_debug.
+
+    (Command renamed from svp_bug_entry → bug_entry in Bug S3-125.)
 
     This test parses COMMAND_DEFINITIONS rather than the private
     _SVP_BUG_DEFINITION so it works from both workspace and delivered
@@ -188,10 +200,14 @@ def test_svp_bug_definition_is_thin_state_trigger():
     )
     body = COMMAND_DEFINITIONS["bug"]
 
-    assert "svp_bug_entry" in body, (
-        "/svp:bug skill definition must reference the svp_bug_entry "
+    assert "bug_entry" in body, (
+        "/svp:bug skill definition must reference the bug_entry "
         "command — this is the bootstrap step that creates debug_session "
-        "(Bug S3-119 fix)."
+        "(Bug S3-119 fix; renamed from svp_bug_entry in Bug S3-125)."
+    )
+    assert "svp_bug_entry" not in body, (
+        "Bug S3-125 regression: /svp:bug body must NOT contain the old "
+        "svp_bug_entry string. Hard rename to bare bug_entry."
     )
     assert "prepare_task.py" not in body, (
         "/svp:bug is a thin state-transition trigger (Bug S3-79 + S3-119). "
@@ -200,7 +216,7 @@ def test_svp_bug_definition_is_thin_state_trigger():
     )
     assert "--phase bug_triage" not in body, (
         "/svp:bug must not use the --phase bug_triage dispatch path — "
-        "the svp_bug_entry command is the single state-transition entry "
+        "the bug_entry command is the single state-transition entry "
         "point for this command."
     )
 

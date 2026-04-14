@@ -3109,11 +3109,14 @@ def dispatch_command_status(
             raise ValueError(f"Unknown status for {command_type}: {status_line}")
         return new
 
-    # svp_bug_entry — Bug S3-119: /svp:bug must bootstrap debug_session
+    # bug_entry — Bug S3-119: /svp:bug must bootstrap debug_session
     # when called at pipeline_complete. Spec §12.18.13 mandates the
     # null → "triage" transition on /svp:bug entry; this is the single
     # code path that implements it, mirroring oracle_start below.
-    if command_type == "svp_bug_entry":
+    # Bug S3-125 (rename): was "svp_bug_entry" — the only svp_-prefixed
+    # entry in the 14-command dispatcher. Renamed to bare "bug_entry"
+    # to match the other 13 bare-named commands (pattern P28).
+    if command_type == "bug_entry":
         if getattr(state, "oracle_session_active", False):
             raise ValueError(
                 "Cannot enter debug session: /svp:oracle session is active. "
