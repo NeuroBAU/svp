@@ -848,6 +848,14 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
     commands_dir = plugin_subdir / "commands"
     commands_dir.mkdir(parents=True, exist_ok=True)
 
+    # Bug S3-121: defensive cleanup of stale *.md files. Without this, a cached
+    # svp_*.md file (from before the rename) could survive reassembly and
+    # continue to register as /svp:svp_bug alongside the fresh /svp:bug.
+    # Invariant: after assembly, commands_dir contains exactly the files
+    # COMMAND_DEFINITIONS declares and nothing else.
+    for stale in commands_dir.glob("*.md"):
+        stale.unlink()
+
     from slash_commands import COMMAND_DEFINITIONS
 
     for cmd_name, content in COMMAND_DEFINITIONS.items():

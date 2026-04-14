@@ -1914,7 +1914,7 @@ COMMAND_NAMES: List[str]
 
 **Dependencies:** None (markdown files).
 
-**COMMAND_NAMES:** `["svp_help", "svp_hint", "svp_ref", "svp_redo", "svp_bug", "svp_oracle", "svp_save", "svp_quit", "svp_status", "svp_clean", "svp_visual_verify"]`.
+**COMMAND_NAMES:** `["help", "hint", "ref", "redo", "bug", "oracle", "save", "quit", "status", "clean", "visual-verify"]`. **(CHANGED IN 2.2 — Bug S3-121: bare names, no `svp_` prefix. Claude Code registers commands as `{plugin_namespace}:{filename_stem}` with no prefix stripping, so prefixed filenames register as `/svp:svp_*` — double-prefixed.)**
 
 **Group A commands (save, quit, status, clean):** invoke dedicated `cmd_*.py` scripts directly. No agent invocation. No routing cycle.
 
@@ -1954,7 +1954,7 @@ ORCHESTRATION_SKILL: str  # Complete SKILL.md content
 **Dependencies:** None (markdown file).
 
 **ORCHESTRATION_SKILL content requirements:**
-- Frontmatter follows Claude Code schema: `name: "svp:svp_orchestration"`, `description`, `argument-hint`, `allowed-tools`, `model`, `effort`, `context`.
+- Frontmatter follows Claude Code schema: `name: "svp:orchestration"`, `description`, `argument-hint`, `allowed-tools`, `model`, `effort`, `context`. **(CORRECTED IN 2.2 — Bug S3-121: the S3-87 edit that set this to `"svp:svp_orchestration"` was inverted. Claude Code derives skill names from the directory path `skills/orchestration/` → `svp:orchestration`, not from the frontmatter `name` field; the field is documentation that should match reality.)**
 - Six-step mechanical action cycle.
 - REMINDER block template (exact text from Section 3.6).
 - Three-layer model explanation (pipeline toolchain, build-time quality, delivery toolchain).

@@ -7,7 +7,7 @@ behavioral invariants, and operational guidance.
 """
 
 ORCHESTRATION_SKILL: str = """---
-name: "svp:svp_orchestration"
+name: "svp:orchestration"
 description: "Deterministic orchestration protocol for the Stratified Verification Pipeline (SVP). Controls all pipeline routing, agent invocation, gate presentation, and state management."
 argument-hint: "Run the routing script to receive your next action block. Never improvise pipeline flow."
 allowed-tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]

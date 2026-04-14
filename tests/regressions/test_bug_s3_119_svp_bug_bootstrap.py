@@ -183,10 +183,10 @@ def test_svp_bug_definition_is_thin_state_trigger():
     """
     from slash_commands import COMMAND_DEFINITIONS
 
-    assert "svp_bug" in COMMAND_DEFINITIONS, (
-        "svp_bug must be registered in COMMAND_DEFINITIONS"
+    assert "bug" in COMMAND_DEFINITIONS, (
+        "bug must be registered in COMMAND_DEFINITIONS (bare name per S3-121)"
     )
-    body = COMMAND_DEFINITIONS["svp_bug"]
+    body = COMMAND_DEFINITIONS["bug"]
 
     assert "svp_bug_entry" in body, (
         "/svp:bug skill definition must reference the svp_bug_entry "
@@ -217,6 +217,6 @@ def test_svp_oracle_definition_is_thin_state_trigger_symmetry():
     """
     from slash_commands import COMMAND_DEFINITIONS
 
-    body = COMMAND_DEFINITIONS["svp_oracle"]
+    body = COMMAND_DEFINITIONS["oracle"]
     assert "oracle_start" in body
     assert "prepare_task.py" not in body

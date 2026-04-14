@@ -5,8 +5,8 @@ Synthetic data assumptions:
   strings. Each value is the complete markdown content for that slash command
   definition file.
 - COMMAND_NAMES is a List[str] containing exactly these 11 entries:
-  ["svp_help", "svp_hint", "svp_ref", "svp_redo", "svp_bug", "svp_oracle",
-   "svp_save", "svp_quit", "svp_status", "svp_clean", "svp_visual_verify"].
+  ["help", "hint", "ref", "redo", "bug", "oracle",
+   "save", "quit", "status", "clean", "visual-verify"].
 - Group A commands (svp_save, svp_quit, svp_status, svp_clean) invoke
   dedicated cmd_*.py scripts directly with no agent invocation and no
   routing cycle. Their markdown content describes direct script invocation.
@@ -52,40 +52,40 @@ from slash_commands import (
 # ---------------------------------------------------------------------------
 
 EXPECTED_COMMAND_NAMES = [
-    "svp_help",
-    "svp_hint",
-    "svp_ref",
-    "svp_redo",
-    "svp_bug",
-    "svp_oracle",
-    "svp_save",
-    "svp_quit",
-    "svp_status",
-    "svp_clean",
-    "svp_visual_verify",
+    "help",
+    "hint",
+    "ref",
+    "redo",
+    "bug",
+    "oracle",
+    "save",
+    "quit",
+    "status",
+    "clean",
+    "visual-verify",
 ]
 
-GROUP_A_COMMANDS = ["svp_save", "svp_quit", "svp_status", "svp_clean"]
+GROUP_A_COMMANDS = ["save", "quit", "status", "clean"]
 
 GROUP_B_COMMANDS = [
-    "svp_help",
-    "svp_hint",
-    "svp_ref",
-    "svp_redo",
-    "svp_bug",
-    "svp_oracle",
+    "help",
+    "hint",
+    "ref",
+    "redo",
+    "bug",
+    "oracle",
 ]
 
 # Bug S3-79: svp_oracle is a thin redirect, not a standard 5-step Group B command.
 # Bug S3-119: svp_bug is also a thin redirect (extends S3-79 to cover bug entry).
-GROUP_B_THIN_REDIRECTS = ["svp_bug", "svp_oracle"]
+GROUP_B_THIN_REDIRECTS = ["bug", "oracle"]
 GROUP_B_STANDARD = [cmd for cmd in GROUP_B_COMMANDS if cmd not in GROUP_B_THIN_REDIRECTS]
 
 PHASE_VALUES = {
-    "svp_help": "help",
-    "svp_hint": "hint",
-    "svp_ref": "reference_indexing",
-    "svp_redo": "redo",
+    "help": "help",
+    "hint": "hint",
+    "ref": "reference_indexing",
+    "redo": "redo",
 }
 
 
@@ -133,37 +133,37 @@ class TestCommandNamesContent:
         assert len(COMMAND_NAMES) == 11
 
     def test_svp_help_in_command_names(self):
-        assert "svp_help" in COMMAND_NAMES
+        assert "help" in COMMAND_NAMES
 
     def test_svp_hint_in_command_names(self):
-        assert "svp_hint" in COMMAND_NAMES
+        assert "hint" in COMMAND_NAMES
 
     def test_svp_ref_in_command_names(self):
-        assert "svp_ref" in COMMAND_NAMES
+        assert "ref" in COMMAND_NAMES
 
     def test_svp_redo_in_command_names(self):
-        assert "svp_redo" in COMMAND_NAMES
+        assert "redo" in COMMAND_NAMES
 
     def test_svp_bug_in_command_names(self):
-        assert "svp_bug" in COMMAND_NAMES
+        assert "bug" in COMMAND_NAMES
 
     def test_svp_oracle_in_command_names(self):
-        assert "svp_oracle" in COMMAND_NAMES
+        assert "oracle" in COMMAND_NAMES
 
     def test_svp_save_in_command_names(self):
-        assert "svp_save" in COMMAND_NAMES
+        assert "save" in COMMAND_NAMES
 
     def test_svp_quit_in_command_names(self):
-        assert "svp_quit" in COMMAND_NAMES
+        assert "quit" in COMMAND_NAMES
 
     def test_svp_status_in_command_names(self):
-        assert "svp_status" in COMMAND_NAMES
+        assert "status" in COMMAND_NAMES
 
     def test_svp_clean_in_command_names(self):
-        assert "svp_clean" in COMMAND_NAMES
+        assert "clean" in COMMAND_NAMES
 
     def test_svp_visual_verify_in_command_names(self):
-        assert "svp_visual_verify" in COMMAND_NAMES
+        assert "visual-verify" in COMMAND_NAMES
 
     def test_command_names_exact_set(self):
         """COMMAND_NAMES must contain exactly the 11 expected names (as a set)."""
@@ -246,11 +246,11 @@ class TestGroupACommandsSaveDirectInvocation:
 
     def test_save_references_cmd_script(self):
         """svp_save must reference a cmd_ script."""
-        assert cmd_contains("svp_save", "cmd_", case_sensitive=False)
+        assert cmd_contains("save", "cmd_", case_sensitive=False)
 
     def test_save_references_save_concept(self):
         """svp_save must describe saving."""
-        assert cmd_contains("svp_save", "save", case_sensitive=False)
+        assert cmd_contains("save", "save", case_sensitive=False)
 
 
 class TestGroupACommandsQuitDirectInvocation:
@@ -258,11 +258,11 @@ class TestGroupACommandsQuitDirectInvocation:
 
     def test_quit_references_cmd_script(self):
         """svp_quit must reference a cmd_ script."""
-        assert cmd_contains("svp_quit", "cmd_", case_sensitive=False)
+        assert cmd_contains("quit", "cmd_", case_sensitive=False)
 
     def test_quit_references_quit_concept(self):
         """svp_quit must describe quitting."""
-        assert cmd_contains("svp_quit", "quit", case_sensitive=False)
+        assert cmd_contains("quit", "quit", case_sensitive=False)
 
 
 class TestGroupACommandsStatusDirectInvocation:
@@ -270,11 +270,11 @@ class TestGroupACommandsStatusDirectInvocation:
 
     def test_status_references_cmd_script(self):
         """svp_status must reference a cmd_ script."""
-        assert cmd_contains("svp_status", "cmd_", case_sensitive=False)
+        assert cmd_contains("status", "cmd_", case_sensitive=False)
 
     def test_status_references_status_concept(self):
         """svp_status must describe status."""
-        assert cmd_contains("svp_status", "status", case_sensitive=False)
+        assert cmd_contains("status", "status", case_sensitive=False)
 
 
 class TestGroupACommandsCleanDirectInvocation:
@@ -282,11 +282,11 @@ class TestGroupACommandsCleanDirectInvocation:
 
     def test_clean_references_cmd_script(self):
         """svp_clean must reference a cmd_ script."""
-        assert cmd_contains("svp_clean", "cmd_", case_sensitive=False)
+        assert cmd_contains("clean", "cmd_", case_sensitive=False)
 
     def test_clean_references_clean_concept(self):
         """svp_clean must describe cleaning."""
-        assert cmd_contains("svp_clean", "clean", case_sensitive=False)
+        assert cmd_contains("clean", "clean", case_sensitive=False)
 
 
 class TestGroupANoAgentInvocation:
@@ -294,7 +294,7 @@ class TestGroupANoAgentInvocation:
 
     def test_save_no_agent_invocation(self):
         """svp_save must not reference agent spawning."""
-        content = COMMAND_DEFINITIONS["svp_save"].lower()
+        content = COMMAND_DEFINITIONS["save"].lower()
         assert (
             "spawn agent" not in content
             or "no agent" in content
@@ -303,7 +303,7 @@ class TestGroupANoAgentInvocation:
 
     def test_quit_no_agent_invocation(self):
         """svp_quit must not reference agent spawning."""
-        content = COMMAND_DEFINITIONS["svp_quit"].lower()
+        content = COMMAND_DEFINITIONS["quit"].lower()
         assert (
             "spawn agent" not in content
             or "no agent" in content
@@ -312,7 +312,7 @@ class TestGroupANoAgentInvocation:
 
     def test_status_no_agent_invocation(self):
         """svp_status must not reference agent spawning."""
-        content = COMMAND_DEFINITIONS["svp_status"].lower()
+        content = COMMAND_DEFINITIONS["status"].lower()
         assert (
             "spawn agent" not in content
             or "no agent" in content
@@ -321,7 +321,7 @@ class TestGroupANoAgentInvocation:
 
     def test_clean_no_agent_invocation(self):
         """svp_clean must not reference agent spawning."""
-        content = COMMAND_DEFINITIONS["svp_clean"].lower()
+        content = COMMAND_DEFINITIONS["clean"].lower()
         assert (
             "spawn agent" not in content
             or "no agent" in content
@@ -334,7 +334,7 @@ class TestGroupANoRoutingCycle:
 
     def test_save_no_routing_cycle(self):
         """svp_save should not reference the full routing cycle."""
-        content = COMMAND_DEFINITIONS["svp_save"].lower()
+        content = COMMAND_DEFINITIONS["save"].lower()
         # Group A commands should not reference prepare_task.py or update_state.py
         has_no_prepare = "prepare_task" not in content
         has_no_update_state = "update_state" not in content
@@ -344,21 +344,21 @@ class TestGroupANoRoutingCycle:
 
     def test_quit_no_routing_cycle(self):
         """svp_quit should not reference the full routing cycle."""
-        content = COMMAND_DEFINITIONS["svp_quit"].lower()
+        content = COMMAND_DEFINITIONS["quit"].lower()
         has_no_prepare = "prepare_task" not in content
         has_no_update_state = "update_state" not in content
         assert has_no_prepare or has_no_update_state
 
     def test_status_no_routing_cycle(self):
         """svp_status should not reference the full routing cycle."""
-        content = COMMAND_DEFINITIONS["svp_status"].lower()
+        content = COMMAND_DEFINITIONS["status"].lower()
         has_no_prepare = "prepare_task" not in content
         has_no_update_state = "update_state" not in content
         assert has_no_prepare or has_no_update_state
 
     def test_clean_no_routing_cycle(self):
         """svp_clean should not reference the full routing cycle."""
-        content = COMMAND_DEFINITIONS["svp_clean"].lower()
+        content = COMMAND_DEFINITIONS["clean"].lower()
         has_no_prepare = "prepare_task" not in content
         has_no_update_state = "update_state" not in content
         assert has_no_prepare or has_no_update_state
@@ -373,120 +373,120 @@ class TestGroupBActionCyclePrepareTask:
     """Group B commands must reference prepare_task.py as step 1."""
 
     def test_help_references_prepare_task(self):
-        assert cmd_contains("svp_help", "prepare_task", case_sensitive=False)
+        assert cmd_contains("help", "prepare_task", case_sensitive=False)
 
     def test_hint_references_prepare_task(self):
-        assert cmd_contains("svp_hint", "prepare_task", case_sensitive=False)
+        assert cmd_contains("hint", "prepare_task", case_sensitive=False)
 
     def test_ref_references_prepare_task(self):
-        assert cmd_contains("svp_ref", "prepare_task", case_sensitive=False)
+        assert cmd_contains("ref", "prepare_task", case_sensitive=False)
 
     def test_redo_references_prepare_task(self):
-        assert cmd_contains("svp_redo", "prepare_task", case_sensitive=False)
+        assert cmd_contains("redo", "prepare_task", case_sensitive=False)
 
     def test_bug_does_not_reference_prepare_task(self):
         """Bug S3-119: svp_bug is a thin redirect like svp_oracle. The thin
         trigger must not invoke prepare_task.py — that machinery lives in
         _route_debug after Gate 6.0 authorization."""
-        assert not cmd_contains("svp_bug", "prepare_task", case_sensitive=False)
+        assert not cmd_contains("bug", "prepare_task", case_sensitive=False)
 
     def test_oracle_references_routing_script(self):
         """Bug S3-79: oracle is a thin redirect to the routing script."""
-        assert cmd_contains("svp_oracle", "routing.py", case_sensitive=False)
+        assert cmd_contains("oracle", "routing.py", case_sensitive=False)
 
     def test_bug_references_routing_script(self):
         """Bug S3-119: svp_bug is also a thin redirect to the routing script."""
-        assert cmd_contains("svp_bug", "routing.py", case_sensitive=False)
+        assert cmd_contains("bug", "routing.py", case_sensitive=False)
 
 
 class TestGroupBActionCycleSpawnAgent:
     """Group B commands must reference spawning an agent as step 2."""
 
     def test_help_references_agent(self):
-        assert cmd_contains("svp_help", "agent", case_sensitive=False)
+        assert cmd_contains("help", "agent", case_sensitive=False)
 
     def test_hint_references_agent(self):
-        assert cmd_contains("svp_hint", "agent", case_sensitive=False)
+        assert cmd_contains("hint", "agent", case_sensitive=False)
 
     def test_ref_references_agent(self):
-        assert cmd_contains("svp_ref", "agent", case_sensitive=False)
+        assert cmd_contains("ref", "agent", case_sensitive=False)
 
     def test_redo_references_agent(self):
-        assert cmd_contains("svp_redo", "agent", case_sensitive=False)
+        assert cmd_contains("redo", "agent", case_sensitive=False)
 
     def test_bug_references_agent(self):
-        assert cmd_contains("svp_bug", "agent", case_sensitive=False)
+        assert cmd_contains("bug", "agent", case_sensitive=False)
 
     def test_oracle_references_agent(self):
-        assert cmd_contains("svp_oracle", "agent", case_sensitive=False)
+        assert cmd_contains("oracle", "agent", case_sensitive=False)
 
 
 class TestGroupBActionCycleLastStatus:
     """Group B commands must reference writing terminal status to last_status.txt."""
 
     def test_help_references_last_status(self):
-        assert cmd_contains("svp_help", "last_status", case_sensitive=False)
+        assert cmd_contains("help", "last_status", case_sensitive=False)
 
     def test_hint_references_last_status(self):
-        assert cmd_contains("svp_hint", "last_status", case_sensitive=False)
+        assert cmd_contains("hint", "last_status", case_sensitive=False)
 
     def test_ref_references_last_status(self):
-        assert cmd_contains("svp_ref", "last_status", case_sensitive=False)
+        assert cmd_contains("ref", "last_status", case_sensitive=False)
 
     def test_redo_references_last_status(self):
-        assert cmd_contains("svp_redo", "last_status", case_sensitive=False)
+        assert cmd_contains("redo", "last_status", case_sensitive=False)
 
     def test_bug_does_not_reference_last_status(self):
         """Bug S3-119: svp_bug thin trigger does not write a sentinel to
         last_status.txt. The svp_bug_entry command dispatch is state-only."""
-        assert not cmd_contains("svp_bug", "last_status", case_sensitive=False)
+        assert not cmd_contains("bug", "last_status", case_sensitive=False)
 
     def test_oracle_references_last_status(self):
-        assert cmd_contains("svp_oracle", "last_status", case_sensitive=False)
+        assert cmd_contains("oracle", "last_status", case_sensitive=False)
 
 
 class TestGroupBActionCycleUpdateState:
     """Group B commands must reference update_state.py as step 4."""
 
     def test_help_references_update_state(self):
-        assert cmd_contains("svp_help", "update_state", case_sensitive=False)
+        assert cmd_contains("help", "update_state", case_sensitive=False)
 
     def test_hint_references_update_state(self):
-        assert cmd_contains("svp_hint", "update_state", case_sensitive=False)
+        assert cmd_contains("hint", "update_state", case_sensitive=False)
 
     def test_ref_references_update_state(self):
-        assert cmd_contains("svp_ref", "update_state", case_sensitive=False)
+        assert cmd_contains("ref", "update_state", case_sensitive=False)
 
     def test_redo_references_update_state(self):
-        assert cmd_contains("svp_redo", "update_state", case_sensitive=False)
+        assert cmd_contains("redo", "update_state", case_sensitive=False)
 
     def test_bug_references_update_state(self):
-        assert cmd_contains("svp_bug", "update_state", case_sensitive=False)
+        assert cmd_contains("bug", "update_state", case_sensitive=False)
 
     def test_oracle_references_update_state(self):
-        assert cmd_contains("svp_oracle", "update_state", case_sensitive=False)
+        assert cmd_contains("oracle", "update_state", case_sensitive=False)
 
 
 class TestGroupBActionCycleRoutingRerun:
     """Group B commands must reference re-running the routing script as step 5."""
 
     def test_help_references_routing(self):
-        assert cmd_contains("svp_help", "routing", case_sensitive=False)
+        assert cmd_contains("help", "routing", case_sensitive=False)
 
     def test_hint_references_routing(self):
-        assert cmd_contains("svp_hint", "routing", case_sensitive=False)
+        assert cmd_contains("hint", "routing", case_sensitive=False)
 
     def test_ref_references_routing(self):
-        assert cmd_contains("svp_ref", "routing", case_sensitive=False)
+        assert cmd_contains("ref", "routing", case_sensitive=False)
 
     def test_redo_references_routing(self):
-        assert cmd_contains("svp_redo", "routing", case_sensitive=False)
+        assert cmd_contains("redo", "routing", case_sensitive=False)
 
     def test_bug_references_routing(self):
-        assert cmd_contains("svp_bug", "routing", case_sensitive=False)
+        assert cmd_contains("bug", "routing", case_sensitive=False)
 
     def test_oracle_references_routing(self):
-        assert cmd_contains("svp_oracle", "routing", case_sensitive=False)
+        assert cmd_contains("oracle", "routing", case_sensitive=False)
 
 
 # ===========================================================================
@@ -499,13 +499,13 @@ class TestGroupBPhaseValueHelp:
 
     def test_help_phase_value_present(self):
         """The help command definition must contain the phase value 'help'."""
-        content = COMMAND_DEFINITIONS["svp_help"]
+        content = COMMAND_DEFINITIONS["help"]
         # Look for the phase value in the context of update_state or --phase
         assert "help" in content.lower()
 
     def test_help_phase_argument_in_update_state(self):
         """The help command must reference --phase help with update_state."""
-        content = COMMAND_DEFINITIONS["svp_help"]
+        content = COMMAND_DEFINITIONS["help"]
         has_phase_help = (
             "--phase help" in content
             or "--phase=help" in content
@@ -518,11 +518,11 @@ class TestGroupBPhaseValueHint:
     """svp_hint must use --phase hint."""
 
     def test_hint_phase_value_present(self):
-        content = COMMAND_DEFINITIONS["svp_hint"]
+        content = COMMAND_DEFINITIONS["hint"]
         assert "hint" in content.lower()
 
     def test_hint_phase_argument_in_update_state(self):
-        content = COMMAND_DEFINITIONS["svp_hint"]
+        content = COMMAND_DEFINITIONS["hint"]
         has_phase_hint = (
             "--phase hint" in content
             or "--phase=hint" in content
@@ -535,13 +535,13 @@ class TestGroupBPhaseValueRef:
     """svp_ref must use --phase reference_indexing."""
 
     def test_ref_phase_value_present(self):
-        content = COMMAND_DEFINITIONS["svp_ref"]
+        content = COMMAND_DEFINITIONS["ref"]
         assert (
             "reference_indexing" in content or "reference indexing" in content.lower()
         )
 
     def test_ref_phase_argument_in_update_state(self):
-        content = COMMAND_DEFINITIONS["svp_ref"]
+        content = COMMAND_DEFINITIONS["ref"]
         has_phase_ref = (
             "--phase reference_indexing" in content
             or "--phase=reference_indexing" in content
@@ -554,11 +554,11 @@ class TestGroupBPhaseValueRedo:
     """svp_redo must use --phase redo."""
 
     def test_redo_phase_value_present(self):
-        content = COMMAND_DEFINITIONS["svp_redo"]
+        content = COMMAND_DEFINITIONS["redo"]
         assert "redo" in content.lower()
 
     def test_redo_phase_argument_in_update_state(self):
-        content = COMMAND_DEFINITIONS["svp_redo"]
+        content = COMMAND_DEFINITIONS["redo"]
         has_phase_redo = (
             "--phase redo" in content
             or "--phase=redo" in content
@@ -578,14 +578,14 @@ class TestGroupBPhaseValueBug:
 
     def test_bug_uses_command_svp_bug_entry(self):
         """Bug S3-119: bug uses --command svp_bug_entry instead of --phase bug_triage."""
-        content = COMMAND_DEFINITIONS["svp_bug"]
+        content = COMMAND_DEFINITIONS["bug"]
         assert "--command svp_bug_entry" in content or "svp_bug_entry" in content
 
     def test_bug_does_not_use_phase_argument(self):
         """Bug S3-119: the thin trigger does not dispatch via --phase.
         --phase bug_triage would route to dispatch_agent_status, which is
         the post-agent dispatch path; the entry path is --command instead."""
-        content = COMMAND_DEFINITIONS["svp_bug"]
+        content = COMMAND_DEFINITIONS["bug"]
         assert "--phase bug_triage" not in content
         assert "--phase=bug_triage" not in content
 
@@ -594,12 +594,12 @@ class TestGroupBPhaseValueOracle:
     """svp_oracle must use --phase oracle."""
 
     def test_oracle_phase_value_present(self):
-        content = COMMAND_DEFINITIONS["svp_oracle"]
+        content = COMMAND_DEFINITIONS["oracle"]
         assert "oracle" in content.lower()
 
     def test_oracle_uses_command_oracle_start(self):
         """Bug S3-79: oracle uses --command oracle_start instead of --phase oracle."""
-        content = COMMAND_DEFINITIONS["svp_oracle"]
+        content = COMMAND_DEFINITIONS["oracle"]
         assert "--command oracle_start" in content or "oracle_start" in content
 
 
@@ -612,27 +612,27 @@ class TestGroupBPrepareTaskAgentFlag:
     """Group B commands must reference prepare_task.py --agent <type>."""
 
     def test_help_prepare_task_agent_flag(self):
-        content = COMMAND_DEFINITIONS["svp_help"]
+        content = COMMAND_DEFINITIONS["help"]
         assert "--agent" in content or "agent" in content.lower()
 
     def test_hint_prepare_task_agent_flag(self):
-        content = COMMAND_DEFINITIONS["svp_hint"]
+        content = COMMAND_DEFINITIONS["hint"]
         assert "--agent" in content or "agent" in content.lower()
 
     def test_ref_prepare_task_agent_flag(self):
-        content = COMMAND_DEFINITIONS["svp_ref"]
+        content = COMMAND_DEFINITIONS["ref"]
         assert "--agent" in content or "agent" in content.lower()
 
     def test_redo_prepare_task_agent_flag(self):
-        content = COMMAND_DEFINITIONS["svp_redo"]
+        content = COMMAND_DEFINITIONS["redo"]
         assert "--agent" in content or "agent" in content.lower()
 
     def test_bug_prepare_task_agent_flag(self):
-        content = COMMAND_DEFINITIONS["svp_bug"]
+        content = COMMAND_DEFINITIONS["bug"]
         assert "--agent" in content or "agent" in content.lower()
 
     def test_oracle_prepare_task_agent_flag(self):
-        content = COMMAND_DEFINITIONS["svp_oracle"]
+        content = COMMAND_DEFINITIONS["oracle"]
         assert "--agent" in content or "agent" in content.lower()
 
 
@@ -640,7 +640,7 @@ class TestGroupBPrepareTaskProjectRoot:
     """Group B commands must reference --project-root . in prepare_task.py."""
 
     def test_help_project_root_flag(self):
-        content = COMMAND_DEFINITIONS["svp_help"]
+        content = COMMAND_DEFINITIONS["help"]
         assert (
             "--project-root" in content
             or "project-root" in content.lower()
@@ -648,7 +648,7 @@ class TestGroupBPrepareTaskProjectRoot:
         )
 
     def test_hint_project_root_flag(self):
-        content = COMMAND_DEFINITIONS["svp_hint"]
+        content = COMMAND_DEFINITIONS["hint"]
         assert (
             "--project-root" in content
             or "project-root" in content.lower()
@@ -656,7 +656,7 @@ class TestGroupBPrepareTaskProjectRoot:
         )
 
     def test_ref_project_root_flag(self):
-        content = COMMAND_DEFINITIONS["svp_ref"]
+        content = COMMAND_DEFINITIONS["ref"]
         assert (
             "--project-root" in content
             or "project-root" in content.lower()
@@ -664,7 +664,7 @@ class TestGroupBPrepareTaskProjectRoot:
         )
 
     def test_redo_project_root_flag(self):
-        content = COMMAND_DEFINITIONS["svp_redo"]
+        content = COMMAND_DEFINITIONS["redo"]
         assert (
             "--project-root" in content
             or "project-root" in content.lower()
@@ -672,7 +672,7 @@ class TestGroupBPrepareTaskProjectRoot:
         )
 
     def test_bug_project_root_flag(self):
-        content = COMMAND_DEFINITIONS["svp_bug"]
+        content = COMMAND_DEFINITIONS["bug"]
         assert (
             "--project-root" in content
             or "project-root" in content.lower()
@@ -680,7 +680,7 @@ class TestGroupBPrepareTaskProjectRoot:
         )
 
     def test_oracle_project_root_flag(self):
-        content = COMMAND_DEFINITIONS["svp_oracle"]
+        content = COMMAND_DEFINITIONS["oracle"]
         assert (
             "--project-root" in content
             or "project-root" in content.lower()
@@ -698,29 +698,29 @@ class TestOracleTestProjectSelectionUX:
 
     def test_oracle_references_test_project_selection(self):
         """Oracle must mention test project selection is handled by routing."""
-        content = COMMAND_DEFINITIONS["svp_oracle"].lower()
+        content = COMMAND_DEFINITIONS["oracle"].lower()
         has_test_project = "test project" in content
         has_routing = "routing" in content
         assert has_test_project and has_routing
 
     def test_oracle_does_not_scan_directories(self):
         """Bug S3-79: oracle must NOT instruct orchestrator to scan directories."""
-        content = COMMAND_DEFINITIONS["svp_oracle"]
+        content = COMMAND_DEFINITIONS["oracle"]
         assert "Do NOT scan directories" in content
 
     def test_oracle_no_docs_directory_reference(self):
         """Bug S3-79: oracle must NOT reference docs/ for scanning."""
-        content = COMMAND_DEFINITIONS["svp_oracle"]
+        content = COMMAND_DEFINITIONS["oracle"]
         assert "from the `docs/`" not in content
 
     def test_oracle_no_examples_directory_reference(self):
         """Bug S3-79: oracle must NOT reference examples/ for scanning."""
-        content = COMMAND_DEFINITIONS["svp_oracle"]
+        content = COMMAND_DEFINITIONS["oracle"]
         assert "from the `examples/`" not in content
 
     def test_oracle_no_numbered_list_instruction(self):
         """Bug S3-79: oracle must NOT instruct building a numbered list."""
-        content = COMMAND_DEFINITIONS["svp_oracle"]
+        content = COMMAND_DEFINITIONS["oracle"]
         assert "numbered list of available test projects" not in content
 
 
@@ -734,19 +734,19 @@ class TestVisualVerifyBasicStructure:
 
     def test_visual_verify_definition_exists(self):
         """svp_visual_verify must have a definition."""
-        assert "svp_visual_verify" in COMMAND_DEFINITIONS
+        assert "visual-verify" in COMMAND_DEFINITIONS
 
     def test_visual_verify_is_nonempty(self):
         """svp_visual_verify definition must be non-empty."""
-        assert len(COMMAND_DEFINITIONS["svp_visual_verify"].strip()) > 0
+        assert len(COMMAND_DEFINITIONS["visual-verify"].strip()) > 0
 
     def test_visual_verify_references_visual(self):
         """svp_visual_verify must reference visual verification."""
-        assert cmd_contains("svp_visual_verify", "visual", case_sensitive=False)
+        assert cmd_contains("visual-verify", "visual", case_sensitive=False)
 
     def test_visual_verify_references_verification(self):
         """svp_visual_verify must reference verification."""
-        assert cmd_contains("svp_visual_verify", "verif", case_sensitive=False)
+        assert cmd_contains("visual-verify", "verif", case_sensitive=False)
 
 
 class TestVisualVerifyGUITestProjects:
@@ -754,17 +754,17 @@ class TestVisualVerifyGUITestProjects:
 
     def test_visual_verify_references_gui(self):
         """Must reference GUI-based test projects."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert "gui" in content or "graphical" in content or "visual" in content
 
     def test_visual_verify_references_test_project(self):
         """Must reference test projects."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert "test project" in content or "test" in content
 
     def test_visual_verify_references_screenshots(self):
         """Must reference screenshots or visual capture."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert "screenshot" in content or "capture" in content or "image" in content
 
 
@@ -773,7 +773,7 @@ class TestVisualVerifyLaunchAndCapture:
 
     def test_visual_verify_references_launch(self):
         """Must reference launching a target program."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert (
             "launch" in content
             or "run" in content
@@ -783,11 +783,11 @@ class TestVisualVerifyLaunchAndCapture:
 
     def test_visual_verify_references_target(self):
         """Must reference a target program or executable."""
-        assert cmd_contains("svp_visual_verify", "target", case_sensitive=False)
+        assert cmd_contains("visual-verify", "target", case_sensitive=False)
 
     def test_visual_verify_references_capture(self):
         """Must reference capturing visual output."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert "capture" in content or "screenshot" in content or "image" in content
 
 
@@ -797,20 +797,20 @@ class TestVisualVerifyParameters:
     def test_visual_verify_target_parameter(self):
         """Must accept --target parameter."""
         assert cmd_contains(
-            "svp_visual_verify", "--target", case_sensitive=False
-        ) or cmd_contains("svp_visual_verify", "target", case_sensitive=False)
+            "visual-verify", "--target", case_sensitive=False
+        ) or cmd_contains("visual-verify", "target", case_sensitive=False)
 
     def test_visual_verify_interval_parameter(self):
         """Must accept --interval parameter."""
         assert cmd_contains(
-            "svp_visual_verify", "--interval", case_sensitive=False
-        ) or cmd_contains("svp_visual_verify", "interval", case_sensitive=False)
+            "visual-verify", "--interval", case_sensitive=False
+        ) or cmd_contains("visual-verify", "interval", case_sensitive=False)
 
     def test_visual_verify_interactions_parameter(self):
         """Must accept --interactions parameter."""
         assert cmd_contains(
-            "svp_visual_verify", "--interactions", case_sensitive=False
-        ) or cmd_contains("svp_visual_verify", "interaction", case_sensitive=False)
+            "visual-verify", "--interactions", case_sensitive=False
+        ) or cmd_contains("visual-verify", "interaction", case_sensitive=False)
 
 
 class TestVisualVerifyStandaloneUtility:
@@ -818,7 +818,7 @@ class TestVisualVerifyStandaloneUtility:
 
     def test_visual_verify_is_standalone(self):
         """Must be described as standalone or utility."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert (
             "standalone" in content
             or "utility" in content
@@ -830,7 +830,7 @@ class TestVisualVerifyStandaloneUtility:
 
     def test_visual_verify_no_phase_value(self):
         """Must not have a --phase value for update_state.py."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"]
+        content = COMMAND_DEFINITIONS["visual-verify"]
         # visual-verify should not include --phase with update_state
         has_update_state_phase = "--phase" in content and "update_state" in content
         assert not has_update_state_phase, (
@@ -843,7 +843,7 @@ class TestVisualVerifySupplementaryNotAuthoritative:
 
     def test_visual_verify_supplementary_nature(self):
         """Must describe itself as supplementary or non-authoritative."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert (
             "supplementary" in content
             or "not authoritative" in content
@@ -853,7 +853,7 @@ class TestVisualVerifySupplementaryNotAuthoritative:
 
     def test_visual_verify_test_suite_is_authoritative(self):
         """Must reference the test suite as the authoritative verification."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert "test suite" in content or "test" in content
 
 
@@ -862,17 +862,17 @@ class TestVisualVerifyInvocationContexts:
 
     def test_visual_verify_oracle_agent_invocation(self):
         """Must reference oracle agent as an invoker."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert "oracle" in content
 
     def test_visual_verify_human_invocation(self):
         """Must reference human as an independent invoker."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert "human" in content
 
     def test_visual_verify_e_mode_green_runs(self):
         """Must reference E-mode green runs as the oracle invocation context."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert (
             "e-mode" in content
             or "e mode" in content
@@ -886,7 +886,7 @@ class TestVisualVerifyPersistedTestProjects:
 
     def test_visual_verify_persisted_test_projects(self):
         """Must reference persisted test projects."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert (
             "persist" in content
             or "persisted" in content
@@ -962,30 +962,30 @@ class TestPhaseValueCorrectness:
     """Each Group B command must reference its correct --phase value."""
 
     def test_help_has_correct_phase(self):
-        content = COMMAND_DEFINITIONS["svp_help"]
+        content = COMMAND_DEFINITIONS["help"]
         assert "help" in content.lower()
 
     def test_hint_has_correct_phase(self):
-        content = COMMAND_DEFINITIONS["svp_hint"]
+        content = COMMAND_DEFINITIONS["hint"]
         assert "hint" in content.lower()
 
     def test_ref_has_correct_phase_reference_indexing(self):
-        content = COMMAND_DEFINITIONS["svp_ref"]
+        content = COMMAND_DEFINITIONS["ref"]
         assert "reference_indexing" in content
 
     def test_redo_has_correct_phase(self):
-        content = COMMAND_DEFINITIONS["svp_redo"]
+        content = COMMAND_DEFINITIONS["redo"]
         assert "redo" in content.lower()
 
     def test_bug_has_correct_entry_command(self):
         """Bug S3-119: svp_bug is a thin redirect using --command svp_bug_entry.
         The previous contract was --phase bug_triage; see TestGroupBPhaseValueBug
         for the bootstrap-path rationale."""
-        content = COMMAND_DEFINITIONS["svp_bug"]
+        content = COMMAND_DEFINITIONS["bug"]
         assert "svp_bug_entry" in content
 
     def test_oracle_has_correct_phase(self):
-        content = COMMAND_DEFINITIONS["svp_oracle"]
+        content = COMMAND_DEFINITIONS["oracle"]
         assert "oracle" in content.lower()
 
 
@@ -1010,17 +1010,17 @@ class TestCommandDefinitionsUniqueness:
         """Each definition should reference its own command name or purpose."""
         # Map underscore names to the slash-command style for matching
         name_to_slug = {
-            "svp_help": "help",
-            "svp_hint": "hint",
-            "svp_ref": "ref",
-            "svp_redo": "redo",
-            "svp_bug": "bug",
-            "svp_oracle": "oracle",
-            "svp_save": "save",
-            "svp_quit": "quit",
-            "svp_status": "status",
-            "svp_clean": "clean",
-            "svp_visual_verify": "visual",
+            "help": "help",
+            "hint": "hint",
+            "ref": "ref",
+            "redo": "redo",
+            "bug": "bug",
+            "oracle": "oracle",
+            "save": "save",
+            "quit": "quit",
+            "status": "status",
+            "clean": "clean",
+            "visual-verify": "visual",
         }
         for name, slug in name_to_slug.items():
             content = COMMAND_DEFINITIONS[name].lower()
@@ -1165,7 +1165,7 @@ class TestComprehensiveTopicCoverage:
 
     def test_covers_oracle_thin_redirect(self):
         """Bug S3-79: oracle is a thin redirect to the routing script."""
-        content = COMMAND_DEFINITIONS["svp_oracle"].lower()
+        content = COMMAND_DEFINITIONS["oracle"].lower()
         has_routing = "routing" in content
         has_update = "update_state" in content
         has_no_scan = "do not scan directories" in content
@@ -1176,7 +1176,7 @@ class TestComprehensiveTopicCoverage:
 
     def test_covers_visual_verify_parameters(self):
         """Visual verify command covers all three parameters."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         has_target = "target" in content
         has_interval = "interval" in content
         has_interactions = "interaction" in content
@@ -1184,7 +1184,7 @@ class TestComprehensiveTopicCoverage:
 
     def test_covers_visual_verify_standalone_nature(self):
         """Visual verify is a standalone utility."""
-        content = COMMAND_DEFINITIONS["svp_visual_verify"].lower()
+        content = COMMAND_DEFINITIONS["visual-verify"].lower()
         assert (
             "standalone" in content
             or "utility" in content

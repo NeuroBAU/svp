@@ -93,7 +93,7 @@ def _setup_project_root(tmp_path, state, last_status=""):
 
 def test_skill_no_directory_scanning_from_docs():
     """Skill must not tell orchestrator to scan docs/ directory."""
-    defn = COMMAND_DEFINITIONS["svp_oracle"]
+    defn = COMMAND_DEFINITIONS["oracle"]
     assert "from the `docs/`" not in defn, (
         "Skill definition still contains directory-scanning instruction for docs/"
     )
@@ -101,7 +101,7 @@ def test_skill_no_directory_scanning_from_docs():
 
 def test_skill_no_directory_scanning_from_examples():
     """Skill must not tell orchestrator to scan examples/ directory."""
-    defn = COMMAND_DEFINITIONS["svp_oracle"]
+    defn = COMMAND_DEFINITIONS["oracle"]
     assert "from the `examples/`" not in defn, (
         "Skill definition still contains directory-scanning instruction for examples/"
     )
@@ -109,7 +109,7 @@ def test_skill_no_directory_scanning_from_examples():
 
 def test_skill_no_numbered_list_instruction():
     """Skill must not instruct orchestrator to build a numbered list."""
-    defn = COMMAND_DEFINITIONS["svp_oracle"]
+    defn = COMMAND_DEFINITIONS["oracle"]
     assert "numbered list of available test projects" not in defn, (
         "Skill definition still delegates list construction to orchestrator"
     )
@@ -122,7 +122,7 @@ def test_skill_no_numbered_list_instruction():
 
 def test_skill_references_routing_script():
     """Skill must reference routing.py for the action cycle."""
-    defn = COMMAND_DEFINITIONS["svp_oracle"]
+    defn = COMMAND_DEFINITIONS["oracle"]
     assert "routing.py" in defn, (
         "Skill definition must redirect to the routing script"
     )
@@ -135,7 +135,7 @@ def test_skill_references_routing_script():
 
 def test_skill_prohibits_directory_scanning():
     """Skill must explicitly prohibit directory scanning."""
-    defn = COMMAND_DEFINITIONS["svp_oracle"]
+    defn = COMMAND_DEFINITIONS["oracle"]
     assert "Do NOT scan directories" in defn, (
         "Skill definition must contain explicit prohibition against directory scanning"
     )

@@ -42,17 +42,17 @@ svp-repo/                              <- repository root
 |   |   |-- regression_adaptation.md   <- Unit 23
 |   |   +-- oracle_agent.md            <- Unit 23
 |   |-- commands/
-|   |   |-- svp_help.md                <- Unit 25
-|   |   |-- svp_hint.md                <- Unit 25
-|   |   |-- svp_ref.md                 <- Unit 25
-|   |   |-- svp_redo.md                <- Unit 25
-|   |   |-- svp_bug.md                 <- Unit 25
-|   |   |-- svp_oracle.md              <- Unit 25
-|   |   |-- svp_save.md                <- Unit 25
-|   |   |-- svp_quit.md                <- Unit 25
-|   |   |-- svp_status.md              <- Unit 25
-|   |   |-- svp_clean.md               <- Unit 25
-|   |   +-- svp_visual_verify.md       <- Unit 25
+|   |   |-- help.md                    <- Unit 25
+|   |   |-- hint.md                    <- Unit 25
+|   |   |-- ref.md                     <- Unit 25
+|   |   |-- redo.md                    <- Unit 25
+|   |   |-- bug.md                     <- Unit 25
+|   |   |-- oracle.md                  <- Unit 25
+|   |   |-- save.md                    <- Unit 25
+|   |   |-- quit.md                    <- Unit 25
+|   |   |-- status.md                  <- Unit 25
+|   |   |-- clean.md                   <- Unit 25
+|   |   +-- visual-verify.md           <- Unit 25
 |   |-- hooks/
 |   |   |-- hooks.json                 <- Unit 17
 |   |   |-- write_authorization.sh     <- Unit 17

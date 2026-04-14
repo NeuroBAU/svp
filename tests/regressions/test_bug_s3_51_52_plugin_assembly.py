@@ -129,10 +129,10 @@ class TestS3_52_PluginComponentDirectories:
         """Key command definition files are present."""
         cmds_dir = assembled_repo / "svp" / "commands"
         expected = [
-            "svp_save.md",
-            "svp_status.md",
-            "svp_bug.md",
-            "svp_oracle.md",
+            "save.md",
+            "status.md",
+            "bug.md",
+            "oracle.md",
         ]
         for name in expected:
             assert (cmds_dir / name).is_file(), f"Missing command: {name}"

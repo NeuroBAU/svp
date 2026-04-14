@@ -2,14 +2,19 @@
 
 Defines markdown command definitions for all SVP slash commands.
 
-Group A (utility): svp_save, svp_quit, svp_status, svp_clean
+Group A (utility): save, quit, status, clean
   - Invoke dedicated cmd_*.py scripts directly. No agent. No routing cycle.
 
-Group B (agent-driven): svp_help, svp_hint, svp_ref, svp_redo, svp_bug, svp_oracle
+Group B (agent-driven): help, hint, ref, redo, bug, oracle
   - Full action cycle: prepare_task.py -> spawn agent -> last_status.txt -> update_state.py -> routing.py
 
-Standalone: svp_visual_verify
+Standalone: visual-verify
   - Visual verification utility. Not a routed command.
+
+Filenames are bare (no svp_ prefix). Claude Code registers plugin commands as
+`{plugin_namespace}:{filename_stem}` with no prefix stripping, so the prior
+svp_*.md filenames registered as /svp:svp_bug etc. — double-prefixed. Fixed in
+Bug S3-121.
 """
 
 from typing import List
@@ -19,17 +24,17 @@ from typing import List
 # ---------------------------------------------------------------------------
 
 COMMAND_NAMES: List[str] = [
-    "svp_help",
-    "svp_hint",
-    "svp_ref",
-    "svp_redo",
-    "svp_bug",
-    "svp_oracle",
-    "svp_save",
-    "svp_quit",
-    "svp_status",
-    "svp_clean",
-    "svp_visual_verify",
+    "help",
+    "hint",
+    "ref",
+    "redo",
+    "bug",
+    "oracle",
+    "save",
+    "quit",
+    "status",
+    "clean",
+    "visual-verify",
 ]
 
 # ---------------------------------------------------------------------------
@@ -364,15 +369,15 @@ confidence but does not replace deterministic test results.
 # ---------------------------------------------------------------------------
 
 COMMAND_DEFINITIONS: dict = {
-    "svp_save": _SVP_SAVE_DEFINITION,
-    "svp_quit": _SVP_QUIT_DEFINITION,
-    "svp_status": _SVP_STATUS_DEFINITION,
-    "svp_clean": _SVP_CLEAN_DEFINITION,
-    "svp_help": _SVP_HELP_DEFINITION,
-    "svp_hint": _SVP_HINT_DEFINITION,
-    "svp_ref": _SVP_REF_DEFINITION,
-    "svp_redo": _SVP_REDO_DEFINITION,
-    "svp_bug": _SVP_BUG_DEFINITION,
-    "svp_oracle": _SVP_ORACLE_DEFINITION,
-    "svp_visual_verify": _SVP_VISUAL_VERIFY_DEFINITION,
+    "save": _SVP_SAVE_DEFINITION,
+    "quit": _SVP_QUIT_DEFINITION,
+    "status": _SVP_STATUS_DEFINITION,
+    "clean": _SVP_CLEAN_DEFINITION,
+    "help": _SVP_HELP_DEFINITION,
+    "hint": _SVP_HINT_DEFINITION,
+    "ref": _SVP_REF_DEFINITION,
+    "redo": _SVP_REDO_DEFINITION,
+    "bug": _SVP_BUG_DEFINITION,
+    "oracle": _SVP_ORACLE_DEFINITION,
+    "visual-verify": _SVP_VISUAL_VERIFY_DEFINITION,
 }
