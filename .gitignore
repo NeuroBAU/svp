@@ -5,6 +5,7 @@ dist/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+.claude/
 test_project/
 test_restore/
 .DS_Store

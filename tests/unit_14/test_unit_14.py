@@ -1082,6 +1082,131 @@ class TestRoute:
             "Bug S3-90: Nested session pipeline_state.json must not have oracle_session_active=True"
         )
 
+    def test_emode_bootstrap_writes_project_settings_to_nested_workspace(
+        self, tmp_path, monkeypatch
+    ):
+        """Bug S3-123 follow-up: nested oracle workspace must get .claude/settings.json.
+
+        The S3-123 regression test only asserts at AST level that
+        `_bootstrap_oracle_nested_session` contains a call to
+        `ensure_project_settings`. This test verifies the call actually
+        writes a file when the function runs end-to-end, catching silent
+        degradation if a future refactor moves the call into an untaken
+        branch or the try/except silently swallows an error.
+
+        Hermetic: uses a fake plugin dir in tmp_path and sets SVP_PLUGIN_ROOT
+        via monkeypatch so `_find_plugin_root()` resolves synchronously
+        without depending on the user's real SVP cache.
+        """
+        # Create a fake plugin root with valid .claude-plugin/plugin.json
+        fake_marketplace = tmp_path / "fake_svp_repo"
+        fake_plugin = fake_marketplace / "svp"
+        fake_plugin_manifest = fake_plugin / ".claude-plugin"
+        fake_plugin_manifest.mkdir(parents=True)
+        (fake_plugin_manifest / "plugin.json").write_text(
+            json.dumps({"name": "svp", "version": "2.2.2"})
+        )
+
+        # Point _find_plugin_root() at the fake plugin via env var
+        monkeypatch.setenv("SVP_PLUGIN_ROOT", str(fake_plugin))
+
+        # Set up project root structure for E-mode bootstrap
+        svp_dir = tmp_path / ".svp"
+        svp_dir.mkdir()
+        (svp_dir / "pipeline_state.json").write_text(
+            json.dumps(
+                {
+                    "stage": "5",
+                    "sub_stage": "pass_transition",
+                    "oracle_session_active": True,
+                    "oracle_phase": "green_run",
+                    "oracle_test_project": "examples/gol-plugin",
+                    "oracle_run_count": 3,
+                    "oracle_nested_session_path": None,
+                    "oracle_modification_count": 0,
+                    "current_unit": None,
+                    "total_units": 0,
+                    "verified_units": [],
+                    "alignment_iterations": 0,
+                    "fix_ladder_position": None,
+                    "red_run_retries": 0,
+                    "pass_history": [],
+                    "debug_session": None,
+                    "debug_history": [],
+                    "redo_triggered_from": None,
+                    "delivered_repo_path": None,
+                    "primary_language": "python",
+                    "component_languages": [],
+                    "secondary_language": None,
+                    "state_hash": None,
+                    "spec_revision_count": 0,
+                    "pass_": None,
+                    "pass2_nested_session_path": None,
+                    "deferred_broken_units": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        _write_last_status(tmp_path, "")
+
+        examples_dir = tmp_path / "examples" / "gol-plugin"
+        examples_dir.mkdir(parents=True)
+        (examples_dir / "stakeholder_spec.md").write_text("# GoL Plugin Spec")
+        (examples_dir / "oracle_manifest.json").write_text(
+            json.dumps(
+                {
+                    "name": "GoL Plugin",
+                    "oracle_mode": "product",
+                    "archetype": "claude_code_plugin",
+                }
+            )
+        )
+
+        from routing import _bootstrap_oracle_nested_session
+        from pipeline_state import PipelineState
+
+        oracle_state = PipelineState(
+            stage="5",
+            sub_stage="pass_transition",
+            oracle_session_active=True,
+            oracle_phase="green_run",
+            oracle_test_project="examples/gol-plugin",
+            oracle_run_count=3,
+        )
+
+        _bootstrap_oracle_nested_session(oracle_state, tmp_path)
+
+        # Verify the nested workspace was created
+        workspace = tmp_path.parent / "oracle-session-3"
+        assert workspace.exists(), (
+            "Bug S3-123: nested session workspace must be created"
+        )
+
+        # Verify .claude/settings.json was written
+        settings_path = workspace / ".claude" / "settings.json"
+        assert settings_path.is_file(), (
+            "Bug S3-123: nested oracle workspace must have .claude/settings.json "
+            "written by ensure_project_settings(). Without this, the nested "
+            "session cannot load SVP via project-scoped enablement and will "
+            "silently fall back to user-scope — which the user may have "
+            "uninstalled as part of S3-123 migration."
+        )
+
+        # Verify the settings file has the expected content
+        settings_data = json.loads(settings_path.read_text())
+        assert settings_data["enabledPlugins"]["svp@svp"] is True, (
+            "Bug S3-123: nested workspace settings.json must enable svp@svp"
+        )
+        expected_marketplace = str(fake_plugin.parent.resolve())
+        actual_marketplace = settings_data["extraKnownMarketplaces"]["svp"][
+            "source"
+        ]["path"]
+        assert actual_marketplace == expected_marketplace, (
+            f"Bug S3-123: nested workspace marketplace path must equal "
+            f"plugin_root.parent.resolve() (the marketplace root). "
+            f"Expected {expected_marketplace!r}, got {actual_marketplace!r}."
+        )
+
     def test_emode_bootstrap_fresh_state_when_no_svp_dir(self, tmp_path):
         """Bug S3-90: E-mode bootstrap creates fresh pipeline_state.json even if .svp/ doesn't exist."""
         from routing import _bootstrap_oracle_nested_session
