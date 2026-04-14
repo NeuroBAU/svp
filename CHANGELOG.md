@@ -6,6 +6,23 @@ The format follows [Conventional Changelog](https://www.conventionalcommits.org/
 
 ---
 
+## [2.2.2] - 2026-04-14
+
+### fix: Bug S3-123 — project-scoped plugin activation
+
+SVP now writes `<project_root>/.claude/settings.json` during `svp new`, `svp resume`, `svp restore`, and during oracle nested session bootstrap, so the plugin loads only in directories where an SVP pipeline is active. Previously, SVP relied on user-scope enablement (`~/.claude/settings.json`), which caused `/svp:*` commands and all 21 SVP agents to appear in every Claude Code session on the machine regardless of cwd.
+
+- Added `ensure_project_settings(project_root, plugin_root)` to Unit 29 (launcher). Idempotent, non-destructive, self-healing, corrupt-JSON-recoverable, atomic write.
+- Wired into all four entry points: `svp_launcher.py main()` for `new`/`resume`/`restore`, and `_bootstrap_oracle_nested_session` in the routing module.
+- Added Section 4.4 "Plugin Loading Architecture and Project-Scoped Activation" to the stakeholder spec — documents the Claude Code enablement model, the helper's contract, and the common-mistakes checklist. Closes the upstream cause (no written platform contract for plugin loading).
+- 23-test regression suite in `tests/regressions/test_bug_s3_123_project_settings.py` covering correctness, idempotency, self-heal, preservation of unrelated keys, corrupt-JSON recovery, atomic write, AST checks that all four call sites exist, and an integration fixture.
+
+**Migration (opt-in for existing users):** see the "Migration" section in README.md. Users with user-scope SVP keep working unchanged; to opt in, run `claude plugin uninstall svp@svp --scope user` and then run `svp` (or `svp new`/`svp restore`) in each pipeline directory to trigger the helper.
+
+Credit: cross-project advisory from `debrief` BUG-AUDIT-8 (third in a series: S3-121, S3-122, S3-123) with reference implementation.
+
+---
+
 ## [2.2.1] - 2026-04-07
 
 ### fix: Bugs S3-100 to S3-103

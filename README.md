@@ -59,8 +59,33 @@ Clone the repository, then register it as a Claude Code marketplace and install 
 git clone https://github.com/NeuroBAU/svp.git
 cd svp
 claude plugin marketplace add "$(pwd)"
-claude plugin install svp@svp
+claude plugin install svp@svp --scope project
 ```
+
+**Note (Bug S3-123).** The `--scope project` flag is important. Without it, `claude plugin install` defaults to `--scope user`, which enables SVP in **every** Claude Code session on the machine regardless of working directory — you would see `/svp:*` commands and the SVP consultant agent in `/tmp`, in unrelated project directories, everywhere. The `--scope project` flag writes the enablement into `<project_root>/.claude/settings.json` so SVP activates only in directories where you have an SVP pipeline. The SVP launcher (`svp new`, `svp resume`, `svp restore`) also writes this file automatically via `ensure_project_settings()`, so you normally don't need to run `claude plugin install` at all — just `svp new <project>` and the launcher takes care of scoping.
+
+### Migration: from user-scope to project-scope (existing SVP users, Bug S3-123)
+
+If you installed SVP before version 2.2 (or with the wrong scope), your enablement entry lives in `~/.claude/settings.json` at user scope, which leaks SVP into every `claude` session on your machine. To migrate:
+
+```bash
+# Step 1: remove the user-scope leak
+claude plugin uninstall svp@svp --scope user
+
+# Step 2: for each SVP pipeline directory you have, run the launcher once
+# to write .claude/settings.json and re-enable at project scope:
+cd /path/to/my/svp-pipeline
+svp       # bare svp == resume; triggers ensure_project_settings
+
+# Verify:
+cd /tmp && claude
+# Autocomplete should NOT show /svp:* commands and the SVP consultant
+# agent should NOT appear in the system reminder.
+```
+
+The migration is **opt-in**. If you prefer to keep user-scope enablement (SVP always available, accepting the leak), leave your config alone — SVP continues to work as before.
+
+The `ensure_project_settings()` helper is **idempotent**, **non-destructive** (preserves unrelated settings.json keys), and **self-healing** (rewrites the marketplace path if you move the SVP repo on disk). Re-running the launcher in a migrated directory is always safe.
 
 ### Install the Launcher
 

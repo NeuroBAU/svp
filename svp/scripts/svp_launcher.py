@@ -396,6 +396,107 @@ def _validate_plugin_dir(path: Path) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# ensure_project_settings (Bug S3-123)
+# ---------------------------------------------------------------------------
+
+
+def ensure_project_settings(project_root: Path, plugin_root: Path) -> None:
+    """Write <project_root>/.claude/settings.json for project-scoped SVP activation.
+
+    Creates or updates ``<project_root>/.claude/settings.json`` so Claude Code
+    loads the SVP plugin via project-scoped marketplace enablement (spec §4.4).
+    This replaces reliance on user-scope enablement (``~/.claude/settings.json``)
+    which leaked SVP into every Claude Code session on the machine regardless
+    of working directory.
+
+    Two keys are written:
+      - ``extraKnownMarketplaces.svp.source`` — registers the marketplace at
+        ``plugin_root.parent`` (the directory containing
+        ``.claude-plugin/marketplace.json``).
+      - ``enabledPlugins["svp@svp"]`` — set to ``True`` to enable the plugin
+        when Claude Code is launched from ``project_root``.
+
+    Properties (all load-bearing):
+      1. **Idempotent** — re-running with the same ``(project_root, plugin_root)``
+         produces a byte-equal file.
+      2. **Non-destructive** — all other pre-existing keys are preserved
+         byte-for-byte. Only the two SVP-related keys above are touched.
+      3. **Self-healing** — if the pre-existing marketplace path is stale
+         (user moved the SVP repo on disk), the helper rewrites it to the
+         current ``plugin_root.parent.resolve()``.
+      4. **Corrupt-JSON recovery** — if the pre-existing file is unparseable
+         JSON, the helper starts from an empty dict rather than raising.
+      5. **Atomic write** — writes to ``settings.json.tmp`` then calls
+         ``Path.replace()`` so interrupted writes do not leave a partial or
+         corrupt ``settings.json``.
+
+    Does NOT invoke ``subprocess``. The ``claude plugin install svp@svp
+    --scope project`` CLI command is a user migration step, not a runtime
+    dependency.
+
+    Parameters
+    ----------
+    project_root
+        The SVP pipeline directory (the one containing ``.svp/``, ``specs/``,
+        ``blueprint/``, etc.). The ``.claude/settings.json`` file is written
+        inside this directory.
+    plugin_root
+        The SVP plugin inner directory (e.g., ``<repo>/svp/``). Its parent
+        (``<repo>/``) must contain ``.claude-plugin/marketplace.json``. The
+        marketplace root is computed as ``plugin_root.parent.resolve()``.
+
+    Raises
+    ------
+    OSError
+        If the settings directory cannot be created or the file cannot be
+        written. Corrupt JSON in the pre-existing file is handled gracefully
+        (recovered to empty dict); only I/O failures raise.
+    """
+    settings_dir = project_root / ".claude"
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    settings_path = settings_dir / "settings.json"
+
+    if settings_path.exists():
+        try:
+            data = json.loads(settings_path.read_text())
+            if not isinstance(data, dict):
+                data = {}
+        except json.JSONDecodeError:
+            # Corrupt JSON recovery: start fresh rather than crashing.
+            data = {}
+    else:
+        data = {}
+
+    # plugin_root is the inner plugin dir (e.g., <repo>/svp/).
+    # Its parent is the marketplace root (the dir containing
+    # .claude-plugin/marketplace.json).
+    marketplace_root = str(plugin_root.parent.resolve())
+
+    extra = data.get("extraKnownMarketplaces")
+    if not isinstance(extra, dict):
+        extra = {}
+        data["extraKnownMarketplaces"] = extra
+    extra["svp"] = {
+        "source": {
+            "source": "directory",
+            "path": marketplace_root,
+        }
+    }
+
+    enabled = data.get("enabledPlugins")
+    if not isinstance(enabled, dict):
+        enabled = {}
+        data["enabledPlugins"] = enabled
+    enabled["svp@svp"] = True
+
+    # Atomic write: write to .tmp then rename. Prevents corruption on
+    # interrupted writes (Ctrl-C, kernel panic, power loss).
+    tmp = settings_path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=2))
+    tmp.replace(settings_path)
+
+
+# ---------------------------------------------------------------------------
 # create_new_project
 # ---------------------------------------------------------------------------
 
@@ -873,11 +974,19 @@ def main(argv: list = None) -> None:
     if args.command == "new":
         plugin_root = _find_plugin_root()
         project_root = create_new_project(args.project_name, plugin_root)
+        # Bug S3-123: write project-scoped .claude/settings.json so Claude
+        # Code loads SVP in this directory only (not every directory on the
+        # machine). See spec §4.4.
+        ensure_project_settings(project_root, plugin_root)
         launch_session(project_root, plugin_path=plugin_root)
     elif args.command == "resume":
         # Auto-detect project and launch
         project_root = Path.cwd()
         plugin_root = _find_plugin_root()
+        # Bug S3-123: write project-scoped .claude/settings.json. Idempotent
+        # on re-entry and self-heals stale marketplace paths if the user has
+        # moved the SVP repo since the last run.
+        ensure_project_settings(project_root, plugin_root)
         launch_session(project_root, plugin_path=plugin_root)
     elif args.command == "restore":
         plugin_path = Path(args.plugin_path) if args.plugin_path else None
@@ -922,4 +1031,9 @@ def main(argv: list = None) -> None:
             skip_to=args.skip_to,
             repo_path=resolved_repo_path,
         )
+        # Bug S3-123: write project-scoped .claude/settings.json for the
+        # restored project. plugin_path may be None when SVP was discovered
+        # via _find_plugin_root; resolve it now for the settings file.
+        resolved_plugin_root = plugin_path if plugin_path else _find_plugin_root()
+        ensure_project_settings(project_root, resolved_plugin_root)
         launch_session(project_root, plugin_path=plugin_path)

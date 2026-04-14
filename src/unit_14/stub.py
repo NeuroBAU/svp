@@ -598,6 +598,24 @@ def _bootstrap_oracle_nested_session(
         if src.is_file():
             shutil.copy2(str(src), str(workspace / fname))
 
+    # Bug S3-123: write project-scoped .claude/settings.json into the nested
+    # workspace so it loads the SVP plugin via project-scoped enablement
+    # rather than relying on user-scope settings. Without this, nested oracle
+    # sessions would break on machines where the user has migrated off user
+    # scope. See spec §4.4.
+    try:
+        from svp_launcher import _find_plugin_root, ensure_project_settings
+
+        plugin_root = _find_plugin_root()
+        ensure_project_settings(workspace, plugin_root)
+    except (ImportError, FileNotFoundError):
+        # Graceful degradation: if the launcher is not importable or the
+        # plugin cannot be located, the nested session falls back to whatever
+        # enablement the outer session had (typically user scope). This is
+        # not a hard failure — it just means the oracle nested session will
+        # work only if user-scope SVP is present.
+        pass
+
     # Update state with nested session path
     new = _copy(state)
     new.oracle_nested_session_path = str(workspace)

@@ -651,6 +651,47 @@ SVP runs on any platform where Claude Code and conda are available. All determin
 - Environment name derived deterministically: `project_name.lower().replace(" ", "_").replace("-", "_")`.
 - File path separators must use `pathlib.Path` — never string concatenation.
 
+### 4.4 Plugin Loading Architecture and Project-Scoped Activation (NEW IN 2.2 — Bug S3-123)
+
+Claude Code distinguishes **plugin installation** (global, one cached copy per plugin per user, stored at `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`) from **plugin enablement** (scoped, controlled by JSON settings files). Installation is a one-time global operation; enablement decides which installed plugins are active in a given session based on the current working directory and the user's config files.
+
+**The four config files.** Claude Code reads enablement state from up to four JSON files per session, in this order of precedence (higher first):
+
+1. `<project_root>/.claude/settings.local.json` — per-machine project overrides, gitignored. Good for paths that vary between developers (e.g., the absolute path to a local marketplace source).
+2. `<project_root>/.claude/settings.json` — committed project settings. Good for shared `enabledPlugins` entries that every collaborator should see.
+3. `~/.claude/settings.json` — user-scope global settings. Enables plugins in every `claude` session on the machine, regardless of cwd.
+4. `<project_root>/.claude-plugin/marketplace.json` — marketplace metadata (plugin definitions, author, version). Not an enablement file — just declares what plugins the marketplace publishes.
+
+**The enablement rule.** A plugin loads in a session if its `enabledPlugins["<pkg>@<plugin>"]` key is `true` in **any** of the settings files read by that session. User-scope enables globally; project-scope enables only when cwd (or an ancestor) is the project root.
+
+**SVP's design choice: project-scoped by default.** An SVP pipeline directory is a specific kind of project — one with `.svp/`, `pipeline_state.json`, `specs/`, `blueprint/`, etc. SVP should load in those directories and nowhere else. The launcher (`svp_launcher.py`) writes `<project_root>/.claude/settings.json` during `svp new`, `svp resume`, `svp restore`, and during oracle nested-session bootstrap. The settings file registers the SVP marketplace (via `extraKnownMarketplaces.svp.source.path`) AND enables the SVP plugin (via `enabledPlugins["svp@svp"] = true`). Directories without this file do not load SVP.
+
+**`ensure_project_settings()` contract.** The launcher's helper that writes the file must satisfy five properties, all load-bearing:
+
+1. **Idempotent.** Re-running with the same `(project_root, plugin_root)` arguments produces a byte-equal file. A caller can invoke it on every launcher entry without fear of churn.
+2. **Non-destructive.** Only two keys are touched: `extraKnownMarketplaces.svp` and `enabledPlugins["svp@svp"]`. All other pre-existing keys — custom hooks, other plugin enablements, user theme, `effortLevel`, anything — are preserved byte-for-byte.
+3. **Self-healing.** If the user moves the SVP repo on disk (to a different path, to a new machine, to a different drive), re-running the helper with the new `plugin_root` rewrites the stale `extraKnownMarketplaces.svp.source.path`. No manual editing of the settings file is required.
+4. **Corrupt-JSON recovery.** If the pre-existing settings file is unparseable JSON, the helper starts over with an empty dict rather than crashing. A corrupt user-level config file must not prevent the launcher from running.
+5. **Atomic write.** The helper writes to `settings.json.tmp` then calls `Path.replace()`. An interrupted write must never leave a partial or corrupt file at `settings.json`. Atomic write is non-negotiable for config files that the user may also edit manually.
+
+**Call sites.** `ensure_project_settings()` must be called by every entry point that is a user's first interaction with a pipeline directory. Four call sites are required:
+
+- `svp new <name>` — after project creation, before launching Claude Code.
+- `svp resume` (bare `svp`) — before launching Claude Code in the current directory.
+- `svp restore <name>` — after project restoration, before launching Claude Code.
+- `_bootstrap_oracle_nested_session` in the routing script — after the oracle nested workspace is created and populated with project files, before the orchestrator enters the nested directory.
+
+**Migration story (opt-in).** Existing SVP users with user-scope enablement (`~/.claude/settings.json` with `enabledPlugins["svp@svp"] = true`) continue to work unchanged. To migrate to project-scope, a user runs (a) `svp resume` (or `svp new`/`svp restore`) in each pipeline directory to trigger `ensure_project_settings()`, then (b) `claude plugin uninstall svp@svp --scope user` to remove the user-scope leak. After migration, SVP loads only in pipeline directories that have run the launcher.
+
+**Relationship to `SVP_PLUGIN_ACTIVE` (orthogonal).** `ensure_project_settings()` controls **visibility** (which plugin loads in which directory). `SVP_PLUGIN_ACTIVE=1` (set by the launcher in the `claude` subprocess env) controls **operability** — specifically, whether the `non_svp_protection.sh` PreToolUse hook (Unit 17) permits Bash commands. Both mechanisms are required for a fully-operational SVP session: the settings file makes the plugin visible to `claude`, and the env var unblocks Bash for agents running inside. A user who manually runs `claude` inside a project-scoped pipeline dir (bypassing the launcher) gets the slash commands and agents in autocomplete but Bash is blocked — graceful degradation.
+
+**Common mistakes checklist:**
+- Forgetting `--scope project` on `claude plugin install` — the default is `--scope user` and silently re-introduces the leak.
+- Hardcoding an absolute path to the SVP repo that won't survive a move (mitigated by `ensure_project_settings()`'s self-heal property).
+- Writing the settings file before the marketplace directory actually exists on disk — the path in `extraKnownMarketplaces.svp.source.path` must resolve to a real directory with `.claude-plugin/marketplace.json` inside.
+- Touching `~/.claude/settings.json` programmatically from the launcher — the user-scope file is the user's environment and must only be modified manually.
+- Writing `.claude/settings.json` to the SVP **repo** directory (which is a build artifact directory, not a pipeline directory) — that would re-introduce a leak under the guise of a fix.
+
 ---
 
 ## 5. Pipeline Overview (CHANGED IN 2.2)
@@ -5373,6 +5414,30 @@ While running `/svp:bug` against a downstream plugin, the FIX BLUEPRINT branch o
 **Pattern:** P26 (NEW — Generator-Side Identifier Transformation). When a generator transforms a source identifier into a different form for a downstream consumer (frontmatter, manifest, registration record), the transformation creates two coexisting identifiers that can drift independently. The negative form of this lesson: *every registered identifier should be greppable in the project's source in its registered form*. Generators that transform identifiers must publish the rule in the spec AND have an explicit test that the transformation result matches what every consumer expects. **Detection:** S3-121 triage exposed the parallel question for agents; `claude-code-guide` subagent confirmed the registration rule against the Plugins Reference; inspection of unit_23 line 837 located the producer; inspection of `routing.py` and the system-reminder confirmed the consumer-side mismatch.
 
 **User-side cache invalidation.** Same as S3-121: after pulling this fix, users must clear the plugin cache (`claude plugin uninstall svp@svp && claude plugin install svp@svp` or `rm -rf ~/.claude/plugins/cache/svp`) so the new agent frontmatter loads. Otherwise both the old `svp:oracle-agent` and the new `svp:oracle_agent` may briefly coexist in autocomplete.
+
+### 24.136 Plugin Activation Leaks at User Scope (Post-delivery — Bug S3-123, NEW IN 2.2)
+
+**User-scope plugin activation leak (NEW IN 2.2 -- Bug S3-123).** SVP shipped with no mechanism for writing project-scoped plugin enablement. The launcher's `launch_session()` built `subprocess.run(["claude", ...])` with no `.claude/settings.json` authoring step, so activation depended entirely on whatever was present in `~/.claude/settings.json` (user-scope). During setup, users were guided toward `claude plugin install svp@svp` which defaults to `--scope user`, writing `enabledPlugins["svp@svp"] = true` and `extraKnownMarketplaces.svp.source.path = <repo_path>` into the user-scope settings file. Result: every `claude` invocation on the machine, regardless of current working directory, loaded SVP. Running `cd /tmp && claude` still showed all `/svp:*` commands, all 21 SVP agents, the orchestration skill, and the SVP consultant agent. Cross-plugin testing (e.g., working on SVP and `debrief` simultaneously) required manual `/plugin disable` dances; clean reproduction cases inherited the reporter's user-level config; a user entering any non-SVP project directory saw SVP in autocomplete and had to mentally filter it out.
+
+**Why it wasn't caught.** Claude Code's plugin model supports both user-scope and project-scope enablement out of the box; the mechanism is documented in the Plugins Reference. SVP simply didn't adopt it. The user-scope default worked well enough during development that the leak was treated as a feature (SVP "always available") until the cross-project consequences surfaced. No spec section documented the Claude Code plugin loading model, so the drift between "what we ship" and "what the platform offers" had no anchor to catch it. This is the same upstream cause as S3-121 and S3-122: absence of a written platform contract for the parts of Claude Code SVP depends on.
+
+**Cross-project corroboration.** The sibling `debrief` project hit the same bug, fixed it in BUG-AUDIT-8 (commit `cb3227d`), shipped a 13-test regression suite, and relayed an advisory to SVP on 2026-04-14 with a reference implementation (`debrief/src/debrief/launcher.py:ensure_project_settings`). Debrief's spec §9.6 "Plugin Loading Architecture and Project-Scoped Activation" is the architectural primer SVP is adopting as Section 4.4 of this spec.
+
+**Fix (Bug S3-123).** Four coordinated changes.
+
+1. **New architectural section.** Added **Section 4.4 "Plugin Loading Architecture and Project-Scoped Activation"** (NEW IN 2.2) documenting the four Claude Code config files, the enablement rule, SVP's design choice (project-scope by default), the `ensure_project_settings()` contract with its five load-bearing properties, the four required call sites, the migration story, the relationship to `SVP_PLUGIN_ACTIVE` (orthogonal: visibility vs operability), and a common-mistakes checklist. This closes the upstream cause — the platform contract is now written down.
+
+2. **`ensure_project_settings()` helper.** Unit 29 (launcher) gains a new function `ensure_project_settings(project_root: Path, plugin_root: Path) -> None` that writes `<project_root>/.claude/settings.json` with `extraKnownMarketplaces.svp.source.path = marketplace_root` and `enabledPlugins["svp@svp"] = true`. The helper is idempotent, non-destructive (preserves all other keys), self-healing (rewrites stale marketplace paths), recovers from corrupt JSON, and writes atomically via `.tmp` + `Path.replace()`. Adapted from debrief's reference implementation. `marketplace_root` is computed as `plugin_root.parent.resolve()` — the plugin root (`<repo>/svp/`) lives inside the marketplace root (`<repo>/`).
+
+3. **Four call sites.** The helper is invoked from every entry point that represents a user's first interaction with a pipeline directory. `svp_launcher.py main()` calls it in the `new`, `resume`, and `restore` branches before `launch_session()`. `_bootstrap_oracle_nested_session` in `routing.py` calls it after the nested workspace is created and populated with project files, so oracle E-mode and F-mode nested sessions also get project-scoped settings. An AST check in the regression test suite verifies all four call sites exist and fails immediately if a future commit removes one.
+
+4. **Migration (opt-in for existing users).** The fix is additive. Existing user-scope installations continue to work unchanged. Users who want to opt in run `svp` (or the other launcher entry points) in each pipeline directory to trigger `ensure_project_settings()`, then manually run `claude plugin uninstall svp@svp --scope user` to remove the leak. Documented in `README.md` and `CHANGELOG.md`.
+
+**Regression guards.** New file `tests/regressions/test_bug_s3_123_project_settings.py` asserts: correctness (the written file has the expected keys), idempotency (re-run produces byte-equal output), preservation of unrelated keys (pre-existing `theme`, `customHooks`, `enabledPlugins["other@other"]` survive), stale-path self-heal (pre-existing stale `extraKnownMarketplaces.svp.source.path` is rewritten), corrupt-JSON recovery (invalid JSON replaced with fresh dict, no crash), atomic write (`.tmp` + replace), marketplace root computation (`plugin_root.parent`), AST checks on `svp_launcher.py` and `routing.py` that `ensure_project_settings` is called at all four call sites, integration test against a real temp dir fixture, and a negative assertion that the helper does not call `subprocess` (the CLI install command is a migration-doc step only, not a runtime dependency).
+
+**Pattern:** P27 (NEW — Default Scope Leak). A platform feature (plugin enablement) has multiple scopes (user vs project). The default scope (user) is convenient during development but leaks the feature into unrelated contexts. The fix is to adopt the narrower scope (project) by writing the appropriate config file during project setup. Mitigation checklist: (a) spec documents every platform feature's scope model, (b) launcher writes the narrowest-appropriate scope by default, (c) regression tests verify the scope is correctly applied and does not regress. Sibling of P24 (Deployed Artifact Regeneration) and P25/P26 (Generator-Side Transformation) — all three concern the gap between source-of-truth state and what the platform actually sees at runtime.
+
+**User-side migration.** Run `claude plugin uninstall svp@svp --scope user` to remove the user-scope leak. For each existing SVP pipeline directory, run `svp` (or the other launcher entry points) to trigger `ensure_project_settings()` and write the project-scoped settings file. Verify with `cd /tmp && claude` — should show no `/svp:*` commands and no SVP agents in the system reminder. After migration, SVP loads only in directories where the launcher has been run.
 
 ---
 

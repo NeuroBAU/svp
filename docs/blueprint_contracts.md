@@ -1366,7 +1366,7 @@ def run_tests_main(argv: list = None) -> None: ...
 - Test project selection: _route_oracle builds the complete numbered test project list in Python (hardcoded F-mode "SVP Pipeline" as item 1 + auto-discovered E-mode from `examples/*/oracle_manifest.json`) and embeds it in the reminder field along with a number-to-path mapping (e.g., `1 → docs/`, `2 → examples/game-of-life/`). The action block includes `post: "python scripts/update_state.py --command oracle_test_project_selection --project-root ."`. The orchestrator presents the list verbatim, writes the selected path to `.svp/last_status.txt`, and runs the POST command. **(Bug S3-76 + S3-77 fix.)**
 - oracle_start command: dispatch_command_status handles "oracle_start" by calling enter_oracle_session.
 - Modification bound: gate_7_a MODIFY increments oracle_modification_count; _route_oracle warns when >= 3.
-- Nested session bootstrap: _bootstrap_oracle_nested_session creates workspace at green_run start. E-mode path copies `.svp/` then overwrites `.svp/pipeline_state.json` with fresh `PipelineState()` (stage=0, all defaults) so the nested session starts clean. **(Bug S3-93 fix.)**
+- Nested session bootstrap: _bootstrap_oracle_nested_session creates workspace at green_run start. E-mode path copies `.svp/` then overwrites `.svp/pipeline_state.json` with fresh `PipelineState()` (stage=0, all defaults) so the nested session starts clean. **(Bug S3-93 fix.)** After populating the workspace and before returning, `_bootstrap_oracle_nested_session` calls `ensure_project_settings(workspace, plugin_root)` (imported from `svp_launcher`) so the nested session loads the SVP plugin via project-scoped enablement rather than relying on user-scope settings. `plugin_root` is resolved via the same mechanism as the launcher (`SVP_PLUGIN_ROOT` env var or `_find_plugin_root()`). **(Bug S3-123 fix.)**
 - `_load_state_safe()`: loads state via `load_state()` (Unit 5), returns `PipelineState()` default on `FileNotFoundError`. No multi-location fallback — single canonical path from `ARTIFACT_FILENAMES`. **(Bug S3-104 fix.)**
 - Internal /svp:bug: gate_7_b APPROVE FIX calls enter_debug_session; oracle_session_active stays True.
 - Fix verification: after debug completes, green_run tears down and recreates nested session.
@@ -2248,6 +2248,26 @@ def main(argv: list = None) -> None: ...
 - Environment: `SVP_PLUGIN_ACTIVE=1`. If `plugin_path`: `SVP_PLUGIN_ROOT=<path>`.
 - Restart loop: after session exit, checks for `.svp/restart_signal`. If present, removes signal and relaunches.
 - Returns exit code.
+
+**ensure_project_settings (NEW IN 2.2 — Bug S3-123):**
+- Signature: `ensure_project_settings(project_root: Path, plugin_root: Path) -> None`.
+- Writes `<project_root>/.claude/settings.json` so Claude Code loads the SVP plugin via **project-scoped** marketplace enablement (see spec §4.4). This replaces reliance on user-scope enablement which leaked into every `claude` session on the machine.
+- Computes `marketplace_root = plugin_root.parent.resolve()` — the plugin root (`<repo>/svp/`) lives inside the marketplace root (`<repo>/`, which contains `.claude-plugin/marketplace.json`).
+- Sets two keys only:
+  - `extraKnownMarketplaces.svp.source = {"source": "directory", "path": str(marketplace_root)}`
+  - `enabledPlugins["svp@svp"] = True`
+- **Idempotent:** re-running with the same `(project_root, plugin_root)` produces a byte-equal file.
+- **Non-destructive:** all other pre-existing keys in `settings.json` are preserved byte-for-byte. Only the two SVP-related keys above are touched.
+- **Self-healing:** if the pre-existing `extraKnownMarketplaces.svp.source.path` is stale (e.g., user moved the SVP repo), the helper rewrites it to the current `marketplace_root`. No manual editing of the settings file is required.
+- **Corrupt-JSON recovery:** if the pre-existing file is unparseable JSON, the helper starts from an empty dict rather than raising. A corrupt user config must not block the launcher.
+- **Atomic write:** writes to `settings.json.tmp` then calls `Path.replace()`. Interrupted writes do not leave a partial or corrupt `settings.json`.
+- **Required call sites (all four):**
+  - `main()` `args.command == "new"` branch — after `create_new_project`, before `launch_session`.
+  - `main()` `args.command == "resume"` branch — before `launch_session`.
+  - `main()` `args.command == "restore"` branch — after `restore_project`, before `launch_session`.
+  - `_bootstrap_oracle_nested_session` in Unit 14 (routing) — after nested workspace creation, before returning. Imported from `svp_launcher`.
+- **Does NOT invoke subprocess.** The `claude plugin install svp@svp --scope project` CLI command is a migration-doc step for users, not a runtime dependency. The helper writes the same JSON the install command would; adding the install call would duplicate effort and introduce a CLI failure mode.
+- **Orthogonal to `SVP_PLUGIN_ACTIVE`:** `ensure_project_settings()` controls visibility (which plugin loads in which directory). `SVP_PLUGIN_ACTIVE` (set by `launch_session` in the subprocess env) controls operability (whether the `non_svp_protection.sh` hook permits Bash). Both are required for a fully operational SVP session.
 
 **_find_plugin_root:**
 - Checks `SVP_PLUGIN_ROOT` environment variable first.
