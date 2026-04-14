@@ -1724,15 +1724,21 @@ def prepare_task_prompt(
         content = _prepare_git_repo_agent(
             project_root, state, mode, context, blueprint_dir
         )
-    elif agent_type == "help_agent":
+    # Bug S3-124: accept both phase and agent_type forms for Group B agents.
+    # Slash command bodies in unit_25 pass the phase form (e.g., `help`),
+    # routing.py _agent_prepare_cmd passes the agent_type form (`help_agent`).
+    # Both must dispatch correctly. reference_indexing is single-form because
+    # phase == agent_type. bug_triage/coverage_review were dual-form before
+    # S3-124; this fix extends the pattern uniformly.
+    elif agent_type in ("help", "help_agent"):
         content = _prepare_help_agent(project_root, state, mode, context, blueprint_dir)
-    elif agent_type == "hint_agent":
+    elif agent_type in ("hint", "hint_agent"):
         content = _prepare_hint_agent(project_root, state, mode, context, blueprint_dir)
     elif agent_type == "reference_indexing":
         content = _prepare_reference_indexing(
             project_root, state, mode, context, blueprint_dir
         )
-    elif agent_type == "redo_agent":
+    elif agent_type in ("redo", "redo_agent"):
         content = _prepare_redo_agent(project_root, state, mode, context, blueprint_dir)
     elif agent_type in ("bug_triage", "bug_triage_agent"):
         content = _prepare_bug_triage(project_root, state, mode, context, blueprint_dir)
@@ -1740,7 +1746,7 @@ def prepare_task_prompt(
         content = _prepare_repair_agent(
             project_root, state, mode, context, blueprint_dir, unit_number
         )
-    elif agent_type == "oracle_agent":
+    elif agent_type in ("oracle", "oracle_agent"):
         content = _prepare_oracle_agent(
             project_root, state, mode, context, blueprint_dir
         )
