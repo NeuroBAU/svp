@@ -48,9 +48,27 @@ def plugin_root(tmp_path: Path) -> Path:
 
     The marketplace root (plugin_root.parent) is what ensure_project_settings
     will store in extraKnownMarketplaces.svp.source.path.
+
+    Bug S3-127 enforces that the marketplace root contains a real
+    ``.claude-plugin/marketplace.json`` listing an ``svp`` plugin. The
+    fixture now creates that file so the S3-123 helper can locate the
+    marketplace via its fast path (``plugin_root.parent``). Without this,
+    the post-S3-127 helper would walk up from ``__file__`` or raise
+    ``FileNotFoundError`` — neither of which is what these tests intend.
     """
     marketplace_root = tmp_path / "svp_marketplace_repo"
     marketplace_root.mkdir(parents=True)
+    # S3-127: real marketplace.json advertising the svp plugin.
+    marketplace_dot_plugin = marketplace_root / ".claude-plugin"
+    marketplace_dot_plugin.mkdir()
+    (marketplace_dot_plugin / "marketplace.json").write_text(
+        json.dumps({
+            "name": "svp",
+            "plugins": [
+                {"name": "svp", "source": "./svp", "version": "2.2.0"}
+            ],
+        })
+    )
     plugin_dir = marketplace_root / "svp"
     plugin_dir.mkdir()
     return plugin_dir
@@ -500,6 +518,13 @@ class TestIntegration:
         proj = tmp_path / "pipeline"
         plugin = tmp_path / "svp_repo" / "svp"
         plugin.mkdir(parents=True)
+        # S3-127: real marketplace.json so the fast path in
+        # _find_marketplace_root(plugin.parent) succeeds.
+        mp_dir = plugin.parent / ".claude-plugin"
+        mp_dir.mkdir()
+        (mp_dir / "marketplace.json").write_text(
+            json.dumps({"name": "svp", "plugins": [{"name": "svp", "source": "./svp"}]})
+        )
 
         ensure_project_settings(proj, plugin)
 

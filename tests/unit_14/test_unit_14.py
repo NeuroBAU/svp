@@ -1106,6 +1106,17 @@ class TestRoute:
         (fake_plugin_manifest / "plugin.json").write_text(
             json.dumps({"name": "svp", "version": "2.2.2"})
         )
+        # Bug S3-127: the marketplace root (fake_plugin.parent) must contain
+        # a real .claude-plugin/marketplace.json advertising the svp plugin,
+        # otherwise ensure_project_settings raises FileNotFoundError.
+        fake_marketplace_manifest = fake_marketplace / ".claude-plugin"
+        fake_marketplace_manifest.mkdir(parents=True)
+        (fake_marketplace_manifest / "marketplace.json").write_text(
+            json.dumps({
+                "name": "svp",
+                "plugins": [{"name": "svp", "source": "./svp", "version": "2.2.2"}],
+            })
+        )
 
         # Point _find_plugin_root() at the fake plugin via env var
         monkeypatch.setenv("SVP_PLUGIN_ROOT", str(fake_plugin))

@@ -680,12 +680,18 @@ class TestLaunchSession:
 class TestMain:
     """Tests for the main function."""
 
+    @patch("svp_launcher.ensure_project_settings", return_value=None)
     @patch("svp_launcher.launch_session", return_value=0)
     @patch("svp_launcher.preflight_check", return_value=[])
     @patch("svp_launcher.create_new_project", return_value=Path("/tmp/test"))
     def test_main_new_project_dispatches_to_create(
-        self, mock_create, mock_preflight, mock_launch
+        self, mock_create, mock_preflight, mock_launch, mock_ensure
     ):
+        # Bug S3-127: ensure_project_settings is mocked because this test
+        # verifies main's dispatch to create_new_project, not the settings
+        # writer itself. Unmocked, the helper would hard-fail on machines
+        # where the discovered plugin has no marketplace.json in its parent
+        # (the S3-127 cache-layout failure mode).
         main(["new", "my_project"])
         mock_create.assert_called_once()
 
@@ -698,12 +704,14 @@ class TestMain:
         except (SystemExit, FileNotFoundError):
             pass  # May fail due to missing project, but should attempt resume
 
+    @patch("svp_launcher.ensure_project_settings", return_value=None)
     @patch("svp_launcher.launch_session", return_value=0)
     @patch("svp_launcher.preflight_check", return_value=[])
     @patch("svp_launcher.restore_project", return_value=Path("/tmp/test"))
     def test_main_restore_dispatches_to_restore(
-        self, mock_restore, mock_preflight, mock_launch, tmp_path
+        self, mock_restore, mock_preflight, mock_launch, mock_ensure, tmp_path
     ):
+        # Bug S3-127: see test_main_new_project_dispatches_to_create.
         spec = tmp_path / "spec.md"
         spec.write_text("# Spec\n")
         blueprint = tmp_path / "blueprint"

@@ -426,12 +426,20 @@ def preflight_check(
 def _find_plugin_root() -> Path:
     """Find the SVP plugin root directory.
 
-    Checks ``SVP_PLUGIN_ROOT`` environment variable first, then searches
-    5 standard locations. Validates that the directory contains
-    ``.claude-plugin/plugin.json`` with ``name == "svp"``.
+    Checks ``SVP_PLUGIN_ROOT`` environment variable first, then performs a
+    **two-pass search** over standard locations (Bug S3-127):
+
+    - **First pass:** return only candidates whose parent directory is a
+      valid marketplace root (contains ``.claude-plugin/marketplace.json``
+      listing an ``svp`` plugin). This prefers source-repo installs over
+      stale cache snapshots.
+    - **Second pass:** fall back to any candidate with a valid
+      ``.claude-plugin/plugin.json`` (pre-S3-127 behavior). Preserves
+      compatibility for users with only a cache install — downstream
+      callers that need a marketplace will hard-fail with a clear message.
 
     Returns the ``Path`` to the valid plugin root.
-    Raises ``FileNotFoundError`` if none found.
+    Raises ``FileNotFoundError`` if no candidate is found in either pass.
     """
     # 1. Check environment variable
     env_root = os.environ.get("SVP_PLUGIN_ROOT")
@@ -446,20 +454,32 @@ def _find_plugin_root() -> Path:
             "name='svp')."
         )
 
-    # 2. Search standard locations
+    # 2. Enumerate all candidates from standard locations
+    candidates: List[Path] = []
     locations = _get_plugin_search_locations()
     cache_location = Path.home() / ".claude" / "plugins" / "cache" / "svp" / "svp"
     for location in locations:
         if location == cache_location:
-            # Check all version subdirs, sorted
             if location.is_dir():
                 subdirs = sorted(location.iterdir(), reverse=True)
                 for subdir in subdirs:
                     if subdir.is_dir() and _validate_plugin_dir(subdir):
-                        return subdir
+                        candidates.append(subdir)
         else:
             if _validate_plugin_dir(location):
-                return location
+                candidates.append(location)
+
+    # 3. First pass: prefer candidates whose parent is a valid marketplace.
+    # Bug S3-127: a candidate whose parent has no marketplace.json is
+    # unusable by ensure_project_settings(). Skip such candidates in the
+    # first pass so the source-repo install wins over a cache snapshot.
+    for candidate in candidates:
+        if _is_valid_marketplace_dir(candidate.parent):
+            return candidate
+
+    # 4. Second pass: any validated candidate (backward compatibility).
+    if candidates:
+        return candidates[0]
 
     raise FileNotFoundError(
         "SVP plugin not found. Searched SVP_PLUGIN_ROOT env var and "
@@ -481,6 +501,93 @@ def _validate_plugin_dir(path: Path) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# _find_marketplace_root (Bug S3-127)
+# ---------------------------------------------------------------------------
+
+
+def _is_valid_marketplace_dir(path: Path) -> bool:
+    """Check if ``path`` is a valid SVP marketplace root.
+
+    A directory is a valid marketplace root iff (Bug S3-127):
+      (a) ``<path>/.claude-plugin/marketplace.json`` exists and is parseable,
+      (b) the parsed object has a ``plugins`` array, and
+      (c) at least one entry in ``plugins`` has ``name == "svp"``.
+
+    All three conditions must hold. File existence alone is not sufficient —
+    the marketplace must actually advertise the SVP plugin.
+    """
+    marketplace_json = path / ".claude-plugin" / "marketplace.json"
+    if not marketplace_json.is_file():
+        return False
+    try:
+        with open(marketplace_json, "r") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    plugins = data.get("plugins")
+    if not isinstance(plugins, list):
+        return False
+    for entry in plugins:
+        if isinstance(entry, dict) and entry.get("name") == "svp":
+            return True
+    return False
+
+
+def _find_marketplace_root(plugin_root: Path) -> Optional[Path]:
+    """Locate a directory that can be registered as the SVP marketplace source.
+
+    Returns a ``Path`` to a directory containing ``.claude-plugin/marketplace.json``
+    whose ``plugins`` array lists an entry with ``name == "svp"``, or ``None``
+    if no such directory can be located.
+
+    Resolution order (first hit wins):
+
+    1. ``SVP_MARKETPLACE_ROOT`` environment variable. If set and valid, returned.
+       If set but invalid, raises ``FileNotFoundError`` — explicit user intent
+       must not be silently ignored.
+    2. ``plugin_root.parent`` if it is a valid marketplace directory. Fast path
+       for source-repo layouts (``<repo>/svp/`` with marketplace at ``<repo>/``).
+    3. ``__file__`` walk-up. Walks parent directories of this module's own
+       location on disk and returns the first ancestor that is a valid
+       marketplace root. The launcher is itself part of the plugin, so its
+       own location transitively identifies a valid marketplace when imported
+       from a source tree (rather than a site-packages reinstall).
+
+    Claude Code's internal plugin cache layout
+    (``~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/``) is NOT a
+    valid marketplace root — the cache parent directory contains no
+    ``marketplace.json``. This helper rejects such paths rather than writing
+    them into settings.
+    """
+    # 1. SVP_MARKETPLACE_ROOT env var
+    env_root = os.environ.get("SVP_MARKETPLACE_ROOT")
+    if env_root:
+        candidate = Path(env_root)
+        if _is_valid_marketplace_dir(candidate):
+            return candidate.resolve()
+        raise FileNotFoundError(
+            f"SVP_MARKETPLACE_ROOT is set to '{env_root}' but that directory "
+            "does not contain a valid SVP marketplace "
+            "(.claude-plugin/marketplace.json listing a plugin named 'svp')."
+        )
+
+    # 2. plugin_root.parent fast path (source-repo layout)
+    parent_candidate = plugin_root.parent.resolve()
+    if _is_valid_marketplace_dir(parent_candidate):
+        return parent_candidate
+
+    # 3. __file__ walk-up
+    here = Path(__file__).resolve()
+    for ancestor in here.parents:
+        if _is_valid_marketplace_dir(ancestor):
+            return ancestor
+
+    return None
+
+
+# ---------------------------------------------------------------------------
 # ensure_project_settings (Bug S3-123)
 # ---------------------------------------------------------------------------
 
@@ -496,8 +603,8 @@ def ensure_project_settings(project_root: Path, plugin_root: Path) -> None:
 
     Two keys are written:
       - ``extraKnownMarketplaces.svp.source`` — registers the marketplace at
-        ``plugin_root.parent`` (the directory containing
-        ``.claude-plugin/marketplace.json``).
+        the directory located by :func:`_find_marketplace_root`, which must
+        contain ``.claude-plugin/marketplace.json`` listing an ``svp`` plugin.
       - ``enabledPlugins["svp@svp"]`` — set to ``True`` to enable the plugin
         when Claude Code is launched from ``project_root``.
 
@@ -506,14 +613,24 @@ def ensure_project_settings(project_root: Path, plugin_root: Path) -> None:
          produces a byte-equal file.
       2. **Non-destructive** — all other pre-existing keys are preserved
          byte-for-byte. Only the two SVP-related keys above are touched.
-      3. **Self-healing** — if the pre-existing marketplace path is stale
-         (user moved the SVP repo on disk), the helper rewrites it to the
-         current ``plugin_root.parent.resolve()``.
+      3. **Self-healing (widened by Bug S3-127)** — the helper rewrites
+         ``extraKnownMarketplaces.svp.source.path`` when either (a) the stored
+         path differs from the freshly-computed marketplace root, OR (b) the
+         stored path does not contain ``.claude-plugin/marketplace.json``.
+         The second clause catches cache-parent paths written by earlier
+         versions of the helper and converts them to loud failures on the
+         next run.
       4. **Corrupt-JSON recovery** — if the pre-existing file is unparseable
          JSON, the helper starts from an empty dict rather than raising.
       5. **Atomic write** — writes to ``settings.json.tmp`` then calls
          ``Path.replace()`` so interrupted writes do not leave a partial or
          corrupt ``settings.json``.
+      6. **Marketplace-root validated (Bug S3-127)** — the path written into
+         ``extraKnownMarketplaces.svp.source.path`` must resolve to a real
+         directory containing ``.claude-plugin/marketplace.json`` listing an
+         ``svp`` plugin. If no such directory can be located, the helper
+         raises ``FileNotFoundError`` with an actionable message. Silent
+         fallback to ``plugin_root.parent`` is prohibited.
 
     Does NOT invoke ``subprocess``. The ``claude plugin install svp@svp
     --scope project`` CLI command is a user migration step, not a runtime
@@ -526,17 +643,33 @@ def ensure_project_settings(project_root: Path, plugin_root: Path) -> None:
         ``blueprint/``, etc.). The ``.claude/settings.json`` file is written
         inside this directory.
     plugin_root
-        The SVP plugin inner directory (e.g., ``<repo>/svp/``). Its parent
-        (``<repo>/``) must contain ``.claude-plugin/marketplace.json``. The
-        marketplace root is computed as ``plugin_root.parent.resolve()``.
+        The SVP plugin inner directory (e.g., ``<repo>/svp/``). Passed to
+        :func:`_find_marketplace_root` which tries ``plugin_root.parent``
+        first, then walks up from the launcher's own ``__file__``.
 
     Raises
     ------
+    FileNotFoundError
+        If :func:`_find_marketplace_root` cannot locate a valid marketplace
+        root. The message instructs the user to set ``SVP_MARKETPLACE_ROOT``.
     OSError
         If the settings directory cannot be created or the file cannot be
         written. Corrupt JSON in the pre-existing file is handled gracefully
         (recovered to empty dict); only I/O failures raise.
     """
+    marketplace_path = _find_marketplace_root(plugin_root)
+    if marketplace_path is None:
+        raise FileNotFoundError(
+            "Cannot locate a valid SVP marketplace root. The discovered "
+            f"plugin at '{plugin_root}' has no '.claude-plugin/marketplace.json' "
+            "in its parent, and no ancestor of the launcher's own location "
+            "contains one either. Set SVP_MARKETPLACE_ROOT=<path-to-svp-source-repo> "
+            "to the directory containing '.claude-plugin/marketplace.json', "
+            "or run from a directory where the SVP launcher can discover it "
+            "via its own __file__."
+        )
+    marketplace_root = str(marketplace_path)
+
     settings_dir = project_root / ".claude"
     settings_dir.mkdir(parents=True, exist_ok=True)
     settings_path = settings_dir / "settings.json"
@@ -551,11 +684,6 @@ def ensure_project_settings(project_root: Path, plugin_root: Path) -> None:
             data = {}
     else:
         data = {}
-
-    # plugin_root is the inner plugin dir (e.g., <repo>/svp/).
-    # Its parent is the marketplace root (the dir containing
-    # .claude-plugin/marketplace.json).
-    marketplace_root = str(plugin_root.parent.resolve())
 
     extra = data.get("extraKnownMarketplaces")
     if not isinstance(extra, dict):
