@@ -1,13 +1,23 @@
 """
-Structural completion audit for bug fixes (Bug S3-46, S3-80).
+Structural completion audit for bug fixes (Bug S3-46, S3-80, S3-129).
 
 Validates that all bug fix artifacts are consistent across workspace
 and all delivered repositories. Run after every bug fix.
 
 Bug S3-80: Also validates that deployed plugin artifacts (svp/commands/,
 svp/agents/, svp/skills/, svp/hooks/) match their source Unit definitions.
+
+Bug S3-129: Adds a round-trip regeneration test that uses
+`regenerate_deployed_artifacts()` as its own oracle — copying the
+delivered repo to a temp directory, running the function on the copy,
+and asserting byte-for-byte and mode-bit parity between the copy and
+the original. Closes three S3-80 coverage gaps: hook shell script
+content, hook executable bits, and agent frontmatter drift on fields
+other than `name`. Pattern P32 (Round-Trip Regeneration As Test Oracle).
 """
 import re
+import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -245,5 +255,95 @@ class TestDeployedArtifactFreshness:
         expected = generate_hooks_json() + "\n"
         assert hooks_file.read_text() == expected, (
             "Deployed hooks.json does not match source generate_hooks_json()"
+        )
+
+    # --- Round-trip regeneration (Bug S3-129) ---
+
+    def test_no_drift_via_roundtrip_regeneration(self, tmp_path):
+        """Copy PASS2_REPO, run regenerate_deployed_artifacts on the copy,
+        assert byte-equal content and matching mode bits for every file.
+
+        Bug S3-129: this uses the production function as its own oracle,
+        closing three S3-80 coverage gaps at once — hook shell script
+        content (write_authorization.sh, non_svp_protection.sh,
+        stub_sentinel_check.sh, monitoring_reminder.sh), hook executable
+        bits (chmod 0o755), and agent frontmatter drift on `description`
+        and `model` fields. Pattern P32.
+        """
+        if not PASS2_REPO.is_dir():
+            pytest.skip("Pass 2 repo not available")
+        source_svp = PASS2_REPO / "svp"
+        if not source_svp.is_dir():
+            pytest.skip("Pass 2 repo has no svp/ plugin tree")
+
+        from generate_assembly_map import regenerate_deployed_artifacts
+
+        target = tmp_path / "repo_copy"
+        shutil.copytree(PASS2_REPO, target, symlinks=False)
+        regenerate_deployed_artifacts(target)
+
+        target_svp = target / "svp"
+
+        def _enum(root: Path) -> dict:
+            """Enumerate regular files under root/{commands,agents,hooks,skills}
+            keyed by relative path, skipping .DS_Store and __pycache__."""
+            out = {}
+            for category in ("commands", "agents", "hooks", "skills"):
+                cat_dir = root / category
+                if not cat_dir.is_dir():
+                    continue
+                for p in cat_dir.rglob("*"):
+                    if not p.is_file():
+                        continue
+                    name = p.name
+                    if name == ".DS_Store" or "__pycache__" in str(p):
+                        continue
+                    out[p.relative_to(root)] = p
+            return out
+
+        source_files = _enum(source_svp)
+        target_files = _enum(target_svp)
+
+        missing_in_target = sorted(set(source_files) - set(target_files))
+        missing_in_source = sorted(set(target_files) - set(source_files))
+        assert not missing_in_target, (
+            "Round-trip regeneration did not reproduce these source files "
+            f"(source has them, regenerated copy lost them): {missing_in_target}"
+        )
+        assert not missing_in_source, (
+            "Round-trip regeneration produced files absent from source "
+            f"(source never had them): {missing_in_source}. This usually "
+            "means the source repo is missing an artifact that "
+            "regenerate_deployed_artifacts would write — run "
+            "`bash sync_workspace.sh` and recommit."
+        )
+
+        content_drift = []
+        mode_drift = []
+        for rel, sp in sorted(source_files.items()):
+            tp = target_files[rel]
+            if sp.read_bytes() != tp.read_bytes():
+                content_drift.append(str(rel))
+            if sys.platform != "win32":
+                smode = sp.stat().st_mode & 0o777
+                tmode = tp.stat().st_mode & 0o777
+                if smode != tmode:
+                    mode_drift.append(
+                        f"{rel}: source={oct(smode)}, regenerated={oct(tmode)}"
+                    )
+
+        assert not content_drift, (
+            "Deployed artifact content drift detected — the following files "
+            "differ from what regenerate_deployed_artifacts would produce "
+            "right now. Run `bash sync_workspace.sh` from the workspace to "
+            "refresh the delivered repo. Files:\n  - "
+            + "\n  - ".join(content_drift)
+        )
+        assert not mode_drift, (
+            "Deployed artifact mode drift detected — the following files have "
+            "different Unix permission bits than regenerate_deployed_artifacts "
+            "would set. Most commonly this means a hook shell script lost its "
+            "executable bit (0o755). Files:\n  - "
+            + "\n  - ".join(mode_drift)
         )
 
