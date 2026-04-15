@@ -2160,8 +2160,8 @@ def parse_args(argv: list = None) -> argparse.Namespace: ...
 
 def preflight_check(project_root: Optional[Path] = None) -> List[str]: ...
 
-CLAUDE_MD_TEMPLATE: str  # Tier 1: universal (action cycle, routing, reminders)
-CLAUDE_MD_SVP_ADDENDUM: str  # Tier 2: SVP self-build only (bug protocol, stubs note)
+CLAUDE_MD_TEMPLATE: str  # Tier 1: universal (action cycle, routing, reminders, universal Manual Bug-Fixing Protocol with commit-to-git)
+CLAUDE_MD_SVP_ADDENDUM: str  # Tier 2: SVP self-build override addendum (stubs source of truth, sync, deployed artifacts, test-from-both)
 
 def create_new_project(
     project_name: str,
@@ -2209,9 +2209,17 @@ def main(argv: list = None) -> None: ...
 - External service reachability (plugin projects, advisory only).
 - Returns list of error messages (empty if all pass).
 
-**CLAUDE_MD_TEMPLATE:** Tier 1 universal content — action cycle, routing instructions, verbatim relay, reminders. All projects get this. Contains `{project_name}` placeholder. **(Bug S3-99.)**
+**CLAUDE_MD_TEMPLATE:** Tier 1 universal content. All projects (A-F) get this. Contains `{project_name}` placeholder. **(Bug S3-99, CHANGED by Bug S3-126.)** Required sections:
+1. Action cycle, routing instructions, verbatim relay, REMINDER block (unchanged from S3-99).
+2. **Manual Bug-Fixing Protocol (Break-Glass Mode)** (NEW IN S3-126) — universal fallback when SVP routing is too broken to function. Must contain RULE 0 ("NEVER directly fix a bug. ALWAYS enter plan mode first.") and a numbered bug-fixing cycle with these steps in order: (a) DIAGNOSE, (b) PLAN (spec → blueprint → code), (c) EXECUTE, (d) EVALUATE, (e) LESSONS LEARNED, (f) REGRESSION TESTS, (g) VERIFY, (h) COMMIT TO GIT. The COMMIT TO GIT step must instruct the orchestrator to: read `delivered_repo_path` from `.svp/pipeline_state.json`; state that the workspace is NOT a git repository and that git lives in the sibling `{project_name}-repo/` directory; `cd` into `delivered_repo_path`; read `project_profile.json::vcs.commit_style` and `vcs.commit_template`; format the commit message per the chosen style, defaulting to `fix: <bug-id> <short-desc>` when the profile is absent or `vcs.commit_style == "conventional"`; `git add` the changed paths and `git commit`. The protocol text must explicitly reference `delivered_repo_path`, `project_profile.json`, and `vcs.commit_style` by these names so the orchestrator can locate them without guessing.
 
-**CLAUDE_MD_SVP_ADDENDUM:** Tier 2 SVP self-build content — bug-fixing protocol, stubs-as-source-of-truth, deployed artifacts, sync instructions. Only E/F projects get this (appended post-Stage-0). **(Bug S3-99.)**
+**CLAUDE_MD_SVP_ADDENDUM:** Tier 2 SVP self-build **override** addendum. Only E/F projects get this (appended post-Stage-0 by `enrich_claude_md_for_svp_build`). **(Bug S3-99, CHANGED by Bug S3-126.)** The addendum does NOT restate Tier 1's universal cycle — it specifies overrides and additional steps that layer on top of Tier 1. Required content:
+1. A top-level heading unique to this tier (e.g., `## SVP Self-Build Override`) — used as the idempotency marker by `enrich_claude_md_for_svp_build`. The marker text MUST NOT appear in Tier 1.
+2. An EXECUTE override: fixes MUST be applied in `src/unit_*/stub.py` (stubs-as-source-of-truth), NEVER in `scripts/*.py` directly (`sync_workspace.sh` Step 0 derives scripts from stubs via import rewriting).
+3. A DEPLOYED ARTIFACTS step: when the fix touches Units producing deployed plugin artifacts (Unit 25 → `svp/commands/`, Unit 26 → `svp/skills/`, Unit 23 → `svp/agents/` and `svp/hooks/`), the `.md` files in the delivered repo's `svp/` directory MUST be manually updated because `sync_workspace.sh` does not sync them.
+4. A SYNC step: run `bash sync_workspace.sh` from the workspace directory before the Tier 1 COMMIT TO GIT step. Sync propagates workspace changes into the delivered repo so the subsequent commit captures them.
+5. A VERIFY override: `pytest` MUST pass from BOTH the workspace directory AND the delivered repo directory. 0 skipped, 0 failed in both.
+6. A note that the COMMIT TO GIT step from Tier 1 remains the terminal action; the addendum only adds sync and expanded verification *before* it, and does not duplicate the commit step itself.
 
 **create_new_project:**
 - Creates project directory.
@@ -2221,14 +2229,14 @@ def main(argv: list = None) -> None: ...
 - Creates empty `tests/` scaffold with `__init__.py` (SVP regression tests only copied for E/F via `copy_svp_regression_tests` post-Stage-0). **(Bug S3-99.)**
 - Copies hook configuration with path rewriting (plugin paths -> project paths).
 - Deploys hook shell scripts from `plugin_root/svp/hooks/*.sh` to `project_root/.claude/scripts/`. Creates directory, copies scripts, sets executable permissions. **(Bug S3-108 fix.)**
-- Creates initial `.svp/pipeline_state.json` (with `"sub_stage": "hook_activation"` per Bug S3-38), `svp_config.json`, `CLAUDE.md` (Tier 1 only via `CLAUDE_MD_TEMPLATE`). **(Bug S3-104 fix: state file in `.svp/`, not root.)**
+- Creates initial `.svp/pipeline_state.json` (with `"sub_stage": "hook_activation"` per Bug S3-38), `svp_config.json`, `CLAUDE.md` (Tier 1 only via `CLAUDE_MD_TEMPLATE` — Tier 1 now includes the universal Manual Bug-Fixing Protocol per Bug S3-126, so every archetype's CLAUDE.md ships with a working break-glass protocol from Stage 0). **(Bug S3-104 fix: state file in `.svp/`, not root.)**
 - Sets filesystem permissions.
 - Launches session.
 - Returns project root path.
 
 **copy_svp_regression_tests:** Copies full SVP test suite from plugin to workspace. Called post-Stage-0 when `is_svp_build` is true. A-D projects use the empty scaffold from `create_new_project`. **(Bug S3-99.)**
 
-**enrich_claude_md_for_svp_build:** Appends `CLAUDE_MD_SVP_ADDENDUM` (Tier 2) to workspace CLAUDE.md. Called post-Stage-0 when `is_svp_build` is true. Idempotent (checks for existing addendum before appending). **(Bug S3-99.)**
+**enrich_claude_md_for_svp_build:** Appends `CLAUDE_MD_SVP_ADDENDUM` (Tier 2) to workspace CLAUDE.md. Called post-Stage-0 when `is_svp_build` is true. Idempotent: checks for the Tier-2-unique marker string `"SVP Self-Build Override"` (the addendum's top-level heading) before appending, NOT `"Manual Bug-Fixing Protocol"` — after Bug S3-126, that string is present in Tier 1 universally, so the pre-S3-126 marker would short-circuit every call and Tier 2 would never append. **(Bug S3-99, CHANGED by Bug S3-126: idempotency marker updated.)**
 
 **restore_project:**
 - Creates project directory.

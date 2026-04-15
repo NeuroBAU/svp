@@ -81,12 +81,18 @@ class TestClaudeMdTemplates:
     def test_tier1_has_routing_instructions(self):
         assert "routing script" in CLAUDE_MD_TEMPLATE
 
-    def test_tier1_no_bug_protocol(self):
-        """Tier 1 must NOT contain bug-fixing protocol."""
-        assert "Manual Bug-Fixing Protocol" not in CLAUDE_MD_TEMPLATE
+    def test_tier1_has_universal_bug_protocol(self):
+        """After Bug S3-126, Tier 1 contains the universal Manual Bug-Fixing
+        Protocol applicable to ALL archetypes (A-F). Tier 1 must still NOT
+        contain the Tier 2 override marker."""
+        assert "Manual Bug-Fixing Protocol (Break-Glass Mode)" in CLAUDE_MD_TEMPLATE
+        assert "SVP Self-Build Override" not in CLAUDE_MD_TEMPLATE
 
-    def test_tier2_has_bug_protocol(self):
+    def test_tier2_references_universal_protocol(self):
+        """After Bug S3-126, Tier 2 is an override addendum that references
+        the Tier 1 universal protocol rather than restating it."""
         assert "Manual Bug-Fixing Protocol" in CLAUDE_MD_SVP_ADDENDUM
+        assert "SVP Self-Build Override" in CLAUDE_MD_SVP_ADDENDUM
 
     def test_tier2_has_stubs_note(self):
         assert "single source of truth" in CLAUDE_MD_SVP_ADDENDUM.lower()
@@ -140,9 +146,14 @@ class TestCreateNewProjectTestsScaffold:
         assert "test_project" in content
 
     def test_claude_md_tier1_only(self, project):
+        """After Bug S3-126, Tier 1 contains the universal Manual Bug-Fixing
+        Protocol. The E/F-only Tier 2 override addendum (marker: 'SVP
+        Self-Build Override') must still be absent from a fresh A-D project
+        until enrich_claude_md_for_svp_build runs."""
         content = (project / "CLAUDE.md").read_text()
         assert "Six-Step Action Cycle" in content
-        assert "Manual Bug-Fixing Protocol" not in content
+        assert "Manual Bug-Fixing Protocol (Break-Glass Mode)" in content
+        assert "SVP Self-Build Override" not in content
 
 
 # ---------------------------------------------------------------------------
@@ -192,12 +203,19 @@ class TestEnrichClaudeMdForSvpBuild:
         assert "Six-Step Action Cycle" in content  # Tier 1 still present
 
     def test_idempotent(self, project):
+        """After Bug S3-126, the idempotency marker is 'SVP Self-Build
+        Override' (unique to Tier 2), not 'Manual Bug-Fixing Protocol'
+        (which now appears in Tier 1 by default)."""
         enrich_claude_md_for_svp_build(project)
         content_after_first = (project / "CLAUDE.md").read_text()
         enrich_claude_md_for_svp_build(project)
         content_after_second = (project / "CLAUDE.md").read_text()
         assert content_after_first == content_after_second
-        assert content_after_second.count("Manual Bug-Fixing Protocol") == 1
+        assert content_after_second.count("## SVP Self-Build Override") == 1
+        assert (
+            content_after_second.count("## Manual Bug-Fixing Protocol (Break-Glass Mode)")
+            == 1
+        )
 
     def test_handles_missing_file(self, tmp_path):
         """No error when CLAUDE.md doesn't exist."""
@@ -302,9 +320,17 @@ class TestEFvsADSeparation:
     """Bug S3-99: E/F and A-D paths produce different artifacts."""
 
     def test_ad_project_clean(self, project):
-        """A-D project: Tier 1 CLAUDE.md, empty tests/, no sync_workspace.sh."""
+        """A-D project: Tier 1 CLAUDE.md (now includes universal Manual
+        Bug-Fixing Protocol per Bug S3-126), empty tests/, no
+        sync_workspace.sh, NO Tier 2 SVP self-build override addendum."""
         content = (project / "CLAUDE.md").read_text()
-        assert "Manual Bug-Fixing Protocol" not in content
+        # Tier 1 universal protocol IS present — that is the S3-126 fix.
+        assert "Manual Bug-Fixing Protocol (Break-Glass Mode)" in content
+        # Tier 2 SVP self-build override is NOT present — A-D projects never
+        # see SVP internals (sync, stubs-as-source-of-truth, etc.).
+        assert "SVP Self-Build Override" not in content
+        assert "sync_workspace.sh" not in content
+        assert "src/unit_*/stub.py" not in content
         assert not list((project / "tests").rglob("test_bug*.py"))
 
     def test_ef_enrichment(self, project, plugin_root):

@@ -22,7 +22,9 @@ from language_registry import LANGUAGE_REGISTRY
 # Constants
 # ---------------------------------------------------------------------------
 
-# Tier 1: Universal CLAUDE.md content for ALL SVP projects (A-D, E, F)
+# Tier 1: Universal CLAUDE.md content for ALL SVP projects (A-D, E, F).
+# Includes the universal Manual Bug-Fixing Protocol (Break-Glass Mode) with
+# commit-to-git final step (Bug S3-126).
 CLAUDE_MD_TEMPLATE: str = """\
 # SVP-Managed Project: {project_name}
 
@@ -73,53 +75,136 @@ by a deterministic preparation script and contains exactly the context the agent
 - Do not improvise pipeline flow. Do not skip steps. Do not add steps.
 - If the human types during an autonomous sequence, acknowledge and defer.
 - You MUST NOT write to pipeline_state.json directly or batch multiple units.
-"""
-
-# Tier 2: SVP self-build addendum (E/F only) — bug-fixing protocol, sync, stubs
-CLAUDE_MD_SVP_ADDENDUM: str = """\
 
 ## Manual Bug-Fixing Protocol (Break-Glass Mode)
 
 When the SVP routing mechanism is too broken to function and the human asks \
-you to fix bugs directly, follow this protocol EXACTLY.
+you to fix bugs directly, follow this protocol EXACTLY. This protocol is \
+universal — it applies to every archetype (A-F).
 
 **RULE 0: NEVER directly fix a bug. ALWAYS enter plan mode first.**
 
-### Bug-Fixing Cycle (repeat for each bug):
+### Workspace vs. Delivered Repo
 
-1. **DIAGNOSE** — Identify root cause. Trace through spec → blueprint → code to understand WHY.
+You operate inside this **workspace** directory. The **workspace is NOT a git \
+repository**. Git lives in a sibling directory: the delivered repo at \
+`{project_name}-repo/` (sibling of the workspace), whose absolute path is \
+persisted in `.svp/pipeline_state.json` as `delivered_repo_path`. When the \
+protocol tells you to commit, you navigate to the delivered repo (NOT the \
+workspace) and run git there.
+
+If `delivered_repo_path` is unset in pipeline state (pre-Stage-5), no delivered \
+repo exists yet; in that case skip the COMMIT TO GIT step and tell the human \
+the commit was deferred because the repo has not been assembled.
+
+### Bug-Fixing Cycle (repeat for each bug)
+
+1. **DIAGNOSE** — Identify the root cause. Trace through spec → blueprint → \
+code to understand WHY the bug exists, not just what triggers it.
 
 2. **PLAN** the fixes in:
-   - a. **SPEC** — Add bug entry to Section 24, fix any spec gaps
-   - b. **BLUEPRINT** — Amend contracts in affected units
-   - c. **CODE** — Fix implementation in `src/unit_*/stub.py`. \
-**Stubs are the single source of truth.** Never edit `scripts/*.py` directly \
-— they are derived from stubs by `sync_workspace.sh` Step 0 (import rewriting). \
-Fix the stub, run sync, scripts auto-update.
-   - d. **EXECUTE** — Apply the code changes
-   - e. **EVALUATE** — Run tests, verify the fix works
-   - f. **LESSONS LEARNED** — Write entry in `references/svp_2_1_lessons_learned.md`
-   - g. **REGRESSION TESTS** — Author tests covering ALL aspects of the bug
-   - h. **VERIFY** — Tests pass with 0 skipped
-   - i. **DEPLOYED ARTIFACTS** — If the fix touches Units that produce deployed \
-plugin artifacts (Unit 25 → `svp/commands/`, Unit 26 → `svp/skills/`, \
-Unit 23 → `svp/agents/`, `svp/hooks/`), manually update the corresponding \
-`.md` files in the repo's `svp/` directory. `sync_workspace.sh` does NOT \
-sync these. The deployed `.md` file is what Claude Code loads — the Python \
-source is only an input to assembly.
-   - j. **SYNC** — Run `bash sync_workspace.sh` from the workspace directory. This handles:
-     - Step 0: Derives `scripts/*.py` from `src/unit_*/stub.py` by rewriting imports (stubs → flat modules)
-     - Scripts: workspace `scripts/` ↔ repo `svp/scripts/` (newer wins)
-     - Source units: workspace `src/unit_*/stub.py` ↔ repo `src/unit_*/stub.py` (newer wins)
-     - Docs: workspace is authoritative → repo `docs/`, `specs/`, `blueprint/`, `references/` + Pass 1 repo
-     - Tests: workspace `tests/` ↔ repo `tests/` (newer wins)
-     - Use `--dry-run` to preview, `--force-workspace` or `--force-repo` to override timestamps
-   - k. **TEST FROM BOTH** — Run `pytest` from BOTH the workspace AND the repo directory. \
-Do not skip either. Failures in one but not the other indicate stale test files or permission issues.
+   - a. **SPEC** — Add a bug entry to Section 24 of the stakeholder spec; fix \
+any spec gaps the diagnosis revealed.
+   - b. **BLUEPRINT** — Amend contracts in the affected units.
+   - c. **CODE** — Identify the source files that must change.
 
-3. **EVALUATE** — All tests pass from BOTH workspace AND repo. 0 skipped, 0 failed. \
-Repos fully in sync. Clean up any stale test artifacts (e.g., `test_project/`, \
-`test_restore/`) left by previous runs.
+3. **EXECUTE** — Apply the code changes.
+
+4. **EVALUATE** — Run the relevant tests; verify the fix works in isolation.
+
+5. **LESSONS LEARNED** — If `references/lessons_learned.md` (or a project-specific \
+equivalent named in the profile) exists, append an entry describing the root \
+cause, the fix, and the pattern. If no lessons-learned file exists for this \
+project, skip this step.
+
+6. **REGRESSION TESTS** — Author tests that cover ALL aspects of the bug: the \
+original failure, the underlying invariant that was violated, and any adjacent \
+behaviors that the fix touched. Place them under `tests/regressions/` using \
+the `test_bug_<id>_*.py` naming convention.
+
+7. **VERIFY** — Run the full test suite. All tests pass, 0 skipped, 0 failed. \
+Clean up any stale test artifacts left by previous runs.
+
+8. **COMMIT TO GIT** — Commit the fix in the **delivered repo**, NOT the workspace.
+   - a. Read `delivered_repo_path` from `.svp/pipeline_state.json`. If unset, \
+skip this step (see "Workspace vs. Delivered Repo" above).
+   - b. `cd` into the delivered repo directory.
+   - c. Read `project_profile.json` (in the workspace or delivered repo, \
+whichever exists). Look up `vcs.commit_style`:
+     - `"conventional"` (default) or absent → use `fix: <bug-id> <short-desc>`.
+     - `"freeform"` → a short descriptive sentence.
+     - `"custom"` → render `vcs.commit_template`, substituting any placeholders \
+it defines (e.g., `{{bug_id}}`, `{{summary}}`).
+   - d. `git add` the files changed by the fix and `git commit -m "<message>"`. \
+Do not `git push`; pushing is the human's decision.
+"""
+
+# Tier 2: SVP self-build OVERRIDE addendum (E/F only).
+# Appended post-Stage-0 by enrich_claude_md_for_svp_build() when is_svp_build
+# is true. Does NOT restate Tier 1's universal cycle — it layers overrides
+# and extra steps on top. The top-level heading "## SVP Self-Build Override"
+# is the idempotency marker consumed by enrich_claude_md_for_svp_build().
+# (Bug S3-99, Bug S3-126.)
+CLAUDE_MD_SVP_ADDENDUM: str = """\
+
+## SVP Self-Build Override
+
+This project is an SVP self-build (archetype E or F). The universal Manual \
+Bug-Fixing Protocol in Tier 1 above applies, with the overrides and extra \
+steps defined in this section. Do NOT treat this as a replacement for Tier 1 \
+— it only modifies specific steps.
+
+### EXECUTE — stubs are the single source of truth
+
+When you reach the EXECUTE step of the Tier 1 cycle, apply code changes in \
+`src/unit_*/stub.py`, never in `scripts/*.py` directly. Scripts are derived \
+from stubs by `sync_workspace.sh` Step 0 (import rewriting: stubs → flat \
+modules). Editing scripts directly is overwritten by the next sync.
+
+### DEPLOYED ARTIFACTS (new step, runs after VERIFY)
+
+If the fix touches Units that produce deployed plugin artifacts, manually \
+update the corresponding `.md` files in the workspace's `svp/` directory \
+before sync:
+
+| Unit | Produces |
+|------|----------|
+| Unit 25 | `svp/commands/*.md` |
+| Unit 26 | `svp/skills/*.md` |
+| Unit 23 | `svp/agents/*.md`, `svp/hooks/*.sh` |
+
+`sync_workspace.sh` does NOT regenerate these from Python sources. The \
+deployed `.md` file is what Claude Code loads at runtime — the Python source \
+is only an input to assembly and does not reach Claude Code directly.
+
+### SYNC (new step, runs after DEPLOYED ARTIFACTS)
+
+Run `bash sync_workspace.sh` from the workspace directory. This handles:
+
+- Step 0: derives `scripts/*.py` from `src/unit_*/stub.py` (import rewriting).
+- Scripts: workspace `scripts/` → repo `svp/scripts/`.
+- Source units: workspace `src/unit_*/stub.py` → repo `src/unit_*/stub.py`.
+- Docs: workspace → repo `docs/`, `specs/`, `blueprint/`, `references/`.
+- Tests: workspace `tests/` → repo `tests/`.
+
+Use `--dry-run` to preview changes before applying.
+
+### VERIFY — test from BOTH workspace AND repo
+
+The Tier 1 VERIFY step is strengthened: run `pytest` from BOTH the workspace \
+directory AND the delivered repo directory. Do not skip either. Failures in \
+one but not the other indicate stale test files, path-resolution divergence, \
+or permission issues that must be resolved before commit.
+
+### COMMIT TO GIT (Tier 1 step, still terminal)
+
+The Tier 1 COMMIT TO GIT step is unchanged and remains the terminal action. \
+The SYNC step above has already propagated your workspace changes into the \
+delivered repo, so `git add` inside `delivered_repo_path` will see the fix.
+
+Do NOT add a second commit in the workspace — the workspace has no git \
+repository, and the delivered repo is the single authoritative location for \
+git history.
 """
 
 VALID_STAGES = {"0", "1", "2", "pre_stage_3", "3", "4", "5"}
@@ -647,14 +732,19 @@ def copy_svp_regression_tests(project_root: Path, plugin_root: Path) -> None:
 
 
 def enrich_claude_md_for_svp_build(project_root: Path) -> None:
-    """Append SVP self-build addendum to CLAUDE.md for E/F projects.
+    """Append SVP self-build override addendum to CLAUDE.md for E/F projects.
 
     Called by the routing script after Stage 0 completes when
-    is_svp_build is true. Appends Tier 2 content (bug-fixing protocol,
-    stubs-as-source-of-truth, sync instructions) to the existing
-    Tier 1 CLAUDE.md.
+    is_svp_build is true. Appends Tier 2 override content (stubs-as-source-
+    of-truth, deployed artifacts, sync, test-from-both) on top of the
+    universal Tier 1 CLAUDE.md (which already contains the universal Manual
+    Bug-Fixing Protocol per Bug S3-126).
 
-    Idempotent: checks if addendum is already present before appending.
+    Idempotent: checks for the Tier-2-unique marker "SVP Self-Build Override"
+    before appending. The pre-S3-126 marker ("Manual Bug-Fixing Protocol")
+    cannot be used here because that string now appears in Tier 1 by default,
+    which would short-circuit every call and prevent Tier 2 from ever
+    appending.
     """
     claude_md = project_root / "CLAUDE.md"
     if not claude_md.exists():
@@ -662,8 +752,8 @@ def enrich_claude_md_for_svp_build(project_root: Path) -> None:
 
     content = claude_md.read_text(encoding="utf-8")
 
-    # Idempotency check: don't append if already present
-    if "Manual Bug-Fixing Protocol" in content:
+    # Idempotency check: Tier-2-unique marker, not the Tier-1 bug protocol heading.
+    if "SVP Self-Build Override" in content:
         return
 
     content += CLAUDE_MD_SVP_ADDENDUM
