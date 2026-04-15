@@ -350,6 +350,14 @@ def preflight_check(
     if err:
         errors.append(err)
 
+    # 2a. User-scope svp@svp leak advisory (Bug S3-128)
+    # Advisory only: warn when ~/.claude/settings.json still has svp@svp
+    # enabled at user scope (a pre-S3-123 residual state). Does not fail
+    # preflight. See spec §24.141 and §4.4 migration story.
+    leak_msg = check_user_scope_svp_leak()
+    if leak_msg and verbose:
+        print(f"  ! {leak_msg}")
+
     # 3. API credentials valid (advisory only)
     has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
     if verbose:
@@ -416,6 +424,62 @@ def preflight_check(
         print()  # blank line after checks
 
     return errors
+
+
+# ---------------------------------------------------------------------------
+# check_user_scope_svp_leak (Bug S3-128)
+# ---------------------------------------------------------------------------
+
+
+def check_user_scope_svp_leak() -> Optional[str]:
+    """Detect whether user-scope ``~/.claude/settings.json`` leaks ``svp@svp``.
+
+    Returns an advisory message string if the leak is detected, or ``None``
+    if no leak is present, the file does not exist, or the file is
+    unparseable. Never raises.
+
+    A "leak" is defined as user-scope ``settings.json`` having
+    ``enabledPlugins["svp@svp"] == True``. This enables SVP in every
+    Claude Code session on the machine regardless of cwd — the exact
+    failure mode Bug S3-123 migrated users away from. This helper is
+    **advisory and read-only**: it does not mutate the file, does not
+    fail preflight, and does not block the launcher. It only informs
+    the user that a machine-wide leak may still be in place from a
+    pre-S3-123 install.
+
+    Every failure mode (missing file, corrupt JSON, permission denied,
+    wrong types) is treated as "no leak detected" and returns ``None``.
+    This is pure detection — the helper must never raise, because it
+    runs from inside ``preflight_check`` and a crash here would block
+    the launcher for a check that is advisory by design.
+
+    The returned advisory message (when non-``None``) is guaranteed to
+    contain the substrings ``"svp@svp"`` and ``"user scope"``, to
+    reference the migration command
+    ``claude plugin uninstall svp@svp --scope user``, and to cite
+    spec §4.4. Regression tests lock these invariants.
+    """
+    user_settings = Path.home() / ".claude" / "settings.json"
+    if not user_settings.is_file():
+        return None
+    try:
+        data = json.loads(user_settings.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    enabled = data.get("enabledPlugins")
+    if not isinstance(enabled, dict):
+        return None
+    if enabled.get("svp@svp") is not True:
+        return None
+    return (
+        f"svp@svp is enabled at user scope in {user_settings}. "
+        "SVP will load in every Claude Code session on this machine "
+        "regardless of working directory. To migrate to project scope, "
+        "run: claude plugin uninstall svp@svp --scope user "
+        "(see spec §4.4)."
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -2202,12 +2202,20 @@ def main(argv: list = None) -> None: ...
 - `--plugin-path` argument for `svp restore`: sets `SVP_PLUGIN_ROOT` in subprocess environment.
 - `--skip-to` argument: valid values from `VALID_STAGES` plus `"pre_stage_3"`.
 
-**preflight_check:**
-- Checks in order: Claude Code installed, SVP plugin loaded, API credentials valid, conda installed, Python >= 3.11, pytest importable, git installed.
+**preflight_check (AMENDED IN 2.2 — Bug S3-128):**
+- Checks in order: Claude Code installed, SVP plugin loaded, **user-scope svp@svp leak advisory (Bug S3-128)**, API credentials valid, conda installed, Python >= 3.11, pytest importable, git installed.
+- The user-scope leak advisory runs immediately after the plugin-loaded check. It calls `check_user_scope_svp_leak()` and, if a message is returned, prints it to stdout with a `!` advisory marker. The advisory does NOT append to the errors list — a user-scope leak is informational, not a failure. Preflight still completes successfully even when the advisory fires.
 - Language runtime pre-flight: derived from `LANGUAGE_REGISTRY` -- for each declared language, runs `version_check_command`.
 - MCP server dependencies (plugin projects only).
 - External service reachability (plugin projects, advisory only).
 - Returns list of error messages (empty if all pass).
+
+**check_user_scope_svp_leak (NEW IN 2.2 — Bug S3-128):**
+- Signature: `check_user_scope_svp_leak() -> Optional[str]`.
+- Reads `~/.claude/settings.json` defensively and returns an advisory message if `enabledPlugins["svp@svp"] == True` at user scope. Returns `None` when the file does not exist, is unparseable JSON, has a non-dict root, has a non-dict `enabledPlugins` value, or has `svp@svp` set to any value other than `True`.
+- **Pure detection.** Does NOT mutate the user-scope file, does NOT raise, does NOT fail preflight. Every failure mode (missing file, corrupt JSON, permission denied, typed-wrong values) is treated as "no leak detected" and returns `None`. The helper is idempotent and side-effect-free.
+- **Advisory message shape.** When a leak is detected, the returned string must (a) contain the substring `"svp@svp"`, (b) contain the substring `"user scope"`, (c) reference the migration command `claude plugin uninstall svp@svp --scope user`, and (d) cite spec §4.4. Regression tests lock these four invariants so future refactors cannot weaken the advisory.
+- **Motivation (Pattern P31 — Opt-In Migration Without Residual-State Detection).** Bug S3-123 documented the user-side migration path but never detected incomplete migrations. Users who upgraded SVP without running `claude plugin uninstall svp@svp --scope user` retained the leak indefinitely. This helper converts the documented migration step into a runtime detection function so incomplete migrations become loud rather than silent.
 
 **CLAUDE_MD_TEMPLATE:** Tier 1 universal content. All projects (A-F) get this. Contains `{project_name}` placeholder. **(Bug S3-99, CHANGED by Bug S3-126.)** Required sections:
 1. Action cycle, routing instructions, verbatim relay, REMINDER block (unchanged from S3-99).
