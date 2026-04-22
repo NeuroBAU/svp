@@ -3,11 +3,34 @@
 Provides JSONL-based ledger operations for dialog tracking across SVP pipeline stages.
 """
 
-import fcntl
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+# Platform-gated file-locking wrappers (Bug S3-134, Pattern P33).
+# fcntl is Unix-only; msvcrt is Windows-only. Both paths provide _lock / _unlock
+# over a single byte region, sufficient for the append-one-JSONL-line usage in
+# append_entry.
+if sys.platform == "win32":
+    import msvcrt
+
+    def _lock(f) -> None:
+        # Lock a single-byte region from the current file position (append mode).
+        # LK_LOCK blocks with ~10 retries then raises.
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+
+    def _unlock(f) -> None:
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+else:
+    import fcntl
+
+    def _lock(f) -> None:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+
+    def _unlock(f) -> None:
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 from src.unit_1.stub import ARTIFACT_FILENAMES
 
@@ -54,7 +77,8 @@ def append_entry(
 
     Creates the file and parent directories if absent.
     Each entry has keys: timestamp (ISO-8601 UTC), role, content, tags.
-    Uses file-level locking (fcntl) for concurrent safety.
+    Uses platform-appropriate file-level locking (fcntl on Unix, msvcrt on
+    Windows) for concurrent safety. See Bug S3-134 / Pattern P33.
     """
     ledger_path = Path(ledger_path)
     ledger_path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,12 +93,12 @@ def append_entry(
     line = json.dumps(entry, ensure_ascii=False) + "\n"
 
     with open(ledger_path, "a", encoding="utf-8") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        _lock(f)
         try:
             f.write(line)
             f.flush()
         finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            _unlock(f)
 
 
 def read_ledger(ledger_path: Path) -> List[Dict[str, Any]]:

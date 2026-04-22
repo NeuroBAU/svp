@@ -442,6 +442,13 @@
 - **Prevention pattern P17:** Every script with main() must end with `if __name__ == "__main__": main()`. Every script using bare imports must add its directory to sys.path. These are NOT implementation details — they are execution requirements that must be in the blueprint.
 - **Sweep extension (Bugs S3-130, S3-131, S3-132, S3-133):** The original S3-66 fix was scoped to the two scripts that had visibly failed. A post-delivery audit surfaced four additional scripts with the same defect — S3-130 `infrastructure_setup.py` (Unit 11), S3-131 `stub_generator.py` (Unit 10), S3-132 `quality_gate.py` (Unit 15), S3-133 `structural_check.py` (Unit 28). Each was invoked by routing.py as a subprocess but silently exited 0 without calling its main(). Lesson reinforcing P30 (Invariant Documented But Not Enforced): when a pattern is codified for the first time (P17 in 2.2), the initial fix must include an exhaustive sweep of all known instances of the pattern, not only the ones that manifested as bugs. Detection: `tests/test_entry_point_completeness.py` AST-level regression test added to prevent future instances.
 
+### Lesson: Platform-Specific Stdlib Import Audit (Bug S3-134)
+
+- **Bug:** S3-134 (ledger_manager.py unconditionally imports fcntl at module top-level; fcntl is Unix-only so Windows imports crash with ModuleNotFoundError)
+- **Root cause:** Unit 7's blueprint specified JSONL concurrent-append semantics but did not constrain the locking primitive. The implementation agent chose fcntl.flock (natural on Unix) without a platform guard. The spec declares Python as primary language but does not enumerate supported host OSes — Windows parity was implicit and unenforced.
+- **Prevention pattern P33 (NEW — Cross-Platform Stdlib Audit):** Every stdlib import must be checked for platform availability. Unix-only stdlib: fcntl, termios, pwd, grp, resource, select.kqueue/select.epoll. Windows-only: msvcrt, winreg, _winapi. When an operation requires platform-specific stdlib (file locking, terminal control, user DB, etc.), isolate it in a thin wrapper gated by `if sys.platform == "win32":` with both branches defined at import time. Do not use lazy `try/except ImportError` fallbacks — both paths must be parseable and loadable from every platform.
+- **Detection:** `tests/test_ledger_cross_platform.py` — AST-structural test asserting that fcntl is never imported at top level in src/unit_7/stub.py, plus a functional test that `append_entry` succeeds on the current host. Full Windows validation requires a Windows CI runner (deferred).
+
 ### Lesson: Command Script CLI Interface (Bug S3-67)
 
 - **Bug:** S3-67 (cmd_*.py use sys.argv[1] positional instead of --project-root argparse)
