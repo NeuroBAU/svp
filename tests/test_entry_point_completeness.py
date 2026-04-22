@@ -55,3 +55,17 @@ def test_unit_10_stub_has_main_guard():
         f"{stub_path} defines main() but lacks `if __name__ == '__main__': main()`. "
         "Violates P17 (spec §24.144)."
     )
+
+
+def test_unit_15_stub_has_main_guard():
+    """Unit 15 (quality_gate) must have __main__ guard — Bug S3-132.
+
+    The entry-point function is named run_quality_gate_main (not main),
+    so the guard must reference it by that exact name.
+    """
+    stub_path = PROJECT_ROOT / "src" / "unit_15" / "stub.py"
+    assert _has_main_guard(stub_path), (
+        f"{stub_path} defines run_quality_gate_main() but lacks "
+        "`if __name__ == '__main__': run_quality_gate_main()`. "
+        "Violates P17 (spec §24.145)."
+    )

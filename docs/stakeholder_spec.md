@@ -5588,6 +5588,18 @@ While running `/svp:bug` against a downstream plugin, the FIX BLUEPRINT branch o
 
 **Pattern:** P17. **Detection:** `tests/test_entry_point_completeness.py::test_unit_10_stub_has_main_guard`.
 
+### 24.145 quality_gate.py Missing __main__ Guard (Post-delivery — Bug S3-132, NEW IN 2.2)
+
+**Entry-point script silent exit (NEW IN 2.2 — Bug S3-132).** `scripts/quality_gate.py` (derived from `src/unit_15/stub.py`) defined a complete `run_quality_gate_main()` function at line 327 but lacked a module-level `if __name__ == "__main__": run_quality_gate_main()` block. Routing emits `python scripts/quality_gate.py --target tests/unit_N --gate gate_a --unit N --language python --project-root .` during Stage 3 `quality_gate_a` / `quality_gate_b` / retry sub_stages. Without the guard, the module loaded and exited 0 without running any quality gate. Routing then advanced to `red_run` believing the gate passed, and any formatter, linter, or type-checker violations in the generated tests remained invisible.
+
+**Name subtlety (flagged in BUG_REPORT #4d).** The entry-point function here is `run_quality_gate_main()`, not `main()`. A grep for `def main` would miss it — pattern P17 must target both `main` and `*_main$`.
+
+**Root cause:** Same as S3-66 / S3-130 / S3-131 (Pattern P17 sweep incomplete). See §24.143 for context.
+
+**Fix (Bug S3-132).** Append `if __name__ == "__main__":\n    run_quality_gate_main()` to `src/unit_15/stub.py`. Sync via `bash sync_workspace.sh`.
+
+**Pattern:** P17. **Detection:** `tests/test_entry_point_completeness.py::test_unit_15_stub_has_main_guard`.
+
 **Pattern:** **P32 (NEW — Round-Trip Regeneration As Test Oracle)**. When a production function produces derived artifacts on disk and a test needs to verify those artifacts are not stale, the test can use the function itself as the oracle by (a) copying the state to a temp directory, (b) running the function on the copy, (c) comparing the copy to the original. This eliminates duplicated logic between test and production, automatically covers any invariant the production function enforces now or in the future, and keeps the test passive — it does not need to know how the function computes anything. Sibling of the "fixture realism" lesson from S3-127: both are about making test infrastructure mirror production infrastructure rather than paraphrase it. The round-trip approach is stronger because it requires zero paraphrase — the test just calls the thing and compares.
 
 **Audit epilogue.** S3-129 is the final item in the post-S3-127 runtime enforcement sweep. The sweep started with four MUST-tier candidates (I1, I2+I8, I6, I11) and collapsed to two shipped bugs (S3-128 for I6, S3-129 for a narrowed I11). The other candidates — I1, I2+I8, I5, I7, I9 — were all retired as already-covered by existing regression tests or by the S3-127 `_find_marketplace_root` helper. I9 specifically (hook executable bits) is absorbed into this test as the mode-comparison assertion. **The sweep's real output is the realization that the existing regression-test corpus already enforces most platform-contract invariants, and further work should focus on narrow residual gaps rather than bulk-adding new structural checks.** See lessons learned S3-128 for the meta-discussion of audit-as-retirement.

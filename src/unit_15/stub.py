@@ -394,3 +394,7 @@ def run_quality_gate_main(argv: list = None) -> None:
             print(residual)
     if result.report:
         print(result.report)
+
+
+if __name__ == "__main__":
+    run_quality_gate_main()
