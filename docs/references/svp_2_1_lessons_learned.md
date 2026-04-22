@@ -449,6 +449,13 @@
 - **Prevention pattern P33 (NEW — Cross-Platform Stdlib Audit):** Every stdlib import must be checked for platform availability. Unix-only stdlib: fcntl, termios, pwd, grp, resource, select.kqueue/select.epoll. Windows-only: msvcrt, winreg, _winapi. When an operation requires platform-specific stdlib (file locking, terminal control, user DB, etc.), isolate it in a thin wrapper gated by `if sys.platform == "win32":` with both branches defined at import time. Do not use lazy `try/except ImportError` fallbacks — both paths must be parseable and loadable from every platform.
 - **Detection:** `tests/test_ledger_cross_platform.py` — AST-structural test asserting that fcntl is never imported at top level in src/unit_7/stub.py, plus a functional test that `append_entry` succeeds on the current host. Full Windows validation requires a Windows CI runner (deferred).
 
+### Lesson: Stage-Boundary Artifact Materialization (Bug S3-135)
+
+- **Bug:** S3-135 (toolchain.json expected at project root but never materialized; Stage 3 entry crashes with FileNotFoundError)
+- **Root cause:** The two-layer toolchain design (project-root pipeline toolchain vs. language-default template in scripts/toolchain_defaults/) is encoded in load_toolchain's signature, but the Layer 2 → Layer 1 promotion path was never written in code. Spec Section 8 describes toolchains conceptually without specifying where the materialization happens. Result: no unit owned the copy, so no unit did it.
+- **Prevention pattern P34 (NEW — Stage-Boundary Artifact Materialization):** Every stage-output consumed as a file by a later stage must have an explicit materialization step owned by a single unit. The owner is either (a) the stage's approval-gate handler, or (b) the first consumer, self-healing via a helper. When a two-layer design exists (template vs. instance), the promotion path between layers must be encoded in code, not prose. Always add a regression test that exercises the materialization in both directions: "file exists → no-op" and "file absent → materialize from template + correct contents".
+- **Detection:** `tests/unit_11/test_ensure_pipeline_toolchain.py` — 4 parametrized cases covering the no-op, python, R, and missing-profile paths.
+
 ### Lesson: Command Script CLI Interface (Bug S3-67)
 
 - **Bug:** S3-67 (cmd_*.py use sys.argv[1] positional instead of --project-root argparse)

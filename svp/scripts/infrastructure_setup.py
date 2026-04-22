@@ -755,6 +755,37 @@ def run_infrastructure_setup(
         build_log_path.touch()
 
 
+def ensure_pipeline_toolchain(project_root: Path) -> None:
+    """Materialize <project_root>/toolchain.json from language default if absent.
+
+    Reads project_profile.json for the primary language and copies the matching
+    toolchain template from scripts/toolchain_defaults/<toolchain_file> to
+    <project_root>/toolchain.json. No-op if the file already exists or the
+    profile has no primary language.
+
+    Bridges Stage 0 (profile approval) → Stage 3 (infrastructure setup).
+    Without this, load_toolchain(project_root) raises FileNotFoundError at
+    Stage 3 entry because Layer 1 pipeline toolchain was never materialized
+    from its Layer 2 language default. See Bug S3-135 / spec §24.148.
+    """
+    toolchain_path = project_root / ARTIFACT_FILENAMES["toolchain"]
+    if toolchain_path.exists():
+        return
+
+    try:
+        profile = load_profile(project_root)
+    except FileNotFoundError:
+        # No profile yet — nothing to materialize. Caller will error naturally.
+        return
+
+    primary_lang = profile.get("language", {}).get("primary")
+    if not primary_lang or primary_lang not in LANGUAGE_REGISTRY:
+        return
+
+    template = load_toolchain(project_root, language=primary_lang)
+    toolchain_path.write_text(json.dumps(template, indent=2), encoding="utf-8")
+
+
 def main(argv: list = None) -> None:
     """CLI entry point for infrastructure setup.
 
@@ -776,6 +807,7 @@ def main(argv: list = None) -> None:
 
     try:
         profile = load_profile(project_root)
+        ensure_pipeline_toolchain(project_root)
         toolchain = load_toolchain(project_root)
         language_registry = LANGUAGE_REGISTRY
         blueprint_dir = get_blueprint_dir(project_root)
