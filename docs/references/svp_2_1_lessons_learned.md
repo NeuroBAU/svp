@@ -440,6 +440,7 @@
 - **Bug:** S3-66 (routing.py and prepare_task.py missing __name__ guards)
 - **Root cause:** Blueprint specifies function signatures but not script execution boilerplate. Implementation agents added __name__ guards inconsistently (2 of 4 scripts).
 - **Prevention pattern P17:** Every script with main() must end with `if __name__ == "__main__": main()`. Every script using bare imports must add its directory to sys.path. These are NOT implementation details — they are execution requirements that must be in the blueprint.
+- **Sweep extension (Bugs S3-130, S3-131, S3-132, S3-133):** The original S3-66 fix was scoped to the two scripts that had visibly failed. A post-delivery audit surfaced four additional scripts with the same defect — S3-130 `infrastructure_setup.py` (Unit 11), S3-131 `stub_generator.py` (Unit 10), S3-132 `quality_gate.py` (Unit 15), S3-133 `structural_check.py` (Unit 28). Each was invoked by routing.py as a subprocess but silently exited 0 without calling its main(). Lesson reinforcing P30 (Invariant Documented But Not Enforced): when a pattern is codified for the first time (P17 in 2.2), the initial fix must include an exhaustive sweep of all known instances of the pattern, not only the ones that manifested as bugs. Detection: `tests/test_entry_point_completeness.py` AST-level regression test added to prevent future instances.
 
 ### Lesson: Command Script CLI Interface (Bug S3-67)
 

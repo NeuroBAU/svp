@@ -792,3 +792,7 @@ def main(argv: list = None) -> None:
     except Exception as e:
         print(f"Infrastructure setup failed: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

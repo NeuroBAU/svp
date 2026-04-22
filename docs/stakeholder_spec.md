@@ -5566,6 +5566,28 @@ While running `/svp:bug` against a downstream plugin, the FIX BLUEPRINT branch o
 
 **No production code changes. No refactor. No new spec sections beyond this one. No blueprint contract changes.**
 
+### 24.143 infrastructure_setup.py Missing __main__ Guard (Post-delivery — Bug S3-130, NEW IN 2.2)
+
+**Entry-point script silent exit (NEW IN 2.2 — Bug S3-130).** `scripts/infrastructure_setup.py` (derived from `src/unit_11/stub.py`) defined a complete `main()` function but lacked a module-level `if __name__ == "__main__": main()` block. When the orchestrator invoked `python scripts/infrastructure_setup.py --project-root .`, Python loaded the module (registering `main`), reached end-of-file, and exited 0 without calling `main()`. No output, no errors, no state change — indistinguishable from a successful run. This directly blocked Stage 2 → Stage 3 transition, because infrastructure setup is the only code path that derives `total_units` from the blueprint and scaffolds `src/unit_N/` / `tests/unit_N/` directories. Symptom surfaced in a Windows host bug report (`BUG_REPORT.md` Bug #4a) after the reporter wired infrastructure_setup into routing and observed that the call silently succeeded without populating `total_units`.
+
+**Root cause:** Same as S3-66 (Pattern P17 — Entry Point Script Completeness). When S3-66 was filed for `routing.py` and `prepare_task.py`, the fix was scoped to the two scripts that had visibly failed; no sweep of all CLI-invocable scripts was performed. Four additional scripts shipped with the same defect: this one plus `stub_generator.py` (S3-131), `quality_gate.py` (S3-132), `structural_check.py` (S3-133). The invariant was documented in §24.81 and Pattern P17 but not enforced — a Pattern P30 recurrence.
+
+**Fix (Bug S3-130).** Append `if __name__ == "__main__":\n    main()` to `src/unit_11/stub.py`. Sync via `bash sync_workspace.sh` to propagate to `scripts/infrastructure_setup.py` (derivation Step 0).
+
+**Pattern:** P17 (Entry Point Script Completeness, existing — strengthened). **Detection:** `tests/test_entry_point_completeness.py` AST-walks unit stubs, identifies modules defining a CLI `main()` or `*_main()`, and asserts the presence of a module-level `if __name__ == "__main__":` node. Added in this fix as a recurring guard.
+
+**Related:** Bugs S3-131 (stub_generator.py), S3-132 (quality_gate.py), S3-133 (structural_check.py) — same pattern, separate cycles per the break-glass fix protocol.
+
+### 24.144 stub_generator.py Missing __main__ Guard (Post-delivery — Bug S3-131, NEW IN 2.2)
+
+**Entry-point script silent exit (NEW IN 2.2 — Bug S3-131).** `scripts/stub_generator.py` (derived from `src/unit_10/stub.py`) defined a complete `main()` function at line 571 but lacked a module-level `if __name__ == "__main__": main()` block. Routing emits `python scripts/stub_generator.py --blueprint blueprint/blueprint_contracts.md --unit N --output-dir src/unit_N --upstream "..." --language python` during Stage 3 `stub_generation` sub_stage. Without the guard, the module loaded and exited 0 without generating any stub — leaving `src/unit_N/stub.py` absent (only the `__init__.py` scaffolded by `infrastructure_setup.py` remained). Routing then advanced to `test_generation` with no stub on disk, guaranteeing test-agent failure on the next step.
+
+**Root cause:** Same as S3-66 / S3-130 (Pattern P17 sweep incomplete). See §24.143 for the full sweep context.
+
+**Fix (Bug S3-131).** Append `if __name__ == "__main__":\n    main()` to `src/unit_10/stub.py`. Sync via `bash sync_workspace.sh`.
+
+**Pattern:** P17. **Detection:** `tests/test_entry_point_completeness.py::test_unit_10_stub_has_main_guard`.
+
 **Pattern:** **P32 (NEW — Round-Trip Regeneration As Test Oracle)**. When a production function produces derived artifacts on disk and a test needs to verify those artifacts are not stale, the test can use the function itself as the oracle by (a) copying the state to a temp directory, (b) running the function on the copy, (c) comparing the copy to the original. This eliminates duplicated logic between test and production, automatically covers any invariant the production function enforces now or in the future, and keeps the test passive — it does not need to know how the function computes anything. Sibling of the "fixture realism" lesson from S3-127: both are about making test infrastructure mirror production infrastructure rather than paraphrase it. The round-trip approach is stronger because it requires zero paraphrase — the test just calls the thing and compares.
 
 **Audit epilogue.** S3-129 is the final item in the post-S3-127 runtime enforcement sweep. The sweep started with four MUST-tier candidates (I1, I2+I8, I6, I11) and collapsed to two shipped bugs (S3-128 for I6, S3-129 for a narrowed I11). The other candidates — I1, I2+I8, I5, I7, I9 — were all retired as already-covered by existing regression tests or by the S3-127 `_find_marketplace_root` helper. I9 specifically (hook executable bits) is absorbed into this test as the mode-comparison assertion. **The sweep's real output is the realization that the existing regression-test corpus already enforces most platform-contract invariants, and further work should focus on narrow residual gaps rather than bulk-adding new structural checks.** See lessons learned S3-128 for the meta-discussion of audit-as-retirement.
