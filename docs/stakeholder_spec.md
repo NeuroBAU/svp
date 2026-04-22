@@ -5600,6 +5600,20 @@ While running `/svp:bug` against a downstream plugin, the FIX BLUEPRINT branch o
 
 **Pattern:** P17. **Detection:** `tests/test_entry_point_completeness.py::test_unit_15_stub_has_main_guard`.
 
+### 24.146 structural_check.py Missing __main__ Guard (Post-delivery — Bug S3-133, NEW IN 2.2)
+
+**Entry-point script silent exit (NEW IN 2.2 — Bug S3-133).** `scripts/structural_check.py` (derived from `src/unit_28/stub.py`) defined a complete `compliance_scan_main()` function at line 1625 but lacked a module-level `if __name__ == "__main__": compliance_scan_main()` block. Routing emits `python scripts/structural_check.py --project-root . --src-dir <dir> --tests-dir <dir> --language <lang>` at Stage 4 `structural_check` and `compliance_scan` sub_stages. Without the guard, the module loaded and exited 0 without running any structural check or compliance scan. Routing's `dispatch_command_status` branches for these sub_stages use substring match on `"SUCCEEDED" / "FAILED" in status_line`; the orchestrator writes `COMMAND_SUCCEEDED` on exit 0 per spec §3.7, so the match succeeds and routing advances — every Stage 4 run effectively bypassed compliance.
+
+**Name subtlety.** The entry-point function is `compliance_scan_main()`, not `main()`. Same grep-blind-spot as S3-132.
+
+**Root cause:** Final member of the S3-66 sweep incompleteness (Pattern P17). See §24.143 for context. With §24.143–§24.146 all addressed, the four known violators are closed; `tests/test_entry_point_completeness.py` covers all of them.
+
+**Fix (Bug S3-133).** Append `if __name__ == "__main__":\n    compliance_scan_main()` to `src/unit_28/stub.py`. Sync via `bash sync_workspace.sh`.
+
+**Pattern:** P17. **Detection:** `tests/test_entry_point_completeness.py::test_unit_28_stub_has_main_guard`.
+
+**P17 sweep retrospective.** With S3-130 through S3-133 closed, the AST regression test now covers all 4 originally-missed CLI scripts. A future maintenance tightening could generalize the per-unit tests into an AST-walk over every `src/unit_*/stub.py` that defines a `main` or `*_main` argparse function — deferred as out-of-scope for the immediate fix batch.
+
 **Pattern:** **P32 (NEW — Round-Trip Regeneration As Test Oracle)**. When a production function produces derived artifacts on disk and a test needs to verify those artifacts are not stale, the test can use the function itself as the oracle by (a) copying the state to a temp directory, (b) running the function on the copy, (c) comparing the copy to the original. This eliminates duplicated logic between test and production, automatically covers any invariant the production function enforces now or in the future, and keeps the test passive — it does not need to know how the function computes anything. Sibling of the "fixture realism" lesson from S3-127: both are about making test infrastructure mirror production infrastructure rather than paraphrase it. The round-trip approach is stronger because it requires zero paraphrase — the test just calls the thing and compares.
 
 **Audit epilogue.** S3-129 is the final item in the post-S3-127 runtime enforcement sweep. The sweep started with four MUST-tier candidates (I1, I2+I8, I6, I11) and collapsed to two shipped bugs (S3-128 for I6, S3-129 for a narrowed I11). The other candidates — I1, I2+I8, I5, I7, I9 — were all retired as already-covered by existing regression tests or by the S3-127 `_find_marketplace_root` helper. I9 specifically (hook executable bits) is absorbed into this test as the mode-comparison assertion. **The sweep's real output is the realization that the existing regression-test corpus already enforces most platform-contract invariants, and further work should focus on narrow residual gaps rather than bulk-adding new structural checks.** See lessons learned S3-128 for the meta-discussion of audit-as-retirement.

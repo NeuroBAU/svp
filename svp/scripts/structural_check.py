@@ -1725,3 +1725,7 @@ def compliance_scan_main(argv: list = None) -> None:
 
     if args.strict and findings:
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    compliance_scan_main()
