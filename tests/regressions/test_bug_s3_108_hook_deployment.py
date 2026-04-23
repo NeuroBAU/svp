@@ -35,8 +35,11 @@ def _setup_plugin_with_hooks(plugin_root: Path) -> None:
     (plugin_json_dir / "plugin.json").write_text(
         json.dumps({"name": "svp", "version": "2.2.0"})
     )
-    # Create hook scripts in svp/hooks/
-    hooks_dir = plugin_root / "svp" / "hooks"
+    # Create hook scripts in plugin_root/hooks/ (NOT svp/hooks/).
+    # Bug S3-145: the real plugin cache layout places hooks at plugin_root
+    # /hooks/. The original S3-108 fixture used plugin_root/svp/hooks/ which
+    # matched the buggy code path but not reality — corrected here.
+    hooks_dir = plugin_root / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
     for script_name in HOOK_SCRIPTS:
         script = hooks_dir / script_name

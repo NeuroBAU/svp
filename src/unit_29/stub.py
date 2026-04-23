@@ -847,8 +847,12 @@ def create_new_project(
         # Rewrite paths in hook config files
         _rewrite_hook_paths(hooks_dst, plugin_root, project_root)
 
-    # Bug S3-108: deploy hook shell scripts to .claude/scripts/
-    hooks_scripts_src = plugin_root / "svp" / "hooks"
+    # Bug S3-108 / Bug S3-145: deploy hook shell scripts to .claude/scripts/.
+    # The plugin cache layout places hook scripts at plugin_root/hooks/,
+    # NOT plugin_root/svp/hooks/. The earlier assumption (svp/hooks/) caused
+    # silent deployment failures because the directory didn't exist; the
+    # non_svp_protection.sh gate then failed open. See spec §24.158.
+    hooks_scripts_src = plugin_root / "hooks"
     if hooks_scripts_src.is_dir():
         hooks_scripts_dst = project_root / ".claude" / "scripts"
         hooks_scripts_dst.mkdir(parents=True, exist_ok=True)

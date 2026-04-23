@@ -489,6 +489,13 @@
 - **Prevention:** When a script accepts both a file-output flag and produces stdout output, prefer mutual exclusion (if `--output` set, write file and return silently; else print to stdout). A dual channel is only justified when a specific consumer reads both — otherwise it is dead weight that introduces platform-encoding bugs at zero functional benefit.
 - **Detection:** `tests/unit_13/test_s3_144_output_vs_stdout.py` — exercises both branches with `capsys` to verify the mutual-exclusion contract.
 
+### Lesson: Test Fixtures Must Model Reality, Not the Code Under Test (Bug S3-145)
+
+- **Bug:** S3-145 (`svp_launcher.create_new_project` referenced `plugin_root/"svp"/"hooks"` for the hook-deployment source, but the real plugin cache lays hooks at `plugin_root/"hooks"`. The deployment loop silently failed because the directory didn't exist, `.claude/scripts/` was never populated, and `non_svp_protection.sh` failed open. The existing regression test's fixture built hooks at the same wrong path, so the test passed while validating the wrong reality — a mirror-the-bug fixture.)
+- **Root cause:** Pattern P30 (Invariant Documented But Not Enforced) manifested in the test layer. The hook-deployment intent was recorded in the S3-108 fix comment, but the path assumption was never verified against the real plugin cache layout. The regression test inherited the assumption.
+- **Prevention:** Test fixtures must model real deployment layouts, not the layouts assumed by the code under test. When fixing a path or layout bug, audit adjacent test fixtures for the same mirror-the-bug pattern. A test that passes AND validates against a real-world sample (e.g., an assertion that a constant matches `~/.claude/plugins/cache/...` structure) is stronger than a self-consistent synthetic fixture.
+- **Detection:** `tests/regressions/test_bug_s3_145_plugin_hooks_path.py` pins the corrected fixture layout against future drift.
+
 ### Lesson: Command Script CLI Interface (Bug S3-67)
 
 - **Bug:** S3-67 (cmd_*.py use sys.argv[1] positional instead of --project-root argparse)
