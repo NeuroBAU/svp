@@ -41,10 +41,13 @@ def test_s3_108_fixture_uses_plugin_root_hooks_not_svp_hooks():
     )
 
 
-def test_create_new_project_deploys_from_plugin_root_hooks(tmp_path):
+def test_create_new_project_deploys_from_plugin_root_hooks(tmp_path, monkeypatch):
     """End-to-end: hooks at plugin_root/hooks/ are deployed to .claude/scripts/."""
     import json
-    import shutil
+
+    # create_new_project builds at Path.cwd() / name — chdir into tmp_path so
+    # the created project is auto-cleaned by pytest.
+    monkeypatch.chdir(tmp_path)
 
     plugin_root = tmp_path / "plugin"
     plugin_root.mkdir()

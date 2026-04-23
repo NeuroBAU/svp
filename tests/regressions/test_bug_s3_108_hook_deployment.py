@@ -64,11 +64,15 @@ def _setup_repo_with_hooks(repo_root: Path) -> None:
 class TestCreateNewProjectDeploysHooks:
     """create_new_project must deploy hook scripts to .claude/scripts/."""
 
-    def test_hook_scripts_exist_after_create(self, tmp_path):
+    def test_hook_scripts_exist_after_create(self, tmp_path, monkeypatch):
         plugin_root = tmp_path / "plugin"
         plugin_root.mkdir()
         _setup_plugin_with_hooks(plugin_root)
 
+        # create_new_project builds at Path.cwd() / name — chdir into tmp_path
+        # so the leaked project is auto-cleaned by pytest instead of
+        # polluting the repo root.
+        monkeypatch.chdir(tmp_path)
         project_root = create_new_project("test_hooks", plugin_root)
 
         scripts_dir = project_root / ".claude" / "scripts"
@@ -77,11 +81,12 @@ class TestCreateNewProjectDeploysHooks:
             script = scripts_dir / script_name
             assert script.is_file(), f".claude/scripts/{script_name} must exist"
 
-    def test_hook_scripts_are_executable(self, tmp_path):
+    def test_hook_scripts_are_executable(self, tmp_path, monkeypatch):
         plugin_root = tmp_path / "plugin"
         plugin_root.mkdir()
         _setup_plugin_with_hooks(plugin_root)
 
+        monkeypatch.chdir(tmp_path)
         project_root = create_new_project("test_hooks_exec", plugin_root)
 
         scripts_dir = project_root / ".claude" / "scripts"
@@ -94,7 +99,7 @@ class TestCreateNewProjectDeploysHooks:
 class TestRestoreProjectDeploysHooks:
     """restore_project must deploy hook scripts to .claude/scripts/."""
 
-    def test_hook_scripts_exist_after_restore_with_repo(self, tmp_path):
+    def test_hook_scripts_exist_after_restore_with_repo(self, tmp_path, monkeypatch):
         # Set up a minimal repo
         repo_root = tmp_path / "repo"
         repo_root.mkdir()
@@ -108,6 +113,10 @@ class TestRestoreProjectDeploysHooks:
         (docs / "project_context.md").write_text("# Context\n")
         (docs / "project_profile.json").write_text("{}\n")
 
+        # restore_project, like create_new_project, creates the project at
+        # Path.cwd() / project_name — chdir into tmp_path so the leaked
+        # directory is auto-cleaned by pytest.
+        monkeypatch.chdir(tmp_path)
         project_root = restore_project(
             "test_restore_hooks",
             spec_path=docs / "stakeholder_spec.md",
