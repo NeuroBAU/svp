@@ -3458,6 +3458,45 @@ class TestDispatchCommandStatus:
         )
         assert isinstance(result, PipelineState)
 
+    # -- Bug S3-139: spec §18.3 COMMAND_FAILED: [exit code] form --
+    # Per spec §18.3 (line 3742), the failure status is "COMMAND_FAILED:
+    # [exit code]" — e.g., "COMMAND_FAILED: 1" — not bare "COMMAND_FAILED".
+    # dispatch_command_status must handle both. The fix uses substring
+    # matching, consistent with compliance_scan / structural_check /
+    # lessons_learned branches.
+
+    def test_quality_gate_a_failed_with_exit_code_advances_to_retry(self):
+        """quality_gate_a + 'COMMAND_FAILED: 1' routes same as bare COMMAND_FAILED."""
+        state = _make_state(stage="3", sub_stage="quality_gate_a")
+        result = dispatch_command_status(
+            state, "quality_gate", "COMMAND_FAILED: 1", "quality_gate_a"
+        )
+        assert result.sub_stage == "quality_gate_a_retry"
+
+    def test_quality_gate_b_failed_with_exit_code_advances_to_retry(self):
+        """quality_gate_b + 'COMMAND_FAILED: 1' routes same as bare COMMAND_FAILED."""
+        state = _make_state(stage="3", sub_stage="quality_gate_b")
+        result = dispatch_command_status(
+            state, "quality_gate", "COMMAND_FAILED: 1", "quality_gate_b"
+        )
+        assert result.sub_stage == "quality_gate_b_retry"
+
+    def test_quality_gate_a_retry_failed_with_exit_code_enters_fix_ladder(self):
+        """quality_gate_a_retry + 'COMMAND_FAILED: 1' enters fix ladder."""
+        state = _make_state(stage="3", sub_stage="quality_gate_a_retry")
+        result = dispatch_command_status(
+            state, "quality_gate", "COMMAND_FAILED: 1", "quality_gate_a_retry"
+        )
+        assert isinstance(result, PipelineState)
+
+    def test_quality_gate_b_retry_failed_with_exit_code_enters_fix_ladder(self):
+        """quality_gate_b_retry + 'COMMAND_FAILED: 1' enters fix ladder."""
+        state = _make_state(stage="3", sub_stage="quality_gate_b_retry")
+        result = dispatch_command_status(
+            state, "quality_gate", "COMMAND_FAILED: 1", "quality_gate_b_retry"
+        )
+        assert isinstance(result, PipelineState)
+
     # -- Test execution: Stage 4 --
 
     def test_stage4_tests_passed_advances_to_regression(self):

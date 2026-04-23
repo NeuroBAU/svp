@@ -464,6 +464,7 @@
 - **Root cause:** Two sides of the producer-consumer contract were designed independently. The producer (quality_gate.py) thought stdout carried the status signal; the consumer (routing.py::dispatch_command_status) expected `COMMAND_*` strings derived from exit code per spec §3.7. Neither side was wrong in isolation, but they disagreed on the channel, and the spec arbitrates in favor of exit code.
 - **Prevention:** For every CLI tool invoked as a `run_command` by the orchestrator, assert two invariants: (1) the tool's exit code is authoritative for success/failure (exit 0 == success, nonzero == failure), (2) stdout is diagnostic only. Document the exit-code contract in the tool's entry-point docstring, not just in the spec.
 - **Detection:** `tests/unit_15/test_s3_138_quality_gate_exit_codes.py` — parametrized exhaustive coverage of the 4 QUALITY_* statuses mapping to 2 exit codes.
+- **Consumer-side aligned (Bug S3-139).** Spec §18.3 defines the failure status as `COMMAND_FAILED: [exit code]` (with the code appended). All four quality_gate branches of dispatch_command_status used strict `==` against bare `"COMMAND_FAILED"`, which missed the spec-defined suffix form and crashed routing with ValueError. Fixed by switching to substring matching (`"FAILED" in status_line`), consistent with compliance_scan / structural_check / lessons_learned branches.
 
 ### Lesson: Command Script CLI Interface (Bug S3-67)
 

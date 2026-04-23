@@ -3023,11 +3023,17 @@ def dispatch_command_status(
         raise ValueError(f"Unknown sub_stage for test_execution: {effective_sub_stage}")
 
     # quality_gate
+    # Bug S3-139: use substring match so the spec §18.3 COMMAND_FAILED: [code]
+    # form (e.g., "COMMAND_FAILED: 1") routes the same as bare "COMMAND_FAILED".
+    # Pattern matches compliance_scan / structural_check / lessons_learned
+    # branches below. Non-COMMAND_* strings (e.g., QUALITY_RESIDUAL) continue
+    # to ValueError — that would indicate a producer-side contract bug (see
+    # S3-138 / §24.151).
     if command_type == "quality_gate":
         if effective_sub_stage == "quality_gate_a":
-            if status_line == "COMMAND_SUCCEEDED":
+            if "SUCCEEDED" in status_line:
                 new = advance_sub_stage(state, "red_run")
-            elif status_line == "COMMAND_FAILED":
+            elif "FAILED" in status_line:
                 new = advance_sub_stage(state, "quality_gate_a_retry")
             else:
                 raise ValueError(
@@ -3036,9 +3042,9 @@ def dispatch_command_status(
             return new
 
         if effective_sub_stage == "quality_gate_b":
-            if status_line == "COMMAND_SUCCEEDED":
+            if "SUCCEEDED" in status_line:
                 new = advance_sub_stage(state, "green_run")
-            elif status_line == "COMMAND_FAILED":
+            elif "FAILED" in status_line:
                 new = advance_sub_stage(state, "quality_gate_b_retry")
             else:
                 raise ValueError(
@@ -3047,9 +3053,9 @@ def dispatch_command_status(
             return new
 
         if effective_sub_stage == "quality_gate_a_retry":
-            if status_line == "COMMAND_SUCCEEDED":
+            if "SUCCEEDED" in status_line:
                 new = advance_sub_stage(state, "red_run")
-            elif status_line == "COMMAND_FAILED":
+            elif "FAILED" in status_line:
                 new = advance_fix_ladder(state)
             else:
                 raise ValueError(
@@ -3058,9 +3064,9 @@ def dispatch_command_status(
             return new
 
         if effective_sub_stage == "quality_gate_b_retry":
-            if status_line == "COMMAND_SUCCEEDED":
+            if "SUCCEEDED" in status_line:
                 new = advance_sub_stage(state, "green_run")
-            elif status_line == "COMMAND_FAILED":
+            elif "FAILED" in status_line:
                 new = advance_fix_ladder(state)
             else:
                 raise ValueError(
