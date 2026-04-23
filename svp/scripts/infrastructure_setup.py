@@ -409,6 +409,39 @@ def _collect_quality_packages(
     return packages
 
 
+def _env_exists(env_name: str, env_manager: str) -> bool:
+    """Return True iff a named environment already exists (per env_manager).
+
+    conda: parses `conda env list` output and matches the first token per
+    non-comment line against env_name. Returns False on FileNotFoundError
+    (conda not in PATH) or CalledProcessError so the caller can attempt
+    creation and surface the real error.
+
+    renv / packrat / unknown: returns False unconditionally — these
+    environment managers are project-scoped and their initialization is
+    idempotent, so it is safe to always attempt creation.
+    """
+    if env_manager == "conda":
+        try:
+            result = subprocess.run(
+                ["conda", "env", "list"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            return False
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            first_token = line.split()[0]
+            if first_token == env_name:
+                return True
+        return False
+    return False
+
+
 def _build_env_create_command(
     env_name: str,
     toolchain: Dict[str, Any],
@@ -541,10 +574,9 @@ def run_infrastructure_setup(
     env_name = derive_env_name(project_root)
 
     # -----------------------------------------------------------------------
-    # Step 1: Environment creation
-    # Validates configuration and builds the command that would create the
-    # environment. The actual subprocess execution is deferred to the
-    # orchestration layer or skipped when the environment already exists.
+    # Step 1: Environment creation (build phase)
+    # Builds the command(s) that create the environment. Execution happens
+    # in Step 4b once the full package list is known. See Bug S3-137.
     # -----------------------------------------------------------------------
     env_info = _build_env_create_command(
         env_name=env_name,
@@ -610,6 +642,33 @@ def run_infrastructure_setup(
         module = _get_top_level_module(stmt)
         if not module:
             raise ValueError(f"Could not extract module from import: {stmt}")
+
+    # -----------------------------------------------------------------------
+    # Step 4b: Environment creation and package installation (Bug S3-137)
+    # Execute the commands built in Step 1 and install the packages from
+    # Steps 2 and 3 into the created environment. No-op when the
+    # environment already exists. Any subprocess failure propagates as
+    # CalledProcessError — matches run_infrastructure_setup's contract
+    # that any step failure raises.
+    # -----------------------------------------------------------------------
+    if env_info["commands"] and not _env_exists(env_name, env_info["env_manager"]):
+        for cmd in env_info["commands"]:
+            subprocess.run(cmd.split(), check=True)
+
+        install_packages = list(all_packages)
+        for pkg in env_info.get("bridge_packages", []):
+            if pkg not in install_packages:
+                install_packages.append(pkg)
+        for pkg in third_party_modules:
+            if pkg not in install_packages:
+                install_packages.append(pkg)
+
+        if install_packages and env_info["env_manager"] == "conda":
+            install_cmd = _build_install_command(
+                env_name, install_packages, toolchain
+            )
+            if install_cmd:
+                subprocess.run(install_cmd.split(), check=True)
 
     # -----------------------------------------------------------------------
     # Step 5: Directory scaffolding
