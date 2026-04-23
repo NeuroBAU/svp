@@ -37,6 +37,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from language_registry import QualityResult
 from quality_gate import (
     QUALITY_RUNNERS,
@@ -1063,6 +1065,7 @@ class TestRunQualityGateMainCLI:
     @patch("quality_gate.load_toolchain")
     @patch("quality_gate.get_language_config")
     def test_main_gate_c_argument(self, mock_glc, mock_lt, mock_rqg, capsys):
+        """gate_c accepted as --gate argument. QUALITY_RESIDUAL exits 1 (S3-138)."""
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
         mock_rqg.return_value = QualityResult(
@@ -1071,20 +1074,22 @@ class TestRunQualityGateMainCLI:
             residuals=["line 10: unused import"],
             report="Residuals found",
         )
-        run_quality_gate_main(
-            [
-                "--target",
-                str(SAMPLE_TARGET),
-                "--gate",
-                "gate_c",
-                "--unit",
-                "3",
-                "--language",
-                "python",
-                "--project-root",
-                str(SAMPLE_PROJECT_ROOT),
-            ]
-        )
+        with pytest.raises(SystemExit) as exc:
+            run_quality_gate_main(
+                [
+                    "--target",
+                    str(SAMPLE_TARGET),
+                    "--gate",
+                    "gate_c",
+                    "--unit",
+                    "3",
+                    "--language",
+                    "python",
+                    "--project-root",
+                    str(SAMPLE_PROJECT_ROOT),
+                ]
+            )
+        assert exc.value.code == 1
         captured = capsys.readouterr()
         assert "QUALITY_RESIDUAL" in captured.out
 
@@ -1212,25 +1217,28 @@ class TestRunQualityGateMainOutput:
     @patch("quality_gate.load_toolchain")
     @patch("quality_gate.get_language_config")
     def test_main_prints_error_status(self, mock_glc, mock_lt, mock_rqg, capsys):
+        """Prints QUALITY_ERROR to stdout and exits 1 (Bug S3-138)."""
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
         mock_rqg.return_value = QualityResult(
             status="QUALITY_ERROR", auto_fixed=False, residuals=[], report="Tool failed"
         )
-        run_quality_gate_main(
-            [
-                "--target",
-                str(SAMPLE_TARGET),
-                "--gate",
-                "gate_a",
-                "--unit",
-                "1",
-                "--language",
-                "python",
-                "--project-root",
-                str(SAMPLE_PROJECT_ROOT),
-            ]
-        )
+        with pytest.raises(SystemExit) as exc:
+            run_quality_gate_main(
+                [
+                    "--target",
+                    str(SAMPLE_TARGET),
+                    "--gate",
+                    "gate_a",
+                    "--unit",
+                    "1",
+                    "--language",
+                    "python",
+                    "--project-root",
+                    str(SAMPLE_PROJECT_ROOT),
+                ]
+            )
+        assert exc.value.code == 1
         captured = capsys.readouterr()
         assert "QUALITY_ERROR" in captured.out
 
@@ -1238,6 +1246,7 @@ class TestRunQualityGateMainOutput:
     @patch("quality_gate.load_toolchain")
     @patch("quality_gate.get_language_config")
     def test_main_prints_residual_status(self, mock_glc, mock_lt, mock_rqg, capsys):
+        """Prints QUALITY_RESIDUAL to stdout and exits 1 (Bug S3-138)."""
         mock_glc.return_value = PYTHON_LANGUAGE_CONFIG
         mock_lt.return_value = PYTHON_TOOLCHAIN_CONFIG
         mock_rqg.return_value = QualityResult(
@@ -1246,20 +1255,22 @@ class TestRunQualityGateMainOutput:
             residuals=["E501 line too long"],
             report="Residuals",
         )
-        run_quality_gate_main(
-            [
-                "--target",
-                str(SAMPLE_TARGET),
-                "--gate",
-                "gate_b",
-                "--unit",
-                "2",
-                "--language",
-                "python",
-                "--project-root",
-                str(SAMPLE_PROJECT_ROOT),
-            ]
-        )
+        with pytest.raises(SystemExit) as exc:
+            run_quality_gate_main(
+                [
+                    "--target",
+                    str(SAMPLE_TARGET),
+                    "--gate",
+                    "gate_b",
+                    "--unit",
+                    "2",
+                    "--language",
+                    "python",
+                    "--project-root",
+                    str(SAMPLE_PROJECT_ROOT),
+                ]
+            )
+        assert exc.value.code == 1
         captured = capsys.readouterr()
         assert "QUALITY_RESIDUAL" in captured.out
 

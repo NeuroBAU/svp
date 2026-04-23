@@ -458,6 +458,13 @@
 - **Second consumer closed (Bug S3-136).** `_route_pre_stage_3` in Unit 14 was the routing-called counterpart to Unit 11's `main()`. Prior to the fix, the `if state.total_units > 0` branch was dead code because nothing ever populated `total_units`. The fix invokes `ensure_pipeline_toolchain` + `run_infrastructure_setup` as direct function calls (no subprocess), then reloads state. Takeaway: when applying P34, inventory every caller path that consumes the materialized artifact, not only the most obvious one.
 - **Build-but-don't-execute variant closed (Bug S3-137).** `run_infrastructure_setup` Step 1 built the conda env-creation command into `env_info["commands"]` and then never executed it; the inline comment said "execution is deferred to the orchestration layer" but no caller picked up the work. The fix adds a new `_env_exists` helper and a Step 4b execution block that actually invokes `subprocess.run` on the built commands and the consolidated install list (quality tools + bridge packages + third-party runtime deps). Takeaway: a comment saying "the caller will run this" is a design smell — either name the caller explicitly or execute inline.
 
+### Lesson: Producer-Consumer Contract Consistency (Bug S3-138)
+
+- **Bug:** S3-138 (`run_quality_gate_main` printed QUALITY_* to stdout and exited 0 always; orchestrator translated every exit-0 to `COMMAND_SUCCEEDED` per spec §3.7, silently advancing past failing gates).
+- **Root cause:** Two sides of the producer-consumer contract were designed independently. The producer (quality_gate.py) thought stdout carried the status signal; the consumer (routing.py::dispatch_command_status) expected `COMMAND_*` strings derived from exit code per spec §3.7. Neither side was wrong in isolation, but they disagreed on the channel, and the spec arbitrates in favor of exit code.
+- **Prevention:** For every CLI tool invoked as a `run_command` by the orchestrator, assert two invariants: (1) the tool's exit code is authoritative for success/failure (exit 0 == success, nonzero == failure), (2) stdout is diagnostic only. Document the exit-code contract in the tool's entry-point docstring, not just in the spec.
+- **Detection:** `tests/unit_15/test_s3_138_quality_gate_exit_codes.py` — parametrized exhaustive coverage of the 4 QUALITY_* statuses mapping to 2 exit codes.
+
 ### Lesson: Command Script CLI Interface (Bug S3-67)
 
 - **Bug:** S3-67 (cmd_*.py use sys.argv[1] positional instead of --project-root argparse)

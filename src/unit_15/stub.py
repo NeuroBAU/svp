@@ -8,6 +8,7 @@ aggregate result.
 
 import argparse
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, List
 
@@ -394,6 +395,14 @@ def run_quality_gate_main(argv: list = None) -> None:
             print(residual)
     if result.report:
         print(result.report)
+
+    # Bug S3-138: exit nonzero on failure statuses so the orchestrator
+    # constructs COMMAND_FAILED per spec §3.7 exit-code rule. QUALITY_CLEAN
+    # and QUALITY_AUTO_FIXED are both "gate passed" — the auto-fixed run
+    # already observed a clean post-fix state, so advancing is defensible
+    # (see §24.63 / S3-36 and §24.151).
+    if result.status in ("QUALITY_RESIDUAL", "QUALITY_ERROR"):
+        sys.exit(1)
 
 
 if __name__ == "__main__":
