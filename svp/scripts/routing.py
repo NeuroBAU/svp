@@ -1530,7 +1530,9 @@ def _route_stage_1(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="stakeholder_dialog",
-            prepare=_agent_prepare_cmd("stakeholder_dialog"),
+            prepare=_agent_prepare_cmd(
+                "stakeholder_dialog", mode="targeted_revision"
+            ),
             reminder="Targeted spec revision.",
         )
 
@@ -1616,7 +1618,9 @@ def _route_stage_2(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="stakeholder_dialog",
-            prepare=_agent_prepare_cmd("stakeholder_dialog"),
+            prepare=_agent_prepare_cmd(
+                "stakeholder_dialog", mode="targeted_revision"
+            ),
             reminder="Targeted spec revision for alignment.",
         )
 
