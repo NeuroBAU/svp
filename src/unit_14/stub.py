@@ -22,9 +22,11 @@ from src.unit_1.stub import (
     ARTIFACT_FILENAMES,
     DEFAULT_CONFIG,
     derive_env_name,
+    get_blueprint_dir,
     load_config,
 )
 from src.unit_2.stub import LANGUAGE_REGISTRY, RunResult
+from src.unit_3.stub import load_profile
 from src.unit_4.stub import load_toolchain, resolve_command
 from src.unit_5.stub import PipelineState, load_state, save_state
 from src.unit_6.stub import (
@@ -50,6 +52,7 @@ from src.unit_6.stub import (
     set_delivered_repo_path,
     update_debug_phase,
 )
+from src.unit_11.stub import ensure_pipeline_toolchain, run_infrastructure_setup
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -1727,8 +1730,33 @@ def _route_stage_2(
 def _route_pre_stage_3(
     state: PipelineState, project_root: Path, last_status: str
 ) -> Dict[str, Any]:
-    """Route pre-Stage 3."""
+    """Route pre-Stage 3.
+
+    Advances stage to 3 and bootstraps Stage 3 by materializing toolchain.json
+    (Bug S3-135) and running infrastructure setup to populate total_units and
+    scaffold src/unit_N/ and tests/unit_N/ directories (Bug S3-136). See spec
+    §24.148 / §24.149.
+    """
     state = advance_stage(state, "3")
+    # Publish stage=3 before infrastructure_setup reads pipeline_state.json.
+    save_state(project_root, state)
+
+    if state.total_units == 0:
+        ensure_pipeline_toolchain(project_root)
+        profile = load_profile(project_root)
+        toolchain = load_toolchain(project_root)
+        blueprint_dir = get_blueprint_dir(project_root)
+        run_infrastructure_setup(
+            project_root=project_root,
+            profile=profile,
+            toolchain=toolchain,
+            language_registry=LANGUAGE_REGISTRY,
+            blueprint_dir=blueprint_dir,
+        )
+        # infra_setup writes total_units directly to pipeline_state.json; reload
+        # so the in-memory state reflects the populated count.
+        state = load_state(project_root)
+
     if state.total_units > 0 and state.current_unit is None:
         state.current_unit = 1
         state.sub_stage = "stub_generation"
