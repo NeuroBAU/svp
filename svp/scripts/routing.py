@@ -693,14 +693,26 @@ def _make_action_block(
     return block
 
 
-def _agent_prepare_cmd(agent_type: str, unit: Optional[int] = None) -> str:
-    """Build the prepare_task.py command for an invoke_agent action block."""
+def _agent_prepare_cmd(
+    agent_type: str,
+    unit: Optional[int] = None,
+    mode: Optional[str] = None,
+) -> str:
+    """Build the prepare_task.py command for an invoke_agent action block.
+
+    Optional `mode` (Bug S3-141, S3-142, S3-143) threads a sub-stage-specific
+    mode through to prepare_task.py's --mode argument, which in turn drives
+    mode-dependent branching in _prepare_<agent> functions (e.g.,
+    project_context vs project_profile for setup_agent).
+    """
     cmd = (
         f"python scripts/prepare_task.py --agent {agent_type} "
         f"--project-root . --output .svp/task_prompt.md"
     )
     if unit is not None:
         cmd += f" --unit {unit}"
+    if mode is not None:
+        cmd += f" --mode {mode}"
     return cmd
 
 
@@ -1467,7 +1479,7 @@ def _route_stage_0(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="setup_agent",
-            prepare=_agent_prepare_cmd("setup_agent"),
+            prepare=_agent_prepare_cmd("setup_agent", mode="project_context"),
             reminder="Setup agent for project context.",
         )
 
@@ -1486,7 +1498,7 @@ def _route_stage_0(
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="setup_agent",
-            prepare=_agent_prepare_cmd("setup_agent"),
+            prepare=_agent_prepare_cmd("setup_agent", mode="project_profile"),
             reminder="Setup agent for project profile.",
         )
 

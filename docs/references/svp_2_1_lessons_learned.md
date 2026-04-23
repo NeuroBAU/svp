@@ -473,6 +473,13 @@
 - **Prevention:** When a configuration schema declares first-class fields, every consumer must either read them or explicitly document why they are ignored. A silently-ignored field is a latent bug; `resolve_command`'s accepting-but-not-requiring `flags=` parameter absorbed the defect for an unknown span of time. Default-empty placeholder substitution is a sharp corner — if a template has `{flags}` and the consumer passes nothing, the resulting command silently differs from the schema's intent.
 - **Detection:** `tests/unit_15/test_s3_140_unit_flags_propagation.py` — asserts `resolve_command` receives the expected `flags=` kwarg for each tool's `unit_flags` configuration.
 
+### Lesson: Routing-Agent Mode Handshake (Bug S3-141)
+
+- **Bug:** S3-141 (`_agent_prepare_cmd` in Unit 14 never forwarded `--mode` to prepare_task.py; the three setup_agent call sites in `_route_stage_0` emitted identical PREPARE commands despite their reminders differing by sub_stage. Setup_agent in `project_context` sub_stage defaulted to `project_profile` behavior, producing `PROFILE_COMPLETE` instead of `PROJECT_CONTEXT_COMPLETE`, and routing looped without progress.)
+- **Root cause:** The generic `_agent_prepare_cmd` builder had no mode parameter. Over time, specific `_prepare_<agent>` functions in Unit 13 grew mode-dependent branching (setup_agent, stakeholder_dialog, blueprint_author), but the routing builder was never extended. The reminder string in affected action blocks carried the correct sub_stage context, indicating routing KNEW the mode — it just didn't thread it into the command.
+- **Prevention:** When an agent's `_prepare_<agent>` accepts mode-dependent parameters, every `_agent_prepare_cmd` call site must pass `--mode`. A minimal AST-level regression test: for every agent type invoked from multiple sub_stages, verify each invocation passes a mode kwarg to `_agent_prepare_cmd`. Alternatively: whenever two action blocks share an `agent_type` but differ by sub_stage (detected by reminder diff or by routing branch location), the PREPARE commands must also differ.
+- **Detection:** `tests/unit_14/test_s3_141_setup_agent_mode.py` — asserts both signature behavior of `_agent_prepare_cmd(mode=...)` and routing-level behavior at each Stage 0 sub_stage.
+
 ### Lesson: Command Script CLI Interface (Bug S3-67)
 
 - **Bug:** S3-67 (cmd_*.py use sys.argv[1] positional instead of --project-root argparse)
