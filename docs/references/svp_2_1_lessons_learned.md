@@ -466,6 +466,13 @@
 - **Detection:** `tests/unit_15/test_s3_138_quality_gate_exit_codes.py` — parametrized exhaustive coverage of the 4 QUALITY_* statuses mapping to 2 exit codes.
 - **Consumer-side aligned (Bug S3-139).** Spec §18.3 defines the failure status as `COMMAND_FAILED: [exit code]` (with the code appended). All four quality_gate branches of dispatch_command_status used strict `==` against bare `"COMMAND_FAILED"`, which missed the spec-defined suffix form and crashed routing with ValueError. Fixed by switching to substring matching (`"FAILED" in status_line`), consistent with compliance_scan / structural_check / lessons_learned branches.
 
+### Lesson: Schema-Consumer Wiring Completeness (Bug S3-140)
+
+- **Bug:** S3-140 (toolchain schema declared `unit_flags` / `project_flags` first-class fields with concrete values like `"--ignore-missing-imports"` for mypy, but `_execute_gate_operations` never read them; `resolve_command`'s `flags=""` parameter was never populated. Mypy ran without the flag at every Stage 3 unit gate, producing false-positive import-not-found residuals on every test file.)
+- **Root cause:** Schema-declared fields with no consumer. `resolve_command`'s `flags=""` default is a hint that propagation was once intended; the wiring was never completed. The toolchain JSON and the gate-runner agreed on the shape of `unit_flags`/`project_flags` but not on who would read them.
+- **Prevention:** When a configuration schema declares first-class fields, every consumer must either read them or explicitly document why they are ignored. A silently-ignored field is a latent bug; `resolve_command`'s accepting-but-not-requiring `flags=` parameter absorbed the defect for an unknown span of time. Default-empty placeholder substitution is a sharp corner — if a template has `{flags}` and the consumer passes nothing, the resulting command silently differs from the schema's intent.
+- **Detection:** `tests/unit_15/test_s3_140_unit_flags_propagation.py` — asserts `resolve_command` receives the expected `flags=` kwarg for each tool's `unit_flags` configuration.
+
 ### Lesson: Command Script CLI Interface (Bug S3-67)
 
 - **Bug:** S3-67 (cmd_*.py use sys.argv[1] positional instead of --project-root argparse)

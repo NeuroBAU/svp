@@ -91,8 +91,23 @@ def _execute_gate_operations(
         if _tool_is_none(command_template):
             continue
 
+        # Bug S3-140: look up per-tool unit_flags from toolchain quality config
+        # and pass as flags= to resolve_command so the {flags} placeholder in
+        # the command template is populated. operation_name format is
+        # "quality.<tool>.<op>" (e.g., "quality.type_checker.check"); parts[1]
+        # selects the subconfig that declares unit_flags. project_flags at
+        # higher scopes is out of scope for this unit-level fix.
+        flags = ""
+        parts = operation_name.split(".")
+        if len(parts) >= 2 and parts[0] == "quality":
+            tool_cfg = toolchain_config.get("quality", {}).get(parts[1], {})
+            if isinstance(tool_cfg, dict):
+                flags = tool_cfg.get("unit_flags", "") or ""
+
         # Resolve command
-        cmd = resolve_command(command_template, env_name, run_prefix, str(target_path))
+        cmd = resolve_command(
+            command_template, env_name, run_prefix, str(target_path), flags=flags,
+        )
 
         # Capture file content before execution for auto-fix detection
         content_before = None
