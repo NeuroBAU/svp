@@ -482,6 +482,13 @@
 - **Applied to stakeholder_dialog (Bug S3-142).** Two of the three stakeholder_dialog call sites in routing (`_route_stage_1` + `_route_stage_2`, both at `sub == "targeted_spec_revision"`) now pass `mode="targeted_revision"`. The third site (Stage 1 main fall-through) is deferred because it conflates initial-dialog and post-REVISE rerun with no state-level distinguisher — a future cycle will add one before attempting mode threading there. Lesson: when applying a routing-agent mode handshake, scope the fix to unambiguous sites and explicitly defer ambiguous ones rather than guessing.
 - **Deferred in full for blueprint_author (Bug S3-143).** Both blueprint_author call sites in `_route_stage_2` share the same initial-vs-revise ambiguity as the Stage 1 fall-through (§24.155), AND `_prepare_blueprint_author`'s "Reviewer Feedback" section requires BOTH `mode == "revision"` and non-empty `context` — neither of which routing threads. Threading `mode` alone would be cosmetic (adds only a "Mode: revision" header; no new content loads). Shipping a cosmetic change would mislead future readers into thinking the work is done. Lesson: **scope-honesty matters**. When the minimum-change scope reduces to cosmetic-only, ship no change and document the deferral rather than a placebo fix. Anchor tests pin current behavior so a future cycle can break them deliberately when the full signal chain lands.
 
+### Lesson: File-vs-Stdout Should Be Mutually Exclusive (Bug S3-144)
+
+- **Bug:** S3-144 (`prepare_task.py::main` wrote to `--output` AND echoed to stdout unconditionally; on Windows, the stdout print crashed with UnicodeEncodeError for task prompts containing non-cp1252 characters — box-drawing glyphs, em-dashes, typographic ellipsis. The file write succeeded before the crash, but exit 1 + traceback polluted every Stage 1+ PREPARE.)
+- **Root cause:** Redundant dual-output. The stdout print served no consumer — the orchestrator only reads the output file, never stdout. The duplication was the sole source of the cp1252 crash: file write used `encoding="utf-8"`, while stdout relied on `sys.stdout.encoding`.
+- **Prevention:** When a script accepts both a file-output flag and produces stdout output, prefer mutual exclusion (if `--output` set, write file and return silently; else print to stdout). A dual channel is only justified when a specific consumer reads both — otherwise it is dead weight that introduces platform-encoding bugs at zero functional benefit.
+- **Detection:** `tests/unit_13/test_s3_144_output_vs_stdout.py` — exercises both branches with `capsys` to verify the mutual-exclusion contract.
+
 ### Lesson: Command Script CLI Interface (Bug S3-67)
 
 - **Bug:** S3-67 (cmd_*.py use sys.argv[1] positional instead of --project-root argparse)

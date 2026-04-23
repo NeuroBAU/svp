@@ -1970,13 +1970,18 @@ def main(argv: list = None) -> None:
         print("Error: must provide --agent or --gate", file=sys.stderr)
         sys.exit(1)
 
-    # Write to custom output if specified
+    # Bug S3-144: --output and stdout are mutually exclusive. When the
+    # caller provides --output, the file IS the contract (always written
+    # as UTF-8) and stdout stays silent — this avoids the Windows cp1252
+    # UnicodeEncodeError crash on task prompts that embed non-cp1252
+    # characters (box-drawing glyphs, em-dashes, etc.). When --output is
+    # omitted, stdout carries the content for interactive invocations.
     if args.output:
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(content, encoding="utf-8")
-
-    print(content)
+    else:
+        print(content)
 
 
 if __name__ == "__main__":
