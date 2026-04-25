@@ -234,7 +234,12 @@ def test_pyproject_toml_pythonpath_for_svp_native(tmp_path):
     assert 'pythonpath = ["scripts"]' in content
 
 
-def test_pyproject_toml_no_pythonpath_for_conventional(tmp_path):
+def test_pyproject_toml_pythonpath_for_conventional(tmp_path):
+    """Bug S3-152: conventional layout must emit pythonpath = ["src"] so
+    pytest can resolve `from <pkg>.module import …` without `pip install`.
+    The original S3-146 assumption (adapt step makes pythonpath unnecessary)
+    was wrong — the adapt step rewrites imports, but pytest still has to
+    find the package on sys.path."""
     repo = tmp_path / "repo"
     repo.mkdir()
     profile = _python_profile("conventional", package_name="demo_pkg")
@@ -242,5 +247,19 @@ def test_pyproject_toml_no_pythonpath_for_conventional(tmp_path):
     _write_pyproject_toml(repo, profile, {"description": "demo"}, "demo_pkg")
     content = (repo / "pyproject.toml").read_text()
 
-    # conventional layout uses adapt; pythonpath is not needed and not emitted
-    assert "[tool.pytest.ini_options]" not in content
+    assert "[tool.pytest.ini_options]" in content
+    assert 'pythonpath = ["src"]' in content
+
+
+def test_pyproject_toml_pythonpath_for_flat(tmp_path):
+    """Bug S3-152: flat layout must emit pythonpath = ["."] so pytest can
+    resolve `from <pkg>.module import …` (the package sits at repo root)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    profile = _python_profile("flat", package_name="demo_pkg")
+
+    _write_pyproject_toml(repo, profile, {"description": "demo"}, "demo_pkg")
+    content = (repo / "pyproject.toml").read_text()
+
+    assert "[tool.pytest.ini_options]" in content
+    assert 'pythonpath = ["."]' in content

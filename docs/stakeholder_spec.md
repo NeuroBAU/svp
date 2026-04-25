@@ -5980,6 +5980,54 @@ A-D project blueprints (e.g., `gol-python` at `/Users/cfusco/Nextcloud/coding pr
 
 **Detection:** Post-S3-128 audit, conservative protocol with dogfood pre-check. No user-visible failure triggered this bug entry — it was found by auditing `TestDeployedArtifactFreshness` for coverage gaps after S3-128 landed.
 
+### 24.165 Stage 5 End-to-End Validation on Synthetic A-D Workspace (Post-delivery — Bug S3-151, RESOLVED IN 2.2)
+
+**Status: VALIDATED 2026-04-22.** Confirmation cycle following S3-146 / S3-147 / S3-148 / S3-150. With those four fixes in place, Stage 5 was claimed to deliver a fully-assembled, test-passing repo for A-D Python projects. S3-151 is the empirical proof.
+
+**Validation method.** A test (`tests/unit_23/test_s3_151_stage5_end_to_end.py`) builds a minimal A-D Python workspace from scratch:
+
+- Two source units with stub-style imports between them (`src/unit_1/stub.py`: `Engine`; `src/unit_2/stub.py`: `make_engine` importing `Engine` via `from src.unit_1.stub import Engine`).
+- Two test files under `tests/unit_1/` and `tests/unit_2/` with delivered-layout imports (`from demo_pkg.engine import Engine`).
+- A `blueprint/blueprint_prose.md` with a `## Preamble: Delivered File Tree` section carrying `<- Unit N` annotations on each file row (the post-S3-150 agent output shape).
+
+The test then runs the full chain: `generate_assembly_map` → `assemble_python_project` → subprocess invocation of `pytest` against the delivered repo. The delivered repo's tests must pass.
+
+**Validation outcome.** Initially failed: the conventional / flat layouts produced a `pyproject.toml` that did not configure `[tool.pytest.ini_options] pythonpath`, so pytest could not resolve `from demo_pkg.X` imports without `pip install`. This gap was filed as Bug S3-152 and fixed in the same cycle (see §24.166). After the S3-152 fix, all four S3-151 assertions pass, including a parametrized sweep over `conventional`, `flat`, and `svp_native` layouts.
+
+**Real-world A-D workspace status.** `gol-python` (a real A-D Python project at `/Users/cfusco/Nextcloud/coding projects/svp2.2/gol-python`) was inspected during the S3-150 cycle and confirmed to lack Preamble file-tree annotations. Its blueprint pre-dates S3-150's agent-prompt fix and must be regenerated through the `blueprint_author` agent before it can participate in this end-to-end chain. The synthetic fixture in `test_s3_151_stage5_end_to_end.py` simulates the post-S3-150 agent output shape, which is sufficient to validate the Stage 5 chain itself; rerunning a real A-D project end-to-end is a separate pipeline-execution task that does not require additional code changes.
+
+**What this confirms.** The Stage 5 batch (S3-146 + S3-147 + S3-148 + S3-150 + S3-152) collectively delivers, for each Python source layout (`conventional`, `flat`, `svp_native`):
+
+- A populated `assembly_map.json` derived from the blueprint Preamble.
+- A delivered repo at `{workspace.parent}/{project}-repo`.
+- `pyproject.toml` with layout-correct `pythonpath` configuration.
+- `tests/` copied with import adaptation matching the layout.
+- `CLAUDE.md` carrying the universal break-glass protocol.
+- Source files (one per workspace stub) with stub-style imports rewritten to the layout-appropriate form.
+- A delivered repo whose tests pass under `pytest` invoked at the repo root, with no `pip install` required.
+
+**Pattern observation.** The Stage 5 batch is a complete instance of P35 (Agent-Discretionary Step Promoted to Code Path) extended into a closed feedback loop: each individual fix replaced an agent-discretionary step with deterministic code; S3-151 closes the loop by adding an end-to-end test that exercises the full chain. Future agent-discretionary-step replacements should aim for the same shape: code path + per-step tests + at least one end-to-end test that asserts the deliverable's downstream behavior (here: pytest passing).
+
+**Detection:** `tests/unit_23/test_s3_151_stage5_end_to_end.py` — four tests: one full-chain end-to-end (assembly + pytest), three parametrized layout-specific chain checks asserting source delivery + import rewriting at the layout-correct destination.
+
+### 24.166 Conventional/Flat Layouts Lack pytest pythonpath (Post-delivery — Bug S3-152, RESOLVED IN 2.2)
+
+**`_write_pyproject_toml` only emitted `[tool.pytest.ini_options] pythonpath` for `svp_native` layouts (RESOLVED IN 2.2 — Bug S3-152).** Per the original S3-146 comment in `src/unit_23/stub.py::_write_pyproject_toml`: "For conventional/flat layouts, the test-import adapt step (`adapt_test_imports_in_repo`) rewrites imports to the package prefix instead — pythonpath is not needed there." This was correct in spirit (the imports are rewritten) but skipped a load-bearing step: pytest still needs to find the package. For a `conventional` layout where the package lives at `src/<pkg>/`, pytest has no way to resolve `from <pkg>.module import …` unless either (a) the package is installed via `pip install -e .` or (b) `pythonpath = ["src"]` is set in `pyproject.toml`. The S3-146/S3-148 promise of "tests pass out of the box in the delivered repo" therefore did not actually hold for conventional/flat layouts.
+
+**Discovery.** Surfaced by Bug S3-151's end-to-end test, which invokes `pytest` against the delivered repo as the final assertion. The first run of that test failed with `ModuleNotFoundError: No module named 'demo_pkg'`, exposing the gap.
+
+**Fix.** Extend `_write_pyproject_toml` to emit a layout-appropriate `pythonpath` for all three Python layouts:
+
+- `svp_native` → `pythonpath = ["scripts"]` (unchanged from S3-146)
+- `conventional` → `pythonpath = ["src"]` (NEW)
+- `flat` → `pythonpath = ["."]` (NEW)
+
+The branch is wrapped so unknown layouts produce no pytest configuration (preserves caller-defined behavior).
+
+**Detection.** Covered by the existing S3-151 test suite — the parametrized layout sweep would fail again if this regression is introduced, since each parametrized case independently invokes the delivered repo's pytest.
+
+**Pattern observation.** The original "tests pass out of the box" promise of S3-146 was tested only at the artifact-presence level (test files copied, imports rewritten); it was not tested at the behavioral level (pytest actually green). S3-151's end-to-end pytest check is the structural fix — it elevates the assertion to "the deliverable does what we say it does", not "the deliverable contains the right files". Lessons-learned entry: **promise-by-artifact vs. promise-by-behavior**. When a refactor or fix promises a downstream property (here: tests pass), at least one test should assert that property by reproducing the downstream invocation, not merely by asserting the artifacts that should produce it.
+
 ---
 
 ## 25. Test Data

@@ -528,18 +528,24 @@ def _write_pyproject_toml(
         else:
             content_lines.append(f'{project_name} = "{project_name}:main"')
 
-    # Bug S3-146: for svp_native layout, tests use flat imports (`from
-    # ledger_manager import …`) and the source code lives at repo/scripts/.
-    # Add pythonpath so pytest can discover the modules without an adapt
-    # step. For conventional/flat layouts, the test-import adapt step
-    # (adapt_test_imports_in_repo) rewrites imports to the package prefix
-    # instead — pythonpath is not needed there.
+    # Bug S3-146 + S3-152: pytest must resolve the delivered modules without
+    # requiring `pip install`. Set pythonpath per layout so the package
+    # prefix (or flat module name, for svp_native) imports cleanly when
+    # `pytest` is invoked in the delivered repo.
     if source_layout == "svp_native":
+        pytest_pythonpath = '["scripts"]'
+    elif source_layout == "conventional":
+        pytest_pythonpath = '["src"]'
+    elif source_layout == "flat":
+        pytest_pythonpath = '["."]'
+    else:
+        pytest_pythonpath = None
+    if pytest_pythonpath is not None:
         content_lines.extend(
             [
                 "",
                 "[tool.pytest.ini_options]",
-                'pythonpath = ["scripts"]',
+                f"pythonpath = {pytest_pythonpath}",
             ]
         )
 
