@@ -83,6 +83,11 @@ class PipelineState:
     alignment_iterations: int = 0
     fix_ladder_position: Optional[str] = None
     red_run_retries: int = 0
+    # Bug S3-149: bounds the Stage 5 repo-assembly retry loop. Incremented
+    # by dispatch_gate_response::gate_5_1_repo_test on TESTS FAILED; reset
+    # to 0 by gate_5_2_assembly_exhausted on RETRY ASSEMBLY. At the
+    # iteration_limit (default 3) the dispatch transitions to gate_5_2.
+    assembly_retries: int = 0
     pass_history: List[Dict[str, Any]] = field(default_factory=list)
     debug_session: Optional[Dict[str, Any]] = None
     debug_history: List[Dict[str, Any]] = field(default_factory=list)
@@ -161,6 +166,7 @@ def load_state(project_root: Path) -> PipelineState:
         alignment_iterations=data.get("alignment_iterations", 0),
         fix_ladder_position=data.get("fix_ladder_position", None),
         red_run_retries=data.get("red_run_retries", 0),
+        assembly_retries=data.get("assembly_retries", 0),
         pass_history=data.get("pass_history", []),
         debug_session=data.get("debug_session", None),
         debug_history=data.get("debug_history", []),

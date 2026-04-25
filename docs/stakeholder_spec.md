@@ -5891,6 +5891,38 @@ Wired into `assemble_python_project` after `write_delivered_claude_md`. Layout d
 
 **Detection:** `tests/unit_23/test_s3_148_source_delivery_anchor.py` — one anchor test asserting that `assemble_python_project` produces only `src/<package>/__init__.py` (and the `pyproject.toml`) for the conventional layout. The future cycle that lands `deliver_source_files` will deliberately break this anchor and update it.
 
+### 24.162 Stage 5 Retry Framework Dead-Code (Post-delivery — Bug S3-149, NEW IN 2.2)
+
+**Stage 5 retry loop unbounded; gate_5_2 and gate_5_3 unreachable (NEW IN 2.2 — Bug S3-149).** Audit during the Stage 5 Delivery Determinism batch (2026-04-25) confirmed three gaps in the Stage 5 retry framework:
+
+1. **No retry counter for repo assembly.** `PipelineState` had `red_run_retries` (Stage 3 test execution) but no equivalent `assembly_retries`. `dispatch_gate_response::gate_5_1_repo_test` on `TESTS FAILED` set `sub_stage = None`, which falls through in `_route_stage_5` to re-invoke `git_repo_agent`. With no counter, this re-invocation was unbounded — an infinite retry loop unless the human eventually picked `TESTS PASSED` or aborted manually.
+
+2. **`gate_5_2_assembly_exhausted` was unreachable.** The dispatch handler exists with valid responses `["RETRY ASSEMBLY", "FIX BLUEPRINT", "FIX SPEC"]`, and the routing branch (`sub == "gate_5_2"`) emits the gate when sub_stage is `"gate_5_2"`. **Nothing in the codebase ever set `sub_stage = "gate_5_2"`.** Verified by exhaustive grep. Vocabulary defined, transitions missing.
+
+3. **`gate_5_2_assembly_exhausted` `RETRY ASSEMBLY` had a separate dispatch bug.** The handler was `new = _copy(state)` with no `sub_stage` reset. Because the gate is presented when `sub_stage == "gate_5_2"`, after dispatch returns the next routing call would see the same `sub_stage` and re-emit the gate — an immediate gate-loop on top of the larger retry-loop bug.
+
+4. **`gate_5_3_unused_functions` was also unreachable.** Same vocabulary-without-transitions shape — dispatch handler and routing branch exist; no code sets `sub_stage = "gate_5_3"`. Out of scope for the loop-safety fix; left as-is for now.
+
+**Fix (Bug S3-149) — minimal loop-safety net.** Three coordinated changes:
+
+1. **`src/unit_5/stub.py`**: add `assembly_retries: int = 0` to `PipelineState` dataclass. Add `assembly_retries=data.get("assembly_retries", 0)` to `load_state` for backward compatibility with state files written before this field existed.
+
+2. **`src/unit_14/stub.py::dispatch_gate_response::gate_5_1_repo_test`**: on `TESTS FAILED`, increment `state.assembly_retries`. If at or above `config.get("iteration_limit", 3)`, set `sub_stage = "gate_5_2"`. Otherwise set `sub_stage = None` (preserves existing fall-through behavior for under-limit retries).
+
+3. **`src/unit_14/stub.py::dispatch_gate_response::gate_5_2_assembly_exhausted`**: on `RETRY ASSEMBLY`, reset `assembly_retries = 0` AND set `sub_stage = None` (preventing the gate-re-emit bug).
+
+`FIX BLUEPRINT` and `FIX SPEC` responses at gate_5_2 are unchanged — `restart_from_stage` already handles state cleanup including counters that reset on stage restart.
+
+**Deferred to a future S3-149 follow-up cycle:**
+
+- **Context threading on retry.** The retried agent still receives the same task prompt as the first call — no failing-test output, no diagnostic context. Bounded blind retry (this cycle) is significantly safer than unbounded blind retry, but threading context would let the agent fix specific issues. Requires changes to `_prepare_git_repo_agent` (Unit 13) and a state field or artifact for the test-failure summary.
+- **`gate_5_3_unused_functions` wiring.** Different trigger (compliance_scan finding unused functions in delivered repo); requires `compliance_scan` to expose this signal. Separate concern from the retry-loop safety net.
+- **`assembly_retries` reset on stage-restart paths beyond gate_5_2.** `restart_from_stage` may or may not reset this field cleanly; would audit and fix in the follow-up.
+
+**Pattern note:** This is NOT a P35 instance (P35 = agent-discretionary step promoted to code path). This is a different shape: **vocabulary-without-transitions** — a complete dispatch + routing handler exists for a state value (`sub_stage = "gate_5_2"`) that no code path ever produces. Worth tracking as a candidate **P36 (Vocabulary Without Transitions)** when a second instance shows up. Suggested audit recipe: for every value in a state field's domain, grep for assignments of that value and verify at least one routing path produces it.
+
+**Detection:** `tests/unit_14/test_s3_149_assembly_retry_safety.py` — six tests: (a) `assembly_retries` defaults to 0 on a fresh `PipelineState`; (b) JSON round-trip preserves the field; (c) old state file without `assembly_retries` loads with the field defaulted to 0; (d) `TESTS FAILED` below limit increments the counter and leaves sub_stage None; (e) `TESTS FAILED` at limit transitions to `sub_stage = "gate_5_2"`; (f) `RETRY ASSEMBLY` resets the counter to 0 AND sets sub_stage None.
+
 **Pattern:** **P32 (NEW — Round-Trip Regeneration As Test Oracle)**. When a production function produces derived artifacts on disk and a test needs to verify those artifacts are not stale, the test can use the function itself as the oracle by (a) copying the state to a temp directory, (b) running the function on the copy, (c) comparing the copy to the original. This eliminates duplicated logic between test and production, automatically covers any invariant the production function enforces now or in the future, and keeps the test passive — it does not need to know how the function computes anything. Sibling of the "fixture realism" lesson from S3-127: both are about making test infrastructure mirror production infrastructure rather than paraphrase it. The round-trip approach is stronger because it requires zero paraphrase — the test just calls the thing and compares.
 
 **Audit epilogue.** S3-129 is the final item in the post-S3-127 runtime enforcement sweep. The sweep started with four MUST-tier candidates (I1, I2+I8, I6, I11) and collapsed to two shipped bugs (S3-128 for I6, S3-129 for a narrowed I11). The other candidates — I1, I2+I8, I5, I7, I9 — were all retired as already-covered by existing regression tests or by the S3-127 `_find_marketplace_root` helper. I9 specifically (hook executable bits) is absorbed into this test as the mode-comparison assertion. **The sweep's real output is the realization that the existing regression-test corpus already enforces most platform-contract invariants, and further work should focus on narrow residual gaps rather than bulk-adding new structural checks.** See lessons learned S3-128 for the meta-discussion of audit-as-retirement.

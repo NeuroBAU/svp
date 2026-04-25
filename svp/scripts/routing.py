@@ -2385,7 +2385,15 @@ def dispatch_gate_response(
             new = advance_sub_stage(state, "compliance_scan")
         else:  # TESTS FAILED
             new = _copy(state)
-            new.sub_stage = None
+            # Bug S3-149: bound the retry loop. iteration_limit (default 3)
+            # caps retries; at the limit, transition to gate_5_2 instead of
+            # falling through to re-invoke the agent forever.
+            new.assembly_retries += 1
+            limit = config.get("iteration_limit", 3)
+            if new.assembly_retries >= limit:
+                new.sub_stage = "gate_5_2"
+            else:
+                new.sub_stage = None
         return new
 
     # Gate 5.2: Assembly exhausted
@@ -2393,7 +2401,12 @@ def dispatch_gate_response(
         if response == "RETRY ASSEMBLY":
             _clear_last_status(project_root)
             new = _copy(state)
-            # Re-invoke git repo agent
+            # Bug S3-149: reset retry counter for a fresh retry round and
+            # clear sub_stage so routing falls through to re-invoke the
+            # git_repo_agent. Without this, sub_stage stays "gate_5_2"
+            # and routing re-emits the gate on every iteration.
+            new.assembly_retries = 0
+            new.sub_stage = None
         elif response == "FIX BLUEPRINT":
             new = restart_from_stage(state, "2")
         else:  # FIX SPEC
