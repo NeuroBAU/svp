@@ -5836,6 +5836,61 @@ Wire both helpers into `assemble_python_project` immediately after `_write_pypro
 
 **Detection:** `tests/unit_23/test_s3_147_delivered_claude_md.py` — five tests: (a) `assemble_python_project` produces a `repo/CLAUDE.md` containing the project name and the break-glass cycle steps; (b) `assemble_r_project` produces a `repo/CLAUDE.md`; (c) `assemble_plugin_project` produces a `repo/CLAUDE.md`; (d) when `profile["is_svp_build"]=True`, `write_delivered_claude_md` returns False and does NOT write — preserving the SVP-meta path; (e) the generated CLAUDE.md does NOT contain SVP-internal phrases like "pipeline_state.json" or "PREPARE command" or "Stratified Verification Pipeline" beyond the single intro reference (the test confirms the intent: no orchestration references that would mislead a user not running SVP).
 
+### 24.161 A-D Source-File Delivery Deferred Pending A-D Fixture (Post-delivery — Bug S3-148, NEW IN 2.2)
+
+**Deferred-with-anchor cycle (NEW IN 2.2 — Bug S3-148).** Audit during the Stage 5 Delivery Determinism batch (2026-04-25) confirmed that production source-file delivery to the delivered repo is **not implemented** for A-D archetypes. Three observations:
+
+1. **For E/F self-builds (svp-repo) source delivery works** through two coupled mechanisms: `scripts/derive_scripts_from_stubs.py` rewrites workspace stubs to flat-imported scripts using a hardcoded `IMPORT_REWRITE_MAP` specific to SVP's 29 units (e.g., `unit_1 → svp_config`, `unit_7 → ledger_manager`), and `sync_workspace.sh` then copies workspace `scripts/*.py` → repo `svp/scripts/*.py` and workspace `src/unit_*/stub.py` → repo `src/unit_*/stub.py`. Both paths are SVP-meta-specific.
+
+2. **For A-D archetypes, source delivery is missing.** `src/unit_23/stub.py::assemble_python_project` creates `src/<package>/__init__.py` (empty) and `pyproject.toml`; nothing populates `repo/src/<package>/*.py` (or `repo/<package>/*.py` for `flat`, or `repo/scripts/*.py` for `svp_native`) with the actual implementation modules. `src/unit_16/stub.py::sync_workspace_to_repo` is dead code (zero callers in the project) AND uses the E/F layout (`src/unit_*/stub.py`) which is the wrong shape for A-D conventional. The assembly map (`assembly_map.json` `"repo_to_workspace"` entries) provides the deployed-path→source-stub mapping, but **no function walks it to perform the copy + import rewrite**. The `git_repo_agent` prompt instructs the agent to use the assembly map and `derive_scripts_from_stubs.py`, but `derive_scripts_from_stubs.py`'s `IMPORT_REWRITE_MAP` is hardcoded for SVP and does not generalize.
+
+3. **Same shape as Bugs S3-146 and S3-147.** Both prior cycles in this batch addressed agent-discretionary delivery steps (tests, CLAUDE.md). Source delivery is the third instance of pattern P35 (Agent-Discretionary Step Promoted to Code Path).
+
+**Initial scope of this cycle was to fix the gap** (Plan A). On inspection, **no code change landed in this cycle. Only this spec entry, a lesson entry, and a regression anchor test.** This is a deferred-with-anchor cycle, parallel to §24.156 (Bug S3-143).
+
+**Why deferred:**
+
+1. **Per-project import rewriting is materially more complex than Project A's test-import adapt.** Source files live at workspace `src/unit_N/stub.py` and use stub-style imports (`from src.unit_N.stub import X`). Delivered files live at project-specific paths (e.g., `repo/src/my_pkg/api.py`) per the blueprint's `<- Unit N` annotations consumed by `generate_assembly_map`. The rewrite must derive a unit-to-module-name map from the assembly_map AND rewrite stub-style imports to the layout-appropriate flat-or-prefixed form in one step. The hardcoded `IMPORT_REWRITE_MAP` in `derive_scripts_from_stubs.py` cannot be reused — it's SVP-specific.
+
+2. **A-D fixture is unavailable for validation.** Fixing without a representative A-D project to validate against risks introducing a worse problem than the gap itself. Specifically: it is unclear whether A-D `implementation_agent` writes stubs that use stub-style or flat-style imports (the answer determines the rewrite scope), and the conventions for unit-to-module-name mapping in A-D blueprints have not been documented or test-fixtured. Speculation here would be brittle.
+
+3. **Latent for current users.** The Windows-host pipeline that triggered the broader Stage 5 delivery audit is presumably an E/F self-build (it's building SVP). E/F has a working source delivery path. No active A-D user has surfaced a missing-source complaint.
+
+**Prerequisite for the eventual fix:**
+
+- A representative A-D project fixture (or an existing A-D-archetype example to inspect)
+- Confirmation of A-D `implementation_agent`'s import-style convention
+- Optional: extend `derive_scripts_from_stubs.py` to accept a project-derived rewrite map instead of the hardcoded SVP one
+
+**Design sketch (for the deferred fix cycle):**
+
+```python
+def deliver_source_files(
+    workspace: Path,
+    repo_dir: Path,
+    assembly_map: Dict[str, str],
+    profile: Dict[str, Any],
+) -> int:
+    """Walk repo_to_workspace entries, copy + rewrite each Python source file.
+
+    Filters assembly_map to .py entries that are NOT under tests/, agents/,
+    commands/, hooks/, skills/, .claude-plugin/. For each remaining
+    (deployed_path, source_stub_path) pair, reads the workspace stub,
+    rewrites stub-style imports to the layout-appropriate form using a
+    unit-to-module-name dict derived from the same assembly_map, and writes
+    to repo_dir / deployed_path. Returns count of files written.
+    """
+```
+
+Wired into `assemble_python_project` after `write_delivered_claude_md`. Layout dispatch:
+- `svp_native`: `from src.unit_N.stub import X` → `from <module> import X`
+- `conventional`: `from src.unit_N.stub import X` → `from <package>.<module> import X`
+- `flat`: same as conventional, different physical location
+
+**Pattern:** P35 (Agent-Discretionary Step Promoted to Code Path) — third instance. **Sub-pattern: deferred-with-anchor when fixture-needed-before-fix.** Adds a useful addendum to P35: when the fix would require a representative project fixture that doesn't exist, document the gap and pin current behavior with anchor tests rather than guess.
+
+**Detection:** `tests/unit_23/test_s3_148_source_delivery_anchor.py` — one anchor test asserting that `assemble_python_project` produces only `src/<package>/__init__.py` (and the `pyproject.toml`) for the conventional layout. The future cycle that lands `deliver_source_files` will deliberately break this anchor and update it.
+
 **Pattern:** **P32 (NEW — Round-Trip Regeneration As Test Oracle)**. When a production function produces derived artifacts on disk and a test needs to verify those artifacts are not stale, the test can use the function itself as the oracle by (a) copying the state to a temp directory, (b) running the function on the copy, (c) comparing the copy to the original. This eliminates duplicated logic between test and production, automatically covers any invariant the production function enforces now or in the future, and keeps the test passive — it does not need to know how the function computes anything. Sibling of the "fixture realism" lesson from S3-127: both are about making test infrastructure mirror production infrastructure rather than paraphrase it. The round-trip approach is stronger because it requires zero paraphrase — the test just calls the thing and compares.
 
 **Audit epilogue.** S3-129 is the final item in the post-S3-127 runtime enforcement sweep. The sweep started with four MUST-tier candidates (I1, I2+I8, I6, I11) and collapsed to two shipped bugs (S3-128 for I6, S3-129 for a narrowed I11). The other candidates — I1, I2+I8, I5, I7, I9 — were all retired as already-covered by existing regression tests or by the S3-127 `_find_marketplace_root` helper. I9 specifically (hook executable bits) is absorbed into this test as the mode-comparison assertion. **The sweep's real output is the realization that the existing regression-test corpus already enforces most platform-contract invariants, and further work should focus on narrow residual gaps rather than bulk-adding new structural checks.** See lessons learned S3-128 for the meta-discussion of audit-as-retirement.
