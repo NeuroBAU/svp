@@ -214,6 +214,13 @@ def restart_from_stage(state: PipelineState, target_stage: str) -> PipelineState
     new.current_unit = None
     new.fix_ladder_position = None
     new.red_run_retries = 0
+    # Bug S3-153: assembly_retries (Stage 5) must reset on restart for the
+    # same reason red_run_retries (Stage 3) does — the work that produced
+    # the count is being thrown away. Without this, gate_5_2 FIX BLUEPRINT
+    # and FIX SPEC handlers leave the counter at its limit, so the next
+    # assembly failure after the restart immediately re-emits gate_5_2
+    # instead of giving the user the configured retry budget.
+    new.assembly_retries = 0
 
     # Reset alignment_iterations when restarting at stage 2
     if target_stage == "2":

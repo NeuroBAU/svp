@@ -681,6 +681,29 @@ class TestRestartFromStage:
         # Only stage 2 restart resets alignment_iterations
         assert result.alignment_iterations == 3
 
+    def test_restart_resets_assembly_retries(self):
+        """Bug S3-153: assembly_retries (Stage 5 retry counter) must reset on
+        restart for the same reason red_run_retries (Stage 3 retry counter)
+        does — the work that produced the count is being thrown away. Without
+        this, the gate_5_2 FIX BLUEPRINT and FIX SPEC handlers leave the
+        counter at its limit, so the next assembly failure after the restart
+        immediately re-emits gate_5_2 instead of giving the user the
+        configured retry budget."""
+        state = _make_state(
+            stage="5",
+            sub_stage="gate_5_2",
+            current_unit=None,
+            assembly_retries=3,
+        )
+        # Both restart targets used by gate_5_2 (stage 2 = FIX BLUEPRINT,
+        # stage 1 = FIX SPEC) must clear the counter.
+        for target in ("2", "1"):
+            result = restart_from_stage(state, target)
+            assert result.assembly_retries == 0, (
+                f"restart_from_stage(state, {target!r}) failed to reset "
+                f"assembly_retries; got {result.assembly_retries}"
+            )
+
 
 # ===================================================================
 # version_document

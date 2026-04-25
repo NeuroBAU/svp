@@ -5919,7 +5919,7 @@ Wired into `assemble_python_project` after `write_delivered_claude_md`. Layout d
 
 - **Context threading on retry.** The retried agent still receives the same task prompt as the first call — no failing-test output, no diagnostic context. Bounded blind retry (this cycle) is significantly safer than unbounded blind retry, but threading context would let the agent fix specific issues. Requires changes to `_prepare_git_repo_agent` (Unit 13) and a state field or artifact for the test-failure summary.
 - **`gate_5_3_unused_functions` wiring.** Different trigger (compliance_scan finding unused functions in delivered repo); requires `compliance_scan` to expose this signal. Separate concern from the retry-loop safety net.
-- **`assembly_retries` reset on stage-restart paths beyond gate_5_2.** `restart_from_stage` may or may not reset this field cleanly; would audit and fix in the follow-up.
+- **`assembly_retries` reset on stage-restart paths beyond gate_5_2.** RESOLVED 2026-04-25 by Bug S3-153 (§24.167) — audit confirmed `restart_from_stage` did NOT reset the counter, fixed with a one-line addition parallel to the existing `red_run_retries` reset.
 
 **Pattern note:** This is NOT a P35 instance (P35 = agent-discretionary step promoted to code path). This is a different shape: **vocabulary-without-transitions** — a complete dispatch + routing handler exists for a state value (`sub_stage = "gate_5_2"`) that no code path ever produces. Worth tracking as a candidate **P36 (Vocabulary Without Transitions)** when a second instance shows up. Suggested audit recipe: for every value in a state field's domain, grep for assignments of that value and verify at least one routing path produces it.
 
@@ -6027,6 +6027,20 @@ The branch is wrapped so unknown layouts produce no pytest configuration (preser
 **Detection.** Covered by the existing S3-151 test suite — the parametrized layout sweep would fail again if this regression is introduced, since each parametrized case independently invokes the delivered repo's pytest.
 
 **Pattern observation.** The original "tests pass out of the box" promise of S3-146 was tested only at the artifact-presence level (test files copied, imports rewritten); it was not tested at the behavioral level (pytest actually green). S3-151's end-to-end pytest check is the structural fix — it elevates the assertion to "the deliverable does what we say it does", not "the deliverable contains the right files". Lessons-learned entry: **promise-by-artifact vs. promise-by-behavior**. When a refactor or fix promises a downstream property (here: tests pass), at least one test should assert that property by reproducing the downstream invocation, not merely by asserting the artifacts that should produce it.
+
+### 24.167 assembly_retries Survives restart_from_stage (Post-delivery — Bug S3-153, RESOLVED IN 2.2)
+
+**`restart_from_stage` reset `red_run_retries` but not `assembly_retries` (RESOLVED IN 2.2 — Bug S3-153).** The S3-149 retry-loop safety net introduced `assembly_retries` as a Stage 5 retry counter, parallel in role to the existing Stage 3 `red_run_retries` counter. Only the `RETRY ASSEMBLY` handler at `gate_5_2_assembly_exhausted` reset the counter. The `FIX BLUEPRINT` and `FIX SPEC` responses at the same gate both call `restart_from_stage` (to stages 2 and 1 respectively), which resets `red_run_retries` but had no parallel reset for `assembly_retries`. After such a restart, the next assembly failure would immediately re-emit `gate_5_2` instead of giving the user the configured retry budget — the counter would still be at its cap from the prior assembly run.
+
+The S3-149 spec entry (§24.162) documented this as a sub-deferral: "`assembly_retries` reset on stage-restart paths beyond gate_5_2. `restart_from_stage` may or may not reset this field cleanly; would audit and fix in the follow-up."
+
+**Audit outcome.** Confirmed gap: `src/unit_6/stub.py::restart_from_stage` resets `red_run_retries = 0`, `fix_ladder_position = None`, `current_unit = None`, and conditionally `alignment_iterations = 0` for stage-2 restarts, but does NOT touch `assembly_retries`. By the same logic that motivates resetting `red_run_retries` (the work that produced the count is being thrown away), `assembly_retries` must also reset.
+
+**Fix.** Add `new.assembly_retries = 0` to `restart_from_stage` immediately after the existing `new.red_run_retries = 0` assignment. The fix is a single line plus a comment explaining the parallel with `red_run_retries`.
+
+**Detection.** `tests/unit_6/test_unit_6.py::TestRestartFromStage::test_restart_resets_assembly_retries` — exercises both restart targets used by `gate_5_2` (stage 2 = FIX BLUEPRINT, stage 1 = FIX SPEC) and asserts `assembly_retries` is zero after each. The test is added next to the existing `test_restart_clears_unit_and_ladder` so future maintainers see the parallel.
+
+**Pattern observation.** Sibling pattern to **P36-candidate Vocabulary Without Transitions** (§24.162): when a new state-field counter is added with a forward-direction reset (incrementer plus a single-handler reset), audit the *all* paths that should reset it. In this case, the parallel was clear from the existence of `red_run_retries` immediately above the new field — but the lift was subtle because `restart_from_stage` is in a different unit (Unit 6) than the gate that introduced the field (Unit 14). Lesson: when a state field's lifetime crosses unit boundaries, the field's reset audit must also cross unit boundaries.
 
 ---
 
