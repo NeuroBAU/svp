@@ -66,21 +66,27 @@ You MUST NOT:
     directory exists) or RAISE an error (if it does not), halting the \
     pipeline. Do not try to set state directly.
 
-## Automated Delivery Steps (Bug S3-146)
+## Automated Delivery Steps (Bugs S3-146, S3-147)
 
-The Python assembler helper now performs **two delivery steps automatically** \
-after creating the repo structure: (1) copies `workspace/tests/` to \
-`repo/tests/` with a fixed exclusion list (caches, backups, cross-unit \
-workspace stubs), and (2) adapts test imports to match the delivered \
-source layout (no-op for `svp_native`; rewrites flat imports to \
-package-prefixed form for `conventional` / `flat`).
+The assembler helpers now perform **three delivery steps automatically** \
+after creating the repo structure: (1) `copy_workspace_tests_to_repo` copies \
+`workspace/tests/` to `repo/tests/` with a fixed exclusion list (caches, \
+backups, cross-unit workspace stubs); (2) `adapt_test_imports_in_repo` \
+adapts test imports to match the delivered source layout (no-op for \
+`svp_native`; rewrites flat imports to package-prefixed form for \
+`conventional` / `flat`); (3) `write_delivered_claude_md` writes a \
+delivered-repo-scoped `CLAUDE.md` carrying a Universal Manual Bug-Fixing \
+Protocol stripped of SVP-internal references (workspace, pipeline state, \
+PREPARE/POST commands) — skipped for E/F self-builds where \
+`assemble_svp_workspace_artifacts` already writes the SVP-meta variant.
 
-You **MUST NOT** re-do these steps manually. The helper is idempotent and \
+You **MUST NOT** re-do these steps manually. The helpers are idempotent and \
 deterministic; running them again from your shell would not produce a \
 better result and risks divergence between the workspace contents and the \
-delivered repo. If you observe missing tests in the delivered repo, treat \
-it as a bug in the assembler helper (file via `/svp:bug`), not as a step \
-for you to compensate for.
+delivered repo. If you observe missing tests, missing CLAUDE.md, or \
+incorrectly-adapted imports in the delivered repo, treat it as a bug in \
+the assembler helper (file via `/svp:bug`), not as a step for you to \
+compensate for.
 
 You **MUST still** run `generate_assembly_map.py regression-adapt` after \
 the assembler returns — that script handles the separate concern of \
@@ -691,6 +697,30 @@ def adapt_test_imports_in_repo(
     return adapter(repo_dir, workspace_modules, package)
 
 
+def write_delivered_claude_md(
+    repo_dir: Path, profile: Dict[str, Any], project_name: str
+) -> bool:
+    """Write a delivered-repo-scoped CLAUDE.md to repo_dir (Bug S3-147).
+
+    For A-D archetypes only. E/F self-builds set profile["is_svp_build"]=True
+    and use the existing assemble_svp_workspace_artifacts path which writes
+    CLAUDE_MD_TEMPLATE + CLAUDE_MD_SVP_ADDENDUM into the repo; this function
+    skips that case so we don't overwrite the SVP-meta content.
+
+    Always overwrites for A-D archetypes — the assembly path is
+    regenerative (_backup_existing already preserved any prior content
+    under .bak.YYYYMMDD-HHMMSS). Same inputs → same output every assembly.
+
+    Returns True iff the file was written.
+    """
+    if profile.get("is_svp_build", False):
+        return False
+    from src.unit_29.stub import CLAUDE_MD_DELIVERED_REPO_TEMPLATE
+    content = CLAUDE_MD_DELIVERED_REPO_TEMPLATE.format(project_name=project_name)
+    (repo_dir / "CLAUDE.md").write_text(content, encoding="utf-8")
+    return True
+
+
 def assemble_python_project(
     project_root: Path,
     profile: Dict[str, Any],
@@ -751,6 +781,11 @@ def assemble_python_project(
     adapt_test_imports_in_repo(
         repo_dir, profile, _workspace_module_names(project_root)
     )
+
+    # Bug S3-147: deterministic delivered-repo CLAUDE.md with break-glass
+    # protocol. Skipped for E/F self-builds (assemble_svp_workspace_artifacts
+    # writes a different template).
+    write_delivered_claude_md(repo_dir, profile, project_name)
 
     return repo_dir
 
@@ -817,6 +852,9 @@ def assemble_r_project(
     )
     (repo_dir / "tests" / "testthat.R").write_text(testthat_r)
 
+    # Bug S3-147: deterministic delivered-repo CLAUDE.md.
+    write_delivered_claude_md(repo_dir, profile, project_name)
+
     return repo_dir
 
 
@@ -860,6 +898,9 @@ def assemble_plugin_project(
 
     # Python source directory for plugin Python modules
     (plugin_dir / "strategies").mkdir(parents=True, exist_ok=True)
+
+    # Bug S3-147: deterministic delivered-repo CLAUDE.md.
+    write_delivered_claude_md(repo_dir, profile, project_name)
 
     return repo_dir
 
