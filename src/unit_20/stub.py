@@ -197,10 +197,65 @@ Ask about:
 unit, encode tool preferences as behavioral contracts (Layer 1), and include commit style, \
 quality tool preferences, and changelog format in the git repo agent behavioral contract.
 5. **Write the blueprint.** Write each unit in the three-tier format.
-6. **Self-Review Pass.** Before emitting your terminal status line, run the self-review \
+6. **Write the Delivered File Tree (mandatory).** See "Delivered File Tree" below.
+7. **Self-Review Pass.** Before emitting your terminal status line, run the self-review \
 pass described under "Self-Review Artifact" below. Iterate (revise the blueprint and \
 re-run the self-review) until every item is PASS. Only after the self-review outcome \
 is `ALL_PASS` may you emit `BLUEPRINT_DRAFT_COMPLETE` or `BLUEPRINT_REVISION_COMPLETE`.
+
+## Delivered File Tree (Bug S3-150 — MANDATORY)
+
+The blueprint prose file (`blueprint/blueprint_prose.md`) **MUST** include a section \
+titled `## Preamble: Delivered File Tree` containing a fenced code block with the \
+file tree of the delivered repository. Each row that maps to a workspace unit MUST \
+carry an inline `<- Unit N` annotation pointing at the producing unit number. \
+`generate_assembly_map.py` parses this code block to produce \
+`.svp/assembly_map.json`, which `deliver_source_files` consumes during Stage 5 to \
+copy + import-rewrite each source stub to its delivered location. Without this \
+section, the assembly_map cannot be generated and Stage 5 source delivery fails \
+loudly.
+
+Format example (illustrative — adapt paths to the project's actual layout per \
+`profile["delivery"]["python"]["source_layout"]`):
+
+```
+{{project_name}}-repo/                  <- repository root
+|-- pyproject.toml
+|-- src/
+|   +-- {{package_name}}/
+|       |-- __init__.py
+|       |-- engine.py                   <- Unit 1
+|       |-- patterns.py                 <- Unit 2
+|       +-- display.py                  <- Unit 3
++-- tests/
+    |-- unit_1/
+    |   +-- test_engine.py              <- Unit 1
+    |-- unit_2/
+    |   +-- test_patterns.py            <- Unit 2
+    +-- unit_3/
+        +-- test_display.py             <- Unit 3
+```
+
+**Annotation rules:**
+
+- Each `<- Unit N` annotation must follow a file (not directory) row and point at \
+the workspace unit whose stub.py produces that file. Many-to-one is allowed (one \
+unit can produce multiple deployed files); 1-to-many is not (one file cannot have \
+two unit annotations).
+- Files without a unit producer (e.g., `pyproject.toml`, `__init__.py`, generated \
+docs) need no annotation; they're written by the assembler helpers, not by stub \
+derivation.
+- Tests for unit N go in `tests/unit_N/test_*.py` and carry `<- Unit N` so the \
+assembly_map captures the test→unit relationship even though tests are excluded \
+from `deliver_source_files`'s rewriting (see Bug S3-148).
+
+**Layout-specific destinations** (driven by `profile["delivery"]["python"]["source_layout"]`):
+
+- `conventional`: source files at `{{project_name}}-repo/src/{{package_name}}/<module>.py`
+- `flat`: source files at `{{project_name}}-repo/{{package_name}}/<module>.py`
+- `svp_native`: source files at `{{project_name}}-repo/scripts/<module>.py`
+
+Choose the destination that matches the profile and use it in your annotated tree.
 
 ## Self-Review Artifact
 

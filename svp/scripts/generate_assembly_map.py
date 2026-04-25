@@ -1741,7 +1741,19 @@ def generate_assembly_map(
                 break
         if file_tree_text is None:
             raise ValueError(
-                "Could not find file tree with Unit annotations in blueprint_prose.md"
+                "Could not find file tree with Unit annotations in "
+                "blueprint_prose.md.\n\n"
+                "Bug S3-150: the blueprint must include a section titled "
+                "'## Preamble: Delivered File Tree' containing a fenced code "
+                "block with the delivered repository's file tree. Each row "
+                "that maps to a workspace unit must carry an inline "
+                "`<- Unit N` annotation pointing at the producing unit "
+                "number.\n\n"
+                "Fix: invoke the blueprint_author agent in revision mode and "
+                "ask it to add the Preamble section. The agent's definition "
+                "(unit_20::BLUEPRINT_AUTHOR_DEFINITION, 'Delivered File Tree' "
+                "section) describes the required format and includes a worked "
+                "example. See spec section 24.164."
             )
 
     repo_to_workspace: Dict[str, str] = {}
