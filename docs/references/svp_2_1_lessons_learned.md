@@ -496,6 +496,13 @@
 - **Prevention:** Test fixtures must model real deployment layouts, not the layouts assumed by the code under test. When fixing a path or layout bug, audit adjacent test fixtures for the same mirror-the-bug pattern. A test that passes AND validates against a real-world sample (e.g., an assertion that a constant matches `~/.claude/plugins/cache/...` structure) is stronger than a self-consistent synthetic fixture.
 - **Detection:** `tests/regressions/test_bug_s3_145_plugin_hooks_path.py` pins the corrected fixture layout against future drift.
 
+### Lesson: Agent-Discretionary Step Promoted to Code Path (Bug S3-146)
+
+- **Bug:** S3-146 (Stage 5 Python project assembly did not deliver `tests/`. Spec assumed the agent would copy `workspace/tests/` to `repo/tests/` and adapt flat-import test files to match the delivered source layout, but the agent prompt never explicitly required the copy and the assembler had no helper for either step. On Windows-advancing pipelines the agent's ad-hoc reasoning produced an empty `tests/` in the delivered repo.)
+- **Root cause:** Pattern P30 (Invariant Documented But Not Enforced) at a workspace-to-repo boundary. The step's existence was specced in prose (§12.1.X line 2962) but no code path implemented it; the agent was the implicit implementation, which fails non-deterministically.
+- **Prevention pattern P35 (NEW — Agent-Discretionary Step Promoted to Code Path):** When a workspace-to-repo delivery step has been specced informally as "the agent does X", and X has both a deterministic implementation AND a track record of agent-discretion failures, promote X to a code helper invoked from the assembler. Update the agent prompt to forbid re-doing X manually. P35 covers a broader pattern than P34 (Stage-Boundary Artifact Materialization) because the trigger is "informally-specced agent step", not necessarily a multi-stage handoff. The routing-mode handshake cycles (S3-141, S3-142, S3-143) are earlier instances of this pattern; future audits should look for "the agent does X" prose without a corresponding helper as a candidate.
+- **Detection:** `tests/unit_23/test_s3_146_deterministic_test_delivery.py` — six tests covering copy exclusions, layout-keyed adapt dispatch, idempotency, allow-list scoping, and pyproject pythonpath emission.
+
 ### Lesson: Command Script CLI Interface (Bug S3-67)
 
 - **Bug:** S3-67 (cmd_*.py use sys.argv[1] positional instead of --project-root argparse)

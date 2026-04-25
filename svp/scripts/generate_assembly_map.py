@@ -6,8 +6,10 @@ and R, assembly map generation, and regression test import adaptation CLI.
 """
 
 import argparse
+import ast
 import json
 import re
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -63,6 +65,28 @@ You MUST NOT:
     the dispatch step will overwrite your value (if the canonical \
     directory exists) or RAISE an error (if it does not), halting the \
     pipeline. Do not try to set state directly.
+
+## Automated Delivery Steps (Bug S3-146)
+
+The Python assembler helper now performs **two delivery steps automatically** \
+after creating the repo structure: (1) copies `workspace/tests/` to \
+`repo/tests/` with a fixed exclusion list (caches, backups, cross-unit \
+workspace stubs), and (2) adapts test imports to match the delivered \
+source layout (no-op for `svp_native`; rewrites flat imports to \
+package-prefixed form for `conventional` / `flat`).
+
+You **MUST NOT** re-do these steps manually. The helper is idempotent and \
+deterministic; running them again from your shell would not produce a \
+better result and risks divergence between the workspace contents and the \
+delivered repo. If you observe missing tests in the delivered repo, treat \
+it as a bug in the assembler helper (file via `/svp:bug`), not as a step \
+for you to compensate for.
+
+You **MUST still** run `generate_assembly_map.py regression-adapt` after \
+the assembler returns — that script handles the separate concern of \
+carry-forward regression test imports (SVP N→N+1 module migrations) and \
+is keyed by an explicit `regression_test_import_map.json` file. It is not \
+covered by the automated unit-test adapt above.
 
 ## Terminal Status
 
@@ -464,6 +488,7 @@ def _write_pyproject_toml(
     """Generate pyproject.toml with project metadata and dependencies."""
     python_delivery = profile.get("delivery", {}).get("python", {})
     entry_points_enabled = python_delivery.get("entry_points", False)
+    source_layout = python_delivery.get("source_layout", "conventional")
 
     content_lines = [
         "[build-system]",
@@ -492,8 +517,178 @@ def _write_pyproject_toml(
         else:
             content_lines.append(f'{project_name} = "{project_name}:main"')
 
+    # Bug S3-146: for svp_native layout, tests use flat imports (`from
+    # ledger_manager import …`) and the source code lives at repo/scripts/.
+    # Add pythonpath so pytest can discover the modules without an adapt
+    # step. For conventional/flat layouts, the test-import adapt step
+    # (adapt_test_imports_in_repo) rewrites imports to the package prefix
+    # instead — pythonpath is not needed there.
+    if source_layout == "svp_native":
+        content_lines.extend(
+            [
+                "",
+                "[tool.pytest.ini_options]",
+                'pythonpath = ["scripts"]',
+            ]
+        )
+
     content_lines.append("")
     (repo_dir / "pyproject.toml").write_text("\n".join(content_lines))
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-146: Deterministic test delivery and import adaptation
+# ---------------------------------------------------------------------------
+
+# Files / dirs to skip when copying workspace/tests/ to repo/tests/. Caches and
+# backups have no use in the delivered repo; cross-unit workspace stub helpers
+# (tests/unit_*/unit_*_stub.py) resolve via flat imports in the workspace but
+# would be noise in the delivered repo where the script-derivation pipeline
+# has already produced flat modules.
+_TEST_COPY_IGNORE = shutil.ignore_patterns(
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "*.pyc",
+    "*.bak.*",
+    "*.bak",
+    "unit_*_stub.py",
+)
+
+
+def _workspace_module_names(workspace: Path) -> List[str]:
+    """Return the flat module names of scripts in workspace/scripts/.
+
+    These are the modules that workspace tests import via
+    `from <name> import …`. Must be called after sync_workspace.sh Step 0
+    has derived scripts/ from src/unit_*/stub.py. Excludes __init__.py.
+    """
+    scripts_dir = workspace / "scripts"
+    if not scripts_dir.is_dir():
+        return []
+    return sorted(
+        p.stem
+        for p in scripts_dir.glob("*.py")
+        if p.is_file() and p.name != "__init__.py"
+    )
+
+
+def _derive_package_name(profile: Dict[str, Any], repo_dir: Path) -> str:
+    """Derive the Python package name from profile or repo dir name.
+
+    Precedence: profile.delivery.python.package_name > repo_dir.name (with
+    "-" and " " replaced by "_" to make a valid Python identifier).
+    """
+    python_delivery = profile.get("delivery", {}).get("python", {})
+    explicit = python_delivery.get("package_name")
+    if explicit:
+        return str(explicit)
+    return repo_dir.name.replace("-", "_").replace(" ", "_")
+
+
+def copy_workspace_tests_to_repo(
+    workspace: Path, repo_dir: Path, profile: Dict[str, Any]
+) -> int:
+    """Copy workspace/tests/ to repo/tests/ with fixed exclusions.
+
+    Idempotent (dirs_exist_ok=True). Returns the count of .py files in the
+    destination after the copy.
+
+    Python archetype focus for now (Bug S3-146 scope). R archetype's
+    workspace/tests/testthat/ also lands at repo/tests/testthat/ via the
+    same copytree because the source already has that subdirectory layout.
+    Plugin and mixed archetypes are deferred — they may need destination
+    routing (e.g., repo/<plugin>/tests/) which this helper doesn't yet do.
+    """
+    src = workspace / "tests"
+    if not src.is_dir():
+        return 0
+    dst = repo_dir / "tests"
+    dst.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(src, dst, ignore=_TEST_COPY_IGNORE, dirs_exist_ok=True)
+    return sum(1 for _ in dst.rglob("*.py"))
+
+
+def _rewrite_imports_with_prefix(
+    repo_dir: Path, workspace_modules: List[str], package: str
+) -> int:
+    """Rewrite flat imports in repo/tests/*.py to package-prefixed form.
+
+    Transformations (only for module names in workspace_modules):
+      from <module> import …   →   from <package>.<module> import …
+      import <module>          →   import <package>.<module>
+      import <module> as X     →   import <package>.<module> as X
+
+    Idempotent by construction: an import already prefixed (e.g.,
+    `from <package>.<module>`) has node.module == "<package>.<module>",
+    which is NOT in workspace_modules, so the walk leaves it alone.
+
+    Uses ast.parse + ast.unparse for safety. ast.unparse preserves
+    semantics but may normalize formatting (e.g., quote style); test
+    files do not depend on sensitive formatting.
+
+    Returns the number of files modified.
+    """
+    modset = set(workspace_modules)
+    tests_dir = repo_dir / "tests"
+    if not tests_dir.is_dir():
+        return 0
+
+    count = 0
+    for pyfile in sorted(tests_dir.rglob("*.py")):
+        try:
+            source = pyfile.read_text(encoding="utf-8")
+            tree = ast.parse(source)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        modified = False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                # Only rewrite absolute imports of known workspace modules.
+                if node.module in modset and node.level == 0:
+                    node.module = f"{package}.{node.module}"
+                    modified = True
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in modset:
+                        alias.name = f"{package}.{alias.name}"
+                        modified = True
+        if modified:
+            pyfile.write_text(ast.unparse(tree) + "\n", encoding="utf-8")
+            count += 1
+    return count
+
+
+# Layout-keyed dispatch table. Adding a new layout = one entry.
+_ADAPT_BY_LAYOUT: Dict[str, Callable[[Path, List[str], str], int]] = {
+    "svp_native": lambda repo, mods, pkg: 0,  # no-op: pyproject pythonpath handles it
+    "conventional": _rewrite_imports_with_prefix,
+    "flat": _rewrite_imports_with_prefix,
+}
+
+
+def adapt_test_imports_in_repo(
+    repo_dir: Path, profile: Dict[str, Any], workspace_modules: List[str]
+) -> int:
+    """Adapt test imports in repo_dir/tests/ to the delivered repo's layout.
+
+    For svp_native layout: no-op (flat imports resolve via pyproject's
+    pythonpath = ["scripts"]).
+    For conventional and flat layouts: rewrites flat imports to
+    package-prefixed form via _rewrite_imports_with_prefix.
+
+    Returns the number of files modified.
+    """
+    layout = (
+        profile.get("delivery", {})
+        .get("python", {})
+        .get("source_layout", "conventional")
+    )
+    package = _derive_package_name(profile, repo_dir)
+    adapter = _ADAPT_BY_LAYOUT.get(layout, _rewrite_imports_with_prefix)
+    return adapter(repo_dir, workspace_modules, package)
 
 
 def assemble_python_project(
@@ -547,6 +742,15 @@ def assemble_python_project(
 
     # Generate pyproject.toml
     _write_pyproject_toml(repo_dir, profile, assembly_config, project_name)
+
+    # Bug S3-146: deterministic test suite delivery + import adaptation.
+    # Replaces the previous agent-discretionary step where the git_repo_agent
+    # was expected to copy tests and adapt imports manually (often missed,
+    # especially on Windows where path semantics differ).
+    copy_workspace_tests_to_repo(project_root, repo_dir, profile)
+    adapt_test_imports_in_repo(
+        repo_dir, profile, _workspace_module_names(project_root)
+    )
 
     return repo_dir
 
