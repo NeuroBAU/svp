@@ -66,9 +66,9 @@ You MUST NOT:
     directory exists) or RAISE an error (if it does not), halting the \
     pipeline. Do not try to set state directly.
 
-## Automated Delivery Steps (Bugs S3-146, S3-147)
+## Automated Delivery Steps (Bugs S3-146, S3-147, S3-148)
 
-The assembler helpers now perform **three delivery steps automatically** \
+The assembler helpers now perform **four delivery steps automatically** \
 after creating the repo structure: (1) `copy_workspace_tests_to_repo` copies \
 `workspace/tests/` to `repo/tests/` with a fixed exclusion list (caches, \
 backups, cross-unit workspace stubs); (2) `adapt_test_imports_in_repo` \
@@ -78,7 +78,12 @@ adapts test imports to match the delivered source layout (no-op for \
 delivered-repo-scoped `CLAUDE.md` carrying a Universal Manual Bug-Fixing \
 Protocol stripped of SVP-internal references (workspace, pipeline state, \
 PREPARE/POST commands) — skipped for E/F self-builds where \
-`assemble_svp_workspace_artifacts` already writes the SVP-meta variant.
+`assemble_svp_workspace_artifacts` already writes the SVP-meta variant; \
+(4) `deliver_source_files` walks `.svp/assembly_map.json` and copies each \
+Python source entry from `workspace/src/unit_N/stub.py` to the \
+layout-appropriate destination in the delivered repo, rewriting \
+stub-style imports (`from src.unit_N.stub import X`) to flat or \
+package-prefixed form depending on `delivery.python.source_layout`.
 
 You **MUST NOT** re-do these steps manually. The helpers are idempotent and \
 deterministic; running them again from your shell would not produce a \
@@ -697,6 +702,176 @@ def adapt_test_imports_in_repo(
     return adapter(repo_dir, workspace_modules, package)
 
 
+_NON_SOURCE_REPO_PATH_MARKERS = (
+    "/tests/",
+    "/agents/",
+    "/commands/",
+    "/hooks/",
+    "/skills/",
+    "/.claude-plugin/",
+    ".claude-plugin/",
+)
+
+
+def _extract_unit_number(stub_path: str) -> int | None:
+    """Extract N from 'src.unit_N.stub' or 'src/unit_N/stub.py' or any path
+    containing 'unit_<digits>'. Returns None if no unit number is present.
+    """
+    match = re.search(r"unit_(\d+)", stub_path)
+    return int(match.group(1)) if match else None
+
+
+def _derive_unit_to_module_map(repo_to_workspace: Dict[str, str]) -> Dict[int, str]:
+    """Build a unit-number → deployed-module-name map from the assembly map.
+
+    Filters to .py source-code entries (excludes tests, agents, commands,
+    hooks, skills, manifests, __init__.py). Uses the basename of the
+    deployed path (without .py) as the module name. Assumes 1:1 within the
+    source tree per Bug S3-98 (one stub per unit). When multiple source
+    entries map to the same unit (unexpected), the last entry wins.
+    """
+    unit_to_module: Dict[int, str] = {}
+    for deployed_path, source_path in repo_to_workspace.items():
+        if not deployed_path.endswith(".py"):
+            continue
+        if any(marker in deployed_path for marker in _NON_SOURCE_REPO_PATH_MARKERS):
+            continue
+        if Path(deployed_path).name == "__init__.py":
+            continue
+        unit_n = _extract_unit_number(source_path)
+        if unit_n is None:
+            continue
+        unit_to_module[unit_n] = Path(deployed_path).stem
+    return unit_to_module
+
+
+def _rewrite_source_imports(
+    source_text: str,
+    unit_to_module: Dict[int, str],
+    package: str | None,
+) -> str:
+    """Rewrite stub-style imports in a workspace stub to delivered form.
+
+    Handles three patterns when the imported module is `src.unit_N.stub`
+    and `N` is in `unit_to_module`:
+      from src.unit_N.stub import X  →  from <prefix><module> import X
+      import src.unit_N.stub          →  import <prefix><module>
+      import src.unit_N.stub as Y     →  import <prefix><module> as Y
+
+    `<prefix>` is empty for svp_native (`package is None`); for
+    conventional/flat layouts it is `<package>.`.
+
+    Idempotent: an already-rewritten import does not start with `src.unit_`
+    and is left alone. Returns rewritten source if any changes were made,
+    else the original source unchanged.
+    """
+    try:
+        tree = ast.parse(source_text)
+    except SyntaxError:
+        return source_text
+
+    modified = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if (
+                node.module
+                and node.module.startswith("src.unit_")
+                and node.module.endswith(".stub")
+                and node.level == 0
+            ):
+                unit_n = _extract_unit_number(node.module)
+                if unit_n is not None and unit_n in unit_to_module:
+                    module_name = unit_to_module[unit_n]
+                    new_module = (
+                        f"{package}.{module_name}" if package else module_name
+                    )
+                    node.module = new_module
+                    modified = True
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.startswith("src.unit_") and alias.name.endswith(".stub"):
+                    unit_n = _extract_unit_number(alias.name)
+                    if unit_n is not None and unit_n in unit_to_module:
+                        module_name = unit_to_module[unit_n]
+                        new_name = (
+                            f"{package}.{module_name}" if package else module_name
+                        )
+                        alias.name = new_name
+                        modified = True
+
+    if modified:
+        return ast.unparse(tree) + "\n"
+    return source_text
+
+
+def deliver_source_files(
+    workspace: Path,
+    repo_dir: Path,
+    assembly_map: Dict[str, Any],
+    profile: Dict[str, Any],
+) -> int:
+    """Walk assembly_map repo_to_workspace .py source entries, copy + rewrite imports.
+
+    For each .py source entry (excluding tests/, agents/, commands/, hooks/,
+    skills/, manifests, __init__.py), reads the workspace stub, rewrites
+    stub-style imports via _rewrite_source_imports, and writes to
+    repo_dir / relative_path (where relative_path strips a leading
+    `<repo_dir.name>/` prefix from deployed_path if present).
+
+    Layout-keyed prefix selection: svp_native uses no package prefix
+    (modules land at repo/scripts/<module>.py); conventional / flat use
+    `<package>.<module>` form (modules land at repo/src/<pkg>/<module>.py
+    or repo/<pkg>/<module>.py respectively). Package name is derived via
+    _derive_package_name(profile, repo_dir).
+
+    Returns the number of files written. Soft-fails on missing
+    repo_to_workspace key (returns 0).
+    """
+    layout = (
+        profile.get("delivery", {})
+        .get("python", {})
+        .get("source_layout", "conventional")
+    )
+    package = None if layout == "svp_native" else _derive_package_name(profile, repo_dir)
+
+    repo_to_workspace = assembly_map.get("repo_to_workspace", {})
+    if not repo_to_workspace:
+        return 0
+
+    unit_to_module = _derive_unit_to_module_map(repo_to_workspace)
+    repo_name = repo_dir.name
+    count = 0
+
+    for deployed_path, source_path in repo_to_workspace.items():
+        if not deployed_path.endswith(".py"):
+            continue
+        if any(marker in deployed_path for marker in _NON_SOURCE_REPO_PATH_MARKERS):
+            continue
+        if Path(deployed_path).name == "__init__.py":
+            continue
+
+        # Strip leading `<repo_name>/` from deployed path to get a path
+        # relative to repo_dir.
+        if deployed_path.startswith(repo_name + "/"):
+            relative = deployed_path[len(repo_name) + 1 :]
+        else:
+            relative = deployed_path
+
+        target = repo_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+        source_stub = workspace / source_path
+        if not source_stub.is_file():
+            continue
+
+        source_text = source_stub.read_text(encoding="utf-8")
+        rewritten = _rewrite_source_imports(source_text, unit_to_module, package)
+        target.write_text(rewritten, encoding="utf-8")
+        count += 1
+
+    return count
+
+
 def write_delivered_claude_md(
     repo_dir: Path, profile: Dict[str, Any], project_name: str
 ) -> bool:
@@ -786,6 +961,22 @@ def assemble_python_project(
     # protocol. Skipped for E/F self-builds (assemble_svp_workspace_artifacts
     # writes a different template).
     write_delivered_claude_md(repo_dir, profile, project_name)
+
+    # Bug S3-148: deterministic source-file delivery. Reads the assembly_map
+    # produced by generate_assembly_map and copies/rewrites each .py source
+    # entry into the delivered repo at the layout-appropriate destination.
+    # Soft-fails when the assembly_map is absent — early-pipeline assembly
+    # may run before generate_assembly_map has produced the map.
+    assembly_map_path = project_root / ".svp" / "assembly_map.json"
+    if assembly_map_path.is_file():
+        try:
+            assembly_map_obj = json.loads(
+                assembly_map_path.read_text(encoding="utf-8")
+            )
+            deliver_source_files(project_root, repo_dir, assembly_map_obj, profile)
+        except (json.JSONDecodeError, OSError):
+            # Map exists but is unreadable; skip delivery rather than crash.
+            pass
 
     return repo_dir
 

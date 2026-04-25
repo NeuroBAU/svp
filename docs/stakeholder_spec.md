@@ -5891,6 +5891,8 @@ Wired into `assemble_python_project` after `write_delivered_claude_md`. Layout d
 
 **Detection:** `tests/unit_23/test_s3_148_source_delivery_anchor.py` — one anchor test asserting that `assemble_python_project` produces only `src/<package>/__init__.py` (and the `pyproject.toml`) for the conventional layout. The future cycle that lands `deliver_source_files` will deliberately break this anchor and update it.
 
+**SUPERSEDED 2026-04-25 by §24.163 (Bug S3-148 fix landed).** The anchor test was inverted to assert the populated state. This entry is retained as historical context for the deferral rationale.
+
 ### 24.162 Stage 5 Retry Framework Dead-Code (Post-delivery — Bug S3-149, NEW IN 2.2)
 
 **Stage 5 retry loop unbounded; gate_5_2 and gate_5_3 unreachable (NEW IN 2.2 — Bug S3-149).** Audit during the Stage 5 Delivery Determinism batch (2026-04-25) confirmed three gaps in the Stage 5 retry framework:
@@ -5922,6 +5924,33 @@ Wired into `assemble_python_project` after `write_delivered_claude_md`. Layout d
 **Pattern note:** This is NOT a P35 instance (P35 = agent-discretionary step promoted to code path). This is a different shape: **vocabulary-without-transitions** — a complete dispatch + routing handler exists for a state value (`sub_stage = "gate_5_2"`) that no code path ever produces. Worth tracking as a candidate **P36 (Vocabulary Without Transitions)** when a second instance shows up. Suggested audit recipe: for every value in a state field's domain, grep for assignments of that value and verify at least one routing path produces it.
 
 **Detection:** `tests/unit_14/test_s3_149_assembly_retry_safety.py` — six tests: (a) `assembly_retries` defaults to 0 on a fresh `PipelineState`; (b) JSON round-trip preserves the field; (c) old state file without `assembly_retries` loads with the field defaulted to 0; (d) `TESTS FAILED` below limit increments the counter and leaves sub_stage None; (e) `TESTS FAILED` at limit transitions to `sub_stage = "gate_5_2"`; (f) `RETRY ASSEMBLY` resets the counter to 0 AND sets sub_stage None.
+
+### 24.163 deliver_source_files Implemented — A-D Source Delivery Resolved (Post-delivery — Bug S3-148, RESOLVED 2026-04-25)
+
+**Closes the deferral from §24.161.** A `deliver_source_files(workspace, repo_dir, assembly_map, profile)` helper is now implemented in `src/unit_23/stub.py` and wired into `assemble_python_project` after `write_delivered_claude_md`. The helper walks `.svp/assembly_map.json`'s `repo_to_workspace` entries, filters to `.py` source files (excludes tests, agents, commands, hooks, skills, manifests, `__init__.py`), and for each entry reads the workspace stub at `src/unit_N/stub.py`, rewrites its stub-style imports to the layout-appropriate form via `_rewrite_source_imports`, and writes to the layout-appropriate destination in the delivered repo. Soft-fails when `.svp/assembly_map.json` is absent — early-pipeline assembly may run before `generate_assembly_map` has produced the map.
+
+**AST rewrite handles three import patterns:**
+- `from src.unit_N.stub import X` → `from <prefix><module> import X`
+- `import src.unit_N.stub` → `import <prefix><module>`
+- `import src.unit_N.stub as Y` → `import <prefix><module> as Y`
+
+`<prefix>` is empty for `svp_native` (modules land at `repo/scripts/<module>.py`); for `conventional` / `flat` it is `<package>.` (modules land at `repo/src/<pkg>/<module>.py` or `repo/<pkg>/<module>.py`). Idempotent: imports already rewritten do not start with `src.unit_` and are left alone.
+
+**Unit-to-module map is derived from the assembly_map itself.** For each `(deployed_path, source_stub_path)` entry in `repo_to_workspace`, extract `unit_N` from the source path and use `Path(deployed_path).stem` as the module name. Assumes 1:1 within the source tree per Bug S3-98 (one stub per unit). When multiple source-tree entries map to the same unit number (unexpected), the last entry wins.
+
+**Out of scope — known prerequisites for end-to-end A-D pipeline runs:**
+
+The fix unblocks the source-delivery step *given a valid assembly_map*. It does NOT itself make existing real A-D workspaces (e.g., `gol-python` at `/Users/cfusco/Nextcloud/coding projects/svp2.2/gol-python`) "come back to life" via reassembly alone. Two prerequisites for that:
+
+1. **Blueprint annotations (Bug S3-150).** `generate_assembly_map` reads `<- Unit N` annotations from `blueprint_prose.md`'s file-tree code block. Inspected A-D workspaces do not have these annotations, so `generate_assembly_map` produces an empty map and `deliver_source_files` has nothing to walk. Filed as a separate cycle.
+
+2. **End-to-end Stage 5 validation on a real A-D workspace (Bug S3-151).** Even with annotations and source delivery, an A-D workspace must run through the full pipeline (or at least Stage 5 + verification) to confirm the deliverable assembles and tests pass. Filed as a separate cycle.
+
+This is consistent with the locked design from 2026-04-25 (§24.161): the fix is the deterministic delivery step; the surrounding pipeline gaps are tracked as separate, named bugs.
+
+**Pattern:** P35 (Agent-Discretionary Step Promoted to Code Path) — third instance now closed in code, not just documented. The pattern is fully exercised across S3-146 (tests), S3-147 (CLAUDE.md), and S3-148 (source files).
+
+**Detection:** `tests/unit_23/test_s3_148_source_delivery.py` — seven tests covering svp_native (no prefix), conventional (with prefix), flat (with prefix, different paths), import-alias rewriting, exclusion of non-source entries, idempotency, and end-to-end via `assemble_python_project`. The previous anchor at `tests/unit_23/test_s3_148_source_delivery_anchor.py` is inverted to assert the populated state.
 
 **Pattern:** **P32 (NEW — Round-Trip Regeneration As Test Oracle)**. When a production function produces derived artifacts on disk and a test needs to verify those artifacts are not stale, the test can use the function itself as the oracle by (a) copying the state to a temp directory, (b) running the function on the copy, (c) comparing the copy to the original. This eliminates duplicated logic between test and production, automatically covers any invariant the production function enforces now or in the future, and keeps the test passive — it does not need to know how the function computes anything. Sibling of the "fixture realism" lesson from S3-127: both are about making test infrastructure mirror production infrastructure rather than paraphrase it. The round-trip approach is stronger because it requires zero paraphrase — the test just calls the thing and compares.
 
