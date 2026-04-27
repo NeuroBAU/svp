@@ -6136,6 +6136,23 @@ Resolves IMPROV-19 (a + b). Subsumes IMPROV-10, IMPROV-13.
 
 ---
 
+### S3-161 — R archetype test runner + coverage API mismatched package conventions
+
+**Symptom**: r_*_testthat.json manifests used `testthat::test_dir()` (which doesn't load_all internals) and `covr::package_coverage()` (which installs to a temp lib then runs tests against the installed namespace, masking source-tree coverage). Tests calling internal helpers errored with "could not find function"; coverage reported 0% even when 1449/1451 tests passed.
+
+**Root cause**: Manifests assumed devtools::test() semantics elsewhere in tooling but encoded a different runner. helper-svp.R templated by infrastructure_setup was a placeholder svp_source stub, not a full namespace-exposure helper. covr::package_coverage incompatible with the helper's globalenv-shim approach.
+
+**Surface area**: scripts/toolchain_defaults/r_conda_testthat.json + r_renv_testthat.json (testing block); src/unit_11/stub.py:770-780 (helper-svp.R content).
+
+**Resolution**:
+1. Both manifests: run_command -> devtools::test() with SilentReporter; run_coverage -> environment_coverage after load_all(export_all=TRUE), pkg name read from DESCRIPTION at R runtime via read.dcf.
+2. Both manifests gain devtools/r-devtools in framework_packages.
+3. helper-svp.R templated by infrastructure_setup expanded to full namespace-walk: load_all if available + exposure of internal symbols to globalenv via DESCRIPTION-derived asNamespace().
+
+Resolves IMPROV-20 + IMPROV-21.
+
+---
+
 ## 25. Test Data
 
 Test agents generate synthetic test data from stakeholder spec data characteristics. The test agent declares synthetic data assumptions, presented to the human at the test validation gate. Human-provided real data is not supported in this version.

@@ -49,11 +49,12 @@
   },
   "testing": {
     "tool": "testthat",
-    "run_command": "{run_prefix} Rscript -e 'testthat::test_dir(\"tests/testthat\")'",
-    "run_coverage": "{run_prefix} Rscript -e 'covr::package_coverage()'",
+    "run_command": "{run_prefix} Rscript -e 'devtools::test(reporter = testthat::SilentReporter$new(), stop_on_failure = FALSE)'",
+    "run_coverage": "{run_prefix} Rscript -e 'suppressMessages(devtools::load_all(\".\", export_all = TRUE, quiet = TRUE)); pkg <- as.character(read.dcf(\"DESCRIPTION\")[1, \"Package\"]); cov <- covr::environment_coverage(asNamespace(pkg), test_files = list.files(\"tests/testthat\", pattern = \"^test-.*\\\\.R$\", full.names = TRUE)); cat(round(covr::percent_coverage(cov), 2), \"\\n\")'",
     "framework_packages": [
-      "r-testthat",
-      "r-covr"
+      "r-covr",
+      "r-devtools",
+      "r-testthat"
     ],
     "file_pattern": "test-*.R",
     "collection_error_indicators": [
