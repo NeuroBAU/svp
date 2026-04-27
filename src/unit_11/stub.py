@@ -17,7 +17,8 @@ from typing import Any, Dict, List
 from src.unit_1.stub import ARTIFACT_FILENAMES, derive_env_name, get_blueprint_dir
 from src.unit_2.stub import LANGUAGE_REGISTRY
 from src.unit_3.stub import get_delivery_config, load_profile
-from src.unit_4.stub import load_toolchain
+from src.unit_4.stub import load_toolchain, verify_toolchain_ready
+from src.unit_5.stub import load_state, save_state
 from src.unit_8.stub import extract_units
 
 # ---------------------------------------------------------------------------
@@ -669,6 +670,35 @@ def run_infrastructure_setup(
             )
             if install_cmd:
                 subprocess.run(install_cmd.split(), check=True)
+
+    # -----------------------------------------------------------------------
+    # Step 4c: Toolchain verification (Bug S3-160 / IMPROV-19)
+    # After env creation, run manifest-declared verify_commands to confirm
+    # the env is functional. Sets state.toolchain_status to READY/NOT_READY
+    # and raises RuntimeError on failure (matching the run_infrastructure
+    # contract that any step failure raises). Fires for both Python and R
+    # conda branches; renv/packrat skipped (no verify_commands in those
+    # manifests yet).
+    # -----------------------------------------------------------------------
+    if env_info["env_manager"] == "conda":
+        toolchain_path = project_root / ARTIFACT_FILENAMES["toolchain"]
+        if toolchain_path.exists():
+            ok, errors = verify_toolchain_ready(project_root, env_name)
+            try:
+                state = load_state(project_root)
+            except FileNotFoundError:
+                state = None
+            if state is not None:
+                state.toolchain_status = "READY" if ok else "NOT_READY"
+                try:
+                    save_state(project_root, state)
+                except Exception:
+                    pass
+            if not ok:
+                raise RuntimeError(
+                    "Toolchain verification failed: "
+                    + "; ".join(errors)
+                )
 
     # -----------------------------------------------------------------------
     # Step 5: Directory scaffolding

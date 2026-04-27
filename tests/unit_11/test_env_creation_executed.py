@@ -181,3 +181,183 @@ def test_install_command_includes_third_party_modules(
     assert " json " not in install_str, (
         f"Did not expect stdlib 'json' in install command; got: {install_str}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-160: env creation must be paired with mechanical verification.
+# ---------------------------------------------------------------------------
+
+
+def _r_profile_conda():
+    return {
+        "language": {"primary": "r"},
+        "archetype": "r_project",
+        "delivery": {
+            "r": {
+                "environment_recommendation": "conda",
+                "dependency_format": "environment.yml",
+                "source_layout": "package",
+                "entry_points": False,
+            }
+        },
+    }
+
+
+def _r_registry_conda():
+    return {
+        "r": {
+            "environment_manager": "conda",
+            "file_extension": ".R",
+            "source_dir": "R",
+            "test_dir": "tests/testthat",
+            "test_file_pattern": "test-*.R",
+            "toolchain_file": "r_conda_testthat.json",
+            "bridge_libraries": {},
+            "default_delivery": {
+                "environment_recommendation": "conda",
+            },
+        }
+    }
+
+
+def _materialize_r_toolchain(project_root):
+    """Write a minimal pipeline toolchain.json that has verify_commands."""
+    data = {
+        "environment": {
+            "tool": "conda",
+            "run_prefix": "conda run -n {env_name}",
+            "create_command": (
+                "conda create -n {env_name} -c conda-forge r-base -y"
+            ),
+            "install_command": (
+                "conda install -n {env_name} -c conda-forge {packages} -y"
+            ),
+            "verify_commands": [
+                "{run_prefix} R --version",
+                "{run_prefix} Rscript -e 'library(testthat); cat(\"OK\")'",
+            ],
+        },
+        "language": {"version_constraint": ">=4.3"},
+        "quality": {},
+    }
+    (project_root / "toolchain.json").write_text(json.dumps(data, indent=2))
+
+
+def test_r_conda_env_creation_invokes_verify_and_sets_status_ready(
+    tmp_path, mock_infrastructure_subprocess, monkeypatch
+):
+    """Bug S3-160: R conda branch calls verify_toolchain_ready and sets READY."""
+    import infrastructure_setup
+    from pipeline_state import load_state
+
+    blueprint_dir = tmp_path / "blueprint"
+    _write_minimal_blueprint(blueprint_dir)
+    _seed_state(tmp_path)
+    _materialize_r_toolchain(tmp_path)
+
+    verify_calls = []
+
+    def fake_verify(project_root, env_name, **kwargs):
+        verify_calls.append((project_root, env_name))
+        return (True, [])
+
+    monkeypatch.setattr(
+        infrastructure_setup, "verify_toolchain_ready", fake_verify
+    )
+
+    run_infrastructure_setup(
+        project_root=tmp_path,
+        profile=_r_profile_conda(),
+        toolchain=_r_profile_conda(),
+        language_registry=_r_registry_conda(),
+        blueprint_dir=blueprint_dir,
+    )
+
+    # verify_toolchain_ready was called exactly once with our project root.
+    assert len(verify_calls) == 1
+    assert verify_calls[0][0] == tmp_path
+
+    state = load_state(tmp_path)
+    assert state.toolchain_status == "READY"
+
+
+def test_r_conda_env_creation_verify_failure_propagates_status_not_ready(
+    tmp_path, mock_infrastructure_subprocess, monkeypatch
+):
+    """Bug S3-160: verify failure -> NOT_READY persisted AND RuntimeError raised."""
+    import pytest as _pytest
+
+    import infrastructure_setup
+    from pipeline_state import load_state
+
+    blueprint_dir = tmp_path / "blueprint"
+    _write_minimal_blueprint(blueprint_dir)
+    _seed_state(tmp_path)
+    _materialize_r_toolchain(tmp_path)
+
+    def fake_verify(project_root, env_name, **kwargs):
+        return (False, ["verify command failed (returncode=1): R --version"])
+
+    monkeypatch.setattr(
+        infrastructure_setup, "verify_toolchain_ready", fake_verify
+    )
+
+    with _pytest.raises(RuntimeError, match="Toolchain verification failed"):
+        run_infrastructure_setup(
+            project_root=tmp_path,
+            profile=_r_profile_conda(),
+            toolchain=_r_profile_conda(),
+            language_registry=_r_registry_conda(),
+            blueprint_dir=blueprint_dir,
+        )
+
+    state = load_state(tmp_path)
+    assert state.toolchain_status == "NOT_READY"
+
+
+def test_python_conda_env_creation_also_verifies(
+    tmp_path, mock_infrastructure_subprocess, monkeypatch
+):
+    """Bug S3-160 parity: Python conda branch also fires verify_toolchain_ready."""
+    import infrastructure_setup
+    from pipeline_state import load_state
+
+    blueprint_dir = tmp_path / "blueprint"
+    _write_minimal_blueprint(blueprint_dir)
+    _seed_state(tmp_path)
+    # Materialize a python-shaped pipeline toolchain.json with verify_commands.
+    (tmp_path / "toolchain.json").write_text(
+        json.dumps(
+            {
+                "environment": {
+                    "tool": "conda",
+                    "run_prefix": "conda run -n {env_name}",
+                    "verify_commands": ["{run_prefix} python --version"],
+                },
+                "language": {"version_constraint": ">=3.11"},
+                "quality": {},
+            }
+        )
+    )
+
+    verify_calls = []
+
+    def fake_verify(project_root, env_name, **kwargs):
+        verify_calls.append((project_root, env_name))
+        return (True, [])
+
+    monkeypatch.setattr(
+        infrastructure_setup, "verify_toolchain_ready", fake_verify
+    )
+
+    run_infrastructure_setup(
+        project_root=tmp_path,
+        profile=_minimal_profile(),
+        toolchain=_minimal_toolchain(),
+        language_registry=_minimal_registry(),
+        blueprint_dir=blueprint_dir,
+    )
+
+    assert len(verify_calls) == 1
+    state = load_state(tmp_path)
+    assert state.toolchain_status == "READY"

@@ -113,8 +113,8 @@ LANGUAGE_REGISTRY: Dict[str, Dict[str, Any]] = {
         "source_dir": "R",
         "test_dir": "tests/testthat",
         "test_file_pattern": "test-*.R",
-        "toolchain_file": "r_renv_testthat.json",
-        "environment_manager": "renv",
+        "toolchain_file": "r_conda_testthat.json",
+        "environment_manager": "conda",
         "test_framework": "testthat",
         "version_check_command": "Rscript --version",
         "stub_sentinel": (
@@ -135,7 +135,7 @@ LANGUAGE_REGISTRY: Dict[str, Dict[str, Any]] = {
         ],
         "authorized_write_dirs": ["R", "tests/testthat", "."],
         "default_delivery": {
-            "environment_recommendation": "renv",
+            "environment_recommendation": "conda",
             "dependency_format": "renv.lock",
             "source_layout": "package",
             "entry_points": False,

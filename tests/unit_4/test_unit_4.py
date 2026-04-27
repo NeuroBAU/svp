@@ -9,10 +9,10 @@ structural regression tests enforcing the Layer 1/Layer 2 vs. Layer 3 separation
 Synthetic Data Assumptions:
     - toolchain.json (pipeline toolchain, Layer 1) is created in temporary directories
       via tmp_path, containing a JSON object with a "quality" key holding gate definitions.
-    - Language-specific toolchain files (python_conda_pytest.json, r_renv_testthat.json)
+    - Language-specific toolchain files (python_conda_pytest.json, r_conda_testthat.json)
       are placed under scripts/toolchain_defaults/ relative to the project root.
     - LANGUAGE_REGISTRY entries for "python" have toolchain_file = "python_conda_pytest.json"
-      and for "r" have toolchain_file = "r_renv_testthat.json", as defined in Unit 2 contracts.
+      and for "r" have toolchain_file = "r_conda_testthat.json", as defined in Unit 2 contracts.
     - Command templates use the placeholders {run_prefix}, {env_name}, {python_version},
       {flags}, and {target} in various combinations.
     - Gate compositions are lists of operation dicts, each with at minimum "operation" and
@@ -82,11 +82,11 @@ def python_toolchain_data():
 
 @pytest.fixture
 def r_toolchain_data():
-    """Synthetic R toolchain file matching r_renv_testthat.json."""
+    """Synthetic R toolchain file matching r_conda_testthat.json."""
     return {
         "language": "r",
         "test_framework": "testthat",
-        "environment_manager": "renv",
+        "environment_manager": "conda",
         "quality": {
             "gate_a": [
                 {
@@ -121,7 +121,7 @@ def project_root_with_r_toolchain(tmp_path, r_toolchain_data):
     """Creates a project root with an R toolchain in scripts/toolchain_defaults/."""
     defaults_dir = tmp_path / "scripts" / "toolchain_defaults"
     defaults_dir.mkdir(parents=True)
-    toolchain_path = defaults_dir / "r_renv_testthat.json"
+    toolchain_path = defaults_dir / "r_conda_testthat.json"
     toolchain_path.write_text(json.dumps(r_toolchain_data, indent=2))
     return tmp_path
 
@@ -140,7 +140,7 @@ def project_root_with_all_toolchains(
     (defaults_dir / "python_conda_pytest.json").write_text(
         json.dumps(python_toolchain_data, indent=2)
     )
-    (defaults_dir / "r_renv_testthat.json").write_text(
+    (defaults_dir / "r_conda_testthat.json").write_text(
         json.dumps(r_toolchain_data, indent=2)
     )
     return tmp_path
@@ -224,7 +224,7 @@ class TestLoadToolchainR:
     """Tests for load_toolchain with language='r'."""
 
     def test_loads_r_toolchain(self, project_root_with_r_toolchain, r_toolchain_data):
-        """language='r' loads scripts/toolchain_defaults/r_renv_testthat.json."""
+        """language='r' loads scripts/toolchain_defaults/r_conda_testthat.json."""
         result = load_toolchain(project_root_with_r_toolchain, language="r")
         assert result == r_toolchain_data
 
@@ -260,7 +260,7 @@ class TestLoadToolchainRegistryDispatch:
         self, project_root_with_r_toolchain
     ):
         """R toolchain file path comes from LANGUAGE_REGISTRY['r']['toolchain_file']."""
-        # The contract states r maps to r_renv_testthat.json
+        # The contract states r maps to r_conda_testthat.json
         result = load_toolchain(project_root_with_r_toolchain, language="r")
         assert isinstance(result, dict)
 
@@ -1062,3 +1062,119 @@ class TestResolveCommandEdgeCases:
         # After collapsing spaces and stripping, result should be empty or minimal
         assert "  " not in result
         assert result == result.strip()
+
+
+# ---------------------------------------------------------------------------
+# verify_toolchain_ready (Bug S3-160)
+# ---------------------------------------------------------------------------
+
+
+class TestVerifyToolchainReady:
+    """Tests for verify_toolchain_ready (Bug S3-160 / IMPROV-19)."""
+
+    @pytest.fixture
+    def toolchain_with_verify(self, tmp_path):
+        """Write a pipeline toolchain.json with environment.verify_commands."""
+        data = {
+            "environment": {
+                "tool": "conda",
+                "run_prefix": "conda run -n {env_name}",
+                "verify_commands": [
+                    "{run_prefix} python --version",
+                    "{run_prefix} pytest --version",
+                ],
+            },
+            "quality": {},
+        }
+        (tmp_path / "toolchain.json").write_text(json.dumps(data, indent=2))
+        return tmp_path
+
+    def test_verify_toolchain_ready_success_path(self, toolchain_with_verify):
+        """Mock runner returns 0 for all commands -> (True, [])."""
+        from toolchain_reader import verify_toolchain_ready
+
+        calls: list[str] = []
+
+        def fake_runner(cmd: str) -> int:
+            calls.append(cmd)
+            return 0
+
+        ok, errors = verify_toolchain_ready(
+            toolchain_with_verify, "svp-test", runner=fake_runner
+        )
+        assert ok is True
+        assert errors == []
+        assert len(calls) == 2
+
+    def test_verify_toolchain_ready_failure_path(self, toolchain_with_verify):
+        """Mock runner returns non-zero for one command -> (False, [msg])."""
+        from toolchain_reader import verify_toolchain_ready
+
+        def fake_runner(cmd: str) -> int:
+            # Fail on the pytest --version probe; pass on the python one.
+            return 0 if "python --version" in cmd else 7
+
+        ok, errors = verify_toolchain_ready(
+            toolchain_with_verify, "svp-test", runner=fake_runner
+        )
+        assert ok is False
+        assert len(errors) == 1
+        assert "pytest --version" in errors[0]
+        assert "returncode=7" in errors[0]
+
+    def test_verify_toolchain_ready_uses_manifest_verify_commands(
+        self, toolchain_with_verify
+    ):
+        """Recorded commands match the manifest's verify_commands after substitution."""
+        from toolchain_reader import verify_toolchain_ready
+
+        calls: list[str] = []
+
+        def fake_runner(cmd: str) -> int:
+            calls.append(cmd)
+            return 0
+
+        verify_toolchain_ready(
+            toolchain_with_verify, "svp-myproj", runner=fake_runner
+        )
+        # Both commands present
+        assert any("python --version" in c for c in calls)
+        assert any("pytest --version" in c for c in calls)
+        # {run_prefix} and {env_name} fully substituted
+        for c in calls:
+            assert "{run_prefix}" not in c
+            assert "{env_name}" not in c
+            assert "conda run -n svp-myproj" in c
+
+    def test_verify_toolchain_ready_returns_true_when_no_verify_commands(
+        self, tmp_path
+    ):
+        """Manifest without verify_commands -> trivially (True, [])."""
+        from toolchain_reader import verify_toolchain_ready
+
+        data = {
+            "environment": {
+                "tool": "conda",
+                "run_prefix": "conda run -n {env_name}",
+            },
+            "quality": {},
+        }
+        (tmp_path / "toolchain.json").write_text(json.dumps(data, indent=2))
+
+        ok, errors = verify_toolchain_ready(
+            tmp_path, "svp-test", runner=lambda cmd: 1
+        )
+        assert ok is True
+        assert errors == []
+
+    def test_verify_toolchain_ready_collects_multiple_failures(
+        self, toolchain_with_verify
+    ):
+        """Multiple failing commands yield multiple error messages."""
+        from toolchain_reader import verify_toolchain_ready
+
+        ok, errors = verify_toolchain_ready(
+            toolchain_with_verify, "svp-test", runner=lambda cmd: 5
+        )
+        assert ok is False
+        assert len(errors) == 2

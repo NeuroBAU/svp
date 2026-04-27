@@ -4,7 +4,9 @@ Verifies the Stage-0 → Stage-3 toolchain materialization helper in
 src/unit_11/stub.py (infrastructure_setup):
 - no-op when toolchain.json already exists
 - copies python_conda_pytest.json when profile.language.primary == "python"
-- copies r_renv_testthat.json when profile.language.primary == "r"
+- copies r_conda_testthat.json when profile.language.primary == "r"
+  (Bug S3-160 — was r_renv_testthat.json before R archetype became
+  conda-foundational; renv manifest remains opt-in)
 - no-op when profile is missing or primary language is absent/unknown
 """
 
@@ -69,7 +71,8 @@ def test_materializes_from_r_default(tmp_path):
     ensure_pipeline_toolchain(tmp_path)
 
     materialized = json.loads((tmp_path / "toolchain.json").read_text())
-    expected = json.loads((DEFAULTS_DIR / "r_renv_testthat.json").read_text())
+    # Bug S3-160: R archetype now materializes the conda manifest by default.
+    expected = json.loads((DEFAULTS_DIR / "r_conda_testthat.json").read_text())
     assert materialized == expected
 
 

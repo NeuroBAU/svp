@@ -374,10 +374,18 @@ class TestRRegistryEntry:
         assert r_entry["test_file_pattern"] == "test-*.R"
 
     def test_r_toolchain_file(self, r_entry):
-        assert r_entry["toolchain_file"] == "r_renv_testthat.json"
+        # Bug S3-160: R archetype is conda-foundational by default; renv
+        # remains as opt-in via r_renv_testthat.json (still on disk).
+        assert r_entry["toolchain_file"] == "r_conda_testthat.json"
 
     def test_r_environment_manager(self, r_entry):
-        assert r_entry["environment_manager"] == "renv"
+        # Bug S3-160: env manager flipped renv → conda for R default.
+        assert r_entry["environment_manager"] == "conda"
+
+    def test_r_language_registry_points_at_conda_manifest(self, r_entry):
+        """Bug S3-160: R registry default is the conda manifest, not renv."""
+        assert r_entry["toolchain_file"] == "r_conda_testthat.json"
+        assert r_entry["environment_manager"] == "conda"
 
     def test_r_test_framework(self, r_entry):
         assert r_entry["test_framework"] == "testthat"
@@ -425,7 +433,8 @@ class TestRRegistryEntry:
         assert r_entry["authorized_write_dirs"] == ["R", "tests/testthat", "."]
 
     def test_r_default_delivery_environment_recommendation(self, r_entry):
-        assert r_entry["default_delivery"]["environment_recommendation"] == "renv"
+        # Bug S3-160: default delivery for R now recommends conda.
+        assert r_entry["default_delivery"]["environment_recommendation"] == "conda"
 
     def test_r_default_delivery_dependency_format(self, r_entry):
         assert r_entry["default_delivery"]["dependency_format"] == "renv.lock"

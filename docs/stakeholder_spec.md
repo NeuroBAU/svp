@@ -6116,6 +6116,24 @@ The S3-149 spec entry (§24.162) documented this as a sub-deferral: "`assembly_r
 
 Resolves IMPROV-02.
 
+### S3-160 — R archetype not conda-foundational; toolchain creation lacked verification
+
+**Symptom**: R archetype was wired to renv-only manifest while Python was conda-foundational; pre-Stage-3 env provisioning silently failed, blocking real Stage-3 gates. Even after env creation, no verification confirmed the env was actually functional (network glitch, conda-forge outage, version-pin conflict were undetectable).
+
+**Root cause**: src/unit_2/stub.py LANGUAGE_REGISTRY R entry pointed at r_renv_testthat.json with environment_manager=renv. Manifests had no verify_commands field. infrastructure_setup ran conda create (when env_rec=conda) but didn't verify the env afterwards. PipelineState had no toolchain_status field to track readiness.
+
+**Surface area**: scripts/toolchain_defaults/r_conda_testthat.json (NEW); python_conda_pytest.json (parity verify_commands); src/unit_2/stub.py (R registry flip); src/unit_4/stub.py (verify_toolchain_ready); src/unit_5/stub.py (toolchain_status field); src/unit_11/stub.py (infrastructure_setup hook).
+
+**Resolution**:
+1. New r_conda_testthat.json manifest mirrors python_conda_pytest.json structure with R-flavored conda-forge commands.
+2. Both conda manifests gain environment.verify_commands array.
+3. R registry flipped to conda manifest + conda manager + conda recommendation; r_renv_testthat.json kept as opt-in.
+4. New verify_toolchain_ready() in toolchain_reader runs manifest verify_commands after env creation.
+5. New PipelineState.toolchain_status field tracks env readiness.
+6. infrastructure_setup hook calls verify after conda create; sets toolchain_status accordingly.
+
+Resolves IMPROV-19 (a + b). Subsumes IMPROV-10, IMPROV-13.
+
 ---
 
 ## 25. Test Data

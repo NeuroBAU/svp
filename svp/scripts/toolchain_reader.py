@@ -9,8 +9,9 @@ configuration or profile files.
 
 import json
 import re
+import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from svp_config import ARTIFACT_FILENAMES
 from language_registry import LANGUAGE_REGISTRY
@@ -172,3 +173,81 @@ def get_gate_composition(
             result.append(entry)
 
     return result
+
+
+def verify_toolchain_ready(
+    project_root: Path,
+    env_name: str,
+    *,
+    runner: Optional[Callable[[str], int]] = None,
+) -> Tuple[bool, List[str]]:
+    """Verify the toolchain env created by infrastructure_setup is functional.
+
+    Loads the pipeline toolchain via load_toolchain(project_root) and reads
+    the environment.verify_commands list. Each entry is a templated string;
+    placeholders {run_prefix} and {env_name} are substituted (run_prefix
+    itself is read from environment.run_prefix and substituted with
+    {env_name} first). Each resolved command is executed via the supplied
+    runner (or via subprocess.run with shell=False in production).
+
+    A non-zero return code from any command yields (False, [messages]); on
+    success returns (True, []).
+
+    Bug S3-160: pairs env creation with mechanical verification so a
+    silent conda-forge / network / pin-conflict failure surfaces here
+    instead of much later at red-run.
+
+    Parameters
+    ----------
+    project_root : Path
+        Project root that contains a materialized toolchain.json.
+    env_name : str
+        Name of the conda env to substitute for {env_name}.
+    runner : callable, optional
+        For testability: a function taking a command string and returning
+        the integer return code. In production, callers pass None and
+        subprocess.run is used (shell=False; the command is split on
+        whitespace).
+
+    Returns
+    -------
+    (bool, list of str)
+        (True, []) on success.
+        (False, [error messages]) when one or more commands return
+        non-zero. Each error message contains the failing command.
+    """
+    toolchain = load_toolchain(project_root)
+    env_section = toolchain.get("environment", {}) or {}
+    verify_commands = env_section.get("verify_commands", []) or []
+    run_prefix_template = env_section.get("run_prefix", "") or ""
+    run_prefix = run_prefix_template.replace("{env_name}", env_name)
+
+    def _default_runner(cmd: str) -> int:
+        proc = subprocess.run(
+            cmd.split(),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        return proc.returncode
+
+    invoke = runner if runner is not None else _default_runner
+
+    errors: List[str] = []
+    for template in verify_commands:
+        cmd = template.replace("{run_prefix}", run_prefix).replace(
+            "{env_name}", env_name
+        )
+        # Collapse double-spaces left by empty substitutions.
+        cmd = re.sub(r" {2,}", " ", cmd).strip()
+        try:
+            rc = invoke(cmd)
+        except Exception as exc:  # pragma: no cover - defensive
+            errors.append(f"verify command raised exception: {cmd}: {exc}")
+            continue
+        if rc != 0:
+            errors.append(
+                f"verify command failed (returncode={rc}): {cmd}"
+            )
+
+    return (len(errors) == 0, errors)

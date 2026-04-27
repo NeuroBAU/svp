@@ -122,6 +122,17 @@ for f in "$WORKSPACE"/scripts/*.py; do
 done
 echo ""
 
+# --- Step 1b: Toolchain Default Manifests ---
+echo "--- Step 1b: Toolchain Defaults ---"
+if [ -d "$WORKSPACE/scripts/toolchain_defaults" ]; then
+    for f in "$WORKSPACE"/scripts/toolchain_defaults/*; do
+        [ -f "$f" ] || continue
+        name="$(basename "$f")"
+        sync_one_way "$f" "$REPO/svp/scripts/toolchain_defaults/$name" "scripts/toolchain_defaults/$name"
+    done
+fi
+echo ""
+
 # --- Step 2: Source units (workspace → repo, one-way) ---
 echo "--- Step 2: Source Units ---"
 for d in "$WORKSPACE"/src/unit_*/; do
@@ -313,6 +324,15 @@ for f in "$WORKSPACE"/scripts/*.py; do
     name="$(basename "$f")"
     verify_pair "$f" "$REPO/svp/scripts/$name" "scripts/$name"
 done
+
+# Verify toolchain defaults
+if [ -d "$WORKSPACE/scripts/toolchain_defaults" ]; then
+    for f in "$WORKSPACE"/scripts/toolchain_defaults/*; do
+        [ -f "$f" ] || continue
+        name="$(basename "$f")"
+        verify_pair "$f" "$REPO/svp/scripts/toolchain_defaults/$name" "scripts/toolchain_defaults/$name"
+    done
+fi
 
 # Verify stubs
 for d in "$WORKSPACE"/src/unit_*/; do

@@ -1630,3 +1630,55 @@ class TestEdgeCases:
         raw3 = json.loads(state_path.read_text())
         assert raw3["state_hash"] == expected_hash3
         assert raw3["state_hash"] != raw2["state_hash"]
+
+
+# ---------------------------------------------------------------------------
+# toolchain_status field (Bug S3-160)
+# ---------------------------------------------------------------------------
+
+
+class TestToolchainStatusField:
+    """Tests for PipelineState.toolchain_status (Bug S3-160 / IMPROV-19)."""
+
+    def test_pipeline_state_has_toolchain_status_field_default_not_ready(
+        self, tmp_path
+    ):
+        """Default state has toolchain_status == 'NOT_READY'."""
+        # Direct dataclass construction
+        state = PipelineState()
+        assert state.toolchain_status == "NOT_READY"
+
+    def test_pipeline_state_loads_toolchain_status_default_when_missing(
+        self, tmp_path
+    ):
+        """load_state applies default 'NOT_READY' when JSON omits the field."""
+        state_dict = _minimal_state_dict()
+        # Ensure the field is omitted (default-injection path)
+        state_dict.pop("toolchain_status", None)
+        _write_state_file(tmp_path, state_dict)
+        state = load_state(tmp_path)
+        assert state.toolchain_status == "NOT_READY"
+
+    def test_pipeline_state_persists_toolchain_status(self, tmp_path):
+        """Save state with toolchain_status='READY'; reload still 'READY'."""
+        # Seed a minimal state file first.
+        _write_state_file(tmp_path, _minimal_state_dict())
+        state = load_state(tmp_path)
+        state.toolchain_status = "READY"
+        save_state(tmp_path, state)
+
+        reloaded = load_state(tmp_path)
+        assert reloaded.toolchain_status == "READY"
+
+        # And the JSON-on-disk shape carries the field as a top-level key.
+        raw = json.loads(_state_path(tmp_path).read_text())
+        assert raw["toolchain_status"] == "READY"
+
+    def test_pipeline_state_toolchain_status_round_trip_not_ready(self, tmp_path):
+        """Explicit NOT_READY round-trips identically."""
+        _write_state_file(tmp_path, _minimal_state_dict())
+        state = load_state(tmp_path)
+        state.toolchain_status = "NOT_READY"
+        save_state(tmp_path, state)
+        reloaded = load_state(tmp_path)
+        assert reloaded.toolchain_status == "NOT_READY"

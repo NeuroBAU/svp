@@ -1,0 +1,88 @@
+{
+  "toolchain_id": "r_conda_testthat",
+  "environment": {
+    "tool": "conda",
+    "run_prefix": "conda run -n {env_name}",
+    "create_command": "conda create -n {env_name} -c conda-forge r-base={r_version} {framework_packages} {quality_packages} -y",
+    "install_command": "conda install -n {env_name} -c conda-forge {packages} -y",
+    "install_dev": "conda run -n {env_name} Rscript -e 'devtools::install(\".\")'",
+    "cleanup_command": "conda env remove -n {env_name} -y",
+    "verify_commands": [
+      "{run_prefix} R --version",
+      "{run_prefix} Rscript -e 'library(testthat); cat(\"OK\")'",
+      "{run_prefix} Rscript -e 'library(covr); cat(\"OK\")'",
+      "{run_prefix} quarto --version"
+    ]
+  },
+  "quality": {
+    "formatter": {
+      "tool": "styler",
+      "format": "{run_prefix} Rscript -e 'styler::style_dir(\"R/\")'",
+      "check": "{run_prefix} Rscript -e 'styler::style_dir(\"R/\", dry=\"check\")'"
+    },
+    "linter": {
+      "tool": "lintr",
+      "light": "{run_prefix} Rscript -e 'lintr::lint_dir(\"R/\")'",
+      "heavy": "{run_prefix} Rscript -e 'lintr::lint_dir(\"R/\")'",
+      "check": "{run_prefix} Rscript -e 'lintr::lint_dir(\"R/\")'"
+    },
+    "type_checker": {
+      "tool": "none"
+    },
+    "packages": [
+      "r-lintr",
+      "r-styler",
+      "r-covr",
+      "r-devtools"
+    ],
+    "gate_a": [
+      "formatter.format"
+    ],
+    "gate_b": [
+      "formatter.format",
+      "linter.light"
+    ],
+    "gate_c": [
+      "formatter.check",
+      "linter.check"
+    ]
+  },
+  "testing": {
+    "tool": "testthat",
+    "run_command": "{run_prefix} Rscript -e 'testthat::test_dir(\"tests/testthat\")'",
+    "run_coverage": "{run_prefix} Rscript -e 'covr::package_coverage()'",
+    "framework_packages": [
+      "r-testthat",
+      "r-covr"
+    ],
+    "file_pattern": "test-*.R",
+    "collection_error_indicators": [
+      "Error in library",
+      "there is no package called",
+      "could not find function"
+    ],
+    "unit_flags": "",
+    "project_flags": ""
+  },
+  "vcs": {
+    "tool": "git",
+    "commands": {
+      "init": "git init",
+      "add": "git add {files}",
+      "commit": "git commit -m \"{message}\"",
+      "status": "git status"
+    }
+  },
+  "language": {
+    "name": "r",
+    "extension": ".R",
+    "version_constraint": ">=4.3",
+    "stub_body": "stop('Not implemented')"
+  },
+  "file_structure": {
+    "source_dir_pattern": "R",
+    "test_dir_pattern": "tests/testthat",
+    "source_extension": ".R",
+    "test_extension": ".R"
+  }
+}

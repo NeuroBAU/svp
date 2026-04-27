@@ -6,7 +6,11 @@
     "create_command": "conda create -n {env_name} python={python_version} -y",
     "install_command": "conda run -n {env_name} pip install {packages}",
     "install_dev": "conda run -n {env_name} pip install -e .",
-    "cleanup_command": "conda env remove -n {env_name} -y"
+    "cleanup_command": "conda env remove -n {env_name} -y",
+    "verify_commands": [
+      "{run_prefix} python --version",
+      "{run_prefix} pytest --version"
+    ]
   },
   "quality": {
     "formatter": {

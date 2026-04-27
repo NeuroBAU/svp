@@ -341,9 +341,13 @@ class TestRegistryDrivesToolchainDispatch:
         assert python_config["toolchain_file"] == "python_conda_pytest.json"
 
     def test_r_toolchain_file_from_registry(self):
-        """R registry entry's toolchain_file matches expected path."""
+        """R registry entry's toolchain_file matches expected path.
+
+        Bug S3-160: R archetype is conda-foundational by default; the
+        renv manifest remains as opt-in.
+        """
         r_config = get_language_config("r")
-        assert r_config["toolchain_file"] == "r_renv_testthat.json"
+        assert r_config["toolchain_file"] == "r_conda_testthat.json"
 
     def test_toolchain_file_path_resolves_via_registry(self, tmp_path):
         """Toolchain file paths constructed from registry resolve correctly."""

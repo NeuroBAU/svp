@@ -107,6 +107,9 @@ class PipelineState:
     pass_: Optional[int] = None  # serialized as "pass" in JSON
     pass2_nested_session_path: Optional[str] = None
     deferred_broken_units: List[int] = field(default_factory=list)
+    # Bug S3-160: tracks env readiness after infrastructure_setup runs
+    # verify_toolchain_ready (Unit 4). Values: "READY" | "NOT_READY".
+    toolchain_status: str = "NOT_READY"
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +131,7 @@ _SVP22_FIELD_DEFAULTS: Dict[str, Any] = {
     "pass": None,
     "pass2_nested_session_path": None,
     "deferred_broken_units": [],
+    "toolchain_status": "NOT_READY",
 }
 
 
@@ -186,6 +190,7 @@ def load_state(project_root: Path) -> PipelineState:
         pass_=pass_val,
         pass2_nested_session_path=data.get("pass2_nested_session_path", None),
         deferred_broken_units=data.get("deferred_broken_units", []),
+        toolchain_status=data.get("toolchain_status", "NOT_READY"),
     )
 
     return state
