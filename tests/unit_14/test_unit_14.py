@@ -1373,19 +1373,47 @@ class TestDispatchAgentStatus:
 
     # -- Blueprint author --
 
-    def test_blueprint_author_draft_complete_no_state_change(self):
-        """blueprint_author + BLUEPRINT_DRAFT_COMPLETE: no state change."""
+    def test_blueprint_author_draft_complete_no_state_change(self, tmp_path):
+        """blueprint_author + BLUEPRINT_DRAFT_COMPLETE: no state change.
+
+        (CHANGED IN 2.2 — Bug S3-158) The dispatch hook now runs the
+        mechanical audit, which requires blueprint_contracts.md to exist.
+        Provide a heading-clean, audit-clean minimal blueprint so the
+        path returns _copy(state) unchanged.
+        """
+        project_root = tmp_path / "proj"
+        project_root.mkdir()
+        (project_root / ".svp").mkdir()
+        bp = project_root / "blueprint"
+        bp.mkdir()
+        (bp / "blueprint_prose.md").write_text("## Unit 1: Foo\n", encoding="utf-8")
+        (bp / "blueprint_contracts.md").write_text(
+            "## Unit 1: Foo\n", encoding="utf-8"
+        )
         state = _make_state(stage="2", sub_stage="blueprint_dialog")
         result = dispatch_agent_status(
-            state, "blueprint_author", "BLUEPRINT_DRAFT_COMPLETE", Path("/tmp")
+            state, "blueprint_author", "BLUEPRINT_DRAFT_COMPLETE", project_root
         )
         assert result.stage == state.stage
 
-    def test_blueprint_author_revision_complete_no_state_change(self):
-        """blueprint_author + BLUEPRINT_REVISION_COMPLETE: no state change."""
+    def test_blueprint_author_revision_complete_no_state_change(self, tmp_path):
+        """blueprint_author + BLUEPRINT_REVISION_COMPLETE: no state change.
+
+        (CHANGED IN 2.2 — Bug S3-158) See sibling draft test above for
+        the rationale on the synthetic blueprint.
+        """
+        project_root = tmp_path / "proj"
+        project_root.mkdir()
+        (project_root / ".svp").mkdir()
+        bp = project_root / "blueprint"
+        bp.mkdir()
+        (bp / "blueprint_prose.md").write_text("## Unit 1: Foo\n", encoding="utf-8")
+        (bp / "blueprint_contracts.md").write_text(
+            "## Unit 1: Foo\n", encoding="utf-8"
+        )
         state = _make_state(stage="2", sub_stage="blueprint_revision")
         result = dispatch_agent_status(
-            state, "blueprint_author", "BLUEPRINT_REVISION_COMPLETE", Path("/tmp")
+            state, "blueprint_author", "BLUEPRINT_REVISION_COMPLETE", project_root
         )
         assert result.stage == state.stage
 
@@ -4049,3 +4077,96 @@ class TestStructuralInvariants:
         assert r.errors == 0
         assert r.output == "ok"
         assert r.collection_error is False
+
+
+# ===========================================================================
+# Bug S3-158: dispatch_agent_status blueprint_author audit gate
+# ===========================================================================
+
+
+class TestDispatchAgentStatusBlueprintAuditGate:
+    """Bug S3-158: after S3-116 heading validation, dispatch must invoke
+    audit_blueprint_contracts() and raise ValueError on findings."""
+
+    def test_dispatch_agent_status_blueprint_blocks_on_audit_failure(
+        self, tmp_path, monkeypatch
+    ):
+        """When audit_blueprint_contracts returns violations, dispatch
+        raises ValueError carrying the formatted audit report."""
+        # Build a minimal project with a heading-clean blueprint so that
+        # the S3-116 validator passes — we want to isolate the S3-158 gate.
+        project_root = tmp_path / "proj"
+        project_root.mkdir()
+        (project_root / ".svp").mkdir()
+        blueprint_dir = project_root / "blueprint"
+        blueprint_dir.mkdir()
+        (blueprint_dir / "blueprint_prose.md").write_text(
+            "## Unit 1: Foo\n", encoding="utf-8"
+        )
+        (blueprint_dir / "blueprint_contracts.md").write_text(
+            "## Unit 1: Foo\n", encoding="utf-8"
+        )
+
+        import structural_check
+
+        def fake_audit(_project_root):
+            return [
+                {
+                    "check": "dag",
+                    "severity": "error",
+                    "location": "Unit 1",
+                    "description": "synthetic dag cycle for test",
+                }
+            ]
+
+        monkeypatch.setattr(
+            structural_check,
+            "audit_blueprint_contracts",
+            fake_audit,
+        )
+
+        state = _make_state(stage="2", sub_stage="blueprint_dialog")
+        with pytest.raises(ValueError) as exc_info:
+            dispatch_agent_status(
+                state,
+                "blueprint_author",
+                "BLUEPRINT_DRAFT_COMPLETE",
+                project_root,
+            )
+        msg = str(exc_info.value)
+        assert "S3-158" in msg
+        assert "synthetic dag cycle for test" in msg
+
+    def test_dispatch_agent_status_blueprint_audit_pass_returns_state(
+        self, tmp_path, monkeypatch
+    ):
+        """When audit returns empty list, dispatch returns the state as
+        a no-op (preserving the S3-116 path's behavior)."""
+        project_root = tmp_path / "proj"
+        project_root.mkdir()
+        (project_root / ".svp").mkdir()
+        blueprint_dir = project_root / "blueprint"
+        blueprint_dir.mkdir()
+        (blueprint_dir / "blueprint_prose.md").write_text(
+            "## Unit 1: Foo\n", encoding="utf-8"
+        )
+        (blueprint_dir / "blueprint_contracts.md").write_text(
+            "## Unit 1: Foo\n", encoding="utf-8"
+        )
+
+        import structural_check
+
+        monkeypatch.setattr(
+            structural_check,
+            "audit_blueprint_contracts",
+            lambda _pr: [],
+        )
+
+        state = _make_state(stage="2", sub_stage="blueprint_dialog")
+        result = dispatch_agent_status(
+            state,
+            "blueprint_author",
+            "BLUEPRINT_REVISION_COMPLETE",
+            project_root,
+        )
+        assert result is not None

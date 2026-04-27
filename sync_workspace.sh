@@ -215,6 +215,12 @@ for rootfile in ruff.toml sync_workspace.sh; do
         fi
     fi
 done
+
+# .svp/ artifacts that the repo needs (e.g., audit known false positives so the
+# audit-on-current-blueprint test can run from the repo without skips).
+sync_one_way "$WORKSPACE/.svp/audit_known_false_positives.md" \
+    "$REPO/.svp/audit_known_false_positives.md" \
+    ".svp/audit_known_false_positives.md"
 echo ""
 
 # --- Step 4: Tests (workspace → repo, one-way) ---

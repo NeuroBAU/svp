@@ -1618,6 +1618,473 @@ def _parse_yaml_frontmatter(content: str) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Blueprint contract audit (Bug S3-158)
+#
+# Mechanical gate enforced by Unit 14's dispatch_agent_status when
+# blueprint_author emits BLUEPRINT_DRAFT_COMPLETE / BLUEPRINT_REVISION_COMPLETE.
+# Three checks:
+#   (a) DAG acyclicity on Dependencies edges between Units.
+#   (c) Tier 2 signature implementation existence in src/unit_<N>/stub.py.
+#   (d) Phantom call detection — flagged calls whose target is NOT in any
+#       Tier 2 signature set and is not a known stdlib/builtin name.
+#
+# Findings whose `description` text matches a non-comment, non-empty line in
+# `<project_root>/.svp/audit_known_false_positives.md` are filtered out.
+# Reciprocity check (b) is intentionally deferred (separate cycle).
+# ---------------------------------------------------------------------------
+
+
+# Lowercase identifier names that are commonly called from stubs but are NOT
+# contract functions (stdlib, builtins, third-party). Phantom-call check
+# excludes anything in this allow-list. Conservative — false positives in the
+# phantom check are worse than false negatives.
+_PHANTOM_CALL_ALLOWLIST = {
+    # Built-ins
+    "abs", "all", "any", "ascii", "bin", "bool", "bytearray", "bytes",
+    "callable", "chr", "classmethod", "compile", "complex", "delattr", "dict",
+    "dir", "divmod", "enumerate", "eval", "exec", "exit", "filter", "float",
+    "format", "frozenset", "getattr", "globals", "hasattr", "hash", "help",
+    "hex", "id", "input", "int", "isinstance", "issubclass", "iter", "len",
+    "list", "locals", "map", "max", "memoryview", "min", "next", "object",
+    "oct", "open", "ord", "pow", "print", "property", "range", "repr",
+    "reversed", "round", "set", "setattr", "slice", "sorted", "staticmethod",
+    "str", "sum", "super", "tuple", "type", "vars", "zip", "breakpoint",
+    "quit",
+    # Common stdlib
+    "Path", "PurePath", "PurePosixPath", "PureWindowsPath",
+    "datetime", "date", "time", "timedelta",
+    "deepcopy", "copy",
+    "loads", "dumps", "load", "dump",
+    "compile_pattern", "match", "search", "sub", "split", "findall",
+    "fullmatch", "finditer", "escape",
+    "sleep", "system", "getenv", "environ", "getcwd", "chdir",
+    "exists", "is_file", "is_dir", "mkdir", "rmdir", "unlink", "touch",
+    "read_text", "write_text", "read_bytes", "write_bytes",
+    "rglob", "glob", "iterdir", "resolve", "absolute", "relative_to",
+    "with_suffix", "with_name", "joinpath",
+    "join", "exists", "abspath", "basename", "dirname", "splitext",
+    "expanduser", "split",
+    "run", "Popen", "PIPE", "DEVNULL", "STDOUT", "check_call",
+    "check_output", "call",
+    "warn", "warns",
+    "parse", "walk", "iter_child_nodes", "fix_missing_locations",
+    "namedtuple", "field", "fields", "is_dataclass", "asdict", "astuple",
+    "defaultdict", "OrderedDict", "Counter", "ChainMap", "deque",
+    "ArgumentParser", "ArgumentTypeError",
+    "main", "setup", "teardown",
+    "info", "debug", "warning", "error", "critical", "log",
+    "fixture", "mark", "param", "raises", "skip", "xfail", "fail",
+    "monkeypatch",
+    # AST nodes used as constructors
+    "Name", "Attribute", "Call", "Constant", "Subscript", "Assign", "Dict",
+    "List", "Tuple", "FunctionDef", "AsyncFunctionDef", "ClassDef", "Module",
+    "Import", "ImportFrom", "Return", "If", "For", "While", "With", "Try",
+    "Expr", "Raise", "Pass", "Break", "Continue", "Lambda", "BinOp",
+    "BoolOp", "UnaryOp", "Compare", "IfExp", "Starred", "Slice", "Index",
+    "alias", "arg", "arguments", "keyword", "comprehension",
+    # Misc commonly called but not contract functions
+    "format_unit_heading_violations", "validate_unit_heading_format",
+    "save_state", "load_state", "load_config", "save_config",
+    "load_profile", "save_profile",
+    "encode", "decode", "strip", "rstrip", "lstrip", "lower", "upper",
+    "title", "capitalize", "startswith", "endswith", "replace", "splitlines",
+    "join", "zfill", "rjust", "ljust", "center", "count", "index", "find",
+    "isidentifier", "isdigit", "isalpha", "isalnum", "isspace", "isupper",
+    "islower",
+    "items", "keys", "values", "get", "setdefault", "update", "pop",
+    "popitem", "clear", "copy", "fromkeys",
+    "append", "extend", "insert", "remove", "reverse", "sort",
+    "add", "discard", "intersection", "union", "difference",
+    "symmetric_difference", "issubset", "issuperset",
+    # noqa: E501
+}
+
+
+def _parse_blueprint_units(blueprint_text: str) -> Dict[int, Dict[str, Any]]:
+    """Parse blueprint markdown into a dict keyed by unit number.
+
+    Each entry has:
+      - "name": the unit heading title (after "Unit N:" or "Unit N -")
+      - "deps": list of int unit numbers from the Dependencies line
+      - "tier2_signatures": list of function names declared in Tier 2
+    Empty/missing fields default to safe values.
+    """
+    units: Dict[int, Dict[str, Any]] = {}
+    lines = blueprint_text.splitlines()
+
+    # Heading regex — accept "## Unit N:" or "## Unit N —" or "## Unit N -"
+    heading_re = re.compile(r"^##\s+Unit\s+(\d+)\s*[:—\-]\s*(.*?)\s*$")
+    deps_re = re.compile(r"^\*\*Dependencies:\*\*\s*(.+)$")
+    tier2_re = re.compile(r"^###\s+Tier\s*2", re.IGNORECASE)
+    tier3_re = re.compile(r"^###\s+Tier\s*3", re.IGNORECASE)
+    next_section_re = re.compile(r"^##\s+|^---\s*$")
+    sig_re = re.compile(r"^\s*def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(")
+
+    # First pass: locate unit headings and their slice range.
+    unit_starts: List[tuple] = []  # (unit_num, name, start_line)
+    for i, line in enumerate(lines):
+        m = heading_re.match(line)
+        if m:
+            try:
+                num = int(m.group(1))
+            except ValueError:
+                continue
+            unit_starts.append((num, m.group(2).strip(), i))
+
+    # Determine ranges
+    for idx, (num, name, start) in enumerate(unit_starts):
+        end = unit_starts[idx + 1][2] if idx + 1 < len(unit_starts) else len(lines)
+        body = lines[start:end]
+
+        # Dependencies
+        deps: List[int] = []
+        for ln in body:
+            dm = deps_re.match(ln.strip())
+            if dm:
+                rhs = dm.group(1)
+                # strip trailing period and whitespace
+                rhs = rhs.strip().rstrip(".")
+                # "None (root unit)" or just "None"
+                if rhs.lower().startswith("none"):
+                    deps = []
+                else:
+                    for token in rhs.split(","):
+                        m2 = re.search(r"Unit\s+(\d+)", token)
+                        if m2:
+                            try:
+                                deps.append(int(m2.group(1)))
+                            except ValueError:
+                                pass
+                break
+
+        # Tier 2 signatures: scan from a Tier 2 header line until the next ###
+        # Tier 3 header or next ## section. Collect `def NAME(` matches.
+        tier2_sigs: List[str] = []
+        in_tier2 = False
+        for ln in body:
+            if tier2_re.match(ln):
+                in_tier2 = True
+                continue
+            if in_tier2 and tier3_re.match(ln):
+                in_tier2 = False
+                continue
+            if in_tier2 and next_section_re.match(ln) and not ln.startswith("###"):
+                in_tier2 = False
+                continue
+            if in_tier2:
+                sm = sig_re.match(ln)
+                if sm:
+                    tier2_sigs.append(sm.group(1))
+
+        units[num] = {
+            "name": name,
+            "deps": deps,
+            "tier2_signatures": tier2_sigs,
+        }
+
+    return units
+
+
+def _detect_dependency_cycles(
+    units: Dict[int, Dict[str, Any]],
+) -> List[List[int]]:
+    """Detect cycles via DFS on the dependency graph (U -> deps).
+
+    Returns a list of cycles, where each cycle is a list of unit numbers
+    in traversal order (the first node repeats at the start, not the end).
+    """
+    cycles: List[List[int]] = []
+    color: Dict[int, int] = {n: 0 for n in units}  # 0=white,1=gray,2=black
+    parent: Dict[int, int] = {}
+
+    def dfs(n: int, stack: List[int]) -> None:
+        color[n] = 1
+        stack.append(n)
+        for d in units.get(n, {}).get("deps", []):
+            if d not in color:
+                # Dependency on undefined unit — skip cycle detection but
+                # don't crash. A separate check could flag this later.
+                continue
+            if color[d] == 0:
+                parent[d] = n
+                dfs(d, stack)
+            elif color[d] == 1:
+                # Found a back edge — extract the cycle.
+                if d in stack:
+                    idx = stack.index(d)
+                    cycle = stack[idx:] + [d]
+                    cycles.append(cycle)
+        stack.pop()
+        color[n] = 2
+
+    for n in sorted(units):
+        if color[n] == 0:
+            dfs(n, [])
+
+    return cycles
+
+
+def _read_known_false_positives(project_root: Path) -> List[str]:
+    """Return list of false-positive description strings to filter out.
+
+    Reads `<project_root>/.svp/audit_known_false_positives.md`. Lines
+    starting with `#` are comments; blank lines are ignored. Returns
+    the remaining lines stripped.
+    """
+    fp_path = project_root / ".svp" / "audit_known_false_positives.md"
+    if not fp_path.exists():
+        return []
+    try:
+        text = fp_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    out: List[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        out.append(stripped)
+    return out
+
+
+def _collect_stub_function_calls(
+    stub_path: Path,
+) -> tuple:
+    """Parse a stub file with AST. Returns (defined_names, called_names)."""
+    defined: set = set()
+    called: set = set()
+    try:
+        src = stub_path.read_text(encoding="utf-8")
+        tree = ast.parse(src, filename=str(stub_path))
+    except (SyntaxError, OSError, UnicodeDecodeError):
+        return defined, called
+
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            defined.add(node.name)
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name):
+                called.add(node.func.id)
+            # Skip ast.Attribute calls — those are method/module attribute
+            # calls (json.loads, x.append, etc.) and would generate too many
+            # false positives. The conservative approach is to only flag
+            # bare-name calls.
+
+    return defined, called
+
+
+def audit_blueprint_contracts(
+    project_root: Path,
+) -> List[Dict[str, Any]]:
+    """Mechanical audit of blueprint_contracts.md (Bug S3-158).
+
+    Returns a list of violation dicts. Each dict has keys:
+      - "check": one of "dag", "reachability", "phantom_call",
+        "blueprint_missing"
+      - "severity": "error" or "warning"
+      - "location": unit name or file path
+      - "description": 1-line human-readable string
+
+    Empty list means audit passed. Findings whose `description` matches
+    any non-comment, non-empty line in
+    `<project_root>/.svp/audit_known_false_positives.md` are filtered out.
+    """
+    project_root = Path(project_root)
+    violations: List[Dict[str, Any]] = []
+
+    # Canonical workspace location is blueprint/blueprint_contracts.md.
+    # In the deployed/repo layout, sync_workspace.sh mirrors the file to
+    # docs/blueprint_contracts.md instead. Try both so the audit works
+    # from either layout (workspace or repo).
+    blueprint_path = project_root / "blueprint" / "blueprint_contracts.md"
+    if not blueprint_path.exists():
+        fallback_path = project_root / "docs" / "blueprint_contracts.md"
+        if fallback_path.exists():
+            blueprint_path = fallback_path
+        else:
+            return [
+                {
+                    "check": "blueprint_missing",
+                    "severity": "error",
+                    "location": str(blueprint_path),
+                    "description": (
+                        f"blueprint/blueprint_contracts.md not found at "
+                        f"{blueprint_path}"
+                    ),
+                }
+            ]
+
+    try:
+        blueprint_text = blueprint_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return [
+            {
+                "check": "blueprint_missing",
+                "severity": "error",
+                "location": str(blueprint_path),
+                "description": (
+                    f"Could not read blueprint_contracts.md: {exc}"
+                ),
+            }
+        ]
+
+    units = _parse_blueprint_units(blueprint_text)
+
+    # Check (a): DAG acyclicity on Dependencies edges
+    cycles = _detect_dependency_cycles(units)
+    for cycle in cycles:
+        chain = " -> ".join(f"Unit {n}" for n in cycle)
+        violations.append(
+            {
+                "check": "dag",
+                "severity": "error",
+                "location": ", ".join(f"Unit {n}" for n in cycle if n is not None),
+                "description": (
+                    f"Dependency cycle detected: {chain}"
+                ),
+            }
+        )
+
+    # Check (c): Tier 2 signature implementation existence
+    # Build a global Tier-2 name -> owning unit map for use in check (d) too
+    tier2_owners: Dict[str, int] = {}
+    for unit_num, info in units.items():
+        for sig in info.get("tier2_signatures", []):
+            # First-declarer wins (multiple units shouldn't declare the
+            # same signature; if they do, that's a separate issue).
+            tier2_owners.setdefault(sig, unit_num)
+
+        stub_path = project_root / f"src/unit_{unit_num}/stub.py"
+        if not stub_path.exists():
+            # Skip per-function checks; emit a single warning per missing
+            # stub file instead.
+            if info.get("tier2_signatures"):
+                violations.append(
+                    {
+                        "check": "reachability",
+                        "severity": "warning",
+                        "location": f"Unit {unit_num}",
+                        "description": (
+                            f"Unit {unit_num} stub file not found at "
+                            f"{stub_path}; skipping Tier 2 implementation "
+                            f"check for {len(info['tier2_signatures'])} "
+                            f"declared signature(s)"
+                        ),
+                    }
+                )
+            continue
+
+        defined, _called = _collect_stub_function_calls(stub_path)
+        for sig in info.get("tier2_signatures", []):
+            if sig not in defined:
+                violations.append(
+                    {
+                        "check": "reachability",
+                        "severity": "error",
+                        "location": f"Unit {unit_num}",
+                        "description": (
+                            f"Tier 2 signature '{sig}' declared in Unit "
+                            f"{unit_num} but not implemented in {stub_path}"
+                        ),
+                    }
+                )
+
+    # Check (d): Phantom call detection
+    # Build set of all Tier 2 names across all units.
+    tier2_names = set(tier2_owners.keys())
+
+    # Snake_case heuristic: only consider calls whose name is multi-word
+    # snake_case (contains an underscore between two letters/digits) AND
+    # is NOT in the allow-list AND is NOT in tier2_names. This is
+    # conservative — single-word lowercase names are treated as likely
+    # stdlib/builtin and skipped. Underscored names are far more likely
+    # to be project-specific contract functions.
+    snake_re = re.compile(r"^[a-z][a-z0-9_]*_[a-z0-9_]+$")
+
+    for unit_num, info in units.items():
+        stub_path = project_root / f"src/unit_{unit_num}/stub.py"
+        if not stub_path.exists():
+            continue
+        _defined, called = _collect_stub_function_calls(stub_path)
+        for name in sorted(called):
+            if name in _PHANTOM_CALL_ALLOWLIST:
+                continue
+            if not snake_re.match(name):
+                continue
+            if name in tier2_names:
+                continue
+            # Also exclude names defined locally in this same stub file
+            # (private helpers) — they are valid implementations even if
+            # not in any Tier 2 declaration.
+            if name in _defined:
+                continue
+            # Allow names defined in OTHER unit stubs (private cross-unit
+            # helpers). To stay conservative, we only flag if no unit stub
+            # defines this name as a function. We don't re-scan all stubs
+            # here for performance; if the name doesn't look like a
+            # contract function (no Tier 2 declaration), warn rather than
+            # error.
+            violations.append(
+                {
+                    "check": "phantom_call",
+                    "severity": "warning",
+                    "location": f"Unit {unit_num} ({stub_path})",
+                    "description": (
+                        f"Unit {unit_num} stub calls '{name}()' but no "
+                        f"Tier 2 signature declares it"
+                    ),
+                }
+            )
+
+    # Filter against known false positives
+    fps = _read_known_false_positives(project_root)
+    if fps:
+        filtered: List[Dict[str, Any]] = []
+        for v in violations:
+            desc = v.get("description", "")
+            if any(fp in desc or desc == fp for fp in fps):
+                continue
+            filtered.append(v)
+        violations = filtered
+
+    return violations
+
+
+def format_audit_violations(violations: List[Dict[str, Any]]) -> str:
+    """Format an audit violation list into a human-readable error string.
+
+    Suitable for raising as a ValueError message or printing to stderr.
+    """
+    if not violations:
+        return "Blueprint contract audit passed."
+
+    lines: List[str] = [
+        f"Blueprint contract audit found {len(violations)} violation(s) "
+        f"(Bug S3-158):",
+        "",
+    ]
+    by_check: Dict[str, List[Dict[str, Any]]] = {}
+    for v in violations:
+        by_check.setdefault(v.get("check", "?"), []).append(v)
+
+    for check_name in sorted(by_check):
+        items = by_check[check_name]
+        lines.append(f"  [{check_name}] ({len(items)}):")
+        for v in items:
+            sev = v.get("severity", "?")
+            loc = v.get("location", "?")
+            desc = v.get("description", "?")
+            lines.append(f"    - ({sev}) {loc}: {desc}")
+        lines.append("")
+
+    lines.append(
+        "If a finding is a known false positive, add its description text "
+        "as a line in .svp/audit_known_false_positives.md and re-run."
+    )
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Compliance scan CLI
 # ---------------------------------------------------------------------------
 

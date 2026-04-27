@@ -2748,6 +2748,22 @@ def dispatch_agent_status(
                     f"violations.\n\n"
                     + format_unit_heading_violations(near_misses)
                 )
+            # Bug S3-158: mechanical blueprint-contract audit. Catches DAG
+            # cycles, missing Tier 2 implementations, and phantom calls.
+            # The .svp/audit_known_false_positives.md file (if present) is
+            # consulted to filter out documented exceptions.
+            from structural_check import (
+                audit_blueprint_contracts,
+                format_audit_violations,
+            )
+            audit_violations = audit_blueprint_contracts(project_root)
+            if audit_violations:
+                raise ValueError(
+                    f"blueprint_author emitted {status_line} but the "
+                    f"blueprint failed the mechanical contract audit "
+                    f"(Bug S3-158).\n\n"
+                    + format_audit_violations(audit_violations)
+                )
             return _copy(state)
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 

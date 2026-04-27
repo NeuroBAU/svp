@@ -33,8 +33,10 @@ import json
 
 from structural_check import (
     COMPLIANCE_SCANNERS,
+    audit_blueprint_contracts,
     check_cross_reference_integrity,
     compliance_scan_main,
+    format_audit_violations,
     generate_marketplace_json,
     generate_plugin_json,
     run_structural_check,
@@ -2289,3 +2291,253 @@ class TestDispatchExhaustivenessWithMixedRegistry:
         assert len(result) > 0, (
             "Languages with no dispatch tables should produce errors"
         )
+
+
+# ===========================================================================
+# Bug S3-158: audit_blueprint_contracts
+# ===========================================================================
+
+
+class TestAuditBlueprintContracts:
+    """Bug S3-158: mechanical audit gate for blueprint_contracts.md.
+
+    Three checks:
+      (a) DAG acyclicity on Dependencies edges.
+      (c) Tier 2 signature implementation existence.
+      (d) Phantom call detection.
+    Reciprocity check (b) is deferred (separate cycle).
+    """
+
+    def _make_project(self, tmp_path, blueprint_text=None, stubs=None):
+        """Build a synthetic project with blueprint + optional stubs.
+
+        `stubs` is dict mapping unit_num -> stub source string.
+        """
+        project_root = tmp_path / "proj"
+        project_root.mkdir()
+        (project_root / ".svp").mkdir()
+        (project_root / "blueprint").mkdir()
+        if blueprint_text is not None:
+            (project_root / "blueprint" / "blueprint_contracts.md").write_text(
+                blueprint_text, encoding="utf-8"
+            )
+        if stubs:
+            (project_root / "src").mkdir()
+            for n, src in stubs.items():
+                udir = project_root / "src" / f"unit_{n}"
+                udir.mkdir(parents=True)
+                (udir / "stub.py").write_text(src, encoding="utf-8")
+        return project_root
+
+    def test_audit_blueprint_contracts_passes_on_current_blueprint(self):
+        """Audit on the actual workspace blueprint reports zero violations
+        after the .svp/audit_known_false_positives.md filter is applied.
+
+        If this test fails with new findings, decide per-finding whether
+        each is a real bug (raise it) or a documented exception (add to
+        the false-positives file).
+        """
+        # Locate the project root by walking up from this test file
+        # until we find blueprint_contracts.md at either canonical
+        # location (workspace: blueprint/, repo: docs/). The audit
+        # function's fallback handles either layout once we pass the
+        # parent directory as project_root.
+        from pathlib import Path
+        here = Path(__file__).resolve()
+        candidate = here.parent
+        for _ in range(8):
+            if (candidate / "blueprint" / "blueprint_contracts.md").exists():
+                break
+            if (candidate / "docs" / "blueprint_contracts.md").exists():
+                break
+            candidate = candidate.parent
+        else:
+            raise AssertionError(
+                "blueprint_contracts.md not located by walking up from "
+                f"{here} (tried blueprint/ and docs/ at each level)"
+            )
+
+        violations = audit_blueprint_contracts(candidate)
+        assert violations == [], (
+            f"Real-blueprint audit found violations not covered by "
+            f".svp/audit_known_false_positives.md: {violations}"
+        )
+
+    def test_audit_blueprint_contracts_detects_dag_cycle(self, tmp_path):
+        """A 2-unit cycle in Dependencies produces a check='dag' violation."""
+        bp = (
+            "## Unit 1: Foo\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def foo() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "**Dependencies:** Unit 2.\n"
+            "\n"
+            "## Unit 2: Bar\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def bar() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "**Dependencies:** Unit 1.\n"
+        )
+        stubs = {
+            1: "def foo():\n    pass\n",
+            2: "def bar():\n    pass\n",
+        }
+        project_root = self._make_project(tmp_path, bp, stubs)
+        violations = audit_blueprint_contracts(project_root)
+        dag_findings = [v for v in violations if v["check"] == "dag"]
+        assert len(dag_findings) >= 1, (
+            f"Expected at least one DAG violation, got: {violations}"
+        )
+
+    def test_audit_blueprint_contracts_detects_undefined_tier2_signature(
+        self, tmp_path
+    ):
+        """Tier 2 declares foo() in Unit 99 but stub doesn't define foo —
+        produces check='reachability' violation."""
+        bp = (
+            "## Unit 99: Phantom Unit\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def some_undefined_function(arg: int) -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "**Dependencies:** None.\n"
+        )
+        # Provide an empty stub — function is NOT defined.
+        stubs = {99: "pass\n"}
+        project_root = self._make_project(tmp_path, bp, stubs)
+        violations = audit_blueprint_contracts(project_root)
+        reach = [
+            v
+            for v in violations
+            if v["check"] == "reachability"
+            and "some_undefined_function" in v["description"]
+        ]
+        assert len(reach) == 1, (
+            f"Expected one reachability violation for "
+            f"some_undefined_function, got: {violations}"
+        )
+
+    def test_audit_blueprint_contracts_detects_phantom_call(self, tmp_path):
+        """Stub calls bar_unknown_function() but no Tier 2 declares it —
+        produces check='phantom_call' violation."""
+        bp = (
+            "## Unit 50: Caller\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def known_function() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "**Dependencies:** None.\n"
+        )
+        stubs = {
+            50: (
+                "def known_function():\n"
+                "    bar_unknown_function()\n"
+            ),
+        }
+        project_root = self._make_project(tmp_path, bp, stubs)
+        violations = audit_blueprint_contracts(project_root)
+        phantom = [
+            v
+            for v in violations
+            if v["check"] == "phantom_call"
+            and "bar_unknown_function" in v["description"]
+        ]
+        assert len(phantom) == 1, (
+            f"Expected one phantom_call violation for bar_unknown_function, "
+            f"got: {violations}"
+        )
+
+    def test_audit_blueprint_contracts_respects_known_false_positives(
+        self, tmp_path
+    ):
+        """Same as undefined-signature test, but the description string is
+        listed in audit_known_false_positives.md — assert it is filtered."""
+        bp = (
+            "## Unit 99: Phantom Unit\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def some_undefined_function(arg: int) -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "**Dependencies:** None.\n"
+        )
+        stubs = {99: "pass\n"}
+        project_root = self._make_project(tmp_path, bp, stubs)
+        # Populate the false-positives file with the substring of the
+        # expected description.
+        fp_path = project_root / ".svp" / "audit_known_false_positives.md"
+        fp_path.write_text(
+            "# Known FPs\n"
+            "some_undefined_function\n",
+            encoding="utf-8",
+        )
+        violations = audit_blueprint_contracts(project_root)
+        assert violations == [], (
+            f"Filtered audit should be empty when description is in "
+            f".svp/audit_known_false_positives.md, got: {violations}"
+        )
+
+    def test_audit_blueprint_contracts_missing_blueprint_returns_marker(
+        self, tmp_path
+    ):
+        """If blueprint_contracts.md is absent, return a single
+        check='blueprint_missing' violation (not crash)."""
+        project_root = tmp_path / "empty_proj"
+        project_root.mkdir()
+        violations = audit_blueprint_contracts(project_root)
+        assert len(violations) == 1
+        assert violations[0]["check"] == "blueprint_missing"
+
+    def test_format_audit_violations_passing_message_when_empty(self):
+        """format_audit_violations on empty list yields the 'passed' line."""
+        msg = format_audit_violations([])
+        assert "passed" in msg.lower()
+
+    def test_format_audit_violations_groups_by_check(self):
+        """format_audit_violations groups violations by check kind and
+        references Bug S3-158 in the header."""
+        violations = [
+            {
+                "check": "dag",
+                "severity": "error",
+                "location": "Unit 1",
+                "description": "cycle U1->U2->U1",
+            },
+            {
+                "check": "phantom_call",
+                "severity": "warning",
+                "location": "Unit 3 (src/unit_3/stub.py)",
+                "description": "phantom_call_xyz()",
+            },
+        ]
+        msg = format_audit_violations(violations)
+        assert "S3-158" in msg
+        assert "[dag]" in msg
+        assert "[phantom_call]" in msg
+        assert "audit_known_false_positives.md" in msg

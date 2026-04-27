@@ -6090,6 +6090,16 @@ The S3-149 spec entry (§24.162) documented this as a sub-deferral: "`assembly_r
 
 **Resolution**: Insert convention-agnostic Cross-Reference Reconciliation methodology step before terminal-status section. Audit enumerates references and targets, verifies resolution, fixes unambiguous mismatches, halts with structured error on ambiguous cases. Resolves IMPROV-01.
 
+### S3-158 — Blueprint terminal status lacked mechanical audit gate
+
+**Symptom**: blueprint_author agent could emit BLUEPRINT_DRAFT_COMPLETE / BLUEPRINT_REVISION_COMPLETE on a blueprint with cyclic dependencies, missing implementations for declared Tier 2 signatures, or phantom function calls. fmrpqc evidence: 35 orphan functions and 3 reciprocity mismatches across 4 review rounds; agent self-review missed them repeatedly.
+
+**Root cause**: src/unit_14/stub.py dispatch_agent_status validated unit-heading format only; no DAG/reachability/phantom-call checks before allowing the gate to advance.
+
+**Surface area**: src/unit_28/stub.py (new audit_blueprint_contracts function); src/unit_14/stub.py:2731-2751 (gate hook).
+
+**Resolution**: New audit_blueprint_contracts() in Unit 28 performs DAG acyclicity (a), Tier 2 signature implementation (c), phantom-call detection (d) checks. Hooked into Unit 14 dispatch_agent_status; raises ValueError if violations. False-positives filterable via .svp/audit_known_false_positives.md. Reciprocity check (b) deferred to separate cycle (Calls/Called-by encoding required first). Resolves IMPROV-09 (partial: a/c/d).
+
 ---
 
 ## 25. Test Data

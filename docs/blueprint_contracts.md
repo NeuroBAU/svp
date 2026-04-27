@@ -1179,7 +1179,7 @@ def run_tests_main(argv: list = None) -> None: ...
 - `"setup_agent"` + `PROFILE_COMPLETE`: no state change (two-branch in route).
 - `"stakeholder_dialog"` + `SPEC_DRAFT_COMPLETE` / `SPEC_REVISION_COMPLETE`: no state change (two-branch in route).
 - `"stakeholder_reviewer"` + `REVIEW_COMPLETE`: no state change (two-branch in route).
-- `"blueprint_author"` + `BLUEPRINT_DRAFT_COMPLETE` / `BLUEPRINT_REVISION_COMPLETE`: **(CHANGED IN 2.2 — Bug S3-116)** MUST call `validate_unit_heading_format(project_root / "blueprint")` from Unit 8 before advancing. If the validator returns a non-empty list of near-miss violations, raise `ValueError` with `format_unit_heading_violations(...)` as the message. The pipeline halts at dispatch time with a near-miss diagnostic — BEFORE Gate 2.1 is presented to the human. If the validator returns an empty list (blueprint is format-clean), return `_copy(state)` as before (no state change, two-branch in route). This is the writing-side enforcement point of the unit heading grammar invariant; the extraction side is in Unit 11's `run_infrastructure_setup` Step 5. Both sides use the same Unit 8 validator; they cannot drift.
+- `"blueprint_author"` + `BLUEPRINT_DRAFT_COMPLETE` / `BLUEPRINT_REVISION_COMPLETE`: **(CHANGED IN 2.2 — Bug S3-116)** MUST call `validate_unit_heading_format(project_root / "blueprint")` from Unit 8 before advancing. If the validator returns a non-empty list of near-miss violations, raise `ValueError` with `format_unit_heading_violations(...)` as the message. The pipeline halts at dispatch time with a near-miss diagnostic — BEFORE Gate 2.1 is presented to the human. **(CHANGED IN 2.2 — Bug S3-158)** AFTER the heading validation passes, MUST call `audit_blueprint_contracts(project_root)` from Unit 28 and raise `ValueError` with `format_audit_violations(...)` as the message if the audit returns a non-empty list. The audit performs three mechanical checks (DAG acyclicity, Tier 2 signature implementation existence, phantom-call detection); reciprocity check (b) is deferred to a separate cycle. Findings filtered through `<project_root>/.svp/audit_known_false_positives.md`. The pipeline halts at dispatch time with the audit report — BEFORE Gate 2.1 is presented. If both checks pass, return `_copy(state)` as before (no state change, two-branch in route). This is the writing-side enforcement point of the unit heading grammar invariant AND the blueprint contract audit; the extraction side for headings is in Unit 11's `run_infrastructure_setup` Step 5. Both sides use the same Unit 8 validator; they cannot drift.
 - `"blueprint_reviewer"` + `REVIEW_COMPLETE`: no state change (two-branch in route).
 - `"blueprint_checker"` + `ALIGNMENT_CONFIRMED`: advance sub_stage to `"alignment_confirmed"` (gate-presenting state for Gate 2.2). Only Gate 2.2 APPROVE advances to pre_stage_3.
 - `"blueprint_checker"` + `ALIGNMENT_FAILED: blueprint`: reset sub_stage to `"blueprint_dialog"`, increment alignment_iterations. If >= limit: present gate_2_3. Otherwise: fresh blueprint author invocation on next routing cycle.
@@ -2056,6 +2056,10 @@ def run_structural_check(
     strict: bool = False,
 ) -> List[Dict[str, Any]]: ...
 
+def audit_blueprint_contracts(project_root: Path) -> List[Dict[str, Any]]: ...
+
+def format_audit_violations(violations: List[Dict[str, Any]]) -> str: ...
+
 def validate_dispatch_exhaustiveness(
     language_registry: Dict[str, Dict[str, Any]],
     dispatch_tables: Dict[str, Dict[str, Any]],
@@ -2110,6 +2114,21 @@ def compliance_scan_main(argv: list = None) -> None: ...
 - `output_format`: `"text"` or `"json"`.
 - `strict`: if True, any findings produce non-zero exit code.
 - Returns list of finding dicts.
+
+**audit_blueprint_contracts (Bug S3-158, NEW IN 2.2):**
+- Signature: `audit_blueprint_contracts(project_root: Path) -> List[Dict[str, Any]]`.
+- Performs three mechanical checks against `<project_root>/blueprint/blueprint_contracts.md`:
+  - **Check (a) — DAG acyclicity:** Parses per-Unit `## Unit N: Name` headings and `**Dependencies:** Unit X, Unit Y.` lines, builds a directed graph U→D for each declared dependency, and detects cycles via DFS. Each cycle produces one violation entry with `check="dag"`.
+  - **Check (c) — Tier 2 signature implementation existence:** For each `def NAME(...)` line under a `### Tier 2 — Signatures` block, verifies that `src/unit_<N>/stub.py` defines a function named `NAME`. Missing implementations produce `check="reachability"` violations. Missing stub files produce a single warning per unit, not per-function errors.
+  - **Check (d) — Phantom call detection:** Builds the set of all Tier 2 signature names across all units, then walks each `src/unit_<N>/stub.py` AST collecting bare-name `Call` targets. A call is flagged as `check="phantom_call"` only when the name (i) matches `^[a-z][a-z0-9_]*_[a-z0-9_]+$` (multi-word snake_case), (ii) is NOT in the hard-coded stdlib/builtin allow-list, (iii) is NOT in the global Tier 2 set, and (iv) is NOT defined locally in the same stub. The check is intentionally conservative — false positives here are worse than missed phantoms.
+- **False-positive filter:** Reads `<project_root>/.svp/audit_known_false_positives.md` if present. Each non-comment, non-empty line is treated as a description-substring match; findings whose `description` contains any of those substrings (or equals one) are dropped before returning. Lines starting with `#` are comments.
+- **Reciprocity check (b) — DEFERRED:** A separate cycle will add Calls/Called-by encoding to the blueprint and add the reciprocity check; not implemented in S3-158.
+- Each violation dict has fields: `check` (one of `"dag"`, `"reachability"`, `"phantom_call"`, `"blueprint_missing"`), `severity` (`"error"` or `"warning"`), `location` (unit name or file path), `description` (1-line human-readable string).
+- Empty list means audit passed. Missing blueprint file returns a single `check="blueprint_missing"` entry.
+
+**format_audit_violations (Bug S3-158, NEW IN 2.2):**
+- Signature: `format_audit_violations(violations: List[Dict[str, Any]]) -> str`.
+- Groups violations by `check`, formats them as a multi-line block suitable for raising as a `ValueError` message, references Bug S3-158 explicitly, and ends with a one-line pointer to `.svp/audit_known_false_positives.md` for documenting exceptions.
 
 **validate_dispatch_exhaustiveness:**
 - For each full language (not `is_component_only`): verifies entry exists in all 6 dispatch tables.
