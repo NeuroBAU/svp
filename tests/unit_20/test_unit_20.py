@@ -338,6 +338,42 @@ class TestBlueprintAuthorSelfReviewSection:
         )
 
 
+class TestBlueprintAuthorSplitFormatMandate:
+    """BLUEPRINT_AUTHOR_DEFINITION must mandate split-format output: two files
+    at the canonical ARTIFACT_FILENAMES paths, with explicit prohibition on a
+    unified single-file blueprint (Bug S3-156).
+    """
+
+    def test_blueprint_author_definition_mentions_blueprint_prose_path(self):
+        """The canonical prose path must appear in the agent prompt."""
+        assert _contains(
+            BLUEPRINT_AUTHOR_DEFINITION, "blueprint/blueprint_prose.md"
+        ), (
+            "BLUEPRINT_AUTHOR_DEFINITION must reference the canonical prose "
+            "output path 'blueprint/blueprint_prose.md' (per ARTIFACT_FILENAMES)."
+        )
+
+    def test_blueprint_author_definition_mentions_blueprint_contracts_path(self):
+        """The canonical contracts path must appear in the agent prompt."""
+        assert _contains(
+            BLUEPRINT_AUTHOR_DEFINITION, "blueprint/blueprint_contracts.md"
+        ), (
+            "BLUEPRINT_AUTHOR_DEFINITION must reference the canonical "
+            "contracts output path 'blueprint/blueprint_contracts.md' "
+            "(per ARTIFACT_FILENAMES)."
+        )
+
+    def test_blueprint_author_definition_forbids_unified_file(self):
+        """The prompt must explicitly prohibit a unified single-file blueprint."""
+        assert _contains(
+            BLUEPRINT_AUTHOR_DEFINITION, "MUST NOT produce a unified"
+        ), (
+            "BLUEPRINT_AUTHOR_DEFINITION must contain explicit prohibition "
+            "language ('MUST NOT produce a unified ...') against emitting a "
+            "single-file blueprint."
+        )
+
+
 # ===========================================================================
 # BLUEPRINT_REVIEWER_DEFINITION
 # ===========================================================================

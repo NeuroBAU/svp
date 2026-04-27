@@ -196,12 +196,46 @@ Ask about:
 4. **Incorporate profile preferences.** Use the project profile to structure the delivery \
 unit, encode tool preferences as behavioral contracts (Layer 1), and include commit style, \
 quality tool preferences, and changelog format in the git repo agent behavioral contract.
-5. **Write the blueprint.** Write each unit in the three-tier format.
+5. **Write the blueprint to TWO files exactly as named below.** Author each unit in the \
+three-tier format, split across the two canonical output files described in the \
+"Output Files" section. **You MUST NOT produce a unified single-file blueprint** \
+(e.g., `blueprint/blueprint.md` or `blueprints/blueprint.md`). Downstream consumers \
+read the two canonical paths verbatim; emitting a single combined file silently breaks \
+heading-count probes and pipeline progress detection.
 6. **Write the Delivered File Tree (mandatory).** See "Delivered File Tree" below.
 7. **Self-Review Pass.** Before emitting your terminal status line, run the self-review \
 pass described under "Self-Review Artifact" below. Iterate (revise the blueprint and \
 re-run the self-review) until every item is PASS. Only after the self-review outcome \
 is `ALL_PASS` may you emit `BLUEPRINT_DRAFT_COMPLETE` or `BLUEPRINT_REVISION_COMPLETE`.
+
+## Output Files (Bug S3-156 — MANDATORY split format)
+
+The blueprint MUST be authored as **two files**, written at exactly these paths:
+
+- `blueprint/blueprint_prose.md` — narrative/explanatory content (Tier 1 unit \
+descriptions, the `## Preamble: Delivered File Tree` section, Profile preferences \
+subsections, and any prose discussion of unit responsibilities, scope, and \
+inter-unit relationships).
+- `blueprint/blueprint_contracts.md` — formal contracts (Tier 2 signatures and \
+Tier 3 behavioral contracts: pre/post-conditions, error handling, dependencies, \
+invariants, dispatch tables).
+
+**Hard prohibition:** You MUST NOT produce a unified single-file blueprint such as \
+`blueprint/blueprint.md` or `blueprints/blueprint.md`. The two-file split is the \
+canonical output convention; **two files** are required, no exceptions.
+
+**Why this matters:** These paths are the canonical paths declared in \
+`ARTIFACT_FILENAMES` (`svp_config`, keys `blueprint_prose` and `blueprint_contracts`). \
+Downstream readers — including `_count_unit_headings`, `generate_assembly_map.py`, \
+the Blueprint Reviewer, and the Alignment Checker — read these exact paths. If the \
+blueprint is emitted as a single combined file at any other path, heading-count probes \
+return zero, the pipeline misreports unit count, and blueprint completion cannot be \
+detected.
+
+Every unit must appear under the same `## Unit N: <Name>` heading in BOTH files: \
+the prose file holds the unit's Tier 1 description, the contracts file holds its \
+Tier 2 signatures and Tier 3 behavioral contracts. The unit headings in both files \
+must agree exactly (see "Unit Heading Grammar" below).
 
 ## Delivered File Tree (Bug S3-150 — MANDATORY)
 
@@ -469,6 +503,11 @@ and Tier 3.
 - Do NOT use hyphens in the Tier 2 heading. Use the em-dash: `### Tier 2 \u2014 Signatures`.
 - Do NOT ignore profile preferences. Every preference in the project profile must be \
 reflected as a behavioral contract in at least one unit.
+- Do NOT produce a unified single-file blueprint. The blueprint MUST be authored as \
+two files at the canonical paths `blueprint/blueprint_prose.md` and \
+`blueprint/blueprint_contracts.md` (see "Output Files" above). Combining prose and \
+contracts into one file (e.g., `blueprint/blueprint.md`) silently breaks downstream \
+readers.
 """
 
 # ---------------------------------------------------------------------------

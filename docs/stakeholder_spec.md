@@ -6070,6 +6070,16 @@ The S3-149 spec entry (§24.162) documented this as a sub-deferral: "`assembly_r
 
 **Detection.** `tests/unit_14/test_unit_14.py::test_cmd_quality_gate_a_target_python_archetype_unchanged` (Python regression guard); `test_cmd_quality_gate_a_target_r_archetype_emits_zero_padded_filename` (R single-digit unit); `test_cmd_quality_gate_a_target_r_archetype_unit_25_zero_pad_two_digits` (R two-digit unit zero-pad invariant); `test_cmd_quality_gate_b_target_r_archetype_emits_zero_padded_filename` (gate_b parity).
 
+### S3-156 — BLUEPRINT_AUTHOR_DEFINITION omits explicit split-format mandate
+
+**Symptom**: blueprint_author agent may produce a unified single-file blueprint instead of the canonical split-format (`blueprint_prose.md` + `blueprint_contracts.md`); when this happens, downstream `_count_unit_headings` finds 0 headings at canonical paths and pipeline misreports unit count or fails to detect blueprint completion.
+
+**Root cause**: src/unit_20/stub.py BLUEPRINT_AUTHOR_DEFINITION mentions `blueprint/blueprint_prose.md` only in a Delivered File Tree (line 208) without prescriptive instruction in Methodology; ARTIFACT_FILENAMES declares two canonical paths (svp_config/unit_1/stub.py:14-15) but the agent prompt does not enforce them.
+
+**Surface area**: src/unit_20/stub.py BLUEPRINT_AUTHOR_DEFINITION (lines 159-472).
+
+**Resolution**: Update the agent prompt to mandate split-format output: TWO files at `blueprint/blueprint_prose.md` and `blueprint/blueprint_contracts.md`; explicitly forbid unified single-file output. Cite ARTIFACT_FILENAMES as canonical source. Resolves IMPROV-15.
+
 ---
 
 ## 25. Test Data
