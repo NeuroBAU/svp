@@ -6185,6 +6185,16 @@ Resolves IMPROV-18 narrow extract (standard finding output format).
 
 This is cycle 1 of the specialist-dispatch-wiring batch. Cycles 2-5 will add primer injections at Stages 1-3 and reviewer dispatch at Stage 2 review.
 
+### S3-165 — Stakeholder dialog primer + Socratic mandate
+
+**Symptom**: When projects flagged requires_statistical_analysis = true, stakeholder_dialog had no mechanism to elicit explicit thresholds, formulas, fallbacks, multiple-comparisons policy, effect sizes, power/N, or missing-data mechanism. Vague spec language survived authoring. Additionally, stakeholder_dialog (like setup_agent before cycle 1) asked questions without context, trade-offs, or recommendation.
+
+**Root cause**: STAKEHOLDER_DIALOG_DEFINITION lacked both the Socratic Question Format mandate and the statistical-analysis primer. prepare_task helper for stakeholder_dialog did not branch on the profile flag.
+
+**Surface area**: src/unit_20/stub.py STAKEHOLDER_DIALOG_DEFINITION (Socratic mandate + new STAKEHOLDER_DIALOG_STATISTICAL_PRIMER constant); src/unit_13/stub.py _prepare_stakeholder_dialog (conditional primer append).
+
+**Resolution**: Cycle 2 of the specialist-dispatch-wiring batch. Adds Socratic Question Format mandate to STAKEHOLDER_DIALOG_DEFINITION (parity with setup_agent from S3-164). Adds STAKEHOLDER_DIALOG_STATISTICAL_PRIMER constant covering 14 mandatory question categories. _prepare_stakeholder_dialog reads the centralized helper _requires_statistical_analysis(state) and appends the primer when true; otherwise unchanged. Primer placement does NOT alter routing or sub-stage flow.
+
 ---
 
 ## 25. Test Data

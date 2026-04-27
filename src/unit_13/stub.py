@@ -18,7 +18,11 @@ if _scripts_dir not in sys.path:
 from src.unit_1.stub import ARTIFACT_FILENAMES, get_blueprint_dir
 from src.unit_2.stub import LANGUAGE_REGISTRY
 from src.unit_3.stub import load_profile
-from src.unit_5.stub import PipelineState, load_state
+from src.unit_5.stub import (
+    PipelineState,
+    _requires_statistical_analysis,
+    load_state,
+)
 from src.unit_7.stub import get_ledger_path, read_ledger
 from src.unit_8.stub import build_unit_context as _build_unit_context_raw
 from src.unit_8.stub import extract_units
@@ -599,6 +603,16 @@ def _prepare_stakeholder_dialog(
 
     if context and mode not in ("revision", "targeted_revision"):
         sections.append(_format_section("Context", context))
+
+    # Bug S3-165: when the project profile requires statistical analysis,
+    # append STAKEHOLDER_DIALOG_STATISTICAL_PRIMER so the stakeholder dialog
+    # elicits machine-actionable answers for every statistical concept.
+    # Defensive guard: only append when state is provided (legacy callers
+    # without state get the unchanged base prompt).
+    if state is not None and _requires_statistical_analysis(state):
+        from src.unit_20.stub import STAKEHOLDER_DIALOG_STATISTICAL_PRIMER
+
+        sections.append(STAKEHOLDER_DIALOG_STATISTICAL_PRIMER)
 
     return _assemble_sections(sections)
 

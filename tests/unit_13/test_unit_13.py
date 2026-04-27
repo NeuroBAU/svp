@@ -1716,3 +1716,74 @@ class TestS3_159MultiModePromptBlocks:
         assert "SPEC_DRAFT_COMPLETE" in result
         # Revision-mode-only status must NOT appear.
         assert "SPEC_REVISION_COMPLETE" not in result
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-165: Conditional STAKEHOLDER_DIALOG_STATISTICAL_PRIMER append
+# ---------------------------------------------------------------------------
+
+
+def _write_pipeline_state(project_root, requires_stats):
+    """Helper: rewrite the project's pipeline_state.json with the given
+    requires_statistical_analysis flag (everything else minimal)."""
+    state_path = project_root / ".svp" / "pipeline_state.json"
+    state_data = dict(MINIMAL_PIPELINE_STATE)
+    state_data["requires_statistical_analysis"] = bool(requires_stats)
+    state_path.write_text(json.dumps(state_data))
+
+
+class TestPrepareStakeholderDialogStatisticalPrimerAppend:
+    """Bug S3-165: _prepare_stakeholder_dialog must append
+    STAKEHOLDER_DIALOG_STATISTICAL_PRIMER to the assembled task prompt
+    iff state.requires_statistical_analysis is True. When the flag is False
+    or state is None (legacy callers), the primer must NOT appear."""
+
+    _PRIMER_MARKER = "Statistical Analysis Primer"
+
+    def test_prepare_stakeholder_dialog_appends_primer_when_flag_true(
+        self, project_root
+    ):
+        """When the loaded state has requires_statistical_analysis=True, the
+        primer's distinctive substring must appear in the generated prompt."""
+        _write_pipeline_state(project_root, requires_stats=True)
+        result = prepare_task_prompt(
+            project_root, "stakeholder_dialog", mode="draft"
+        )
+        assert self._PRIMER_MARKER in result, (
+            "When state.requires_statistical_analysis=True, "
+            "STAKEHOLDER_DIALOG_STATISTICAL_PRIMER must be appended to "
+            "the stakeholder_dialog task prompt (Bug S3-165)."
+        )
+
+    def test_prepare_stakeholder_dialog_omits_primer_when_flag_false(
+        self, project_root
+    ):
+        """When the loaded state has requires_statistical_analysis=False, the
+        primer's distinctive substring must NOT appear in the prompt."""
+        _write_pipeline_state(project_root, requires_stats=False)
+        result = prepare_task_prompt(
+            project_root, "stakeholder_dialog", mode="draft"
+        )
+        assert self._PRIMER_MARKER not in result, (
+            "When state.requires_statistical_analysis=False, "
+            "STAKEHOLDER_DIALOG_STATISTICAL_PRIMER must NOT be appended "
+            "(Bug S3-165 — append is conditional on the profile flag)."
+        )
+
+    def test_prepare_stakeholder_dialog_omits_primer_when_state_none(
+        self, project_root
+    ):
+        """When pipeline_state.json is absent (state=None), the primer must
+        NOT be appended (defensive guard for legacy callers)."""
+        # Remove pipeline_state.json so _get_state_safe returns None.
+        state_path = project_root / ".svp" / "pipeline_state.json"
+        if state_path.exists():
+            state_path.unlink()
+        result = prepare_task_prompt(
+            project_root, "stakeholder_dialog", mode="draft"
+        )
+        assert self._PRIMER_MARKER not in result, (
+            "When state is None (no pipeline_state.json), "
+            "STAKEHOLDER_DIALOG_STATISTICAL_PRIMER must NOT be appended "
+            "(Bug S3-165 — defensive guard against legacy callers)."
+        )

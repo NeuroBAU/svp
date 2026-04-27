@@ -41,6 +41,7 @@ from construction_agents import (
     IMPLEMENTATION_AGENT_DEFINITION,
     INTEGRATION_TEST_AUTHOR_DEFINITION,
     STAKEHOLDER_DIALOG_DEFINITION,
+    STAKEHOLDER_DIALOG_STATISTICAL_PRIMER,
     STAKEHOLDER_REVIEWER_DEFINITION,
     TEST_AGENT_DEFINITION,
 )
@@ -1327,3 +1328,67 @@ class TestS3_162StandardFindingFormat:
         assert not missing, (
             f"COVERAGE_REVIEW_AGENT_DEFINITION missing finding-block labels: {missing}"
         )
+
+
+# ===========================================================================
+# Bug S3-165: Stakeholder Dialog Socratic mandate + Statistical Primer
+# ===========================================================================
+
+
+class TestStakeholderDialogSocraticAndStatisticalPrimer:
+    """Bug S3-165: STAKEHOLDER_DIALOG_DEFINITION must mandate the Socratic
+    Question Format (Context + Trade-offs + Recommendation) for every question
+    to the human (parity with SETUP_AGENT_DEFINITION from S3-164). A new
+    module-level constant STAKEHOLDER_DIALOG_STATISTICAL_PRIMER must exist and
+    enumerate the 14 mandatory question categories that drive the conditional
+    primer append performed by Unit 13's _prepare_stakeholder_dialog."""
+
+    def test_stakeholder_dialog_definition_includes_socratic_question_format_mandate(
+        self,
+    ):
+        """The Socratic Question Format heading + the three keywords
+        (Context, Trade-offs, Recommendation) must appear in the prompt."""
+        assert _contains(
+            STAKEHOLDER_DIALOG_DEFINITION, "Socratic Question Format"
+        ), (
+            "STAKEHOLDER_DIALOG_DEFINITION must contain a "
+            "'Socratic Question Format' heading (Bug S3-165)."
+        )
+        for keyword in ("Context", "Trade-offs", "Recommendation"):
+            assert _contains(STAKEHOLDER_DIALOG_DEFINITION, keyword), (
+                f"STAKEHOLDER_DIALOG_DEFINITION Socratic mandate must "
+                f"include the '{keyword}' element (Bug S3-165)."
+            )
+
+    def test_stakeholder_dialog_statistical_primer_constant_exists(self):
+        """STAKEHOLDER_DIALOG_STATISTICAL_PRIMER must be a non-empty string
+        and must contain the key statistical-domain terms the primer
+        documents."""
+        assert isinstance(STAKEHOLDER_DIALOG_STATISTICAL_PRIMER, str), (
+            "STAKEHOLDER_DIALOG_STATISTICAL_PRIMER must be a str."
+        )
+        assert len(STAKEHOLDER_DIALOG_STATISTICAL_PRIMER.strip()) > 0, (
+            "STAKEHOLDER_DIALOG_STATISTICAL_PRIMER must be non-empty."
+        )
+        for keyword in (
+            "Multiple-comparisons",
+            "Effect-size",
+            "Power",
+            "Missing-data mechanism",
+            "Bootstrap",
+        ):
+            assert _contains(STAKEHOLDER_DIALOG_STATISTICAL_PRIMER, keyword), (
+                f"STAKEHOLDER_DIALOG_STATISTICAL_PRIMER must mention "
+                f"'{keyword}' (Bug S3-165)."
+            )
+
+    def test_stakeholder_dialog_statistical_primer_lists_all_14_categories(self):
+        """The primer must enumerate all 14 mandatory question categories
+        as numbered list items '1.' through '14.'"""
+        for n in range(1, 15):
+            marker = f"{n}."
+            assert marker in STAKEHOLDER_DIALOG_STATISTICAL_PRIMER, (
+                f"STAKEHOLDER_DIALOG_STATISTICAL_PRIMER must include "
+                f"category marker '{marker}' (Bug S3-165 — 14 mandatory "
+                f"question categories)."
+            )
