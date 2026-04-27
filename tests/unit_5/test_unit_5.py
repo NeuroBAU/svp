@@ -1745,3 +1745,39 @@ class TestRequiresStatisticalAnalysisField:
         _write_state_file(tmp_path, state_dict)
         state = load_state(tmp_path)
         assert state.requires_statistical_analysis is False
+
+
+# ---------------------------------------------------------------------------
+# statistical_review_done field (Bug S3-168)
+# ---------------------------------------------------------------------------
+
+
+class TestStatisticalReviewDoneField:
+    """Tests for PipelineState.statistical_review_done (Bug S3-168).
+
+    Per-blueprint-review-iteration tracking flag. Default False.
+    Set True by dispatch_agent_status on
+    statistical_correctness_reviewer + REVIEW_COMPLETE; reset False on
+    gate_2_2_blueprint_post_review REVISE / FRESH REVIEW outcomes.
+    """
+
+    def test_pipeline_state_has_statistical_review_done_field_default_false(
+        self,
+    ):
+        """Default state has statistical_review_done == False."""
+        state = PipelineState()
+        assert state.statistical_review_done is False
+
+    def test_pipeline_state_persists_statistical_review_done(self, tmp_path):
+        """save_state with statistical_review_done=True; reload; still True."""
+        _write_state_file(tmp_path, _minimal_state_dict())
+        state = load_state(tmp_path)
+        state.statistical_review_done = True
+        save_state(tmp_path, state)
+
+        reloaded = load_state(tmp_path)
+        assert reloaded.statistical_review_done is True
+
+        # And the JSON-on-disk shape carries the field as a top-level key.
+        raw = json.loads(_state_path(tmp_path).read_text())
+        assert raw["statistical_review_done"] is True

@@ -564,6 +564,9 @@ class TestAgentStatusLinesVsDispatch:
         "blueprint_author": {"stage": "2", "sub_stage": None, "current_unit": None},
         "blueprint_checker": {"stage": "2", "sub_stage": "alignment_check", "current_unit": None},
         "blueprint_reviewer": {"stage": "2", "sub_stage": None, "current_unit": None},
+        # Bug S3-168 (cycle 5 capstone): the new specialist mirrors
+        # blueprint_reviewer's dispatch context (Stage 2, sub_stage None).
+        "statistical_correctness_reviewer": {"stage": "2", "sub_stage": None, "current_unit": None},
         "test_agent": {"stage": "3", "sub_stage": "test_generation"},
         "implementation_agent": {"stage": "3", "sub_stage": "implementation"},
         "coverage_review": {"stage": "3", "sub_stage": "coverage_review"},

@@ -6217,6 +6217,18 @@ This is cycle 1 of the specialist-dispatch-wiring batch. Cycles 2-5 will add pri
 
 ROUTING-SAFETY: Stage 3 changes are prompt-content ONLY. The per-unit TDD loop, sub-stages, gates, terminal statuses, and agent-dispatch logic are untouched. Append-only at task-prompt assembly time.
 
+### S3-168 — Specialist reviewer dispatch (capstone)
+
+**Symptom**: Cycle 11 (S3-163) created STATISTICAL_CORRECTNESS_REVIEWER and registered it in assembly, but routing never invoked the agent. The deferred-dispatch follow-up plan (project_specialist_dispatch_followup.md) tracked this gap.
+
+**Root cause**: `_route_stage_2` blueprint_review dispatched only blueprint_reviewer; KNOWN_AGENT_TYPES and SELECTIVE_LOADING_MATRIX in unit_13 lacked the new agent; no per-iteration tracking flag existed to prevent re-dispatch loops.
+
+**Surface area**: src/unit_5/stub.py (statistical_review_done state field); src/unit_14/stub.py (route + dispatch + gate-outcome reset); src/unit_13/stub.py (KNOWN_AGENT_TYPES + SELECTIVE_LOADING_MATRIX + _prepare_statistical_correctness_reviewer + prepare_task_prompt dispatch branch).
+
+**Resolution**: Cycle 5 of the specialist-dispatch-wiring batch (capstone). Sequential dispatch — both reviewers see the same blueprint version (semantically parallel). When _requires_statistical_analysis(state) is true: blueprint_reviewer runs first, emits REVIEW_COMPLETE; if state.statistical_review_done is False, routing dispatches statistical_correctness_reviewer; on its REVIEW_COMPLETE, dispatch_agent_status sets flag True; gate_2_2 then fires (single shared gate). On REVISE / FRESH REVIEW outcomes, flag resets so next iteration repeats both reviewers. With flag=false, routing flow is byte-identical to baseline (regression-tested).
+
+ROUTING-SAFETY: no new gates, no new sub-stages, no new terminal statuses. The specialist uses REVIEW_COMPLETE same as blueprint_reviewer. Per-iteration tracking via single boolean state field. flag=false case is unchanged from baseline.
+
 ---
 
 ## 25. Test Data

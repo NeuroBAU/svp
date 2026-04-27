@@ -74,6 +74,11 @@ KNOWN_AGENT_TYPES: List[str] = [
     "blueprint_author",
     "blueprint_checker",
     "blueprint_reviewer",
+    # Bug S3-168: capstone of specialist-dispatch-wiring batch (cycle 5).
+    # Domain-specialist reviewer for statistical correctness, dispatched
+    # after blueprint_reviewer when state.requires_statistical_analysis
+    # is True. See _route_stage_2 blueprint_review (Unit 14).
+    "statistical_correctness_reviewer",
     "test_agent",
     "implementation_agent",
     "coverage_review",
@@ -104,6 +109,10 @@ SELECTIVE_LOADING_MATRIX: Dict[str, str] = {
     "blueprint_author": "both",
     "blueprint_checker": "both",
     "blueprint_reviewer": "both",
+    # Bug S3-168: specialist mirrors blueprint_reviewer's loading mode
+    # (both prose + contracts) since the specialist also reviews the full
+    # blueprint with a narrower mandate.
+    "statistical_correctness_reviewer": "both",
     "coverage_review_agent": "contracts_only",
     "oracle_agent": "both",
 }
@@ -739,6 +748,56 @@ def _prepare_blueprint_reviewer(
         _format_section(
             "Review Checklist",
             "Review the blueprint for completeness, consistency, and alignment with spec.",
+        )
+    )
+
+    if context:
+        sections.append(_format_section("Context", context))
+
+    return _assemble_sections(sections)
+
+
+def _prepare_statistical_correctness_reviewer(
+    project_root: Path,
+    state: Optional[PipelineState],
+    mode: Optional[str],
+    context: Optional[str],
+    blueprint_dir: Path,
+) -> str:
+    """Prepare task prompt for statistical_correctness_reviewer.
+
+    Bug S3-168: capstone of the specialist-dispatch-wiring batch (cycle 5).
+    Mirrors `_prepare_blueprint_reviewer` exactly — same sections, same
+    selective-loading mode (both prose + contracts). The specialist's
+    narrow-mandate prompt content lives in svp/agents/
+    statistical_correctness_reviewer.md (assembled by Unit 25 from the
+    cycle-11 / S3-163 agent definition); this helper assembles only the
+    task-prompt context (spec + blueprint + checklist), leaving the
+    domain-specialist mandate to be merged in at agent-invocation time.
+    """
+    sections: List[str] = []
+    sections.append("# Statistical Correctness Reviewer Task Prompt")
+
+    # Load spec
+    spec_path = project_root / ARTIFACT_FILENAMES["stakeholder_spec"]
+    spec_content = _read_file_safe(spec_path)
+    if spec_content:
+        sections.append(_format_section("Spec", spec_content))
+
+    # Blueprint: both files (mirrors blueprint_reviewer loading mode)
+    blueprint_content = _load_blueprint_for_agent(
+        "statistical_correctness_reviewer", blueprint_dir
+    )
+    if blueprint_content:
+        sections.append(_format_section("Blueprint", blueprint_content))
+
+    # Review checklist
+    sections.append(
+        _format_section(
+            "Review Checklist",
+            "Review the blueprint for statistical-correctness defects: "
+            "formulas, thresholds, decision rules, fallbacks, multiple "
+            "comparisons, effect-size, power/N, missing-data strategy.",
         )
     )
 
@@ -1769,6 +1828,14 @@ def prepare_task_prompt(
         )
     elif agent_type == "blueprint_reviewer":
         content = _prepare_blueprint_reviewer(
+            project_root, state, mode, context, blueprint_dir
+        )
+    # Bug S3-168: capstone of specialist-dispatch-wiring batch (cycle 5).
+    # Dispatched by _route_stage_2 blueprint_review when
+    # _requires_statistical_analysis(state) is True and the specialist has
+    # not yet emitted REVIEW_COMPLETE for the current iteration.
+    elif agent_type == "statistical_correctness_reviewer":
+        content = _prepare_statistical_correctness_reviewer(
             project_root, state, mode, context, blueprint_dir
         )
     elif agent_type == "blueprint_checker":

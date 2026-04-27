@@ -109,7 +109,7 @@ MINIMAL_TOOLCHAIN = {
 }
 
 EXPECTED_GATE_COUNT = 31
-EXPECTED_AGENT_COUNT = 21
+EXPECTED_AGENT_COUNT = 22  # Bug S3-168: +1 for statistical_correctness_reviewer
 
 EXPECTED_GATE_IDS = [
     "gate_0_1_hook_activation",
@@ -152,6 +152,7 @@ EXPECTED_AGENT_TYPES = [
     "blueprint_author",
     "blueprint_checker",
     "blueprint_reviewer",
+    "statistical_correctness_reviewer",  # Bug S3-168 (cycle 5 capstone)
     "test_agent",
     "implementation_agent",
     "coverage_review",
@@ -182,6 +183,7 @@ EXPECTED_SELECTIVE_LOADING_MATRIX = {
     "blueprint_author": "both",
     "blueprint_checker": "both",
     "blueprint_reviewer": "both",
+    "statistical_correctness_reviewer": "both",  # Bug S3-168 (cycle 5 capstone)
     "coverage_review_agent": "contracts_only",
     "oracle_agent": "both",
 }
@@ -1627,6 +1629,9 @@ class TestSelectiveLoadingMatrixValues:
             "blueprint_author",
             "blueprint_checker",
             "blueprint_reviewer",
+            # Bug S3-168 (cycle 5 capstone): the new specialist mirrors
+            # blueprint_reviewer's loading mode (full prose + contracts).
+            "statistical_correctness_reviewer",
             "oracle_agent",
         }
         assert both_agents == expected
@@ -1945,3 +1950,63 @@ class TestPrepareTestAgentStatisticalPrimerAppend:
                 f"'{marker}' must NOT appear in the test_agent prompt "
                 f"(Bug S3-167)."
             )
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-168: Statistical correctness reviewer registration + dispatch
+# ---------------------------------------------------------------------------
+
+
+class TestS3_168StatisticalCorrectnessReviewerRegistration:
+    """Bug S3-168 (capstone of specialist-dispatch-wiring batch).
+
+    KNOWN_AGENT_TYPES MUST include statistical_correctness_reviewer.
+    SELECTIVE_LOADING_MATRIX MUST include an entry for it.
+    prepare_task_prompt MUST dispatch agent_type ==
+    'statistical_correctness_reviewer' to a non-empty prompt assembly.
+    """
+
+    def test_known_agent_types_includes_statistical_correctness_reviewer(self):
+        """Bug S3-168: KNOWN_AGENT_TYPES MUST include the new specialist."""
+        assert "statistical_correctness_reviewer" in KNOWN_AGENT_TYPES, (
+            "Bug S3-168: KNOWN_AGENT_TYPES must include "
+            "'statistical_correctness_reviewer' so prepare_task.py "
+            "recognizes it as a valid agent type."
+        )
+
+    def test_selective_loading_matrix_includes_statistical_correctness_reviewer(
+        self,
+    ):
+        """Bug S3-168: SELECTIVE_LOADING_MATRIX MUST have an entry."""
+        assert (
+            "statistical_correctness_reviewer" in SELECTIVE_LOADING_MATRIX
+        ), (
+            "Bug S3-168: SELECTIVE_LOADING_MATRIX must include "
+            "'statistical_correctness_reviewer' so the specialist can "
+            "load the blueprint via _load_blueprint_for_agent."
+        )
+        # Mirrors blueprint_reviewer loading mode (full prose + contracts).
+        assert (
+            SELECTIVE_LOADING_MATRIX["statistical_correctness_reviewer"]
+            == "both"
+        )
+
+    def test_prepare_statistical_correctness_reviewer_assembles_prompt(
+        self, project_root
+    ):
+        """Bug S3-168: prepare_task_prompt(..., 'statistical_correctness_reviewer',
+        ...) MUST return a non-empty prompt without crashing."""
+        result = prepare_task_prompt(
+            project_root, "statistical_correctness_reviewer"
+        )
+        assert isinstance(result, str)
+        assert len(result) > 0, (
+            "Bug S3-168: prepare_task_prompt for the specialist must "
+            "return a non-empty assembled prompt."
+        )
+        # Sanity: the title prefix should mention the reviewer agent.
+        assert "Statistical Correctness Reviewer" in result, (
+            "Bug S3-168: the assembled prompt must include the "
+            "specialist's section title so the agent prompt is "
+            "self-identifying."
+        )

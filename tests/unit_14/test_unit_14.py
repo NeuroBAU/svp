@@ -4341,3 +4341,170 @@ class TestS3_159DispatchAgentStatusModeAware:
         assert "SPEC_DRAFT_COMPLETE" in msg
         assert "targeted_revision" in msg
         assert "SPEC_REVISION_COMPLETE" in msg
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-168: Specialist reviewer dispatch (capstone)
+# ---------------------------------------------------------------------------
+
+
+def _write_state_file_with_stat_flags(
+    tmp_path, state, requires_stats=False, stat_review_done=False
+):
+    """Write pipeline_state.json including requires_statistical_analysis
+    and statistical_review_done so route() can consult them after
+    load_state.
+
+    Bug S3-168 helper: extends _write_state_file with the two flag fields
+    that the new branching in _route_stage_2 blueprint_review reads.
+    """
+    svp_dir = tmp_path / ".svp"
+    svp_dir.mkdir(exist_ok=True)
+    state_dict = {
+        "stage": state.stage,
+        "sub_stage": state.sub_stage,
+        "current_unit": state.current_unit,
+        "total_units": state.total_units,
+        "verified_units": state.verified_units,
+        "alignment_iterations": state.alignment_iterations,
+        "fix_ladder_position": state.fix_ladder_position,
+        "red_run_retries": state.red_run_retries,
+        "pass_history": state.pass_history,
+        "debug_session": state.debug_session,
+        "debug_history": state.debug_history,
+        "redo_triggered_from": state.redo_triggered_from,
+        "delivered_repo_path": state.delivered_repo_path,
+        "primary_language": state.primary_language,
+        "component_languages": state.component_languages,
+        "secondary_language": state.secondary_language,
+        "oracle_session_active": state.oracle_session_active,
+        "oracle_test_project": state.oracle_test_project,
+        "oracle_phase": state.oracle_phase,
+        "oracle_run_count": state.oracle_run_count,
+        "oracle_nested_session_path": state.oracle_nested_session_path,
+        "state_hash": state.state_hash,
+        "spec_revision_count": state.spec_revision_count,
+        "pass": state.pass_,
+        "pass2_nested_session_path": state.pass2_nested_session_path,
+        "deferred_broken_units": state.deferred_broken_units,
+        "requires_statistical_analysis": requires_stats,
+        "statistical_review_done": stat_review_done,
+    }
+    (svp_dir / "pipeline_state.json").write_text(json.dumps(state_dict))
+    return svp_dir
+
+
+class TestS3_168SpecialistDispatch:
+    """Bug S3-168 (capstone of specialist-dispatch-wiring batch).
+
+    _route_stage_2 blueprint_review on REVIEW_COMPLETE branches on
+    _requires_statistical_analysis(state) AND state.statistical_review_done:
+    when flag is True and specialist not yet done, dispatch
+    statistical_correctness_reviewer; otherwise fire gate_2_2 (existing).
+
+    dispatch_agent_status sets state.statistical_review_done=True on
+    statistical_correctness_reviewer + REVIEW_COMPLETE.
+
+    gate_2_2_blueprint_post_review REVISE / FRESH REVIEW reset the flag so
+    the next iteration repeats both reviewers.
+
+    The flag=False (baseline) case MUST be byte-identical to pre-S3-168
+    behavior — this is the routing-invariant regression guard.
+    """
+
+    def test_route_stage_2_blueprint_review_flag_false_baseline_unchanged(
+        self, tmp_path
+    ):
+        """Routing-invariant regression guard: with
+        state.requires_statistical_analysis=False (default), the route
+        result for sub_stage='blueprint_review' + last_status='REVIEW_COMPLETE'
+        MUST be the human_gate action block for gate_2_2_blueprint_post_review,
+        byte-identical to baseline behavior."""
+        state = _make_state(stage="2", sub_stage="blueprint_review")
+        _write_state_file_with_stat_flags(
+            tmp_path, state, requires_stats=False, stat_review_done=False
+        )
+        _write_last_status(tmp_path, "REVIEW_COMPLETE")
+        result = route(tmp_path)
+        assert result["action_type"] == "human_gate"
+        assert result["gate_id"] == "gate_2_2_blueprint_post_review"
+        # Specialist agent_type must NOT appear when flag is False.
+        assert result.get("agent_type") != "statistical_correctness_reviewer"
+
+    def test_route_stage_2_blueprint_review_flag_true_dispatches_specialist(
+        self, tmp_path
+    ):
+        """With state.requires_statistical_analysis=True AND
+        state.statistical_review_done=False, route on
+        sub_stage='blueprint_review' + last_status='REVIEW_COMPLETE' MUST
+        dispatch statistical_correctness_reviewer (NOT human_gate)."""
+        state = _make_state(stage="2", sub_stage="blueprint_review")
+        _write_state_file_with_stat_flags(
+            tmp_path, state, requires_stats=True, stat_review_done=False
+        )
+        _write_last_status(tmp_path, "REVIEW_COMPLETE")
+        result = route(tmp_path)
+        assert result["action_type"] == "invoke_agent"
+        assert result["agent_type"] == "statistical_correctness_reviewer"
+
+    def test_route_stage_2_blueprint_review_flag_true_specialist_done_fires_gate(
+        self, tmp_path
+    ):
+        """With state.requires_statistical_analysis=True AND
+        state.statistical_review_done=True, route on
+        sub_stage='blueprint_review' + last_status='REVIEW_COMPLETE' MUST
+        fire gate_2_2 (specialist already ran for this iteration)."""
+        state = _make_state(stage="2", sub_stage="blueprint_review")
+        _write_state_file_with_stat_flags(
+            tmp_path, state, requires_stats=True, stat_review_done=True
+        )
+        _write_last_status(tmp_path, "REVIEW_COMPLETE")
+        result = route(tmp_path)
+        assert result["action_type"] == "human_gate"
+        assert result["gate_id"] == "gate_2_2_blueprint_post_review"
+
+    def test_dispatch_agent_status_specialist_review_complete_sets_flag(
+        self, tmp_path
+    ):
+        """dispatch_agent_status(state, 'statistical_correctness_reviewer',
+        'REVIEW_COMPLETE', ...) MUST return a state with
+        statistical_review_done=True."""
+        state = _make_state(stage="2", sub_stage="blueprint_review")
+        # Ensure the field starts at the default False.
+        assert state.statistical_review_done is False
+        result = dispatch_agent_status(
+            state,
+            "statistical_correctness_reviewer",
+            "REVIEW_COMPLETE",
+            tmp_path,
+        )
+        assert result.statistical_review_done is True
+
+    def test_dispatch_agent_status_specialist_invalid_status_raises(
+        self, tmp_path
+    ):
+        """dispatch_agent_status(state, 'statistical_correctness_reviewer',
+        '<invalid>', ...) MUST raise ValueError."""
+        state = _make_state(stage="2", sub_stage="blueprint_review")
+        with pytest.raises(ValueError):
+            dispatch_agent_status(
+                state,
+                "statistical_correctness_reviewer",
+                "TOTALLY_INVALID_STATUS",
+                tmp_path,
+            )
+
+    def test_gate_2_2_revise_resets_statistical_review_done(self, tmp_path):
+        """dispatch_gate_response(state, 'gate_2_2_blueprint_post_review',
+        'REVISE', ...) MUST reset statistical_review_done=False so the
+        next iteration repeats both reviewers."""
+        state = _make_state(stage="2", sub_stage="blueprint_review")
+        # Pre-condition: specialist already completed in this iteration.
+        state.statistical_review_done = True
+        result = dispatch_gate_response(
+            state,
+            "gate_2_2_blueprint_post_review",
+            "REVISE",
+            tmp_path,
+        )
+        assert result.statistical_review_done is False

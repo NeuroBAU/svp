@@ -336,6 +336,7 @@ class PipelineState:
     deferred_broken_units: List[int]
     toolchain_status: str  # "READY" | "NOT_READY" — set by infrastructure_setup post-verify (Bug S3-160)
     requires_statistical_analysis: bool  # default False — mirrors profile flag (Bug S3-164)
+    statistical_review_done: bool  # default False — per-iteration tracking flag (Bug S3-168)
 
 def load_state(project_root: Path) -> PipelineState: ...
 
@@ -373,13 +374,19 @@ Additional sub-stages (not stage-bound): `"redo_profile_delivery"`, `"redo_profi
 
 **load_state:**
 - Reads `pipeline_state.json` from `project_root` via `ARTIFACT_FILENAMES["pipeline_state"]`.
-- Constructs `PipelineState` from JSON. Missing SVP 2.2 fields use defaults: `primary_language: "python"`, `component_languages: []`, `secondary_language: None`, `oracle_session_active: False`, `oracle_test_project: None`, `oracle_phase: None`, `oracle_run_count: 0`, `oracle_nested_session_path: None`, `state_hash: None`, `spec_revision_count: 0`, `pass_: None`, `pass2_nested_session_path: None`, `deferred_broken_units: []`, `toolchain_status: "NOT_READY"` **(NEW — Bug S3-160)**, `requires_statistical_analysis: False` **(NEW — Bug S3-164)**.
+- Constructs `PipelineState` from JSON. Missing SVP 2.2 fields use defaults: `primary_language: "python"`, `component_languages: []`, `secondary_language: None`, `oracle_session_active: False`, `oracle_test_project: None`, `oracle_phase: None`, `oracle_run_count: 0`, `oracle_nested_session_path: None`, `state_hash: None`, `spec_revision_count: 0`, `pass_: None`, `pass2_nested_session_path: None`, `deferred_broken_units: []`, `toolchain_status: "NOT_READY"` **(NEW — Bug S3-160)**, `requires_statistical_analysis: False` **(NEW — Bug S3-164)**, `statistical_review_done: False` **(NEW — Bug S3-168)**.
 - Raises `FileNotFoundError` if file absent.
 
 **_requires_statistical_analysis (NEW — Bug S3-164):**
 - Centralized read of the `requires_statistical_analysis` field from a `PipelineState`.
 - Implementation: `getattr(state, "requires_statistical_analysis", False)` — the `getattr` fallback supports backward compat for state objects that pre-date the field.
 - Single source of truth for routing and prepare_task helpers that branch on whether the project requires statistical / data-analysis support. Downstream cycles (2-5) MUST consult this helper rather than reading the field directly.
+
+**statistical_review_done (NEW — Bug S3-168):**
+- Per-blueprint-review-iteration tracking flag. Default `False`.
+- Set `True` by `dispatch_agent_status` when `statistical_correctness_reviewer` emits `REVIEW_COMPLETE`.
+- Reset `False` on `gate_2_2_blueprint_post_review` `REVISE` and `FRESH REVIEW` outcomes (next iteration repeats both reviewers). NOT reset on `APPROVE` (no next iteration; pipeline advances to pre_stage_3).
+- Consumed by `_route_stage_2` blueprint_review to decide whether to dispatch the specialist after `blueprint_reviewer` completes. With `state.requires_statistical_analysis=False`, the flag is never read (routing flow byte-identical to baseline).
 
 **save_state:**
 - Validates `current_unit`/`sub_stage` co-invariant.
@@ -1004,10 +1011,10 @@ def main(argv: list = None) -> None: ...
 
 Set equality invariant: `set(ALL_GATE_IDS) == set(GATE_VOCABULARY.keys())` (verified by structural test).
 
-**KNOWN_AGENT_TYPES:** `["setup_agent", "stakeholder_dialog", "stakeholder_reviewer", "blueprint_author", "blueprint_checker", "blueprint_reviewer", "test_agent", "implementation_agent", "coverage_review", "diagnostic_agent", "integration_test_author", "git_repo_agent", "help_agent", "hint_agent", "redo_agent", "bug_triage", "repair_agent", "reference_indexing", "checklist_generation", "regression_adaptation", "oracle_agent"]`.
+**KNOWN_AGENT_TYPES:** `["setup_agent", "stakeholder_dialog", "stakeholder_reviewer", "blueprint_author", "blueprint_checker", "blueprint_reviewer", "statistical_correctness_reviewer", "test_agent", "implementation_agent", "coverage_review", "diagnostic_agent", "integration_test_author", "git_repo_agent", "help_agent", "hint_agent", "redo_agent", "bug_triage", "repair_agent", "reference_indexing", "checklist_generation", "regression_adaptation", "oracle_agent"]`. **(CHANGED IN 2.2 — Bug S3-168 added `statistical_correctness_reviewer`.)**
 
 **SELECTIVE_LOADING_MATRIX:**
-- `"test_agent"`: `"contracts_only"`, `"implementation_agent"`: `"contracts_only"`, `"diagnostic_agent"`: `"both"`, `"help_agent"`: `"prose_only"`, `"hint_agent"`: `"both"`, `"integration_test_author"`: `"contracts_only"`, `"git_repo_agent"`: `"contracts_only"`, `"bug_triage_agent"`: `"both"`, `"repair_agent"`: `"both"`, `"blueprint_author"`: `"both"`, `"blueprint_checker"`: `"both"`, `"blueprint_reviewer"`: `"both"`, `"coverage_review_agent"`: `"contracts_only"`, `"oracle_agent"`: `"both"` (dry run only; green run does not load blueprint).
+- `"test_agent"`: `"contracts_only"`, `"implementation_agent"`: `"contracts_only"`, `"diagnostic_agent"`: `"both"`, `"help_agent"`: `"prose_only"`, `"hint_agent"`: `"both"`, `"integration_test_author"`: `"contracts_only"`, `"git_repo_agent"`: `"contracts_only"`, `"bug_triage_agent"`: `"both"`, `"repair_agent"`: `"both"`, `"blueprint_author"`: `"both"`, `"blueprint_checker"`: `"both"`, `"blueprint_reviewer"`: `"both"`, `"statistical_correctness_reviewer"`: `"both"` **(NEW — Bug S3-168)**, `"coverage_review_agent"`: `"contracts_only"`, `"oracle_agent"`: `"both"` (dry run only; green run does not load blueprint).
 
 **prepare_task_prompt:**
 - Reads blueprint, profile, toolchain, state, ledgers.
@@ -1060,6 +1067,7 @@ Set equality invariant: `set(ALL_GATE_IDS) == set(GATE_VOCABULARY.keys())` (veri
 - **Conditional statistical primer append (CHANGED IN 2.2 — Bug S3-165):** `_prepare_stakeholder_dialog` MUST conditionally append `STAKEHOLDER_DIALOG_STATISTICAL_PRIMER` (Unit 20) to the assembled sections when `_requires_statistical_analysis(state)` is true (centralized helper from Unit 5). The append is append-only — it never replaces base prompt content. When `state` is `None` (legacy callers) the primer is NOT appended (defensive). The conditional read isolates the profile-flag branch in a single audit-friendly site.
 - **Conditional blueprint author statistical primer append (CHANGED IN 2.2 — Bug S3-166):** `_prepare_blueprint_author` MUST conditionally append `BLUEPRINT_AUTHOR_STATISTICAL_PRIMER` (Unit 20) to the assembled sections when `_requires_statistical_analysis(state)` is true. Append-only; the primer never replaces base prompt content. When `state` is `None` the primer is NOT appended (defensive guard). Mirrors the S3-165 pattern across pipeline stages — same helper, same append-on-true mechanism, only the primer content differs (Pattern P50).
 - **Conditional test agent statistical primer append (CHANGED IN 2.2 — Bug S3-167):** `_prepare_test_agent` MUST conditionally append `TEST_AGENT_STATISTICAL_PRIMER` (Unit 20) to the assembled sections when `_requires_statistical_analysis(state)` is true. Append-only; the primer never replaces base prompt content. When `state` is `None` the primer is NOT appended (defensive guard). Stage 3 routing structure (per-unit TDD loop, sub-stages, gates, terminal statuses) is UNCHANGED — this is a prompt-content-only change. Mirrors the S3-165 / S3-166 pattern across pipeline stages — same helper, same append-on-true mechanism, only the primer content differs (Pattern P51, extension of P50 to Stage 3).
+- **Statistical correctness reviewer registration (NEW IN 2.2 — Bug S3-168):** `KNOWN_AGENT_TYPES` MUST include `"statistical_correctness_reviewer"`. `SELECTIVE_LOADING_MATRIX` MUST include an entry mapping `"statistical_correctness_reviewer"` to `"both"` (mirrors blueprint_reviewer loading mode — full prose + contracts). A `_prepare_statistical_correctness_reviewer(project_root, state, mode, context, blueprint_dir)` helper MUST exist and assemble the standard sections (spec, blueprint via `_load_blueprint_for_agent`, review checklist, optional context). `prepare_task_prompt` MUST dispatch `agent_type == "statistical_correctness_reviewer"` to this helper. The specialist's narrow-mandate prompt content lives in the deployed agent definition (svp/agents/statistical_correctness_reviewer.md from cycle 11 / S3-163); this helper assembles only the task-prompt context.
 
 **build_unit_context:**
 - Extracts unit definition, builds context with `include_tier1` parameter.
@@ -1212,6 +1220,8 @@ def run_tests_main(argv: list = None) -> None: ...
 - `"stakeholder_reviewer"` + `REVIEW_COMPLETE`: no state change (two-branch in route).
 - `"blueprint_author"` + `BLUEPRINT_DRAFT_COMPLETE` / `BLUEPRINT_REVISION_COMPLETE`: **(CHANGED IN 2.2 — Bug S3-116)** MUST call `validate_unit_heading_format(project_root / "blueprint")` from Unit 8 before advancing. If the validator returns a non-empty list of near-miss violations, raise `ValueError` with `format_unit_heading_violations(...)` as the message. The pipeline halts at dispatch time with a near-miss diagnostic — BEFORE Gate 2.1 is presented to the human. **(CHANGED IN 2.2 — Bug S3-158)** AFTER the heading validation passes, MUST call `audit_blueprint_contracts(project_root)` from Unit 28 and raise `ValueError` with `format_audit_violations(...)` as the message if the audit returns a non-empty list. The audit performs three mechanical checks (DAG acyclicity, Tier 2 signature implementation existence, phantom-call detection); reciprocity check (b) is deferred to a separate cycle. Findings filtered through `<project_root>/.svp/audit_known_false_positives.md`. The pipeline halts at dispatch time with the audit report — BEFORE Gate 2.1 is presented. If both checks pass, return `_copy(state)` as before (no state change, two-branch in route). This is the writing-side enforcement point of the unit heading grammar invariant AND the blueprint contract audit; the extraction side for headings is in Unit 11's `run_infrastructure_setup` Step 5. Both sides use the same Unit 8 validator; they cannot drift.
 - `"blueprint_reviewer"` + `REVIEW_COMPLETE`: no state change (two-branch in route).
+- `"statistical_correctness_reviewer"` + `REVIEW_COMPLETE` **(NEW IN 2.2 — Bug S3-168)**: set `state.statistical_review_done = True` (per-iteration tracking flag). The next routing pass through `_route_stage_2` blueprint_review observes the flag and fires `gate_2_2_blueprint_post_review` (the specialist's REVIEW_COMPLETE shares the gate with blueprint_reviewer; no new gate). Any other status raises `ValueError`. The flag is reset to False on `gate_2_2_blueprint_post_review` REVISE / FRESH REVIEW outcomes so the next iteration repeats both reviewers; APPROVE does NOT reset (no next iteration).
+- **Specialist reviewer dispatch (NEW IN 2.2 — Bug S3-168):** `_route_stage_2` `sub == "blueprint_review"` with `last_status == "REVIEW_COMPLETE"` MUST branch on `_requires_statistical_analysis(state) and not state.statistical_review_done`. When the branch is true, MUST return an `invoke_agent` action block for `agent_type = "statistical_correctness_reviewer"` with `prepare = _agent_prepare_cmd("statistical_correctness_reviewer")`. When false (either flag absent or specialist already done for this iteration), MUST return the existing `human_gate` action block for `gate_2_2_blueprint_post_review`. With `state.requires_statistical_analysis=False`, the branch is always false and the routing flow is byte-identical to baseline (regression-tested). No new gates, no new sub-stages, no new terminal statuses — the specialist shares `REVIEW_COMPLETE` with `blueprint_reviewer` (Pattern P52).
 - `"blueprint_checker"` + `ALIGNMENT_CONFIRMED`: advance sub_stage to `"alignment_confirmed"` (gate-presenting state for Gate 2.2). Only Gate 2.2 APPROVE advances to pre_stage_3.
 - `"blueprint_checker"` + `ALIGNMENT_FAILED: blueprint`: reset sub_stage to `"blueprint_dialog"`, increment alignment_iterations. If >= limit: present gate_2_3. Otherwise: fresh blueprint author invocation on next routing cycle.
 - `"blueprint_checker"` + `ALIGNMENT_FAILED: spec`: set sub_stage to `"targeted_spec_revision"`, increment alignment_iterations. If >= limit: present gate_2_3. Otherwise: invoke stakeholder dialog in targeted revision mode.
@@ -1278,9 +1288,9 @@ def run_tests_main(argv: list = None) -> None: ...
 - `gate_2_1_blueprint_approval` + `APPROVE`: invoke blueprint checker (enter alignment_check).
 - `gate_2_1_blueprint_approval` + `REVISE`: re-invoke blueprint author in revision mode.
 - `gate_2_1_blueprint_approval` + `FRESH REVIEW`: invoke blueprint reviewer.
-- `gate_2_2_blueprint_post_review` + `APPROVE`: enter alignment_check.
-- `gate_2_2_blueprint_post_review` + `REVISE`: version_document(prose, companion_paths=[contracts]), re-invoke blueprint author in revision mode.
-- `gate_2_2_blueprint_post_review` + `FRESH REVIEW`: invoke blueprint reviewer.
+- `gate_2_2_blueprint_post_review` + `APPROVE`: enter alignment_check. **(Bug S3-168: does NOT reset `state.statistical_review_done` — no next iteration.)**
+- `gate_2_2_blueprint_post_review` + `REVISE`: version_document(prose, companion_paths=[contracts]), re-invoke blueprint author in revision mode. **(Bug S3-168: resets `state.statistical_review_done = False` so next iteration repeats both reviewers.)**
+- `gate_2_2_blueprint_post_review` + `FRESH REVIEW`: invoke blueprint reviewer. **(Bug S3-168: resets `state.statistical_review_done = False` so next iteration repeats both reviewers.)**
 - `gate_2_3_alignment_exhausted` + `REVISE SPEC`: version_document(spec), advance_sub_stage("targeted_spec_revision"), reset `alignment_iterations` to 0. Invoke stakeholder dialog in targeted revision mode.
 - `gate_2_3_alignment_exhausted` + `RESTART SPEC`: restart_from_stage("1").
 - `gate_2_3_alignment_exhausted` + `RETRY BLUEPRINT`: re-invoke blueprint author in revision mode.

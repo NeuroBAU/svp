@@ -117,6 +117,16 @@ class PipelineState:
     # lean for non-statistical projects. gate_0_3_profile_approval syncs the
     # value from project_profile.json into this field.
     requires_statistical_analysis: bool = False
+    # Bug S3-168: per-blueprint-review-iteration flag tracking whether the
+    # STATISTICAL_CORRECTNESS_REVIEWER specialist has emitted REVIEW_COMPLETE
+    # for the current blueprint iteration. Set True by dispatch_agent_status
+    # when the specialist emits REVIEW_COMPLETE; reset False on gate_2_2
+    # REVISE / FRESH REVIEW outcomes (next iteration repeats both reviewers).
+    # Used by _route_stage_2 blueprint_review to decide whether to dispatch
+    # the specialist after blueprint_reviewer completes. With flag=False
+    # baseline (state.requires_statistical_analysis=False), routing flow is
+    # byte-identical to pre-S3-168 behavior.
+    statistical_review_done: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +150,7 @@ _SVP22_FIELD_DEFAULTS: Dict[str, Any] = {
     "deferred_broken_units": [],
     "toolchain_status": "NOT_READY",
     "requires_statistical_analysis": False,
+    "statistical_review_done": False,
 }
 
 
@@ -216,6 +227,7 @@ def load_state(project_root: Path) -> PipelineState:
         requires_statistical_analysis=data.get(
             "requires_statistical_analysis", False
         ),
+        statistical_review_done=data.get("statistical_review_done", False),
     )
 
     return state

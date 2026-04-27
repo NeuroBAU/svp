@@ -884,6 +884,8 @@ class TestPrepareTaskPromptDispatches:
         expected_agents = {
             "setup_agent", "stakeholder_dialog", "stakeholder_reviewer",
             "blueprint_author", "blueprint_checker", "blueprint_reviewer",
+            # Bug S3-168 (cycle 5 capstone): added the new specialist.
+            "statistical_correctness_reviewer",
             "test_agent", "implementation_agent", "coverage_review",
             "diagnostic_agent", "integration_test_author", "git_repo_agent",
             "help_agent", "hint_agent", "redo_agent", "bug_triage",

@@ -28,7 +28,12 @@ from src.unit_1.stub import (
 from src.unit_2.stub import LANGUAGE_REGISTRY, RunResult
 from src.unit_3.stub import load_profile
 from src.unit_4.stub import load_toolchain, resolve_command
-from src.unit_5.stub import PipelineState, load_state, save_state
+from src.unit_5.stub import (
+    PipelineState,
+    _requires_statistical_analysis,
+    load_state,
+    save_state,
+)
 from src.unit_6.stub import (
     abandon_debug_session,
     abandon_oracle_session,
@@ -157,6 +162,11 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
         "BLUEPRINT_REVISION_COMPLETE",
     ],
     "blueprint_reviewer": [
+        "REVIEW_COMPLETE",
+    ],
+    # Bug S3-168 (capstone of specialist-dispatch-wiring batch). Shares the
+    # REVIEW_COMPLETE terminal status with blueprint_reviewer (no new status).
+    "statistical_correctness_reviewer": [
         "REVIEW_COMPLETE",
     ],
     "blueprint_checker": [
@@ -1764,6 +1774,23 @@ def _route_stage_2(
 
     if sub == "blueprint_review":
         if last_status == "REVIEW_COMPLETE":
+            # Bug S3-168: capstone of the specialist-dispatch-wiring batch.
+            # When the project requires statistical analysis and the
+            # STATISTICAL_CORRECTNESS_REVIEWER has not yet emitted
+            # REVIEW_COMPLETE for the current blueprint iteration, dispatch
+            # the specialist sequentially after blueprint_reviewer. Both
+            # reviewers see the same blueprint version (semantically
+            # parallel). When flag is False, routing flow is byte-identical
+            # to baseline (regression-tested).
+            if _requires_statistical_analysis(state) and not getattr(
+                state, "statistical_review_done", False
+            ):
+                return _make_action_block(
+                    action_type="invoke_agent",
+                    agent_type="statistical_correctness_reviewer",
+                    prepare=_agent_prepare_cmd("statistical_correctness_reviewer"),
+                    reminder="Statistical correctness review.",
+                )
             return _make_action_block(
                 action_type="human_gate",
                 gate_id="gate_2_2_blueprint_post_review",
@@ -2450,9 +2477,13 @@ def dispatch_gate_response(
         elif response == "REVISE":
             _clear_last_status(project_root)
             new = advance_sub_stage(state, "blueprint_dialog")
+            # Bug S3-168: next iteration repeats both reviewers.
+            new.statistical_review_done = False
         else:  # FRESH REVIEW
             _clear_last_status(project_root)
             new = advance_sub_stage(state, "blueprint_review")
+            # Bug S3-168: next iteration repeats both reviewers.
+            new.statistical_review_done = False
         return new
 
     # Gate 2.3: Alignment exhausted
@@ -2950,6 +2981,19 @@ def dispatch_agent_status(
     if agent_type == "blueprint_reviewer":
         if status_line == "REVIEW_COMPLETE":
             new = advance_sub_stage(state, "alignment_confirmed")
+            return new
+        raise ValueError(f"Unknown status for {agent_type}: {status_line}")
+
+    # statistical_correctness_reviewer (Bug S3-168 — capstone of
+    # specialist-dispatch-wiring batch). When this specialist emits
+    # REVIEW_COMPLETE for the current blueprint iteration, set
+    # state.statistical_review_done = True so routing fires gate_2_2 next
+    # iteration. The flag is reset on gate_2_2 REVISE / FRESH REVIEW so the
+    # next iteration repeats both reviewers.
+    if agent_type == "statistical_correctness_reviewer":
+        if status_line == "REVIEW_COMPLETE":
+            new = _copy(state)
+            new.statistical_review_done = True
             return new
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 
