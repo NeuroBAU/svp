@@ -168,6 +168,36 @@ implementation re-entry?
 5. Identify any ambiguities or contradictions.
 6. Complete every item in the mandatory review checklist above.
 
+## Output Format
+
+Each finding you report MUST be a complete block in this exact structure:
+
+```
+Finding:
+Severity: (Critical / High / Medium / Low)
+Location:
+Violation:
+Consequence:
+Minimal Fix:
+Confidence:
+Open Questions:
+```
+
+- **Finding**: a one-sentence statement of what is wrong.
+- **Severity**: Critical / High / Medium / Low. Use the highest severity for issues \
+that block downstream work.
+- **Location**: file path + line number, slug ID, function name, or section reference.
+- **Violation**: which contract / spec rule / convention is being violated.
+- **Consequence**: what breaks downstream if this is not fixed.
+- **Minimal Fix**: the smallest concrete change that resolves the issue.
+- **Confidence**: Low / Medium / High -- your certainty that this is a real defect.
+- **Open Questions**: anything you need clarified before applying the fix, or "none".
+
+Emit one block per distinct finding. Do not bundle multiple findings into one block. \
+When there are zero findings, emit no Finding blocks and proceed directly to the \
+terminal status line below. This format makes collation and deduplication of findings \
+across multiple review agents mechanical. (Pattern P46.)
+
 ## Terminal Status Lines
 
 Your final message must end with exactly:
@@ -588,6 +618,36 @@ cross-referenced against the blueprint structure?
 6. Verify terminal status lines are defined for all agents.
 7. Complete every item in the mandatory review checklist above.
 
+## Output Format
+
+Each finding you report MUST be a complete block in this exact structure:
+
+```
+Finding:
+Severity: (Critical / High / Medium / Low)
+Location:
+Violation:
+Consequence:
+Minimal Fix:
+Confidence:
+Open Questions:
+```
+
+- **Finding**: a one-sentence statement of what is wrong.
+- **Severity**: Critical / High / Medium / Low. Use the highest severity for issues \
+that block downstream work.
+- **Location**: file path + line number, slug ID, function name, or section reference.
+- **Violation**: which contract / spec rule / convention is being violated.
+- **Consequence**: what breaks downstream if this is not fixed.
+- **Minimal Fix**: the smallest concrete change that resolves the issue.
+- **Confidence**: Low / Medium / High -- your certainty that this is a real defect.
+- **Open Questions**: anything you need clarified before applying the fix, or "none".
+
+Emit one block per distinct finding. Do not bundle multiple findings into one block. \
+When there are zero findings, emit no Finding blocks and proceed directly to the \
+terminal status line below. This format makes collation and deduplication of findings \
+across multiple review agents mechanical. (Pattern P46.)
+
 ## Terminal Status Lines
 
 Your final message must end with exactly:
@@ -881,6 +941,42 @@ tests are added, report that tests were added.
 - Do NOT modify the implementation. You are a test reviewer, not an implementer.
 - Do NOT remove or modify existing tests. Only add new tests.
 - New tests must pass against the current implementation.
+
+## Output Format
+
+Each finding you report (i.e., each identified coverage gap, even if you also add a \
+test for it) MUST be a complete block in this exact structure:
+
+```
+Finding:
+Severity: (Critical / High / Medium / Low)
+Location:
+Violation:
+Consequence:
+Minimal Fix:
+Confidence:
+Open Questions:
+```
+
+- **Finding**: a one-sentence statement of which behavioral contract, invariant, or \
+error condition lacks coverage.
+- **Severity**: Critical / High / Medium / Low. Use the highest severity for gaps in \
+contracts that block downstream work.
+- **Location**: blueprint contract identifier (function name, contract section, \
+invariant label) plus the test file path where the gap was observed.
+- **Violation**: which behavioral contract, invariant, or error condition is uncovered.
+- **Consequence**: what regression could ship undetected if this gap is not closed.
+- **Minimal Fix**: the smallest concrete test addition that closes the gap (function \
+name + assertion shape).
+- **Confidence**: Low / Medium / High -- your certainty that this is a genuine gap.
+- **Open Questions**: anything you need clarified before adding the test, or "none".
+
+Emit one block per distinct gap. Do not bundle multiple gaps into one block. When \
+there are zero gaps, emit no Finding blocks and proceed directly to the \
+`COVERAGE_COMPLETE: no gaps` terminal status; when gaps were found AND closed, emit \
+one block per closed gap and end with `COVERAGE_COMPLETE: tests added`. This format \
+makes collation and deduplication of findings across multiple review agents \
+mechanical. (Pattern P46.)
 
 ## Terminal Status Lines
 

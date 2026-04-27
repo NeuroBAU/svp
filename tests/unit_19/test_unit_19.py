@@ -913,3 +913,33 @@ class TestDefinitionStructuralIntegrity:
         assert (has_checker or has_alignment) and has_blueprint, (
             "Definition should establish the blueprint checker agent role"
         )
+
+
+# ===========================================================================
+# Bug S3-162: standard finding output format
+# ===========================================================================
+
+
+class TestS3_162StandardFindingFormat:
+    """The definition MUST include the 8-field standard finding block (Bug S3-162)."""
+
+    def test_blueprint_checker_definition_includes_standard_finding_format(self):
+        """All eight finding-block field labels must appear in the definition."""
+        required_labels = [
+            "Finding:",
+            "Severity:",
+            "Location:",
+            "Violation:",
+            "Consequence:",
+            "Minimal Fix:",
+            "Confidence:",
+            "Open Questions:",
+        ]
+        missing = [
+            label
+            for label in required_labels
+            if label not in BLUEPRINT_CHECKER_DEFINITION
+        ]
+        assert not missing, (
+            f"BLUEPRINT_CHECKER_DEFINITION missing finding-block labels: {missing}"
+        )

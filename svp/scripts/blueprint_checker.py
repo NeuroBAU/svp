@@ -178,17 +178,6 @@ In addition to alignment checks, verify the following structural requirements:
 - Per-unit context budget is within threshold.
 - Working notes (if present) are consistent with the spec text they reference.
 
-## Terminal Status Lines
-
-Produce exactly one of:
-
-- `ALIGNMENT_CONFIRMED` -- The blueprint is aligned with the spec. The pipeline \
-presents Gate 2.2 for human approval.
-- `ALIGNMENT_FAILED: spec` -- A gap or contradiction exists in the spec. Produces a \
-precise critique. The pipeline enters targeted spec revision.
-- `ALIGNMENT_FAILED: blueprint` -- A deviation, omission, or structural issue exists \
-in the blueprint. The pipeline restarts the blueprint dialog with your critique.
-
 ## Output Format
 
 Produce a structured alignment report containing:
@@ -201,10 +190,57 @@ Produce a structured alignment report containing:
 6. **Pattern catalog risks**: Advisory findings for P1-P13+ pattern matches.
 7. **Internal consistency**: Result of prose/contracts pair validation.
 8. **Lessons learned review**: Verification that known bugs have preventive contracts.
-9. **Overall verdict**: One of the three terminal status lines above.
+9. **Overall verdict**: One of the three terminal status lines below.
 
 When reporting `ALIGNMENT_FAILED: spec` or `ALIGNMENT_FAILED: blueprint`, include a \
 precise critique identifying the specific issue, the relevant spec section, and the \
 affected blueprint unit(s). This critique is passed to the next agent (stakeholder \
 dialog for spec issues, blueprint author for blueprint issues).
+
+### Finding Block Schema
+
+Each finding (each failed checklist item, each P1-P13+ pattern risk, each alignment \
+issue, each structural defect) MUST be emitted as a complete block in this exact \
+structure:
+
+```
+Finding:
+Severity: (Critical / High / Medium / Low)
+Location:
+Violation:
+Consequence:
+Minimal Fix:
+Confidence:
+Open Questions:
+```
+
+- **Finding**: a one-sentence statement of what is wrong.
+- **Severity**: Critical / High / Medium / Low. Use the highest severity for issues \
+that block downstream work.
+- **Location**: file path + line number, slug ID, function name, blueprint unit \
+number, or section reference.
+- **Violation**: which contract / spec rule / convention is being violated.
+- **Consequence**: what breaks downstream if this is not fixed.
+- **Minimal Fix**: the smallest concrete change that resolves the issue.
+- **Confidence**: Low / Medium / High -- your certainty that this is a real defect.
+- **Open Questions**: anything you need clarified before applying the fix, or "none".
+
+Emit one block per distinct finding. Do not bundle multiple findings into one block. \
+When the verdict is `ALIGNMENT_CONFIRMED` and there are zero findings, emit no Finding \
+blocks and proceed directly to the terminal status line. When the verdict is \
+`ALIGNMENT_FAILED: spec` or `ALIGNMENT_FAILED: blueprint`, the precise critique \
+required above MUST be expressed as one or more Finding blocks. This format makes \
+collation and deduplication of findings across multiple review agents mechanical. \
+(Pattern P46.)
+
+## Terminal Status Lines
+
+Produce exactly one of:
+
+- `ALIGNMENT_CONFIRMED` -- The blueprint is aligned with the spec. The pipeline \
+presents Gate 2.2 for human approval.
+- `ALIGNMENT_FAILED: spec` -- A gap or contradiction exists in the spec. Produces a \
+precise critique. The pipeline enters targeted spec revision.
+- `ALIGNMENT_FAILED: blueprint` -- A deviation, omission, or structural issue exists \
+in the blueprint. The pipeline restarts the blueprint dialog with your critique.
 """

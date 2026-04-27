@@ -1214,3 +1214,58 @@ class TestNoStubSentinelInDefinitions:
         assert "__SVP_STUB__" not in definition, (
             f"{name}_DEFINITION should not contain __SVP_STUB__ marker"
         )
+
+
+# ===========================================================================
+# Bug S3-162: standard finding output format across review agents
+# ===========================================================================
+
+
+_S3_162_REQUIRED_LABELS = [
+    "Finding:",
+    "Severity:",
+    "Location:",
+    "Violation:",
+    "Consequence:",
+    "Minimal Fix:",
+    "Confidence:",
+    "Open Questions:",
+]
+
+
+class TestS3_162StandardFindingFormat:
+    """All four review agents MUST emit findings using the 8-field block (Bug S3-162).
+
+    DIAGNOSTIC_AGENT and REDO_AGENT (Unit 21) keep their separate `[STRUCTURED]`
+    convention and are intentionally out of scope for this format mandate.
+    """
+
+    def test_stakeholder_reviewer_definition_includes_standard_finding_format(self):
+        missing = [
+            label
+            for label in _S3_162_REQUIRED_LABELS
+            if label not in STAKEHOLDER_REVIEWER_DEFINITION
+        ]
+        assert not missing, (
+            f"STAKEHOLDER_REVIEWER_DEFINITION missing finding-block labels: {missing}"
+        )
+
+    def test_blueprint_reviewer_definition_includes_standard_finding_format(self):
+        missing = [
+            label
+            for label in _S3_162_REQUIRED_LABELS
+            if label not in BLUEPRINT_REVIEWER_DEFINITION
+        ]
+        assert not missing, (
+            f"BLUEPRINT_REVIEWER_DEFINITION missing finding-block labels: {missing}"
+        )
+
+    def test_coverage_review_definition_includes_standard_finding_format(self):
+        missing = [
+            label
+            for label in _S3_162_REQUIRED_LABELS
+            if label not in COVERAGE_REVIEW_AGENT_DEFINITION
+        ]
+        assert not missing, (
+            f"COVERAGE_REVIEW_AGENT_DEFINITION missing finding-block labels: {missing}"
+        )

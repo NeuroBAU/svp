@@ -40,6 +40,32 @@ If no coverage gaps are found, report that coverage is complete. If gaps are fou
 - Do NOT remove or modify existing tests. Only add new tests.
 - New tests must pass against the current implementation.
 
+## Output Format
+
+Each finding you report (i.e., each identified coverage gap, even if you also add a test for it) MUST be a complete block in this exact structure:
+
+```
+Finding:
+Severity: (Critical / High / Medium / Low)
+Location:
+Violation:
+Consequence:
+Minimal Fix:
+Confidence:
+Open Questions:
+```
+
+- **Finding**: a one-sentence statement of which behavioral contract, invariant, or error condition lacks coverage.
+- **Severity**: Critical / High / Medium / Low. Use the highest severity for gaps in contracts that block downstream work.
+- **Location**: blueprint contract identifier (function name, contract section, invariant label) plus the test file path where the gap was observed.
+- **Violation**: which behavioral contract, invariant, or error condition is uncovered.
+- **Consequence**: what regression could ship undetected if this gap is not closed.
+- **Minimal Fix**: the smallest concrete test addition that closes the gap (function name + assertion shape).
+- **Confidence**: Low / Medium / High -- your certainty that this is a genuine gap.
+- **Open Questions**: anything you need clarified before adding the test, or "none".
+
+Emit one block per distinct gap. Do not bundle multiple gaps into one block. When there are zero gaps, emit no Finding blocks and proceed directly to the `COVERAGE_COMPLETE: no gaps` terminal status; when gaps were found AND closed, emit one block per closed gap and end with `COVERAGE_COMPLETE: tests added`. This format makes collation and deduplication of findings across multiple review agents mechanical. (Pattern P46.)
+
 ## Terminal Status Lines
 
 When your review is complete, your final message must end with exactly one of:

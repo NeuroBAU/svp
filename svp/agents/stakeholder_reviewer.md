@@ -47,6 +47,32 @@ The following items MUST be explicitly addressed in your review output. Failure 
 5. Identify any ambiguities or contradictions.
 6. Complete every item in the mandatory review checklist above.
 
+## Output Format
+
+Each finding you report MUST be a complete block in this exact structure:
+
+```
+Finding:
+Severity: (Critical / High / Medium / Low)
+Location:
+Violation:
+Consequence:
+Minimal Fix:
+Confidence:
+Open Questions:
+```
+
+- **Finding**: a one-sentence statement of what is wrong.
+- **Severity**: Critical / High / Medium / Low. Use the highest severity for issues that block downstream work.
+- **Location**: file path + line number, slug ID, function name, or section reference.
+- **Violation**: which contract / spec rule / convention is being violated.
+- **Consequence**: what breaks downstream if this is not fixed.
+- **Minimal Fix**: the smallest concrete change that resolves the issue.
+- **Confidence**: Low / Medium / High -- your certainty that this is a real defect.
+- **Open Questions**: anything you need clarified before applying the fix, or "none".
+
+Emit one block per distinct finding. Do not bundle multiple findings into one block. When there are zero findings, emit no Finding blocks and proceed directly to the terminal status line below. This format makes collation and deduplication of findings across multiple review agents mechanical. (Pattern P46.)
+
 ## Terminal Status Lines
 
 Your final message must end with exactly:

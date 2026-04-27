@@ -6151,6 +6151,18 @@ Resolves IMPROV-19 (a + b). Subsumes IMPROV-10, IMPROV-13.
 
 Resolves IMPROV-20 + IMPROV-21.
 
+### S3-162 — Review agents lacked uniform finding output format
+
+**Symptom**: STAKEHOLDER_REVIEWER, BLUEPRINT_REVIEWER, BLUEPRINT_CHECKER, COVERAGE_REVIEW emitted unstructured prose. Collation across multiple review rounds (e.g., the four-round blueprint-review pattern from fmrpqc) had to be done by hand; deduplication of overlapping findings across agents was effortful and error-prone.
+
+**Root cause**: Per-agent definitions had no uniform output structure. Findings appeared inline in narrative.
+
+**Surface area**: src/unit_19/stub.py BLUEPRINT_CHECKER_DEFINITION; src/unit_20/stub.py STAKEHOLDER_REVIEWER_DEFINITION + BLUEPRINT_REVIEWER_DEFINITION + COVERAGE_REVIEW_AGENT_DEFINITION.
+
+**Resolution**: Each of the 4 review agents now mandates the 8-field finding block (Finding / Severity / Location / Violation / Consequence / Minimal Fix / Confidence / Open Questions). Collation across rounds becomes mechanical; cross-agent dedup straightforward. DIAGNOSTIC_AGENT and REDO_AGENT keep their different `[STRUCTURED]` conventions — different concern.
+
+Resolves IMPROV-18 narrow extract (standard finding output format).
+
 ---
 
 ## 25. Test Data
