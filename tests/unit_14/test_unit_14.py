@@ -2061,6 +2061,85 @@ class TestRunCommandActionBlockCmdField:
         assert "--gate gate_b" in cmd
         assert "--unit 2" in cmd
 
+    # --- quality_gate archetype-aware target (Bug S3-155) ---
+
+    def test_cmd_quality_gate_a_target_python_archetype_unchanged(self, tmp_path):
+        """Bug S3-155 regression guard: Python archetype keeps tests/unit_{N}."""
+        project_root = self._make_project(tmp_path, language="python")
+        state = _make_state(
+            stage="3", sub_stage="quality_gate_a", current_unit=3, total_units=5
+        )
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        cmd = result["cmd"]
+        assert "--target tests/unit_3" in cmd
+        # Must NOT collapse to the R-archetype path.
+        assert "test-unit-" not in cmd
+        assert "tests/testthat" not in cmd
+
+    def test_cmd_quality_gate_a_target_r_archetype_emits_zero_padded_filename(
+        self, tmp_path
+    ):
+        """Bug S3-155: R archetype emits tests/testthat/test-unit-{NN}.R, not unit_N dir."""
+        project_root = self._make_project(tmp_path, language="r")
+        state = _make_state(
+            stage="3",
+            sub_stage="quality_gate_a",
+            current_unit=3,
+            total_units=5,
+            primary_language="r",
+        )
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        cmd = result["cmd"]
+        assert "--target tests/testthat/test-unit-03.R" in cmd
+        # Must NOT use the nonexistent directory layout.
+        assert "tests/testthat/unit_3" not in cmd
+        assert "--target tests/unit_3" not in cmd
+
+    def test_cmd_quality_gate_a_target_r_archetype_unit_25_zero_pad_two_digits(
+        self, tmp_path
+    ):
+        """Bug S3-155: zero-pad invariant holds for two-digit unit numbers."""
+        project_root = self._make_project(tmp_path, language="r")
+        state = _make_state(
+            stage="3",
+            sub_stage="quality_gate_a",
+            current_unit=25,
+            total_units=30,
+            primary_language="r",
+        )
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        cmd = result["cmd"]
+        assert "--target tests/testthat/test-unit-25.R" in cmd
+        # Sanity: no spurious zero-pad collapse / no Python directory leak.
+        assert "tests/testthat/unit_25" not in cmd
+        assert "--target tests/unit_25" not in cmd
+
+    def test_cmd_quality_gate_b_target_r_archetype_emits_zero_padded_filename(
+        self, tmp_path
+    ):
+        """Bug S3-155: gate_b shares the helper, so R conventions apply there too."""
+        project_root = self._make_project(tmp_path, language="r")
+        state = _make_state(
+            stage="3",
+            sub_stage="quality_gate_b",
+            current_unit=7,
+            total_units=10,
+            primary_language="r",
+        )
+        _write_state_file(project_root, state)
+        _write_last_status(project_root, "")
+        result = route(project_root)
+        cmd = result["cmd"]
+        assert "--gate gate_b" in cmd
+        assert "--target tests/testthat/test-unit-07.R" in cmd
+        assert "tests/testthat/unit_7" not in cmd
+
     # --- test_execution ---
 
     def test_red_run_action_block_has_cmd_field(self, tmp_path):

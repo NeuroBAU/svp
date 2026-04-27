@@ -6056,6 +6056,20 @@ The S3-149 spec entry (§24.162) documented this as a sub-deferral: "`assembly_r
 
 **Detection.** `tests/unit_14/test_unit_14.py::test_gate_0_3_profile_approved_syncs_primary_language_r` (asserts state mirrors profile for `r`); `test_gate_0_3_profile_approved_syncs_primary_language_python_noop` (asserts no regression on Python archetype); `test_gate_0_3_profile_approved_missing_language_field_defensive` (asserts handler does not crash on malformed profile). `tests/unit_13/test_unit_13.py::test_build_language_context_reflects_synced_primary_language` is the downstream regression anchor — confirms the post-sync state produces an R-flavored language context block.
 
+### 24.169 _cmd_quality_gate R-archetype Emits Non-existent Target Path (Post-delivery — Bug S3-155, NEW IN 2.2)
+
+**Symptom.** R-archetype Stage 3 quality gates lint/format a nonexistent directory (`tests/testthat/unit_N/`) instead of the actual R test file the test_agent writes (`tests/testthat/test-unit-NN.R`). Gate either silently fails or no-ops.
+
+**Root cause.** `src/unit_14/stub.py::_cmd_quality_gate()` branches on language to set `test_dir` but uses the same `unit_{N}` directory template across archetypes; the R test_agent writes the zero-padded filename `test-unit-{N:02d}.R` directly in `tests/testthat/`, not in subdirectories. The Python archetype's directory-per-unit convention does not transfer to R, where the LANGUAGE_REGISTRY filename pattern places one file per unit at the top of `tests/testthat/`.
+
+**Surface area.** `src/unit_14/stub.py::_cmd_quality_gate` (single helper used by both gate_a and gate_b dispatch sites; no sibling `_cmd_quality_gate_b`).
+
+**Resolution.** Branch target construction on language. R: `tests/testthat/test-unit-{N:02d}.R` (file, zero-padded). Python and others: `tests/unit_{N}` (directory, unchanged). When `state.current_unit` is unset, fall back to the language-appropriate directory root. Resolves IMPROV-16.
+
+**Pattern.** Sibling of §24.168: archetype-aware path conventions must follow the LANGUAGE_REGISTRY filename patterns, not invented directory layouts. Where Python uses one directory per unit and R uses one zero-padded file per unit, command builders that synthesize paths from `state.current_unit` must branch on `state.primary_language` (or `_load_primary_language`) and emit the registry-canonical shape per archetype.
+
+**Detection.** `tests/unit_14/test_unit_14.py::test_cmd_quality_gate_a_target_python_archetype_unchanged` (Python regression guard); `test_cmd_quality_gate_a_target_r_archetype_emits_zero_padded_filename` (R single-digit unit); `test_cmd_quality_gate_a_target_r_archetype_unit_25_zero_pad_two_digits` (R two-digit unit zero-pad invariant); `test_cmd_quality_gate_b_target_r_archetype_emits_zero_padded_filename` (gate_b parity).
+
 ---
 
 ## 25. Test Data

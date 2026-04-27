@@ -765,13 +765,21 @@ def _cmd_quality_gate(
     state: "PipelineState", project_root: Path, gate_letter: str
 ) -> str:
     """Bug S3-117: build the concrete CLI for run_quality_gate.
-    gate_letter is 'a', 'b', or 'c'."""
+    gate_letter is 'a', 'b', or 'c'.
+
+    Bug S3-155: archetype-aware target path. R test_agent writes
+    tests/testthat/test-unit-{NN}.R (zero-padded filename), not a
+    tests/testthat/unit_{N}/ directory. Python keeps the directory
+    convention tests/unit_{N}/.
+    """
     language = _load_primary_language(project_root)
-    test_dir = "tests/testthat" if language == "r" else "tests"
     if state.current_unit:
-        target = f"{test_dir}/unit_{state.current_unit}"
+        if language == "r":
+            target = f"tests/testthat/test-unit-{state.current_unit:02d}.R"
+        else:
+            target = f"tests/unit_{state.current_unit}"
     else:
-        target = test_dir
+        target = "tests/testthat" if language == "r" else "tests"
     return (
         f"python scripts/quality_gate.py "
         f"--target {target} "
