@@ -121,6 +121,64 @@ svp-repo/                              <- repository root
 
 ---
 
+## Key Concept: Socratic Question Format
+
+**(NEW IN 2.2 — Bug S3-164, S3-165)** Every interactive question asked by `setup_agent` (Stage 0, all seven dialog areas) and `stakeholder_dialog` (Stage 1) MUST follow the Socratic Question Format: a top-level **Context** statement (one or two sentences orienting the human), a **Trade-offs** enumeration (two or more options with brief consequences), and a **Recommendation** (one option chosen with justification). Bare questions without all three sections are forbidden.
+
+The mandate is encoded as a top-level system-prompt section in `SETUP_AGENT_DEFINITION` (Unit 18) and `STAKEHOLDER_DIALOG_DEFINITION` (Unit 20), not as a per-area instruction; it applies uniformly to binary yes/no questions and to multi-choice questions. The format reinforces the recommendation discipline (Rules 1-4 from Section 6.4) by making it structurally observable. The same format mandate is propagated to Stage 1's stakeholder dialog so the human experiences a consistent question shape across Stages 0 and 1.
+
+The format is the entry-point for profile-flag-driven specialist behavior (Pattern P48): the human is given the orientation needed to make a deliberate choice rather than a vibe-based one, and the answer becomes a deterministic switch for the rest of the pipeline.
+
+---
+
+## Key Concept: Statistical Analysis Primer Chain
+
+**(NEW IN 2.2 — Bug S3-163, S3-164, S3-165, S3-166, S3-167, S3-168)** When `project_profile.json::requires_statistical_analysis` is set true at Stage 0 (via the Area 6 mandatory question) and propagated to `pipeline_state.json::requires_statistical_analysis` by `gate_0_3_profile_approval`, the pipeline conditionally injects three statistical primers and dispatches one specialist reviewer:
+
+- **Stage 1 (Stakeholder Dialog).** `_prepare_stakeholder_dialog` (Unit 13) appends `STAKEHOLDER_DIALOG_STATISTICAL_PRIMER` (Unit 20) covering 14 mandatory question categories (thresholds, formulas, fallbacks, multiple-comparisons policy, effect sizes, power/N, missing-data mechanism, distributional assumptions, sign conventions, NA-safety, bootstrap reproducibility, library/version pinning, decision-rule edge cases, degenerate-input handling).
+- **Stage 2 (Blueprint Author).** `_prepare_blueprint_author` (Unit 13) appends `BLUEPRINT_AUTHOR_STATISTICAL_PRIMER` (Unit 20) covering 4 contract categories per unit + 5 anti-patterns + 5 pre-emission cross-checks.
+- **Stage 2 (Blueprint Review, capstone dispatch).** `_route_stage_2 blueprint_review` in Unit 14 dispatches `statistical_correctness_reviewer` (Unit 20 definition; Unit 23 assembly) sequentially after the generalist `blueprint_reviewer` emits `REVIEW_COMPLETE`. Per-iteration tracking via `state.statistical_review_done` (Unit 5). Both reviewers share the `REVIEW_COMPLETE` terminal status; gate_2_2 fires after both complete. Gate 2.2 REVISE / FRESH REVIEW resets the flag.
+- **Stage 3 (Test Agent).** `_prepare_test_agent` (Unit 13) appends `TEST_AGENT_STATISTICAL_PRIMER` (Unit 20) covering 11 mandatory test categories + floating-point tolerance policy. Stage 3 routing is UNCHANGED — content-only specialization.
+
+All four sites read the centralized helper `_requires_statistical_analysis(state)` in Unit 5. When the flag is false, every site is byte-identical to baseline (regression-tested). The chain demonstrates Pattern P49/P50/P51/P52 — composable conditional-primer injection plus sequential specialist dispatch with per-iteration tracking.
+
+---
+
+## Key Concept: Standard Finding Block Format
+
+**(NEW IN 2.2 — Bug S3-162)** All four review specialists — Stakeholder Spec Reviewer, Blueprint Reviewer, Blueprint Checker, Coverage Review Agent (and the Statistical Correctness Reviewer added by S3-163) — emit findings as a uniform 8-field block:
+
+```
+Finding: [one-sentence statement of what is wrong]
+Severity: Critical | High | Medium | Low
+Location: [file:line, slug, function name, or section identifier]
+Violation: [which contract clause / spec rule / convention is broken]
+Consequence: [what breaks downstream if unfixed]
+Minimal Fix: [smallest concrete change that resolves the finding]
+Confidence: Low | Medium | High
+Open Questions: [what needs human clarification, or "none"]
+```
+
+The mandate appears verbatim in each agent's `*_DEFINITION` constant (Units 19/20). Agents that emit zero findings simply skip the blocks and proceed to terminal status. The format makes cross-agent collation and deduplication mechanical — multi-round reviews (e.g., the four-round blueprint-review pattern from fmrpqc) become tractable in a single human pass instead of requiring per-round re-tracing.
+
+DIAGNOSTIC_AGENT and REDO_AGENT keep their separate `[STRUCTURED]` and `REDO_CLASSIFIED:` conventions — different downstream consumers parse different shapes; the 8-field block is for finding streams, not classification tokens.
+
+---
+
+## Key Concept: Audit Gate Enforcement
+
+**(NEW IN 2.2 — Bug S3-158)** The `audit_blueprint_contracts(project_root)` function in Unit 28 is invoked from `dispatch_agent_status` (Unit 14) for `blueprint_author + BLUEPRINT_DRAFT_COMPLETE` and `BLUEPRINT_REVISION_COMPLETE` AFTER `validate_unit_heading_format` (Bug S3-116). The audit performs three deterministic checks that agent self-review reliably misses:
+
+- **(a) DAG acyclicity** — DFS cycle detection on `**Dependencies:**` edges in `blueprint_contracts.md`. Forward references and cycles surface as Critical findings.
+- **(c) Tier 2 signature implementation** — every Tier 2 signature in the blueprint must have a corresponding implementation in `src/unit_<N>/stub.py`. Orphan signatures surface as High findings.
+- **(d) Phantom-call detection** — bare-name `Call` AST nodes in stubs that match a snake_case heuristic, are not in any Tier 2 set, and are not in a hard-coded stdlib/builtin allow-list. Phantom calls surface as Critical findings (likely `NameError` at green-run time).
+
+Reciprocity check (b) — verifying Calls/Called-by encoding is reciprocal — is intentionally deferred (requires a blueprint format change before the check can be implemented).
+
+The audit raises `ValueError` with a formatted multi-line report on violations, blocking BLUEPRINT_*_COMPLETE before Gate 2.1. False-positives are filterable via `.svp/audit_known_false_positives.md` (each non-comment line is a description-substring filter); the audit on the current SVP self-build blueprint surfaced five legitimate false positives, all documented. The discipline (Pattern P42) generalizes: every agent terminal-status branch in `dispatch_agent_status` should be reviewed for "what mechanical check would catch the failure mode if the agent gets it wrong?"
+
+---
+
 ## Unit 1: Core Configuration
 
 Unit 1 provides the foundational configuration constants and utilities that every other unit depends on. It owns `svp_config.json` (the pipeline configuration file), the `ARTIFACT_FILENAMES` registry that maps logical artifact names to filesystem paths, and the `load_config` / `save_config` functions for reading and writing pipeline configuration. It also provides `derive_env_name` for deterministic conda environment naming and `get_blueprint_dir` for resolving the blueprint directory path from `ARTIFACT_FILENAMES`.
@@ -155,6 +213,8 @@ The profile schema uses language-keyed sections for `delivery` and `quality` (e.
 
 Unit 3 also provides language-aware accessor functions (`get_delivery_config`, `get_quality_config`) that accept a language identifier and return the corresponding sub-dictionary from the profile, with defaults filled from the registry's `default_delivery` and `default_quality`.
 
+**(NEW IN 2.2 — Bug S3-164) `requires_statistical_analysis: bool` profile field.** `DEFAULT_PROFILE` carries a top-level `requires_statistical_analysis: bool` field (default `false`) populated by setup_agent's Area 6 mandatory question (Section 6.4). The field is a deterministic switch consumed by downstream specialist behavior — every primer chain, specialist reviewer dispatch, and test-agent rigor mode is keyed off this single named boolean (Pattern P48). Backward compat: profiles authored before S3-164 silently load with `false` via the deep-merge fallback in `load_profile`. The field is propagated to `pipeline_state.json::requires_statistical_analysis` by `gate_0_3_profile_approval` (Unit 14).
+
 ---
 
 ## Unit 4: Toolchain Reader
@@ -173,7 +233,7 @@ Placeholder resolution is single-pass: resolve `{run_prefix}` first (from `envir
 
 Unit 5 defines the `PipelineState` data structure, the `load_state` / `save_state` persistence functions, and the `VALID_STAGES`, `VALID_SUB_STAGES`, and related closed-set enumerations. The pipeline state file (`pipeline_state.json`) tracks: stage, sub_stage, current_unit, total_units, verified_units, alignment_iterations, fix_ladder_position, red_run_retries, pass_history, debug_session, debug_history, redo_triggered_from, delivered_repo_path, oracle session fields, pass/pass2 fields, deferred_broken_units, and state_hash.
 
-SVP 2.2 adds: `primary_language`, `component_languages`, `secondary_language` (present when `archetype` is `"mixed"`, absent/None otherwise), `pass` (int or null: 1, 2, or null), `pass2_nested_session_path` (string or null), `deferred_broken_units` (array of int), `oracle_session_active`, `oracle_test_project`, `oracle_phase`, `oracle_run_count`, `oracle_nested_session_path`, `spec_revision_count` (int, default 0), and `state_hash`.
+SVP 2.2 adds: `primary_language`, `component_languages`, `secondary_language` (present when `archetype` is `"mixed"`, absent/None otherwise), `pass` (int or null: 1, 2, or null), `pass2_nested_session_path` (string or null), `deferred_broken_units` (array of int), `oracle_session_active`, `oracle_test_project`, `oracle_phase`, `oracle_run_count`, `oracle_nested_session_path`, `spec_revision_count` (int, default 0), and `state_hash`. **Specialist-dispatch fields (NEW IN 2.2 — Bug S3-160, S3-164, S3-168):** `toolchain_status: str` (default `"NOT_READY"`, set to `"READY"` by `infrastructure_setup` after `verify_toolchain_ready` succeeds); `requires_statistical_analysis: bool` (default `false`, propagated from profile by `gate_0_3_profile_approval`); `statistical_review_done: bool` (default `false`, per-iteration tracking flag for Stage 2 specialist reviewer dispatch — set True in `dispatch_agent_status` on `statistical_correctness_reviewer + REVIEW_COMPLETE`, reset False on Gate 2.2 REVISE / FRESH REVIEW). The centralized helper `_requires_statistical_analysis(state)` is the single read site for downstream branches (defensive `getattr(state, "requires_statistical_analysis", False)` fallback isolated here so a future profile-schema rename touches one site).
 
 The `current_unit`/`sub_stage` co-invariant is enforced: when `current_unit` is non-null, `sub_stage` must be non-null. The `save_state` function computes and stores `state_hash` (SHA-256 of the file on disk after write) for build log chain validation.
 
@@ -249,6 +309,12 @@ Quality tool installation reads packages from the language-specific toolchain fi
 
 If `regression_test_import_map.json` exists, `generate_assembly_map.py regression-adapt` runs on `tests/regressions/` to adapt carry-forward regression test imports. The build log (`.svp/build_log.jsonl`) is created during this step. **(CHANGED IN 2.2 — Bug S3-110, renamed from `adapt_regression_tests.py` to a subcommand of `generate_assembly_map.py`.)**
 
+**(NEW IN 2.2 — Bug S3-160) Toolchain verification hook.** When `env_manager == "conda"` and a materialized `toolchain.json` is present, infrastructure_setup calls `verify_toolchain_ready(project_root, env_name)` (Unit 4) after `conda create -n {env_name}`. The function loads the language-specific manifest, substitutes `{run_prefix}` and `{env_name}` in each `environment.verify_commands` entry, runs them through subprocess, and returns `(success_bool, errors_list)`. Result populates `state.toolchain_status` (`"READY"` or `"NOT_READY"`) via `save_state`; on failure, infrastructure_setup raises `RuntimeError` carrying the joined verify-error messages, halting the pipeline before Stage 3 entry.
+
+**(NEW IN 2.2 — Bug S3-161) helper-svp.R template generation.** Step 5 of infrastructure_setup, gated on `primary_language == "r" or archetype == "mixed"`, writes `tests/testthat/helper-svp.R` with a full namespace-walk body: `requireNamespace("devtools") → load_all(export_all = TRUE)`, then `read.dcf("DESCRIPTION") → asNamespace(pkg) → ls(ns, all.names = TRUE)` with each symbol assigned into `globalenv()`. The convention matches `devtools::test()` semantics encoded in the R toolchain manifest's `testing.run_command` (Pattern P45 — toolchain manifest conventions must match helper-generation conventions end-to-end). Replaces the placeholder `svp_source` stub from Bug S3-48.
+
+**(NEW IN 2.2 — Bug S3-116) Unit heading validation.** `_count_unit_headings` and `validate_unit_heading_format` enforce the `## Unit N: <Name>` colon-separator grammar in both `blueprint_prose.md` and `blueprint_contracts.md`. Headings using em-dash, en-dash, hyphen, period, or any other separator are rejected. The validator runs as a safety net in Step 5 when `_count_unit_headings` returns 0 (the writing-side enforcement point lives in Unit 14's `dispatch_agent_status`).
+
 ---
 
 ## Unit 12: Hint Prompt Assembler
@@ -296,6 +362,17 @@ It also provides `KNOWN_AGENT_TYPES` for startup validation against the routing 
 
 CLI: `--unit`, `--agent`, `--project-root`, `--output`, `--gate`, `--context`, `--mode`.
 
+**(NEW IN 2.2 — Bug S3-159) Multi-mode mode/expected-status stamping.** The `_prepare_*` helpers for multi-mode agents (setup_agent, stakeholder_dialog, blueprint_author) stamp explicit `## Mode` and `## Expected Terminal Status` markdown blocks into the task prompt, sourced from the canonical `(agent_type, mode) -> valid_statuses` mapping in Unit 14. The agent reads its mode and constrained status set before authoring, eliminating cross-mode terminal-status emission.
+
+**(NEW IN 2.2 — Bug S3-165, S3-166, S3-167) Conditional statistical primer injection.** Three `_prepare_*` helpers consult `_requires_statistical_analysis(state)` (Unit 5) and conditionally append a stage-specific primer constant (sibling of the agent definition in Unit 20):
+- `_prepare_stakeholder_dialog` → `STAKEHOLDER_DIALOG_STATISTICAL_PRIMER` (14 question categories).
+- `_prepare_blueprint_author` → `BLUEPRINT_AUTHOR_STATISTICAL_PRIMER` (4 contract categories + 5 anti-patterns + 5 cross-checks).
+- `_prepare_test_agent` → `TEST_AGENT_STATISTICAL_PRIMER` (11 test categories + tolerance policy).
+
+Each append is a single one-liner guarded on the centralized helper. When the flag is false, every prepare-helper is byte-identical to its pre-batch form (Pattern P49/P50/P51 — composable conditional-primer injection at task-prompt assembly time).
+
+**(NEW IN 2.2 — Bug S3-168) Statistical correctness reviewer dispatch wiring.** `KNOWN_AGENT_TYPES` and `SELECTIVE_LOADING_MATRIX` include `statistical_correctness_reviewer` (loads spec, blueprint both files, project context, references, lessons learned). New helper `_prepare_statistical_correctness_reviewer` mirrors `_prepare_blueprint_reviewer`. `prepare_task_prompt` dispatches the new agent type. The specialist's terminal status is `REVIEW_COMPLETE` (shared with the generalist `blueprint_reviewer`).
+
 ---
 
 ## Unit 14: Routing and Test Execution
@@ -315,6 +392,16 @@ The `update_state.py` script is also produced by this unit. It reads `pipeline_s
 The `run_tests.py` script executes test commands from the toolchain and returns structured results. It dispatches through `TEST_OUTPUT_PARSERS` for output parsing and uses `collection_error_indicators` from the language registry for collection error detection.
 
 The `_validate_stage3_completion()` function runs at the Stage 3/4 boundary as a routing-time precondition, checking unit count, build log sub-stage audit, red run validation, and green run validation.
+
+**(NEW IN 2.2 — Bug S3-154, S3-164) Gate 0.3 propagation.** `dispatch_gate_response` for `gate_0_3_profile_approval` on PROFILE APPROVED reads `project_profile.json`, extracts `language.primary` and `requires_statistical_analysis`, and assigns both to `state.primary_language` and `state.requires_statistical_analysis` BEFORE `advance_stage(state, "1")`. Defensive on missing file / missing field / malformed JSON: log a warning to stderr and leave the existing field unchanged.
+
+**(NEW IN 2.2 — Bug S3-158) Mechanical audit gate.** `dispatch_agent_status` for `blueprint_author + BLUEPRINT_DRAFT_COMPLETE` and `BLUEPRINT_REVISION_COMPLETE` invokes `audit_blueprint_contracts(project_root)` (Unit 28) AFTER `validate_unit_heading_format` (Bug S3-116). The audit performs three deterministic checks (DAG acyclicity, Tier 2 signature implementation existence, phantom-call detection) and raises `ValueError` with a formatted multi-line audit report on violations. False-positives are filterable via `.svp/audit_known_false_positives.md`. See "Key Concept: Audit Gate Enforcement" above.
+
+**(NEW IN 2.2 — Bug S3-159) Multi-mode dispatch hygiene.** `_make_action_block` accepts and emits an `expected_terminal_status` field (List[str]) populated from the canonical `(agent_type, mode) -> valid_statuses` mapping. `dispatch_agent_status` validates the agent's emitted status against the per-(agent, mode) valid set and raises a named `ValueError` on mismatch BEFORE any state transition or downstream validator runs. When `(agent_type, sub_stage) → mode` is ambiguous, dispatch falls back to the per-agent whitelist.
+
+**(NEW IN 2.2 — Bug S3-155) R-archetype quality gate target.** `_cmd_quality_gate` branches on `state.primary_language` (or `_load_primary_language`): R targets the zero-padded `tests/testthat/test-unit-{N:02d}.R` file (registry-canonical pattern); Python and others target the `tests/unit_{N}` directory (unchanged). When `state.current_unit` is unset, the fallback is the language-appropriate root.
+
+**(NEW IN 2.2 — Bug S3-168) Specialist reviewer sequential dispatch + per-iteration tracking flag reset.** `_route_stage_2 blueprint_review` branches on `(_requires_statistical_analysis(state) and not state.statistical_review_done)` to dispatch `statistical_correctness_reviewer` after the generalist `blueprint_reviewer`'s `REVIEW_COMPLETE`. `dispatch_agent_status` for the specialist's `REVIEW_COMPLETE` sets `state.statistical_review_done = True`; `dispatch_gate_response` for Gate 2.2 REVISE / FRESH REVIEW resets the flag to False so the next iteration repeats both reviewers (APPROVE preserves the flag — no next iteration follows). When the flag is false, `_route_stage_2 blueprint_review` is byte-identical to baseline (regression-tested).
 
 ### Preferences
 
@@ -366,6 +453,8 @@ The dialog covers six areas (0-5): Area 0 (Language/Ecosystem), Area 1 (VCS), Ar
 
 For Mode A (self-build), the definition includes Mode A default pre-population logic. For Option C (plugin), it includes the extended plugin interview (4 questions about external services, auth, hook events, and skills). For Option D (mixed-language), it includes the focused mixed-language dialog flow (3-4 questions): (1) "Which language owns the project structure?" -- sets `language.primary`, the other becomes `language.secondary`; (2) "What's the communication direction?" -- sets `language.communication` with bridge libraries (rpy2 for Python-to-R, reticulate for R-to-Python); (3) "Same tools as pipeline for [primary]?" -- fast-path populates primary delivery/quality with pipeline defaults, or enters detailed tool dialog; (4) "Default tools for [secondary]?" -- presents secondary language's registry defaults with opt-out. Hard constraints enforced: both `environment_recommendation` forced to `"conda"`, both `dependency_format` forced to `"environment.yml"`. Profile fields populated: `archetype: "mixed"`, `language.primary`, `language.secondary`, `language.communication`, and both `delivery` and `quality` sections for both languages. For Options E/F (self-build), plugin fields are auto-populated from SVP context.
 
+**(NEW IN 2.2 — Bug S3-164) Socratic Question Format mandate + Area 6 mandatory question.** The setup agent system prompt includes a top-level Socratic Question Format section mandating that every question across all seven areas follow the Context + Trade-offs + Recommendation shape (see "Key Concept: Socratic Question Format" above). The mandate is not a per-area instruction; it applies uniformly to binary yes/no questions and to multi-choice questions. Area 6 adds a mandatory question demonstrating the format: "Does this project require statistical or scientific-correctness rigor (formulas, thresholds, fallbacks, decision rules, multiple-comparisons policy, effect sizes, power/N analyses)?". The answer populates `requires_statistical_analysis: bool` (Unit 3 default `false`) which becomes the deterministic switch for downstream specialist behavior (Pattern P48).
+
 ---
 
 ## Unit 19: Blueprint Checker Definition
@@ -373,6 +462,10 @@ For Mode A (self-build), the definition includes Mode A default pre-population l
 Unit 19 produces the blueprint checker agent definition markdown file (`blueprint_checker.md`). The system prompt includes the mandatory alignment checklist: DAG acyclicity validation, profile preference validation (Layer 2), pattern catalog validation (P1-P13+), contract granularity verification (exported function coverage, per-gate-option dispatch contracts, call-site verification, re-entry path documentation), and language registry completeness validation.
 
 The checker receives the Blueprint Alignment Checker Checklist (`.svp/alignment_checker_checklist.md`) and works through it item by item. It validates internal consistency between the prose and contracts files. It uses the "report most fundamental level" corollary: spec problems supersede blueprint problems.
+
+**(NEW IN 2.2 — Bug S3-162) Standard 8-field finding block format.** `BLUEPRINT_CHECKER_DEFINITION` mandates the 8-field finding block (Finding / Severity / Location / Violation / Consequence / Minimal Fix / Confidence / Open Questions) — same format as STAKEHOLDER_REVIEWER, BLUEPRINT_REVIEWER, COVERAGE_REVIEW. See "Key Concept: Standard Finding Block Format" above. Collation across rounds becomes mechanical; cross-agent dedup becomes straightforward.
+
+**(NEW IN 2.2 — Bug S3-158) Mechanical audit gate hand-off.** The blueprint checker's findings overlap with but do not subsume the deterministic `audit_blueprint_contracts()` (Unit 28) hooked into `dispatch_agent_status` for the blueprint_author. The audit catches DAG cycles, orphan signatures, and phantom calls before BLUEPRINT_*_COMPLETE propagates; the checker validates spec-fidelity and contract granularity at alignment time. Both layers are needed (Pattern P42).
 
 ---
 
@@ -383,6 +476,23 @@ Unit 20 produces the agent definition markdown files for all construction-phase 
 Each definition's system prompt references `LANGUAGE_CONTEXT` for language-conditional guidance. The test agent definition includes quality tool auto-format notification and the `testing.readable_test_names` profile preference. The implementation agent definition includes quality tool notification and the interface-boundary constraint for assembly fixes. The blueprint author definition includes Rules P1-P4 verbatim for preference capture.
 
 The stakeholder spec reviewer definition includes the baked review checklist (Section 3.20). The blueprint reviewer definition includes the baked review checklist and the pattern catalog cross-reference requirement. The integration test author definition includes the registry-handler alignment test generation requirement and the per-language dispatch verification requirement.
+
+**(NEW IN 2.2 — Bug S3-156) Blueprint author split-format mandate.** `BLUEPRINT_AUTHOR_DEFINITION` mandates split-format output: TWO files at `blueprint/blueprint_prose.md` and `blueprint/blueprint_contracts.md`, with explicit citation to `ARTIFACT_FILENAMES` (Unit 1) as the canonical source of truth. Unified single-file output is forbidden. The mandate appears in the Methodology section, not just in a delivered-file-tree appendix (Pattern P40 — agent prompts must be prescriptive about canonical paths).
+
+**(NEW IN 2.2 — Bug S3-157) Stakeholder dialog Cross-Reference Reconciliation.** `STAKEHOLDER_DIALOG_DEFINITION` includes a convention-agnostic Cross-Reference Reconciliation methodology step before terminal-status emission. The audit enumerates references and targets, verifies resolution, fixes unambiguous mismatches, and halts with structured error on ambiguous cases. Empirical evidence: in pipeline-authored multi-chunk specs without this step, ~45% of narrative cross-references pointed to wrong slug numbers (fmrpqc 19/42).
+
+**(NEW IN 2.2 — Bug S3-162) Standard 8-field finding block format.** STAKEHOLDER_REVIEWER, BLUEPRINT_REVIEWER, and COVERAGE_REVIEW definitions mandate the uniform 8-field finding block (Finding / Severity / Location / Violation / Consequence / Minimal Fix / Confidence / Open Questions). See "Key Concept: Standard Finding Block Format" above.
+
+**(NEW IN 2.2 — Bug S3-163) STATISTICAL_CORRECTNESS_REVIEWER agent definition.** Unit 20 adds `STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION` — a domain-specialist with a narrow mandate (verify formulas, thresholds, fallbacks, decision rules, multiple-comparisons policy, effect sizes, power/N) and an explicit anti-mandate (MUST NOT flag architecture / naming / performance — those concerns belong to `blueprint_reviewer`). Emits findings using the standard 8-field block. Assembled into `svp/agents/statistical_correctness_reviewer.md` by Unit 23.
+
+**(NEW IN 2.2 — Bug S3-165, S3-166, S3-167) Three statistical primer constants.** Unit 20 also defines three sibling primer constants:
+- `STAKEHOLDER_DIALOG_STATISTICAL_PRIMER` (14 mandatory question categories) — appended to stakeholder_dialog prompts when `requires_statistical_analysis=true`.
+- `BLUEPRINT_AUTHOR_STATISTICAL_PRIMER` (4 contract categories per unit + 5 anti-patterns + 5 cross-checks) — appended to blueprint_author prompts when the flag is true.
+- `TEST_AGENT_STATISTICAL_PRIMER` (11 mandatory test categories + floating-point tolerance policy) — appended to test_agent prompts when the flag is true. Stage 3 routing UNCHANGED — content-only specialization.
+
+The static agent definitions stay domain-agnostic; the conditional primers carry domain-specific guidance only when the profile flag warrants it. Unit 13's `_prepare_*` helpers append primers via `_requires_statistical_analysis(state)`. See "Key Concept: Statistical Analysis Primer Chain" above for the full chain.
+
+**(NEW IN 2.2 — Bug S3-165) Stakeholder dialog Socratic mandate.** `STAKEHOLDER_DIALOG_DEFINITION` mandates the Socratic Question Format (Context + Trade-offs + Recommendation) for every question — parity with the same mandate on `setup_agent` (Unit 18, S3-164). The human experiences a consistent question shape across Stages 0 and 1.
 
 ---
 
@@ -415,6 +525,8 @@ Unit 23 also provides `generate_assembly_map(blueprint_dir, project_root)` which
 The git repo agent definition includes the assembly mapping rules, commit order, delivery compliance awareness, README generation, quality configuration generation, and the bounded fix cycle. The checklist generation agent produces two checklists for Stage 2 agents. The regression test adaptation agent handles import rewrites and behavioral change flagging. The oracle agent definition includes the dual-mode behavior (E-mode product testing, F-mode machinery testing), the four-phase structure, and the surrogate human protocol for internal `/svp:bug` calls. The oracle agent definition also specifies the diagnostic map entry schema (fields: `event_id`, `classification`, `observation`, `expected`, `affected_artifact`) and the run ledger entry schema (fields: `run_number`, `exit_reason`, `abort_phase`, `trajectory_summary`, `discoveries`, `fix_targets`, `root_causes_found`, `root_causes_resolved`).
 
 The `generate_assembly_map.py regression-adapt` subcommand is the deterministic regression test import adapter that reads `regression_test_import_map.json` and applies text replacements for `from X import Y`, `import X`, `@patch("X.Y")`, and `patch("X.Y")` forms. It supports per-language import replacements based on file extension. The subcommand delegates to the `adapt_regression_tests_main()` function in `src/unit_23/stub.py`, preserving the original function API for direct Python invocation (Unit 23 tests) while consolidating the CLI entry point into a single script. **(CHANGED IN 2.2 — Bug S3-110.)**
+
+**(NEW IN 2.2 — Bug S3-163) Statistical correctness reviewer assembly registration.** Unit 23's assembly path emits `svp/agents/statistical_correctness_reviewer.md` from Unit 20's `STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION` constant, alongside the other Stage 2 review agents. The agent is registered as a discoverable Claude Code agent via the standard YAML frontmatter convention (Section 40.7.6). The dispatch wiring (Pattern P52) was deferred to S3-168 and lands in Unit 14 (`_route_stage_2`) and Unit 13 (`KNOWN_AGENT_TYPES` + `SELECTIVE_LOADING_MATRIX` + `_prepare_statistical_correctness_reviewer`).
 
 ---
 
@@ -473,6 +585,10 @@ The `COMPLIANCE_SCANNERS` dispatch table maps language identifiers to functions 
 `validate_dispatch_exhaustiveness()` verifies that every full language has entries in all six dispatch tables and every component language has entries in its `required_dispatch_entries` tables. Uses the correct keying strategy: language ID for assemblers and scanners, dispatch key for parsers and runners.
 
 Additional validators: MCP config validation (Section 40.7.2), LSP config validation (Section 40.7.3), skill frontmatter validation (Section 40.7.4), hook definition validation (Section 40.7.5), agent definition frontmatter validation (Section 40.7.6), cross-reference integrity checking (skills-agents, MCP-hooks, commands-manifest).
+
+**(NEW IN 2.2 — Bug S3-158) `audit_blueprint_contracts(project_root)` function.** Unit 28 owns the new mechanical audit gate invoked from Unit 14's `dispatch_agent_status` for `blueprint_author + BLUEPRINT_DRAFT_COMPLETE` / `BLUEPRINT_REVISION_COMPLETE` AFTER `validate_unit_heading_format` (Bug S3-116). The audit performs three deterministic checks on the contract surface: (a) DAG acyclicity via DFS cycle detection on `**Dependencies:**` edges; (c) Tier 2 signature implementation existence in `src/unit_<N>/stub.py`; (d) phantom-call detection (bare-name `Call` AST nodes that match a snake_case heuristic, are not in any Tier 2 set, and are not in a hard-coded stdlib/builtin allow-list). Reciprocity check (b) is intentionally deferred. Raises `ValueError` with a formatted multi-line audit report if violations remain after filtering against `.svp/audit_known_false_positives.md`. Findings carry `check`, `severity`, `location`, `description`. See "Key Concept: Audit Gate Enforcement" above for the discipline (Pattern P42).
+
+The compliance-scan entries also gain audit-related compliance entries: the unit-heading grammar invariant (Bug S3-116), the audit_known_false_positives.md formatting rules, and the dispatch-time validation of unit headings BEFORE Gate 2.1.
 
 ---
 

@@ -52,7 +52,10 @@ When the SVP routing mechanism is too broken to function and the human asks you 
 1. **DIAGNOSE** — Identify root cause. Trace through spec → blueprint → code to understand WHY.
 
 2. **PLAN** the fixes in:
-   - a. **SPEC** — Add bug entry to Section 24, fix any spec gaps
+   - a. **SPEC** — port the change upstream to the stakeholder spec:
+     - Add bug entry to Section 24 (changelog narrative). Use the rich format: Symptom / Root cause / Surface area / Resolution / Pattern (link to lessons-learned pattern number) / Detection (name regression test functions).
+     - **MANDATORY**: Update every normative spec section whose described behavior changes. If the cycle changes setup_agent → update §6.4 / §21 setup_agent entries. If the cycle changes a state field → update §22.4. If the cycle changes routing action blocks → update §17. If the cycle changes terminal statuses → update §18.1. Failing to port the change upstream creates accumulated debt.
+     - **MANDATORY**: Update `blueprint/blueprint_prose.md` (Tier-1 narrative) to mirror any new contract clauses in `blueprint/blueprint_contracts.md` (Tier-2/3). Prose is the human-readable summary; contracts is the formal specification. Keep them aligned.
    - b. **BLUEPRINT** — Amend contracts in affected units
    - c. **CODE** — Fix implementation in `src/unit_*/stub.py`. **Stubs are the single source of truth.** Never edit `scripts/*.py` directly — they are derived from stubs by `sync_workspace.sh` Step 0 (import rewriting). Fix the stub, run sync, scripts auto-update.
    - d. **EXECUTE** — Apply the code changes
