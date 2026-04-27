@@ -742,6 +742,64 @@ class TestIntegrationTestAuthorDefinitionContent:
 
 
 # ===========================================================================
+# STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION (Bug S3-163)
+# ===========================================================================
+
+
+class TestS3_163StatisticalCorrectnessReviewer:
+    """STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION: domain-specialist reviewer
+    for analysis/scientific archetypes. Narrow mandate: statistical formulas,
+    thresholds, fallbacks, decision rules. Standard 8-field finding format.
+    Status: REVIEW_COMPLETE."""
+
+    def test_statistical_correctness_reviewer_definition_exists(self):
+        """Constant must be importable and a non-empty string."""
+        from construction_agents import STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION
+
+        assert isinstance(STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION, str)
+        assert len(STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION) > 0
+
+    def test_statistical_correctness_reviewer_uses_standard_finding_format(self):
+        """Definition must mandate the 8-field finding block (Pattern P46)."""
+        from construction_agents import STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION
+
+        for label in (
+            "Finding:",
+            "Severity:",
+            "Location:",
+            "Violation:",
+            "Consequence:",
+            "Minimal Fix:",
+            "Confidence:",
+            "Open Questions:",
+        ):
+            assert label in STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION, (
+                f"Standard finding-format label '{label}' missing"
+            )
+
+    def test_statistical_correctness_reviewer_has_narrow_mandate(self):
+        """Prompt must mention statistical vocabulary AND an explicit anti-mandate."""
+        from construction_agents import STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION
+
+        text = STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION.lower()
+        assert "formula" in text
+        assert "threshold" in text
+        assert "decision rule" in text
+        # Anti-mandate: prompt must explicitly narrow the agent's scope.
+        assert (
+            "must not" in text
+            or "out of scope" in text
+            or "anti-mandate" in text
+        ), "Prompt lacks an explicit anti-mandate that narrows scope"
+
+    def test_statistical_correctness_reviewer_terminal_status_is_review_complete(self):
+        """Terminal status REVIEW_COMPLETE must appear verbatim."""
+        from construction_agents import STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION
+
+        assert "REVIEW_COMPLETE" in STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION
+
+
+# ===========================================================================
 # Cross-definition: status line uniqueness and completeness
 # ===========================================================================
 

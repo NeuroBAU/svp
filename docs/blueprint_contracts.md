@@ -1664,6 +1664,7 @@ TEST_AGENT_DEFINITION: str
 IMPLEMENTATION_AGENT_DEFINITION: str
 COVERAGE_REVIEW_AGENT_DEFINITION: str
 INTEGRATION_TEST_AUTHOR_DEFINITION: str
+STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION: str
 ```
 
 ### Tier 3 -- Behavioral Contracts
@@ -1687,6 +1688,8 @@ INTEGRATION_TEST_AUTHOR_DEFINITION: str
 **COVERAGE_REVIEW_AGENT_DEFINITION:** gap detection, red-green validation for new tests. **Standard finding output format (NEW IN 2.2 — Bug S3-162):** the definition MUST include an explicit Output Format section, placed BEFORE the Terminal Status Lines section, that mandates the 8-field finding block (`Finding:`, `Severity:`, `Location:`, `Violation:`, `Consequence:`, `Minimal Fix:`, `Confidence:`, `Open Questions:`). One block per identified coverage gap; zero gaps emits no Finding blocks and the agent proceeds directly to `COVERAGE_COMPLETE: no gaps`. Pattern P46. Status: `COVERAGE_COMPLETE: no gaps` or `COVERAGE_COMPLETE: tests added`.
 
 **INTEGRATION_TEST_AUTHOR_DEFINITION:** registry-handler alignment test generation, per-language dispatch verification. Status: `INTEGRATION_TESTS_COMPLETE`.
+
+**STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION (NEW IN 2.2 — Bug S3-163):** domain-specialist reviewer for analysis/scientific archetypes. Mandate is narrow: verify that statistical formulas, thresholds, fallbacks, and decision-rule arithmetic in the implementation match the spec exactly (kappa, CCC, ICC, p-value thresholds, bootstrap counts, decision-rule combinators). The definition MUST include an explicit anti-mandate that forbids flagging architecture, naming, performance, security, traceability, coverage, or spec-quality issues — those belong to other specialists. The definition MUST use the standard 8-field finding block (`Finding:`, `Severity:`, `Location:`, `Violation:`, `Consequence:`, `Minimal Fix:`, `Confidence:`, `Open Questions:`) introduced by S3-162 (Pattern P46). Severity calibration: Critical = wrong scientific verdict on real data; High = wrong verdict in plausible edge cases; Medium = small but observable numerical drift; Low = cosmetic/comment issue. Status: `REVIEW_COMPLETE` (shared with other reviewer specialists; no new status type). Dispatch wiring (archetype-conditional invocation) is deferred to a follow-up cycle. Resolves IMPROV-18 narrow extract.
 
 ---
 
@@ -1826,7 +1829,7 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 
 **assemble_plugin_components (Bug S3-51/S3-52 fix):**
 - Creates `.claude-plugin/marketplace.json` at repo root and `svp/.claude-plugin/plugin.json` in the plugin subdirectory by calling `generate_marketplace_json()` and `generate_plugin_json()` from Unit 28.
-- Extracts agent definition constants from Units 18-24 and writes 21 markdown files to `svp/agents/`.
+- Extracts agent definition constants from Units 18-24 and writes 22 markdown files to `svp/agents/`. **(CHANGED IN 2.2 — Bug S3-163: count incremented from 21 to 22 with addition of `statistical_correctness_reviewer.md` mapped to `STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION` from Unit 20.)** The `agent_defs` mapping MUST include `"statistical_correctness_reviewer.md": STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION`, and `_agent_model_keys` MUST include `"statistical_correctness_reviewer": "statistical_correctness_reviewer"`.
 - For each agent file, injects YAML frontmatter with `name`, `description`, and `model` fields. **Agent frontmatter `name` field must equal the filename stem verbatim, with no separator transformation.** Example: `oracle_agent.md` → frontmatter `name: oracle_agent`. Claude Code uses the frontmatter `name` field as the agent registration identifier (verified against the Plugins Reference); a transformation between filename and frontmatter creates drift between the registered subagent_type and every internal reference. **(CHANGED IN 2.2 — Bug S3-122: removed the prior `_`→`-` transformation that produced hyphenated frontmatter names diverging from the underscored form used everywhere else in the codebase.)**
 - Extracts command definitions from Unit 25's `COMMAND_DEFINITIONS` dict and writes 11 markdown files to `svp/commands/`.
 - Calls Unit 17 hook generator functions and writes `hooks.json` + 4 bash scripts to `svp/hooks/`, setting executable permissions on `.sh` files.

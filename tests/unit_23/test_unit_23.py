@@ -1795,3 +1795,28 @@ class TestAdaptRegressionTestsMapFileReading:
         content = (regression_tests_dir / "test_regression_002.R").read_text()
         assert "test_that" in content
         assert "expect_equal" in content
+
+
+# ===========================================================================
+# Bug S3-163: assembly registers statistical_correctness_reviewer agent
+# ===========================================================================
+
+
+class TestS3_163AssemblyIncludesStatisticalCorrectnessReviewer:
+    """Bug S3-163: assemble_plugin_components must register the new
+    statistical_correctness_reviewer agent in its agent_defs mapping."""
+
+    def test_assembly_includes_statistical_correctness_reviewer(self):
+        """Source of assemble_plugin_components must map
+        'statistical_correctness_reviewer.md' to STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION."""
+        import inspect
+
+        from generate_assembly_map import assemble_plugin_components
+
+        source = inspect.getsource(assemble_plugin_components)
+        assert "statistical_correctness_reviewer.md" in source, (
+            "agent_defs mapping must include 'statistical_correctness_reviewer.md'"
+        )
+        assert "STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION" in source, (
+            "agent_defs mapping must reference STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION"
+        )

@@ -91,9 +91,9 @@ class TestS3_52_PluginComponentDirectories:
         assert (assembled_repo / "svp" / "agents").is_dir()
 
     def test_agents_count(self, assembled_repo):
-        """svp/agents/ has 21 agent definition files."""
+        """svp/agents/ has 22 agent definition files (Bug S3-163 added statistical_correctness_reviewer)."""
         agents = list((assembled_repo / "svp" / "agents").glob("*.md"))
-        assert len(agents) == 21, f"Expected 21 agents, got {len(agents)}: {[a.name for a in agents]}"
+        assert len(agents) == 22, f"Expected 22 agents, got {len(agents)}: {[a.name for a in agents]}"
 
     def test_agent_files_non_empty(self, assembled_repo):
         """All agent definition files are non-empty."""
@@ -112,6 +112,7 @@ class TestS3_52_PluginComponentDirectories:
             "oracle_agent.md",
             "bug_triage_agent.md",
             "repair_agent.md",
+            "statistical_correctness_reviewer.md",
         ]
         for name in expected:
             assert (agents_dir / name).is_file(), f"Missing agent: {name}"

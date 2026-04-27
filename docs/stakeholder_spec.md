@@ -6163,6 +6163,16 @@ Resolves IMPROV-20 + IMPROV-21.
 
 Resolves IMPROV-18 narrow extract (standard finding output format).
 
+### S3-163 — No specialist for statistical correctness in analysis/scientific archetypes
+
+**Symptom**: BLUEPRINT_REVIEWER as a generalist missed statistical-correctness defects in fmrpqc Round 3 (per fmrpqc empirical evidence: per-genotype CCC/kappa threshold misapplications would have produced false QC verdicts on real data). General reviewers don't have a focused mandate to verify formulas / thresholds / fallbacks / decision rules.
+
+**Root cause**: SVP's review-agent catalog had only the generalist BLUEPRINT_REVIEWER. No specialist whose anti-mandate excluded architecture/naming/performance and concentrated on statistical-correctness arithmetic.
+
+**Surface area**: src/unit_20/stub.py (new STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION); src/unit_23/stub.py (assembly registration). Dispatch logic and profile_schema domain_flags field are deferred to a follow-up cycle (separate plan tracked in memory).
+
+**Resolution**: New agent definition with narrow statistical-correctness mandate. Assembled into svp/agents/statistical_correctness_reviewer.md via existing assembly path. Resolves IMPROV-18 narrow extract (Statistical Correctness specialist). Dispatch wiring deferred.
+
 ---
 
 ## 25. Test Data

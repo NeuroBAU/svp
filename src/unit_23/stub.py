@@ -1204,6 +1204,7 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
         INTEGRATION_TEST_AUTHOR_DEFINITION,
         STAKEHOLDER_DIALOG_DEFINITION,
         STAKEHOLDER_REVIEWER_DEFINITION,
+        STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION,
         TEST_AGENT_DEFINITION,
     )
     from src.unit_21.stub import DIAGNOSTIC_AGENT_DEFINITION, REDO_AGENT_DEFINITION
@@ -1221,6 +1222,7 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
         "stakeholder_reviewer.md": STAKEHOLDER_REVIEWER_DEFINITION,
         "blueprint_author.md": BLUEPRINT_AUTHOR_DEFINITION,
         "blueprint_reviewer.md": BLUEPRINT_REVIEWER_DEFINITION,
+        "statistical_correctness_reviewer.md": STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION,
         "test_agent.md": TEST_AGENT_DEFINITION,
         "implementation_agent.md": IMPLEMENTATION_AGENT_DEFINITION,
         "coverage_review_agent.md": COVERAGE_REVIEW_AGENT_DEFINITION,
@@ -1248,6 +1250,7 @@ def assemble_plugin_components(repo_dir: Path, profile: Dict[str, Any]) -> None:
         "stakeholder_reviewer": "stakeholder_reviewer",
         "blueprint_author": "blueprint_author",
         "blueprint_reviewer": "blueprint_reviewer",
+        "statistical_correctness_reviewer": "statistical_correctness_reviewer",
         "test_agent": "test_agent",
         "implementation_agent": "implementation_agent",
         "coverage_review_agent": "coverage_review",
@@ -1488,6 +1491,7 @@ def regenerate_deployed_artifacts(repo_dir: Path) -> Dict[str, int]:
             INTEGRATION_TEST_AUTHOR_DEFINITION,
             STAKEHOLDER_DIALOG_DEFINITION,
             STAKEHOLDER_REVIEWER_DEFINITION,
+            STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION,
             TEST_AGENT_DEFINITION,
         )
         from src.unit_21.stub import DIAGNOSTIC_AGENT_DEFINITION, REDO_AGENT_DEFINITION
@@ -1505,6 +1509,7 @@ def regenerate_deployed_artifacts(repo_dir: Path) -> Dict[str, int]:
             "stakeholder_reviewer.md": STAKEHOLDER_REVIEWER_DEFINITION,
             "blueprint_author.md": BLUEPRINT_AUTHOR_DEFINITION,
             "blueprint_reviewer.md": BLUEPRINT_REVIEWER_DEFINITION,
+            "statistical_correctness_reviewer.md": STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION,
             "test_agent.md": TEST_AGENT_DEFINITION,
             "implementation_agent.md": IMPLEMENTATION_AGENT_DEFINITION,
             "coverage_review_agent.md": COVERAGE_REVIEW_AGENT_DEFINITION,
@@ -1539,6 +1544,7 @@ def regenerate_deployed_artifacts(repo_dir: Path) -> Dict[str, int]:
             "stakeholder_reviewer": "stakeholder_reviewer",
             "blueprint_author": "blueprint_author",
             "blueprint_reviewer": "blueprint_reviewer",
+            "statistical_correctness_reviewer": "statistical_correctness_reviewer",
             "test_agent": "test_agent",
             "implementation_agent": "implementation_agent",
             "coverage_review_agent": "coverage_review",

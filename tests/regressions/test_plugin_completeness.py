@@ -99,7 +99,7 @@ class TestPluginComponents:
     @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_agents_count(self, repo):
         agents = list((repo / "svp" / "agents").glob("*.md"))
-        assert len(agents) == 21
+        assert len(agents) == 22
 
     @pytest.mark.parametrize("repo", REPOS, ids=REPO_IDS)
     def test_agents_have_frontmatter(self, repo):
