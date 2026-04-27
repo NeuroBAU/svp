@@ -1682,3 +1682,66 @@ class TestToolchainStatusField:
         save_state(tmp_path, state)
         reloaded = load_state(tmp_path)
         assert reloaded.toolchain_status == "NOT_READY"
+
+
+# ---------------------------------------------------------------------------
+# requires_statistical_analysis field + _requires_statistical_analysis helper
+# (Bug S3-164)
+# ---------------------------------------------------------------------------
+
+
+class TestRequiresStatisticalAnalysisField:
+    """Tests for PipelineState.requires_statistical_analysis (Bug S3-164)."""
+
+    def test_pipeline_state_has_requires_statistical_analysis_field_default_false(
+        self,
+    ):
+        """Default state has requires_statistical_analysis == False."""
+        state = PipelineState()
+        assert state.requires_statistical_analysis is False
+
+    def test_requires_statistical_analysis_helper_returns_state_value(self):
+        """_requires_statistical_analysis helper reads the flag from state.
+
+        Covers True, False, and the backward-compat fallback for state objects
+        that pre-date the field (synthesized via SimpleNamespace -- without
+        the attribute, getattr should default to False).
+        """
+        from pipeline_state import _requires_statistical_analysis
+
+        state_true = PipelineState(requires_statistical_analysis=True)
+        assert _requires_statistical_analysis(state_true) is True
+
+        state_false = PipelineState(requires_statistical_analysis=False)
+        assert _requires_statistical_analysis(state_false) is False
+
+        # Synthesize an object lacking the attribute (simulates pre-S3-164
+        # state objects) -- backward-compat path falls through to False.
+        from types import SimpleNamespace
+
+        legacy = SimpleNamespace(stage="0")
+        assert _requires_statistical_analysis(legacy) is False
+
+    def test_pipeline_state_persists_requires_statistical_analysis(self, tmp_path):
+        """save_state with requires_statistical_analysis=True; reload still True."""
+        _write_state_file(tmp_path, _minimal_state_dict())
+        state = load_state(tmp_path)
+        state.requires_statistical_analysis = True
+        save_state(tmp_path, state)
+
+        reloaded = load_state(tmp_path)
+        assert reloaded.requires_statistical_analysis is True
+
+        # And the JSON-on-disk shape carries the field as a top-level key.
+        raw = json.loads(_state_path(tmp_path).read_text())
+        assert raw["requires_statistical_analysis"] is True
+
+    def test_pipeline_state_loads_requires_statistical_analysis_default_when_missing(
+        self, tmp_path
+    ):
+        """load_state applies default False when JSON omits the field."""
+        state_dict = _minimal_state_dict()
+        state_dict.pop("requires_statistical_analysis", None)
+        _write_state_file(tmp_path, state_dict)
+        state = load_state(tmp_path)
+        assert state.requires_statistical_analysis is False

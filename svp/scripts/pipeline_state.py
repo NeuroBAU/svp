@@ -110,6 +110,13 @@ class PipelineState:
     # Bug S3-160: tracks env readiness after infrastructure_setup runs
     # verify_toolchain_ready (Unit 4). Values: "READY" | "NOT_READY".
     toolchain_status: str = "NOT_READY"
+    # Bug S3-164: project-level capability flag (mirrors profile field of the
+    # same name). When True, Stage 1 stakeholder dialog, Stage 2 blueprint
+    # author, Stage 2 reviewer dispatch, and Stage 3 test agent are primed
+    # for statistical / data-analysis rigor. Default False keeps the pipeline
+    # lean for non-statistical projects. gate_0_3_profile_approval syncs the
+    # value from project_profile.json into this field.
+    requires_statistical_analysis: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +139,22 @@ _SVP22_FIELD_DEFAULTS: Dict[str, Any] = {
     "pass2_nested_session_path": None,
     "deferred_broken_units": [],
     "toolchain_status": "NOT_READY",
+    "requires_statistical_analysis": False,
 }
+
+
+# ---------------------------------------------------------------------------
+# Centralized accessor for the requires_statistical_analysis flag (S3-164)
+# ---------------------------------------------------------------------------
+
+
+def _requires_statistical_analysis(state: PipelineState) -> bool:
+    """Centralized read of the requires_statistical_analysis flag.
+
+    Single source of truth for routing and prepare_task helpers that branch
+    on whether the project requires statistical / data-analysis support.
+    """
+    return getattr(state, "requires_statistical_analysis", False)
 
 
 # ---------------------------------------------------------------------------
@@ -191,6 +213,9 @@ def load_state(project_root: Path) -> PipelineState:
         pass2_nested_session_path=data.get("pass2_nested_session_path", None),
         deferred_broken_units=data.get("deferred_broken_units", []),
         toolchain_status=data.get("toolchain_status", "NOT_READY"),
+        requires_statistical_analysis=data.get(
+            "requires_statistical_analysis", False
+        ),
     )
 
     return state

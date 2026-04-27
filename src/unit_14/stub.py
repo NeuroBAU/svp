@@ -2357,13 +2357,18 @@ def dispatch_gate_response(
             # state.primary_language BEFORE advancing the stage. Without this,
             # the field retains its default value ("python") and downstream
             # task prompts misreport the language for non-Python archetypes.
+            #
+            # Bug S3-164: in the same handler, sync requires_statistical_analysis
+            # from project_profile.json into state.requires_statistical_analysis.
+            # The bool(...) coercion + False default make the sync defensive: a
+            # profile missing the field syncs to False (silent backward compat).
             profile_path = project_root / "project_profile.json"
             try:
                 with open(profile_path, "r") as f:
                     profile_data = json.load(f)
                 primary = profile_data.get("language", {}).get("primary")
+                state = _copy(state)
                 if primary:
-                    state = _copy(state)
                     state.primary_language = primary
                 else:
                     print(
@@ -2371,6 +2376,9 @@ def dispatch_gate_response(
                         "leaving state.primary_language unchanged.",
                         file=sys.stderr,
                     )
+                state.requires_statistical_analysis = bool(
+                    profile_data.get("requires_statistical_analysis", False)
+                )
             except (FileNotFoundError, json.JSONDecodeError) as exc:
                 print(
                     f"WARNING: could not read language.primary from "

@@ -38,6 +38,12 @@ DEFAULT_PROFILE: Dict[str, Any] = {
         "communication": {},
         "notebooks": None,
     },
+    # Bug S3-164: project-level capability flag controlling whether downstream
+    # agents are primed for statistical / data-analysis rigor. Drives Stage 1
+    # stakeholder primer, Stage 2 blueprint primer + specialist reviewer
+    # dispatch, and Stage 3 test-agent primer. Silent default to False keeps
+    # backward compatibility for profiles that pre-date this field.
+    "requires_statistical_analysis": False,
     "delivery": {
         "python": copy.deepcopy(LANGUAGE_REGISTRY["python"]["default_delivery"]),
     },

@@ -265,6 +265,12 @@ class TestDefaultProfileStructure:
         assert quality_python["type_checker"] == "mypy"
         assert quality_python["line_length"] == 88
 
+    def test_default_profile_includes_requires_statistical_analysis(self):
+        """Bug S3-164: DEFAULT_PROFILE has the new top-level
+        requires_statistical_analysis field defaulting to False."""
+        assert "requires_statistical_analysis" in DEFAULT_PROFILE
+        assert DEFAULT_PROFILE["requires_statistical_analysis"] is False
+
 
 # ===========================================================================
 # load_profile tests

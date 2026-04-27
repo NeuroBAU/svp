@@ -2738,6 +2738,80 @@ class TestDispatchGateResponse:
         assert result.primary_language == "r"
         assert result.stage == "1"
 
+    # -- Gate 0.3 (Bug S3-164: requires_statistical_analysis sync) --
+
+    def test_gate_0_3_profile_approved_syncs_requires_statistical_analysis_true(
+        self, tmp_path
+    ):
+        """Bug S3-164: profile with requires_statistical_analysis=True is synced
+        into state.requires_statistical_analysis (True) and stage advances."""
+        profile = {
+            "language": {"primary": "python"},
+            "requires_statistical_analysis": True,
+        }
+        (tmp_path / "project_profile.json").write_text(json.dumps(profile))
+        state = _make_state(stage="0", sub_stage="project_profile")
+        # Sanity: pre-state default
+        assert state.requires_statistical_analysis is False
+        result = dispatch_gate_response(
+            state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
+        )
+        assert result.requires_statistical_analysis is True
+        assert result.stage == "1"
+
+    def test_gate_0_3_profile_approved_syncs_requires_statistical_analysis_false(
+        self, tmp_path
+    ):
+        """Bug S3-164: profile with requires_statistical_analysis=False keeps
+        state.requires_statistical_analysis at False; stage advances."""
+        profile = {
+            "language": {"primary": "python"},
+            "requires_statistical_analysis": False,
+        }
+        (tmp_path / "project_profile.json").write_text(json.dumps(profile))
+        state = _make_state(stage="0", sub_stage="project_profile")
+        result = dispatch_gate_response(
+            state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
+        )
+        assert result.requires_statistical_analysis is False
+        assert result.stage == "1"
+
+    def test_gate_0_3_profile_approved_missing_requires_statistical_analysis_defaults_false(
+        self, tmp_path
+    ):
+        """Bug S3-164 backward compat: profile lacking the field syncs to
+        False (silent default). Stage advances."""
+        profile = {"language": {"primary": "python"}}  # no flag
+        (tmp_path / "project_profile.json").write_text(json.dumps(profile))
+        state = _make_state(stage="0", sub_stage="project_profile")
+        result = dispatch_gate_response(
+            state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
+        )
+        assert result.requires_statistical_analysis is False
+        assert result.stage == "1"
+
+    def test_gate_0_3_profile_approval_routing_invariant_with_flag_false(
+        self, tmp_path
+    ):
+        """Bug S3-164 routing-safety regression: with the flag absent (False),
+        the gate handler emits exactly the same routing transitions as before
+        S3-164 -- stage advances to 1 and primary_language sync is preserved.
+        """
+        profile = {"language": {"primary": "r"}}
+        (tmp_path / "project_profile.json").write_text(json.dumps(profile))
+        state = _make_state(
+            stage="0", sub_stage="project_profile", primary_language="python"
+        )
+        result = dispatch_gate_response(
+            state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
+        )
+        # S3-154 behavior preserved.
+        assert result.primary_language == "r"
+        # Stage advances to 1 -- routing emit unchanged.
+        assert result.stage == "1"
+        # Flag remains False (silent default) -- routing-safety invariant.
+        assert result.requires_statistical_analysis is False
+
     # -- Gate 0.3r --
 
     def test_gate_0_3r_profile_approved_completes_redo(self):

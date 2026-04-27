@@ -9,9 +9,10 @@ Synthetic data assumptions:
   (4) progressive disclosure.
 - AREA_0_ARCHETYPES is a list of exactly 6 items corresponding to Options A
   through F in the Area 0 language/ecosystem archetype selector dialog.
-- DIALOG_AREAS is a list of exactly 6 items corresponding to dialog areas 0-5:
+- DIALOG_AREAS is a list of exactly 7 items corresponding to dialog areas 0-6:
   Area 0 (Language/Ecosystem), Area 1 (VCS), Area 2 (README/Docs),
-  Area 3 (Testing), Area 4 (Licensing/Metadata), Area 5 (Quality).
+  Area 3 (Testing), Area 4 (Licensing/Metadata), Area 5 (Quality),
+  Area 6 (Statistical / Data-Analysis Capability -- Bug S3-164).
 - The definition string is expected to be markdown content suitable for an
   agent system prompt. Structural tests search for specific phrases, keywords,
   and patterns within the markdown to verify contract compliance.
@@ -227,13 +228,14 @@ class TestArea0ArchetypesInDefinition:
 
 
 class TestDialogAreasStructure:
-    """DIALOG_AREAS must be a list of exactly 6 items for areas 0-5."""
+    """DIALOG_AREAS must be a list of exactly 7 items for areas 0-6 (Bug S3-164)."""
 
     def test_dialog_areas_is_list(self):
         assert isinstance(DIALOG_AREAS, list)
 
     def test_dialog_areas_has_six_items(self):
-        assert len(DIALOG_AREAS) == 6
+        # Bug S3-164: Area 6 (statistical / data-analysis) added; total now 7.
+        assert len(DIALOG_AREAS) == 7
 
     def test_dialog_areas_items_are_strings(self):
         for i, area in enumerate(DIALOG_AREAS):
@@ -752,7 +754,8 @@ class TestStructuralConsistency:
         assert len(AREA_0_ARCHETYPES) == 6
 
     def test_dialog_areas_count_is_six(self):
-        assert len(DIALOG_AREAS) == 6
+        # Bug S3-164: Area 6 added; expected count is 7.
+        assert len(DIALOG_AREAS) == 7
 
     def test_required_rules_count_is_four(self):
         assert len(REQUIRED_RULES) == 4
@@ -773,8 +776,8 @@ class TestStructuralConsistency:
         assert len(set(AREA_0_ARCHETYPES)) == 6
 
     def test_dialog_areas_are_unique(self):
-        """All six dialog areas should be distinct."""
-        assert len(set(DIALOG_AREAS)) == 6
+        """All seven dialog areas should be distinct (Bug S3-164: Area 6 added)."""
+        assert len(set(DIALOG_AREAS)) == 7
 
 
 # ===========================================================================
@@ -835,3 +838,58 @@ class TestDefinitionTopicCoverage:
         assert definition_contains("skip", case_sensitive=False) or definition_contains(
             "already populated", case_sensitive=False
         )
+
+
+# ===========================================================================
+# Bug S3-164: Socratic Question Format mandate + Area 6 mandatory question
+# ===========================================================================
+
+
+class TestSocraticQuestionFormatMandate:
+    """SETUP_AGENT_DEFINITION mandates the Socratic Question Format."""
+
+    def test_setup_agent_definition_includes_socratic_question_format_mandate(self):
+        """The Socratic Question Format heading is present and the three
+        required keywords (Context, Trade-offs, Recommendation) appear, along
+        with the universal-applicability phrase."""
+        assert definition_contains("Socratic Question Format")
+        # Three required field labels for the format.
+        assert definition_contains("Context")
+        assert definition_contains("Trade-offs")
+        assert definition_contains("Recommendation")
+        # Universal applicability phrase.
+        assert definition_contains(
+            "applies to every interactive question", case_sensitive=False
+        )
+
+
+class TestArea6StatisticalQuestion:
+    """SETUP_AGENT_DEFINITION includes Area 6 mandatory statistical question."""
+
+    def test_setup_agent_definition_includes_area_6_statistical_question(self):
+        """Area 6 heading and the actual question phrasing are present."""
+        assert definition_contains("Area 6")
+        assert definition_contains("statistics or data-analysis", case_sensitive=False)
+        assert definition_contains("yes/no", case_sensitive=False)
+
+    def test_setup_agent_definition_area_6_demonstrates_socratic_format(self):
+        """Area 6 demonstrates the Socratic format: Context:, Trade-offs:,
+        Recommendation: labels are all present in the prompt body."""
+        # The labels are bolded with markdown so we check the canonical
+        # 'Field:' prefix as a substring.
+        assert "Context" in SETUP_AGENT_DEFINITION
+        assert "Trade-offs" in SETUP_AGENT_DEFINITION
+        assert "Recommendation" in SETUP_AGENT_DEFINITION
+        # The Area 6 region must contain all three labels (Socratic demo).
+        idx = SETUP_AGENT_DEFINITION.find("Area 6")
+        assert idx >= 0
+        area_6_region = SETUP_AGENT_DEFINITION[idx:]
+        assert "Context" in area_6_region
+        assert "Trade-offs" in area_6_region
+        assert "Recommendation" in area_6_region
+
+    def test_setup_agent_definition_area_6_writes_field_to_profile_json(self):
+        """The Area 6 prompt instructs writing requires_statistical_analysis
+        to project_profile.json."""
+        assert definition_contains("requires_statistical_analysis")
+        assert definition_contains("project_profile.json")

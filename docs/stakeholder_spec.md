@@ -6173,6 +6173,18 @@ Resolves IMPROV-18 narrow extract (standard finding output format).
 
 **Resolution**: New agent definition with narrow statistical-correctness mandate. Assembled into svp/agents/statistical_correctness_reviewer.md via existing assembly path. Resolves IMPROV-18 narrow extract (Statistical Correctness specialist). Dispatch wiring deferred.
 
+### S3-164 — Specialist dispatch wiring foundation (schema + setup question + Socratic format)
+
+**Symptom**: Cycle 11 (S3-163) deployed STATISTICAL_CORRECTNESS_REVIEWER but routing never invokes it; profile_schema has no domain-flag field. Setup_agent asks bare questions with no context, trade-offs, or recommendation, leaving humans to make decisions without orientation.
+
+**Root cause**: profile_schema lacks the boolean flag that drives downstream specialist behavior. SETUP_AGENT_DEFINITION lacks both a Socratic Question Format mandate and the new question itself. PipelineState has no corresponding field; gate_0_3_profile_approval handler does not propagate it.
+
+**Surface area**: src/unit_3/stub.py (DEFAULT_PROFILE field); src/unit_5/stub.py (PipelineState field, defaults dict, helper); src/unit_14/stub.py:2354-2385 (gate handler sync, mirror of S3-154); src/unit_18/stub.py (SETUP_AGENT_DEFINITION: Socratic format mandate + Area 6 mandatory question).
+
+**Resolution**: Adds requires_statistical_analysis bool field to profile and pipeline state; gate_0_3 propagates it (silent default to false on missing — backward compat). SETUP_AGENT_DEFINITION mandates Socratic format (context + trade-offs + recommendation) for every question, demonstrated by the new Area 6 mandatory question. Centralized helper _requires_statistical_analysis(state) is the single read site for downstream branches (routing-safety mitigation).
+
+This is cycle 1 of the specialist-dispatch-wiring batch. Cycles 2-5 will add primer injections at Stages 1-3 and reviewer dispatch at Stage 2 review.
+
 ---
 
 ## 25. Test Data

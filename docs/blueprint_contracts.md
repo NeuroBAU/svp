@@ -186,9 +186,10 @@ def get_quality_config(
 **Dependencies:** Unit 1, Unit 2.
 
 **DEFAULT_PROFILE:**
-- Contains all top-level keys: `archetype`, `language`, `delivery`, `quality`, `testing`, `readme`, `license`, `vcs`, `pipeline`.
+- Contains all top-level keys: `archetype`, `language`, `delivery`, `quality`, `testing`, `readme`, `license`, `vcs`, `pipeline`, `requires_statistical_analysis` **(NEW — Bug S3-164)**.
 - `archetype` default: `"python_project"`.
 - `language` default: `{"primary": "python", "components": [], "communication": {}, "notebooks": null}`.
+- `requires_statistical_analysis` default: `False` **(NEW — Bug S3-164)**. Project-level capability flag drives the Stage 1 stakeholder primer, Stage 2 blueprint primer + Statistical Correctness specialist reviewer dispatch, and Stage 3 test-agent primer. Missing-field tolerance is intentional for backward compatibility.
 - `delivery` is language-keyed: `{"python": {<from LANGUAGE_REGISTRY["python"]["default_delivery"]>}}`.
 - `quality` is language-keyed: `{"python": {<from LANGUAGE_REGISTRY["python"]["default_quality"]>}}`.
 - Valid archetypes: `"python_project"`, `"r_project"`, `"claude_code_plugin"`, `"mixed"`, `"svp_language_extension"`, `"svp_architectural"`.
@@ -334,10 +335,13 @@ class PipelineState:
     pass2_nested_session_path: Optional[str]
     deferred_broken_units: List[int]
     toolchain_status: str  # "READY" | "NOT_READY" — set by infrastructure_setup post-verify (Bug S3-160)
+    requires_statistical_analysis: bool  # default False — mirrors profile flag (Bug S3-164)
 
 def load_state(project_root: Path) -> PipelineState: ...
 
 def save_state(project_root: Path, state: PipelineState) -> None: ...
+
+def _requires_statistical_analysis(state: PipelineState) -> bool: ...  # Bug S3-164
 ```
 
 ### Tier 3 -- Behavioral Contracts
@@ -369,8 +373,13 @@ Additional sub-stages (not stage-bound): `"redo_profile_delivery"`, `"redo_profi
 
 **load_state:**
 - Reads `pipeline_state.json` from `project_root` via `ARTIFACT_FILENAMES["pipeline_state"]`.
-- Constructs `PipelineState` from JSON. Missing SVP 2.2 fields use defaults: `primary_language: "python"`, `component_languages: []`, `secondary_language: None`, `oracle_session_active: False`, `oracle_test_project: None`, `oracle_phase: None`, `oracle_run_count: 0`, `oracle_nested_session_path: None`, `state_hash: None`, `spec_revision_count: 0`, `pass_: None`, `pass2_nested_session_path: None`, `deferred_broken_units: []`, `toolchain_status: "NOT_READY"` **(NEW — Bug S3-160)**.
+- Constructs `PipelineState` from JSON. Missing SVP 2.2 fields use defaults: `primary_language: "python"`, `component_languages: []`, `secondary_language: None`, `oracle_session_active: False`, `oracle_test_project: None`, `oracle_phase: None`, `oracle_run_count: 0`, `oracle_nested_session_path: None`, `state_hash: None`, `spec_revision_count: 0`, `pass_: None`, `pass2_nested_session_path: None`, `deferred_broken_units: []`, `toolchain_status: "NOT_READY"` **(NEW — Bug S3-160)**, `requires_statistical_analysis: False` **(NEW — Bug S3-164)**.
 - Raises `FileNotFoundError` if file absent.
+
+**_requires_statistical_analysis (NEW — Bug S3-164):**
+- Centralized read of the `requires_statistical_analysis` field from a `PipelineState`.
+- Implementation: `getattr(state, "requires_statistical_analysis", False)` — the `getattr` fallback supports backward compat for state objects that pre-date the field.
+- Single source of truth for routing and prepare_task helpers that branch on whether the project requires statistical / data-analysis support. Downstream cycles (2-5) MUST consult this helper rather than reading the field directly.
 
 **save_state:**
 - Validates `current_unit`/`sub_stage` co-invariant.
@@ -1253,7 +1262,7 @@ def run_tests_main(argv: list = None) -> None: ...
 - `gate_0_2_context_approval` + `CONTEXT APPROVED`: advance_sub_stage("project_profile").
 - `gate_0_2_context_approval` + `CONTEXT REJECTED`: delete `project_context.md`, clear `last_status.txt`, re-invoke setup agent in context mode.
 - `gate_0_2_context_approval` + `CONTEXT NOT READY`: clear `last_status.txt`, re-invoke setup agent in context mode.
-- `gate_0_3_profile_approval` + `PROFILE APPROVED`: read `language.primary` from `project_profile.json` and set `state.primary_language` to that value BEFORE calling `advance_stage("1")`. Defensive on missing file / missing field / malformed JSON: log a warning to stderr and leave `state.primary_language` unchanged. **(Bug S3-154 fix.)**
+- `gate_0_3_profile_approval` + `PROFILE APPROVED`: read `language.primary` from `project_profile.json` and set `state.primary_language` to that value BEFORE calling `advance_stage("1")`. In the same handler, also read `requires_statistical_analysis` from `project_profile.json` and set `state.requires_statistical_analysis` via `bool(profile.get("requires_statistical_analysis", False))` — a profile missing the field syncs to `False` (silent backward compat). **(Bug S3-164 — parallel sync to S3-154.)** Defensive on missing file / missing field / malformed JSON: log a warning to stderr and leave `state.primary_language` unchanged. **(Bug S3-154 fix.)**
 - `gate_0_3_profile_approval` + `PROFILE REJECTED`: re-invoke setup agent in profile mode.
 - `gate_0_3r_profile_revision` + `PROFILE APPROVED`: complete_redo_profile_revision, restart per redo_type.
 - `gate_0_3r_profile_revision` + `PROFILE REJECTED`: re-invoke setup agent in appropriate redo mode.
@@ -1594,7 +1603,7 @@ SETUP_AGENT_DEFINITION: str  # Complete markdown content
 # Structural validation targets:
 REQUIRED_RULES: list  # Rules 1-4 must appear verbatim as numbered requirements
 AREA_0_ARCHETYPES: list  # A through F
-DIALOG_AREAS: list  # 6 dialog areas (0-5)
+DIALOG_AREAS: list  # 7 dialog areas (0-6) — Area 6 added by Bug S3-164
 ```
 
 ### Tier 3 -- Behavioral Contracts
@@ -1604,7 +1613,7 @@ DIALOG_AREAS: list  # 6 dialog areas (0-5)
 **SETUP_AGENT_DEFINITION content requirements:**
 - System prompt contains Rules 1-4 verbatim as numbered behavioral requirements: (1) plain language explanations, (2) best-option recommendations, (3) sensible defaults, (4) progressive disclosure.
 - Area 0 language dialog: archetype selector with Options A-F. Options E/F hidden from normal users.
-- Six dialog areas (0-5): Area 0 (Language/Ecosystem), Area 1 (VCS), Area 2 (README/Docs), Area 3 (Testing), Area 4 (Licensing/Metadata), Area 5 (Quality). Area 5 may be skipped if Area 0 already populated quality settings.
+- Seven dialog areas (0-6) **(CHANGED — Bug S3-164)**: Area 0 (Language/Ecosystem), Area 1 (VCS), Area 2 (README/Docs), Area 3 (Testing), Area 4 (Licensing/Metadata), Area 5 (Quality), Area 6 (Statistical / Data-Analysis Capability). Area 5 may be skipped if Area 0 already populated quality settings; Area 6 is mandatory and is asked exactly once.
 - Profile schema: exact canonical field names for every profile field.
 - Two modes: `project_context` and `project_profile`.
 - Terminal status names must be character-identical to `dispatch_agent_status` handlers: `PROJECT_CONTEXT_COMPLETE`, `PROJECT_CONTEXT_REJECTED`, `PROFILE_COMPLETE`. **(Bug S3-41 fix.)**
@@ -1620,6 +1629,8 @@ DIALOG_AREAS: list  # 6 dialog areas (0-5)
 - Options E/F: plugin fields auto-populated from SVP context.
 - Contradiction detection rules: mixed archetype forces conda; component language requires host.
 - Agent uses single ledger: `ledgers/setup_dialog.jsonl`.
+- **Socratic Question Format mandate (NEW IN 2.2 — Bug S3-164):** SETUP_AGENT_DEFINITION MUST include a top-level "Socratic Question Format" section that mandates Context + Trade-offs + Recommendation as the preface for every interactive question. The mandate MUST state that the format applies to every interactive question (not just complex ones). The format becomes a baseline behavioral contract for all dialog areas.
+- **Area 6 mandatory question (NEW IN 2.2 — Bug S3-164):** SETUP_AGENT_DEFINITION MUST include an Area 6 section asking the human whether the project requires statistics or data-analysis tools (yes/no). The question MUST be mandatory (asked exactly once during the project_profile sub-stage) and MUST itself demonstrate the Socratic Question Format (Context + Trade-offs + Recommendation labels appearing in the prompt body). The agent MUST write the boolean answer to `project_profile.json` at top level as `requires_statistical_analysis`. The flag drives downstream specialist primer chains (Stages 1-3) and Statistical Correctness reviewer dispatch (Stage 2 review) per S3-163.
 
 ---
 
