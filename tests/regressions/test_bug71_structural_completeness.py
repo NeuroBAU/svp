@@ -25,7 +25,7 @@ import ast
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 import pytest
 
@@ -583,6 +583,25 @@ class TestAgentStatusLinesVsDispatch:
         "checklist_generation": {"stage": "2", "sub_stage": None, "current_unit": None},
     }
 
+    # Bug S3-159: per-status sub_stage overrides for multi-mode agents that
+    # are mode-validated by dispatch_agent_status. The default
+    # AGENT_DISPATCH_CONTEXT entry pins a single sub_stage per agent, but
+    # mode-validated agents reject status lines that don't match the sub_stage.
+    # Map (agent_type, status_line) -> sub_stage override.
+    #
+    # Coverage:
+    #   - setup_agent: project_context vs project_profile is mode-validated.
+    #   - stakeholder_dialog: only sub_stage=targeted_spec_revision triggers
+    #     mode-validation; the default sub_stage=None bypasses it, so both
+    #     SPEC_DRAFT_COMPLETE and SPEC_REVISION_COMPLETE pass without override.
+    #   - blueprint_author: dispatch is NOT mode-validated (sub_stage=
+    #     blueprint_dialog admits both modes), so no override needed.
+    SUB_STAGE_OVERRIDES: Dict[Tuple[str, str], str] = {
+        ("setup_agent", "PROJECT_CONTEXT_COMPLETE"): "project_context",
+        ("setup_agent", "PROJECT_CONTEXT_REJECTED"): "project_context",
+        ("setup_agent", "PROFILE_COMPLETE"): "project_profile",
+    }
+
     @pytest.mark.parametrize(
         "agent_type,status_line",
         [
@@ -593,7 +612,12 @@ class TestAgentStatusLinesVsDispatch:
     )
     def test_dispatch_agent_status_no_error(self, agent_type, status_line, project_root):
         """dispatch_agent_status does not raise for any declared status line."""
-        ctx = self.AGENT_DISPATCH_CONTEXT[agent_type]
+        ctx = dict(self.AGENT_DISPATCH_CONTEXT[agent_type])
+        # Bug S3-159: apply per-(agent, status) sub_stage override for
+        # mode-validated multi-mode agents.
+        override = self.SUB_STAGE_OVERRIDES.get((agent_type, status_line))
+        if override is not None:
+            ctx["sub_stage"] = override
         # Add debug session for bug_triage, bug_triage_agent, and repair_agent
         if agent_type in ("bug_triage", "bug_triage_agent", "repair_agent"):
             state = _make_debug_state(

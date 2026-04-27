@@ -12,7 +12,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 _scripts_dir = str(Path(__file__).resolve().parent)
 if _scripts_dir not in sys.path:
@@ -232,6 +232,62 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
         "REDO_CLASSIFIED: profile_blueprint",
     ],
 }
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-159: canonical (agent_type, mode) -> valid terminal statuses mapping.
+#
+# Multi-mode agents (setup_agent, stakeholder_dialog, blueprint_author)
+# accept several status lines at the agent-level whitelist (AGENT_STATUS_LINES),
+# but only a strict subset is valid for any given mode. This mapping is the
+# single source of truth consulted by:
+#   1. unit_13 _prepare_* helpers, to stamp the explicit "## Expected Terminal
+#      Status" block into the agent's task prompt;
+#   2. unit_14 routing (_route_stage_0/_route_stage_1/_route_stage_2), to
+#      populate the action block's `expected_terminal_status` field;
+#   3. unit_14 dispatch_agent_status, to reject cross-mode status lines with a
+#      named error before any state transition is attempted.
+#
+# Agents not in this mapping retain mode-agnostic per-agent whitelist
+# validation only.
+# ---------------------------------------------------------------------------
+_AGENT_MODE_STATUS_MAP: Dict[Tuple[str, str], List[str]] = {
+    ("setup_agent", "project_context"): [
+        "PROJECT_CONTEXT_COMPLETE",
+        "PROJECT_CONTEXT_REJECTED",
+    ],
+    ("setup_agent", "project_profile"): [
+        "PROFILE_COMPLETE",
+    ],
+    ("stakeholder_dialog", "draft"): [
+        "SPEC_DRAFT_COMPLETE",
+    ],
+    ("stakeholder_dialog", "revision"): [
+        "SPEC_REVISION_COMPLETE",
+    ],
+    ("stakeholder_dialog", "targeted_revision"): [
+        "SPEC_REVISION_COMPLETE",
+    ],
+    ("blueprint_author", "draft"): [
+        "BLUEPRINT_DRAFT_COMPLETE",
+    ],
+    ("blueprint_author", "revision"): [
+        "BLUEPRINT_REVISION_COMPLETE",
+    ],
+}
+
+
+def _expected_terminal_status_for(
+    agent_type: str, mode: Optional[str]
+) -> Optional[List[str]]:
+    """Return the list of valid terminal status lines for (agent_type, mode).
+
+    Returns None when the (agent_type, mode) pair is not in the canonical
+    multi-mode map (signals "no mode-aware constraint applies").
+    """
+    if mode is None:
+        return None
+    return _AGENT_MODE_STATUS_MAP.get((agent_type, mode))
 
 
 # ---------------------------------------------------------------------------
@@ -658,6 +714,27 @@ def _get_iteration_limit(project_root: Path) -> int:
     return config.get("iteration_limit", 3)
 
 
+def _blueprint_author_mode(project_root: Path) -> str:
+    """Bug S3-159: heuristic mode for blueprint_author routing.
+
+    Returns "revision" if a blueprint_contracts.md file already exists in the
+    blueprint directory (indicating a re-invocation after Gate 2.1 REVISE or
+    similar), else "draft" for the initial draft pass. The two modes share
+    most prompt content but differ in the expected terminal status line:
+    BLUEPRINT_DRAFT_COMPLETE vs BLUEPRINT_REVISION_COMPLETE.
+    """
+    try:
+        blueprint_dir = get_blueprint_dir(project_root)
+        contracts_path = blueprint_dir / Path(
+            ARTIFACT_FILENAMES["blueprint_contracts"]
+        ).name
+        if contracts_path.exists() and contracts_path.read_text(encoding="utf-8").strip():
+            return "revision"
+    except Exception:
+        pass
+    return "draft"
+
+
 def _make_action_block(
     action_type: str,
     agent_type: Optional[str] = None,
@@ -668,8 +745,15 @@ def _make_action_block(
     post: Optional[str] = None,
     reminder: str = "",
     message: Optional[str] = None,
+    expected_terminal_status: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """Create an action block dict with standard keys."""
+    """Create an action block dict with standard keys.
+
+    Bug S3-159: optional `expected_terminal_status` field carries the per-(agent,
+    mode) whitelist of acceptable terminal status lines for invoke_agent action
+    blocks targeting multi-mode agents. The orchestrator surfaces this to the
+    operator; dispatch_agent_status enforces it.
+    """
     block: Dict[str, Any] = {
         "action_type": action_type,
         "reminder": reminder,
@@ -690,6 +774,8 @@ def _make_action_block(
         block["post"] = post
     if message is not None:
         block["message"] = message
+    if expected_terminal_status is not None:
+        block["expected_terminal_status"] = list(expected_terminal_status)
     return block
 
 
@@ -1489,6 +1575,9 @@ def _route_stage_0(
             agent_type="setup_agent",
             prepare=_agent_prepare_cmd("setup_agent", mode="project_context"),
             reminder="Setup agent for project context.",
+            expected_terminal_status=_expected_terminal_status_for(
+                "setup_agent", "project_context"
+            ),
         )
 
     if sub == "project_profile":
@@ -1508,6 +1597,9 @@ def _route_stage_0(
             agent_type="setup_agent",
             prepare=_agent_prepare_cmd("setup_agent", mode="project_profile"),
             reminder="Setup agent for project profile.",
+            expected_terminal_status=_expected_terminal_status_for(
+                "setup_agent", "project_profile"
+            ),
         )
 
     return _make_action_block(
@@ -1542,6 +1634,9 @@ def _route_stage_1(
                 "stakeholder_dialog", mode="targeted_revision"
             ),
             reminder="Targeted spec revision.",
+            expected_terminal_status=_expected_terminal_status_for(
+                "stakeholder_dialog", "targeted_revision"
+            ),
         )
 
     if sub == "spec_review":
@@ -1601,11 +1696,15 @@ def _route_stage_1(
             ),
         )
 
+    # Bug S3-159: Stage 1 main entry is the initial spec draft → mode="draft".
     return _make_action_block(
         action_type="invoke_agent",
         agent_type="stakeholder_dialog",
-        prepare=_agent_prepare_cmd("stakeholder_dialog"),
+        prepare=_agent_prepare_cmd("stakeholder_dialog", mode="draft"),
         reminder="Start stakeholder dialog.",
+        expected_terminal_status=_expected_terminal_status_for(
+            "stakeholder_dialog", "draft"
+        ),
     )
 
 
@@ -1630,6 +1729,9 @@ def _route_stage_2(
                 "stakeholder_dialog", mode="targeted_revision"
             ),
             reminder="Targeted spec revision for alignment.",
+            expected_terminal_status=_expected_terminal_status_for(
+                "stakeholder_dialog", "targeted_revision"
+            ),
         )
 
     if sub == "blueprint_dialog":
@@ -1644,11 +1746,20 @@ def _route_stage_2(
                     "--project-root ."
                 ),
             )
+        # Bug S3-159: blueprint_dialog initial entry → draft mode.
+        # Revision mode is only entered explicitly when blueprint files exist
+        # AND we are re-running after a Gate 2.1 REVISE response. The simple
+        # heuristic: if blueprint_contracts.md already exists in the
+        # blueprint dir, this is a revision pass.
+        bp_mode = _blueprint_author_mode(project_root)
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="blueprint_author",
-            prepare=_agent_prepare_cmd("blueprint_author"),
+            prepare=_agent_prepare_cmd("blueprint_author", mode=bp_mode),
             reminder="Blueprint authoring.",
+            expected_terminal_status=_expected_terminal_status_for(
+                "blueprint_author", bp_mode
+            ),
         )
 
     if sub == "blueprint_review":
@@ -1743,11 +1854,16 @@ def _route_stage_2(
             ),
         )
 
+    # Bug S3-159: fallback blueprint_author invocation also stamps explicit mode.
+    bp_mode = _blueprint_author_mode(project_root)
     return _make_action_block(
         action_type="invoke_agent",
         agent_type="blueprint_author",
-        prepare=_agent_prepare_cmd("blueprint_author"),
+        prepare=_agent_prepare_cmd("blueprint_author", mode=bp_mode),
         reminder="Blueprint authoring.",
+        expected_terminal_status=_expected_terminal_status_for(
+            "blueprint_author", bp_mode
+        ),
     )
 
 
@@ -2704,21 +2820,70 @@ def dispatch_agent_status(
     config = _load_config_safe(project_root)
     iteration_limit = config.get("iteration_limit", 3)
 
+    # Bug S3-159: mode-aware multi-mode agent validation. For agents in
+    # _AGENT_MODE_STATUS_MAP, derive the current mode from state.sub_stage
+    # and reject any status line that isn't valid for that (agent, mode)
+    # pair. Per-agent whitelist (below) is preserved as a coarser pre-check.
+    #
+    # Only sub_stages that UNAMBIGUOUSLY pin a single mode are listed here.
+    # E.g. blueprint_author + sub_stage=blueprint_dialog admits BOTH draft
+    # and revision modes (initial authoring vs Gate 2.1 REVISE re-author),
+    # so dispatch cannot enforce a single-mode binding from state alone —
+    # the routing-side `expected_terminal_status` field carries the
+    # informational value while dispatch falls back to the per-agent
+    # whitelist check.
+    multi_mode_sub_stage_map: Dict[str, Dict[str, str]] = {
+        "setup_agent": {
+            "project_context": "project_context",
+            "project_profile": "project_profile",
+        },
+        "stakeholder_dialog": {
+            "targeted_spec_revision": "targeted_revision",
+        },
+    }
+
+    def _resolve_mode_for_dispatch(at: str, sub_stage: Optional[str]) -> Optional[str]:
+        """Map (agent_type, sub_stage) -> canonical mode. Returns None when
+        no unambiguous mode-aware constraint applies."""
+        if at not in multi_mode_sub_stage_map or sub_stage is None:
+            return None
+        return multi_mode_sub_stage_map[at].get(sub_stage)
+
     # setup_agent
     if agent_type == "setup_agent":
-        if status_line in (
+        if status_line not in (
             "PROJECT_CONTEXT_COMPLETE",
             "PROJECT_CONTEXT_REJECTED",
             "PROFILE_COMPLETE",
         ):
-            return _copy(state)  # Two-branch in route
-        raise ValueError(f"Unknown status for {agent_type}: {status_line}")
+            raise ValueError(f"Unknown status for {agent_type}: {status_line}")
+        # Bug S3-159: mode-aware validation.
+        mode = _resolve_mode_for_dispatch("setup_agent", state.sub_stage)
+        valid = _expected_terminal_status_for("setup_agent", mode) if mode else None
+        if valid is not None and status_line not in valid:
+            raise ValueError(
+                f"expected one of {valid} for setup_agent in mode {mode}, "
+                f"got {status_line}"
+            )
+        return _copy(state)  # Two-branch in route
 
     # stakeholder_dialog
     if agent_type == "stakeholder_dialog":
-        if status_line in ("SPEC_DRAFT_COMPLETE", "SPEC_REVISION_COMPLETE"):
-            return _copy(state)  # Two-branch in route
-        raise ValueError(f"Unknown status for {agent_type}: {status_line}")
+        if status_line not in ("SPEC_DRAFT_COMPLETE", "SPEC_REVISION_COMPLETE"):
+            raise ValueError(f"Unknown status for {agent_type}: {status_line}")
+        # Bug S3-159: mode-aware validation.
+        mode = _resolve_mode_for_dispatch("stakeholder_dialog", state.sub_stage)
+        valid = (
+            _expected_terminal_status_for("stakeholder_dialog", mode)
+            if mode
+            else None
+        )
+        if valid is not None and status_line not in valid:
+            raise ValueError(
+                f"expected one of {valid} for stakeholder_dialog in mode {mode}, "
+                f"got {status_line}"
+            )
+        return _copy(state)  # Two-branch in route
 
     # stakeholder_reviewer
     if agent_type == "stakeholder_reviewer":
@@ -2729,6 +2894,12 @@ def dispatch_agent_status(
     # blueprint_author
     if agent_type == "blueprint_author":
         if status_line in ("BLUEPRINT_DRAFT_COMPLETE", "BLUEPRINT_REVISION_COMPLETE"):
+            # Bug S3-159: blueprint_author dispatch is NOT mode-validated
+            # because state.sub_stage=blueprint_dialog admits both draft and
+            # revision modes (initial authoring vs Gate 2.1 REVISE re-author).
+            # The routing-side `expected_terminal_status` field carries the
+            # informational mode binding; dispatch accepts either status as
+            # the agent's emitted status IS the mode signal.
             # Bug S3-116: validate unit heading format before advancing.
             # The shared validator in Unit 8 is the single source of truth;
             # run_infrastructure_setup (Unit 11) calls the same validator

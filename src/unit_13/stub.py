@@ -23,6 +23,7 @@ from src.unit_7.stub import get_ledger_path, read_ledger
 from src.unit_8.stub import build_unit_context as _build_unit_context_raw
 from src.unit_8.stub import extract_units
 from src.unit_12.stub import assemble_hint_prompt
+from src.unit_14.stub import _expected_terminal_status_for
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -393,6 +394,32 @@ def _format_section(title: str, content: str) -> str:
     return f"## {title}\n\n{content.strip()}"
 
 
+def _format_mode_and_expected_status_blocks(
+    agent_type: str, mode: Optional[str]
+) -> str:
+    """Bug S3-159: emit explicit `## Mode` and `## Expected Terminal Status`
+    blocks for multi-mode agents. Returns an empty string when:
+    - mode is None
+    - the (agent_type, mode) pair is not in the canonical multi-mode map
+      (i.e., the agent is not multi-mode and has no mode-specific
+      terminal-status binding to enforce).
+    """
+    if mode is None:
+        return ""
+    valid = _expected_terminal_status_for(agent_type, mode)
+    if not valid:
+        return ""
+    bullets = "\n".join(f"- {s}" for s in valid)
+    return (
+        f"## Mode\n\n{mode}\n\n"
+        f"## Expected Terminal Status\n\n"
+        f"You MUST emit exactly one of the following terminal status lines:\n\n"
+        f"{bullets}\n\n"
+        f"(Other statuses are invalid for this mode and will be rejected by "
+        f"the dispatcher.)"
+    )
+
+
 def _assemble_sections(sections: List[str]) -> str:
     """Join non-empty sections with double newlines."""
     non_empty = [s for s in sections if s and s.strip()]
@@ -485,7 +512,15 @@ def _prepare_setup_agent(
     sections: List[str] = []
     sections.append("# Setup Agent Task Prompt")
 
-    if mode:
+    # Bug S3-159: explicit Mode + Expected Terminal Status blocks for
+    # multi-mode agents. Falls through silently when mode is None or
+    # (agent, mode) is not in the canonical multi-mode map.
+    mode_block = _format_mode_and_expected_status_blocks("setup_agent", mode)
+    if mode_block:
+        sections.append(mode_block)
+    elif mode:
+        # Fall back to the legacy inline indicator for non-multi-mode modes
+        # (e.g., redo_delivery, redo_blueprint).
         sections.append(f"\n**Mode:** {mode}")
 
     # Load profile schema
@@ -532,7 +567,15 @@ def _prepare_stakeholder_dialog(
     spec_output_path = ARTIFACT_FILENAMES["stakeholder_spec"]
     sections.append(f"\n**Output path (mandatory):** Write the final specification to `{spec_output_path}`. Do not write to any other location.")
 
-    if mode:
+    # Bug S3-159: explicit Mode + Expected Terminal Status blocks. Replaces
+    # the legacy inline `**Mode:**` indicator when (agent, mode) is in the
+    # canonical multi-mode map.
+    mode_block = _format_mode_and_expected_status_blocks(
+        "stakeholder_dialog", mode
+    )
+    if mode_block:
+        sections.append(mode_block)
+    elif mode:
         sections.append(f"\n**Mode:** {mode}")
 
     # Load spec context
@@ -602,7 +645,13 @@ def _prepare_blueprint_author(
     sections: List[str] = []
     sections.append("# Blueprint Author Task Prompt")
 
-    if mode:
+    # Bug S3-159: explicit Mode + Expected Terminal Status blocks.
+    mode_block = _format_mode_and_expected_status_blocks(
+        "blueprint_author", mode
+    )
+    if mode_block:
+        sections.append(mode_block)
+    elif mode:
         sections.append(f"\n**Mode:** {mode}")
 
     # Load spec

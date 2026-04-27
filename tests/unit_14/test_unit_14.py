@@ -4170,3 +4170,100 @@ class TestDispatchAgentStatusBlueprintAuditGate:
             project_root,
         )
         assert result is not None
+
+
+# ===========================================================================
+# Bug S3-159: Multi-mode dispatch hygiene
+# ===========================================================================
+
+
+class TestS3_159MakeActionBlockExpectedTerminalStatus:
+    """The _make_action_block helper accepts an optional
+    `expected_terminal_status` parameter and emits it as a top-level field
+    on the returned action block dict."""
+
+    def test_make_action_block_includes_expected_terminal_status_when_set(self):
+        from routing import _make_action_block
+
+        block = _make_action_block(
+            action_type="invoke_agent",
+            agent_type="setup_agent",
+            expected_terminal_status=["FOO", "BAR"],
+        )
+        assert block.get("expected_terminal_status") == ["FOO", "BAR"]
+
+    def test_make_action_block_omits_expected_terminal_status_when_unset(self):
+        from routing import _make_action_block
+
+        block = _make_action_block(
+            action_type="invoke_agent",
+            agent_type="setup_agent",
+        )
+        assert "expected_terminal_status" not in block
+
+
+class TestS3_159RoutingPopulatesExpectedTerminalStatus:
+    """Routing call sites for multi-mode agents populate
+    `expected_terminal_status` in the returned invoke_agent action block,
+    sourced from the canonical (agent, mode) -> valid statuses mapping."""
+
+    def test_route_stage_0_setup_agent_invoke_block_has_expected_terminal_status(
+        self, tmp_path
+    ):
+        state = _make_state(stage="0", sub_stage="project_context")
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "")
+
+        action = route(tmp_path)
+
+        assert action.get("action_type") == "invoke_agent"
+        assert action.get("agent_type") == "setup_agent"
+        ets = action.get("expected_terminal_status")
+        assert ets is not None
+        assert "PROJECT_CONTEXT_COMPLETE" in ets
+        assert "PROJECT_CONTEXT_REJECTED" in ets
+
+
+class TestS3_159DispatchAgentStatusModeAware:
+    """dispatch_agent_status validates the received status against the
+    per-(agent, mode) valid set and rejects cross-mode statuses."""
+
+    def test_dispatch_agent_status_setup_agent_rejects_wrong_mode_status(
+        self, tmp_path
+    ):
+        state = _make_state(stage="0", sub_stage="project_context")
+        with pytest.raises(ValueError) as exc_info:
+            dispatch_agent_status(
+                state, "setup_agent", "PROFILE_COMPLETE", tmp_path
+            )
+        msg = str(exc_info.value)
+        assert "PROFILE_COMPLETE" in msg
+        assert "project_context" in msg
+        # Must mention the expected list (validation form).
+        assert "PROJECT_CONTEXT_COMPLETE" in msg
+
+    def test_dispatch_agent_status_setup_agent_accepts_correct_mode_status(
+        self, tmp_path
+    ):
+        state = _make_state(stage="0", sub_stage="project_context")
+        # Should not raise.
+        result = dispatch_agent_status(
+            state, "setup_agent", "PROJECT_CONTEXT_COMPLETE", tmp_path
+        )
+        assert result is not None
+
+    def test_dispatch_agent_status_stakeholder_dialog_rejects_wrong_mode_status(
+        self, tmp_path
+    ):
+        # sub_stage=targeted_spec_revision binds mode=targeted_revision,
+        # whose canonical valid set is {SPEC_REVISION_COMPLETE}.
+        # Sending SPEC_DRAFT_COMPLETE must be rejected.
+        state = _make_state(stage="1", sub_stage="targeted_spec_revision")
+        with pytest.raises(ValueError) as exc_info:
+            dispatch_agent_status(
+                state, "stakeholder_dialog", "SPEC_DRAFT_COMPLETE", tmp_path
+            )
+        msg = str(exc_info.value)
+        assert "SPEC_DRAFT_COMPLETE" in msg
+        assert "targeted_revision" in msg
+        assert "SPEC_REVISION_COMPLETE" in msg

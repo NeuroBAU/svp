@@ -57,12 +57,10 @@ def test_stage2_targeted_spec_revision_passes_mode_targeted_revision(tmp_path):
     )
 
 
-def test_stage1_main_fallthrough_still_passes_no_mode(tmp_path):
-    """Regression anchor: Stage 1 main fall-through still emits no --mode.
-
-    Per §24.155 scope note, this site conflates initial-dialog and post-REVISE
-    rerun. A future cycle will add a state-level distinguisher; this test
-    pins the current behavior so that cycle consciously breaks and updates it.
+def test_stage1_main_fallthrough_passes_mode_draft(tmp_path):
+    """Bug S3-159 (was S3-142 deferral anchor): Stage 1 main fall-through
+    now emits --mode draft, the cycle that introduces the explicit binding
+    promised by §24.155.
     """
     _seed_state(tmp_path, stage="1", sub_stage=None)
     _clear_last_status(tmp_path)
@@ -72,7 +70,7 @@ def test_stage1_main_fallthrough_still_passes_no_mode(tmp_path):
     assert action.get("action_type") == "invoke_agent"
     assert action.get("agent_type") == "stakeholder_dialog"
     prepare = action.get("prepare", "")
-    assert "--mode" not in prepare, (
-        "Stage 1 main fall-through was expected to NOT pass --mode "
-        f"(see §24.155 scope note); got: {prepare}"
+    assert "--mode draft" in prepare, (
+        "Stage 1 main fall-through was expected to pass --mode draft per "
+        f"Bug S3-159; got: {prepare}"
     )

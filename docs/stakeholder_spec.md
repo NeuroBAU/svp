@@ -6100,6 +6100,22 @@ The S3-149 spec entry (§24.162) documented this as a sub-deferral: "`assembly_r
 
 **Resolution**: New audit_blueprint_contracts() in Unit 28 performs DAG acyclicity (a), Tier 2 signature implementation (c), phantom-call detection (d) checks. Hooked into Unit 14 dispatch_agent_status; raises ValueError if violations. False-positives filterable via .svp/audit_known_false_positives.md. Reciprocity check (b) deferred to separate cycle (Calls/Called-by encoding required first). Resolves IMPROV-09 (partial: a/c/d).
 
+### S3-159 — Multi-mode dispatch hygiene gaps
+
+**Symptom**: Multi-mode agents (setup_agent, stakeholder_dialog, blueprint_author) had three independent vulnerabilities: (1) task prompts lacked explicit Mode + Expected Terminal Status blocks; (2) invoke_agent action blocks lacked `expected_terminal_status` field; (3) dispatch_agent_status validated only against per-agent whitelists, not per-(agent, mode) expected sets. Together: an agent in mode A could emit mode-B's terminal status; nothing rejected it; pipeline state advanced incorrectly.
+
+**Root cause**: src/unit_13/stub.py prepare_* helpers stamped `**Mode:** {mode}` inline without explicit terminal-status enumeration; src/unit_14/stub.py _make_action_block had no expected_terminal_status field; dispatch_agent_status's per-agent whitelist permitted any of the agent's modes' statuses regardless of current mode.
+
+**Surface area**: src/unit_13/stub.py (_prepare_* helpers); src/unit_14/stub.py (_make_action_block, dispatch_agent_status, routing call sites for multi-mode agents).
+
+**Resolution**: 
+1. _prepare_* helpers stamp explicit ## Mode and ## Expected Terminal Status blocks per (agent, mode).
+2. _make_action_block accepts and emits expected_terminal_status field.
+3. dispatch_agent_status validates received status against the per-(agent, mode) valid set; raises ValueError with named mismatch on violation.
+4. Canonical (agent, mode) -> valid statuses mapping centralized in unit_14.
+
+Resolves IMPROV-02.
+
 ---
 
 ## 25. Test Data

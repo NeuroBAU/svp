@@ -1656,3 +1656,63 @@ class TestBuildLanguageContextDifferentLanguages:
         combined_registry = {**SAMPLE_LANGUAGE_REGISTRY, **SAMPLE_LANGUAGE_REGISTRY_R}
         result = build_language_context("r", "test_agent", combined_registry)
         assert ".R" in result
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-159: Multi-mode agent prompts must stamp explicit Mode and
+# Expected Terminal Status blocks (not the legacy inline `**Mode:**`).
+# ---------------------------------------------------------------------------
+
+
+class TestS3_159MultiModePromptBlocks:
+    """The _prepare_* helpers for multi-mode agents stamp two explicit
+    markdown blocks into the task prompt: `## Mode` and
+    `## Expected Terminal Status` listing the canonical valid status lines
+    for that (agent, mode) pair."""
+
+    def test_prepare_setup_agent_project_context_stamps_mode_and_expected_status_blocks(
+        self, project_root
+    ):
+        result = prepare_task_prompt(
+            project_root, "setup_agent", mode="project_context"
+        )
+        # Explicit mode block (heading form, not inline `**Mode:**`).
+        assert "## Mode" in result
+        assert "project_context" in result
+        # Explicit expected terminal status block listing both project_context
+        # statuses.
+        assert "## Expected Terminal Status" in result
+        assert "PROJECT_CONTEXT_COMPLETE" in result
+        assert "PROJECT_CONTEXT_REJECTED" in result
+        # Profile-mode-only status must NOT appear.
+        assert "PROFILE_COMPLETE" not in result
+
+    def test_prepare_setup_agent_project_profile_stamps_mode_and_expected_status_blocks(
+        self, project_root
+    ):
+        result = prepare_task_prompt(
+            project_root, "setup_agent", mode="project_profile"
+        )
+        assert "## Mode" in result
+        assert "project_profile" in result
+        assert "## Expected Terminal Status" in result
+        assert "PROFILE_COMPLETE" in result
+        # Context-mode statuses must NOT appear.
+        assert "PROJECT_CONTEXT_COMPLETE" not in result
+        assert "PROJECT_CONTEXT_REJECTED" not in result
+
+    def test_prepare_stakeholder_dialog_draft_stamps_mode_and_expected_status_blocks(
+        self, project_root
+    ):
+        result = prepare_task_prompt(
+            project_root, "stakeholder_dialog", mode="draft"
+        )
+        assert "## Mode" in result
+        # The literal mode word "draft" appears in the Mode block.
+        # (Anchor on the heading form to avoid false-matches against
+        # surrounding prose.)
+        assert "## Mode\n\ndraft" in result
+        assert "## Expected Terminal Status" in result
+        assert "SPEC_DRAFT_COMPLETE" in result
+        # Revision-mode-only status must NOT appear.
+        assert "SPEC_REVISION_COMPLETE" not in result
