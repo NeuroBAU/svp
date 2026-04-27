@@ -6205,6 +6205,18 @@ This is cycle 1 of the specialist-dispatch-wiring batch. Cycles 2-5 will add pri
 
 **Resolution**: Cycle 3 of the specialist-dispatch-wiring batch. Mirror of S3-165 pattern but for Stage 2 blueprint authoring. New BLUEPRINT_AUTHOR_STATISTICAL_PRIMER constant covers 4 contract categories per unit (Tier 2 signature conventions, Tier 3 enumerated contract clauses, library-version pinning, error class), plus 5 anti-patterns and 5 pre-emission cross-checks. Append-only at task-prompt assembly time when _requires_statistical_analysis(state) is true; otherwise unchanged.
 
+### S3-167 — Test agent statistical primer (Stage 3, content-only)
+
+**Symptom**: When projects flagged requires_statistical_analysis = true, test_agent at Stage 3 had no mechanism to generate boundary tests, fallback tests, property-based tests, multiple-comparisons tests, effect-size tests, or power/N gate tests. Tests covered the unit's signature but not the contract's statistical specifics.
+
+**Root cause**: TEST_AGENT_DEFINITION had no statistical primer; prepare_task helper for test_agent did not branch on the profile flag.
+
+**Surface area**: src/unit_20/stub.py (new TEST_AGENT_STATISTICAL_PRIMER constant); src/unit_13/stub.py _prepare_test_agent (conditional primer append).
+
+**Resolution**: Cycle 4 of the specialist-dispatch-wiring batch. Mirror of S3-165 / S3-166 pattern but for Stage 3 test generation. New TEST_AGENT_STATISTICAL_PRIMER constant covers 11 mandatory test categories (happy-path, boundary, degenerate-fallback, sign-convention, combinator, bootstrap-reproducibility, NA-safety, property-based, multiple-comparisons, effect-size, power/N) plus floating-point tolerance policy + anti-patterns + coverage traceability.
+
+ROUTING-SAFETY: Stage 3 changes are prompt-content ONLY. The per-unit TDD loop, sub-stages, gates, terminal statuses, and agent-dispatch logic are untouched. Append-only at task-prompt assembly time.
+
 ---
 
 ## 25. Test Data

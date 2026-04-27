@@ -1849,3 +1849,99 @@ class TestPrepareBlueprintAuthorStatisticalPrimerAppend:
             "BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must NOT be appended "
             "(Bug S3-166 — defensive guard against legacy callers)."
         )
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-167: Conditional TEST_AGENT_STATISTICAL_PRIMER append
+# ---------------------------------------------------------------------------
+
+
+class TestPrepareTestAgentStatisticalPrimerAppend:
+    """Bug S3-167: _prepare_test_agent must append
+    TEST_AGENT_STATISTICAL_PRIMER to the assembled task prompt iff
+    state.requires_statistical_analysis is True. When the flag is False
+    or state is None (legacy callers), the primer must NOT appear.
+    Stage 3 routing structure (per-unit TDD loop, sub-stages, gates,
+    terminal statuses) is UNCHANGED — this is a prompt-content-only
+    change."""
+
+    _PRIMER_MARKER = "Floating-point comparison policy"
+
+    def test_prepare_test_agent_appends_primer_when_flag_true(
+        self, project_root
+    ):
+        """When the loaded state has requires_statistical_analysis=True,
+        the primer's distinctive substring must appear in the generated
+        prompt."""
+        _write_pipeline_state(project_root, requires_stats=True)
+        result = prepare_task_prompt(
+            project_root, "test_agent", unit_number=5
+        )
+        assert self._PRIMER_MARKER in result, (
+            "When state.requires_statistical_analysis=True, "
+            "TEST_AGENT_STATISTICAL_PRIMER must be appended to the "
+            "test_agent task prompt (Bug S3-167)."
+        )
+
+    def test_prepare_test_agent_omits_primer_when_flag_false(
+        self, project_root
+    ):
+        """When the loaded state has requires_statistical_analysis=False,
+        the primer's distinctive substring must NOT appear."""
+        _write_pipeline_state(project_root, requires_stats=False)
+        result = prepare_task_prompt(
+            project_root, "test_agent", unit_number=5
+        )
+        assert self._PRIMER_MARKER not in result, (
+            "When state.requires_statistical_analysis=False, "
+            "TEST_AGENT_STATISTICAL_PRIMER must NOT be appended "
+            "(Bug S3-167 — append is conditional on the profile flag)."
+        )
+
+    def test_prepare_test_agent_omits_primer_when_state_none(
+        self, project_root
+    ):
+        """When pipeline_state.json is absent (state=None), the primer
+        must NOT be appended (defensive guard for legacy callers)."""
+        state_path = project_root / ".svp" / "pipeline_state.json"
+        if state_path.exists():
+            state_path.unlink()
+        result = prepare_task_prompt(
+            project_root, "test_agent", unit_number=5
+        )
+        assert self._PRIMER_MARKER not in result, (
+            "When state is None (no pipeline_state.json), "
+            "TEST_AGENT_STATISTICAL_PRIMER must NOT be appended "
+            "(Bug S3-167 — defensive guard against legacy callers)."
+        )
+
+    def test_prepare_test_agent_routing_invariant_with_flag_false(
+        self, project_root
+    ):
+        """Routing-safety regression guard: with
+        requires_statistical_analysis=False, NO primer-related substrings
+        appear in the test_agent prompt — i.e., flag=False is a no-op
+        relative to baseline. Byte-identity is impractical because the
+        prompt may carry dynamic content (timestamps, lessons-learned
+        filtering); the no-substring invariant achieves the same
+        guarantee that Stage 3 routing/sub-stages/gates/terminal-statuses
+        are untouched (Bug S3-167)."""
+        # No-substring invariant: with flag=False, every primer marker
+        # MUST be absent. This pins the flag=False == baseline contract.
+        _write_pipeline_state(project_root, requires_stats=False)
+        result = prepare_task_prompt(
+            project_root, "test_agent", unit_number=5
+        )
+        for marker in (
+            "Floating-point comparison policy",
+            "Mandatory test categories",
+            "Property-based",
+            "Power / minimum-N",
+            "Bootstrap reproducibility",
+        ):
+            assert marker not in result, (
+                f"Routing-safety invariant violated: with "
+                f"requires_statistical_analysis=False, primer marker "
+                f"'{marker}' must NOT appear in the test_agent prompt "
+                f"(Bug S3-167)."
+            )

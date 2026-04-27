@@ -674,6 +674,62 @@ Per unit that implements any statistical computation:
 """
 
 # ---------------------------------------------------------------------------
+# TEST_AGENT_STATISTICAL_PRIMER (Bug S3-167)
+# ---------------------------------------------------------------------------
+
+TEST_AGENT_STATISTICAL_PRIMER: str = """\
+## Statistical Analysis Primer (active when project requires statistics or data-analysis tools)
+
+This project has been flagged as requiring statistics or data-analysis tools. The blueprint at Stage 2 has translated spec thresholds, formulas, fallbacks, and decision rules into Tier 2 signatures and Tier 3 contracts. Your tests for statistical units MUST exercise every numeric, every boundary, and every edge case the contract specifies.
+
+### Mandatory test categories per statistical unit
+
+For every unit whose Tier 2 signature implements a statistical computation:
+
+1. **Happy-path sanity**: known-good inputs producing a known-good metric value within an expected tolerance. Cite the expected value source (paper, hand-computed example, library reference).
+2. **Threshold boundary tests**: input arranged so the metric lands exactly at the boundary value; assert the verdict matches the contract's chosen inclusive/exclusive interpretation. Also test boundary +/- 1 ULP (one floating-point unit) to catch off-by-epsilon drift across BLAS implementations.
+3. **Degenerate-input fallback tests**: feed each spec-enumerated degenerate condition (zero variance, perfect agreement, single-class observation, identical groups for a t-test, etc.) and assert the contract's fallback verdict + warning class.
+4. **Sign-convention tests**: for signed metrics, test inputs producing negative values; assert the contract's interpretation (defect vs absolute-magnitude treatment).
+5. **Decision-rule combinator tests**: produce inputs where one metric passes and another fails; assert the combinator's logical-expression behavior. Test BOTH branches of every AND/OR.
+6. **Bootstrap reproducibility**: if the unit uses bootstrap, run twice with the same seed and assert identical outputs; run with different seeds and assert non-identical (basic sanity); assert the seed is recorded in the result artifact (so a reviewer can reproduce months later).
+7. **NA-safety**: feed `NA` / `NaN` / `None` inputs at every parameter that could plausibly be missing; assert either the contract's NA-handling rule fires (with the correct warning class) or a clean classed error is raised.
+8. **Invariant / property-based tests**: where the metric has a known algebraic property (kappa is symmetric in raters; correlation is invariant under linear rescaling; ICC is bounded in [-1, 1]; sum of probabilities = 1), express it as a property-based test using **Hypothesis** (Python) or generated fixtures (R, e.g., via `hedgehog` or hand-rolled generators). Property tests catch bugs that example tests structurally cannot.
+9. **Multiple-comparisons correction tests**: if the unit applies a correction, test with a known family of p-values where the corrected verdict is hand-computable; assert the corrected output matches.
+10. **Effect-size accompaniment**: assert the result artifact carries the contract-required effect-size statistic alongside any p-value (presence + numerical sanity).
+11. **Power / minimum-N gate**: feed inputs below the contract's minimum N; assert the verdict is "defer" (or whatever the contract names), not a normal pass/fail.
+
+### Floating-point comparison policy
+
+All numeric assertions on statistical outputs MUST use principled tolerance:
+- **Python**: `pytest.approx(expected, rel=tol)`. Choose `rel`:
+  - `1e-12` for closed-form expressions (e.g., direct kappa formula).
+  - `1e-6` for iterative algorithms (e.g., maximum likelihood).
+  - `1e-3` or coverage-CI for bootstrap with N=1000 (assert CI of estimate brackets expected).
+- **R**: `expect_equal(actual, expected, tolerance = tol)` (default is 1.5e-8; bump for bootstrap). For bootstrap reproducibility, wrap in `withr::with_seed(<seed>, { ... })`.
+
+Never widen tolerance to make a test pass; if values disagree, investigate the formula or the library default.
+
+### Anti-patterns to avoid
+
+- Tolerance hacking. Investigate disagreement; do not paper over it.
+- Skipping boundary tests as "edge cases that won't happen". Real data WILL produce boundary values.
+- Mocking the statistical computation when the unit-under-test IS the computation. (Mocking IS appropriate for non-statistical wrappers - retry layers, caching, dispatch - and those wrappers must have separate unit tests covering the actual computation.)
+
+### Coverage and traceability
+
+Each statistical unit's tests collectively must cover: every Tier 3 contract clause that mentions a numeric threshold, every fallback rule, every decision-rule combinator branch, every spec-enumerated edge case, multiple-comparisons policy if present, effect-size requirement if present, and the power/N gate.
+
+Each test MUST tag the contract clause it covers in its docstring, in this format:
+```
+Covers: <UNIT_ID>.contract.<clause_id>  (e.g., BP_UNIT_05.contract.kappa_boundary_inclusive)
+```
+
+The coverage_review agent reads these tags to surface gaps.
+
+(This primer is active because the project's profile sets `requires_statistical_analysis = true`. The statistical-correctness reviewer at Stage 2 verified the blueprint's correctness; your job at Stage 3 is to verify the implementation matches the blueprint by construction.)
+"""
+
+# ---------------------------------------------------------------------------
 # BLUEPRINT_REVIEWER_DEFINITION
 # ---------------------------------------------------------------------------
 

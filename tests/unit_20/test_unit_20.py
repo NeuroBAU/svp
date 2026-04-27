@@ -45,6 +45,7 @@ from construction_agents import (
     STAKEHOLDER_DIALOG_STATISTICAL_PRIMER,
     STAKEHOLDER_REVIEWER_DEFINITION,
     TEST_AGENT_DEFINITION,
+    TEST_AGENT_STATISTICAL_PRIMER,
 )
 
 # ---------------------------------------------------------------------------
@@ -1454,6 +1455,63 @@ class TestBlueprintAuthorStatisticalPrimer:
             assert _contains(
                 BLUEPRINT_AUTHOR_STATISTICAL_PRIMER, heading
             ), (
-                f"BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must contain a "
-                f"'{heading}' heading (Bug S3-166)."
+                f"BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must mention "
+                f"'{heading}' (Bug S3-166)."
+            )
+
+
+# ===========================================================================
+# Bug S3-167: Test agent statistical primer
+# ===========================================================================
+
+
+class TestTestAgentStatisticalPrimer:
+    """Bug S3-167: A new module-level constant
+    TEST_AGENT_STATISTICAL_PRIMER must exist and document the 11 mandatory
+    test categories, the floating-point tolerance policy, and the
+    contract-clause traceability tag format that drive the conditional
+    primer append performed by Unit 13's _prepare_test_agent."""
+
+    def test_test_agent_statistical_primer_constant_exists(self):
+        """TEST_AGENT_STATISTICAL_PRIMER must be a non-empty string and
+        must contain key statistical-test-domain terms the primer
+        documents."""
+        assert isinstance(TEST_AGENT_STATISTICAL_PRIMER, str), (
+            "TEST_AGENT_STATISTICAL_PRIMER must be a str."
+        )
+        assert len(TEST_AGENT_STATISTICAL_PRIMER.strip()) > 0, (
+            "TEST_AGENT_STATISTICAL_PRIMER must be non-empty."
+        )
+        for keyword in (
+            "Floating-point comparison policy",
+            "property-based",
+            "Multiple-comparisons",
+            "Power / minimum-N",
+        ):
+            assert _contains(TEST_AGENT_STATISTICAL_PRIMER, keyword), (
+                f"TEST_AGENT_STATISTICAL_PRIMER must mention "
+                f"'{keyword}' (Bug S3-167)."
+            )
+
+    def test_test_agent_statistical_primer_lists_all_11_categories(self):
+        """The primer must enumerate all 11 mandatory test categories
+        as numbered list items '1.' through '11.'"""
+        for n in range(1, 12):
+            marker = f"{n}."
+            assert marker in TEST_AGENT_STATISTICAL_PRIMER, (
+                f"TEST_AGENT_STATISTICAL_PRIMER must include "
+                f"category marker '{marker}' (Bug S3-167 — 11 mandatory "
+                f"test categories)."
+            )
+
+    def test_test_agent_statistical_primer_includes_traceability_format(
+        self,
+    ):
+        """The primer must document the contract-clause traceability tag
+        format 'Covers: <UNIT_ID>.contract.<clause_id>' that the
+        coverage_review agent consumes."""
+        for token in ("Covers:", "<UNIT_ID>"):
+            assert _contains(TEST_AGENT_STATISTICAL_PRIMER, token), (
+                f"TEST_AGENT_STATISTICAL_PRIMER must contain "
+                f"traceability-tag token '{token}' (Bug S3-167)."
             )

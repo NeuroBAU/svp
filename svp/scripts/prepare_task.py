@@ -872,6 +872,16 @@ def _prepare_test_agent(
     if context:
         sections.append(_format_section("Context", context))
 
+    # Bug S3-167: when the project profile requires statistical analysis,
+    # append TEST_AGENT_STATISTICAL_PRIMER so test generation enumerates
+    # boundary, fallback, property-based, multiple-comparisons, effect-size,
+    # and power/N gate tests. Defensive guard: only append when state is
+    # provided (legacy callers without state get the unchanged base prompt).
+    if state is not None and _requires_statistical_analysis(state):
+        from construction_agents import TEST_AGENT_STATISTICAL_PRIMER
+
+        sections.append(TEST_AGENT_STATISTICAL_PRIMER)
+
     return _assemble_sections(sections)
 
 
