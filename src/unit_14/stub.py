@@ -2229,6 +2229,31 @@ def dispatch_gate_response(
     # Gate 0.3: Profile approval
     if gate_id == "gate_0_3_profile_approval":
         if response == "PROFILE APPROVED":
+            # Bug S3-154: sync language.primary from project_profile.json into
+            # state.primary_language BEFORE advancing the stage. Without this,
+            # the field retains its default value ("python") and downstream
+            # task prompts misreport the language for non-Python archetypes.
+            profile_path = project_root / "project_profile.json"
+            try:
+                with open(profile_path, "r") as f:
+                    profile_data = json.load(f)
+                primary = profile_data.get("language", {}).get("primary")
+                if primary:
+                    state = _copy(state)
+                    state.primary_language = primary
+                else:
+                    print(
+                        "WARNING: project_profile.json has no language.primary; "
+                        "leaving state.primary_language unchanged.",
+                        file=sys.stderr,
+                    )
+            except (FileNotFoundError, json.JSONDecodeError) as exc:
+                print(
+                    f"WARNING: could not read language.primary from "
+                    f"project_profile.json ({exc}); leaving state.primary_language "
+                    f"unchanged.",
+                    file=sys.stderr,
+                )
             new = advance_stage(state, "1")
         else:  # PROFILE REJECTED
             _clear_last_status(project_root)

@@ -1021,6 +1021,25 @@ class TestBuildLanguageContext:
         assert "testthat" in result
         assert ".R" in result
 
+    def test_build_language_context_reflects_synced_primary_language(self):
+        """Bug S3-154 downstream anchor: when gate_0_3 sync sets
+        state.primary_language to 'r', build_language_context returns an
+        R-flavored block (testthat / .R / R display name), not Python defaults.
+        """
+        combined_registry = {**SAMPLE_LANGUAGE_REGISTRY, **SAMPLE_LANGUAGE_REGISTRY_R}
+        # Simulate post-sync state value
+        synced_primary_language = "r"
+        result = build_language_context(
+            synced_primary_language, "test_agent", combined_registry
+        )
+        # R-flavored metadata present
+        assert "testthat" in result
+        assert ".R" in result
+        assert "R" in result
+        # Python defaults absent
+        assert "pytest" not in result
+        assert ".py" not in result
+
     def test_coverage_review_agent_gets_guidance(self):
         result = build_language_context(
             "python", "coverage_review_agent", SAMPLE_LANGUAGE_REGISTRY

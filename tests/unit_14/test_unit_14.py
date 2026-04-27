@@ -2580,6 +2580,57 @@ class TestDispatchGateResponse:
         )
         assert result.stage == "0"
 
+    # -- Gate 0.3 (Bug S3-154: language.primary sync) --
+
+    def test_gate_0_3_profile_approved_syncs_primary_language_r(self, tmp_path):
+        """gate_0_3 + PROFILE APPROVED with profile language.primary == 'r':
+        state.primary_language is updated to 'r' and stage advances to '1'.
+        """
+        profile = {"language": {"primary": "r"}}
+        (tmp_path / "project_profile.json").write_text(json.dumps(profile))
+        state = _make_state(
+            stage="0", sub_stage="project_profile", primary_language="python"
+        )
+        result = dispatch_gate_response(
+            state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
+        )
+        assert result.primary_language == "r"
+        assert result.stage == "1"
+
+    def test_gate_0_3_profile_approved_syncs_primary_language_python_noop(
+        self, tmp_path
+    ):
+        """gate_0_3 + PROFILE APPROVED with profile language.primary == 'python':
+        state.primary_language remains 'python' and stage advances to '1'.
+        """
+        profile = {"language": {"primary": "python"}}
+        (tmp_path / "project_profile.json").write_text(json.dumps(profile))
+        state = _make_state(
+            stage="0", sub_stage="project_profile", primary_language="python"
+        )
+        result = dispatch_gate_response(
+            state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
+        )
+        assert result.primary_language == "python"
+        assert result.stage == "1"
+
+    def test_gate_0_3_profile_approved_missing_language_field_defensive(
+        self, tmp_path
+    ):
+        """gate_0_3 + PROFILE APPROVED with profile lacking the language block:
+        state.primary_language is unchanged, stage advances, no exception raised.
+        """
+        profile = {"archetype": "python_project"}  # no "language" key
+        (tmp_path / "project_profile.json").write_text(json.dumps(profile))
+        state = _make_state(
+            stage="0", sub_stage="project_profile", primary_language="r"
+        )
+        result = dispatch_gate_response(
+            state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
+        )
+        assert result.primary_language == "r"
+        assert result.stage == "1"
+
     # -- Gate 0.3r --
 
     def test_gate_0_3r_profile_approved_completes_redo(self):

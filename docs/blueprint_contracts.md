@@ -1233,7 +1233,7 @@ def run_tests_main(argv: list = None) -> None: ...
 - `gate_0_2_context_approval` + `CONTEXT APPROVED`: advance_sub_stage("project_profile").
 - `gate_0_2_context_approval` + `CONTEXT REJECTED`: delete `project_context.md`, clear `last_status.txt`, re-invoke setup agent in context mode.
 - `gate_0_2_context_approval` + `CONTEXT NOT READY`: clear `last_status.txt`, re-invoke setup agent in context mode.
-- `gate_0_3_profile_approval` + `PROFILE APPROVED`: advance_stage("1").
+- `gate_0_3_profile_approval` + `PROFILE APPROVED`: read `language.primary` from `project_profile.json` and set `state.primary_language` to that value BEFORE calling `advance_stage("1")`. Defensive on missing file / missing field / malformed JSON: log a warning to stderr and leave `state.primary_language` unchanged. **(Bug S3-154 fix.)**
 - `gate_0_3_profile_approval` + `PROFILE REJECTED`: re-invoke setup agent in profile mode.
 - `gate_0_3r_profile_revision` + `PROFILE APPROVED`: complete_redo_profile_revision, restart per redo_type.
 - `gate_0_3r_profile_revision` + `PROFILE REJECTED`: re-invoke setup agent in appropriate redo mode.

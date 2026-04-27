@@ -6042,6 +6042,20 @@ The S3-149 spec entry (§24.162) documented this as a sub-deferral: "`assembly_r
 
 **Pattern observation.** Sibling pattern to **P36-candidate Vocabulary Without Transitions** (§24.162): when a new state-field counter is added with a forward-direction reset (incrementer plus a single-handler reset), audit the *all* paths that should reset it. In this case, the parallel was clear from the existence of `red_run_retries` immediately above the new field — but the lift was subtle because `restart_from_stage` is in a different unit (Unit 6) than the gate that introduced the field (Unit 14). Lesson: when a state field's lifetime crosses unit boundaries, the field's reset audit must also cross unit boundaries.
 
+### 24.168 gate_0_3_profile_approval Does Not Sync language.primary (Post-delivery — Bug S3-154, NEW IN 2.2)
+
+**Symptom.** Task prompts misreport "Language: Python" on `r_project` (and any non-Python) archetype runs because `pipeline_state.primary_language` retains its default value `"python"` throughout the pipeline. IMPROV-12 (direct cause) and IMPROV-17 (downstream cosmetic surface) both root at this gap.
+
+**Root cause.** `src/unit_14/stub.py::dispatch_gate_response` handler for `gate_0_3_profile_approval` advances the pipeline stage on `PROFILE APPROVED` but omits propagating `language.primary` from `project_profile.json` into `state.primary_language`. The Stage 0 setup agent writes the profile artifact, but the gate handler that ratifies it never threads the chosen language back into the live `PipelineState`. Five downstream readers in `src/unit_13/stub.py` call `build_language_context(state.primary_language, ...)` and inherit the stale default.
+
+**Surface area.** `src/unit_14/stub.py:2230-2236` (handler); `src/unit_13/stub.py` (5 downstream readers calling `build_language_context`).
+
+**Resolution.** Handler reads `project_profile.json`, extracts `language.primary`, and assigns to `state.primary_language` before `advance_stage(state, "1")`. Defensive on missing file / missing field / malformed JSON: log a warning to stderr and leave `state.primary_language` unchanged rather than crashing. Resolves IMPROV-12 directly and IMPROV-17 (downstream cosmetic) indirectly.
+
+**Pattern.** Gate handlers that ratify human-approved Stage 0 artifacts must propagate every profile-derived field that downstream pipeline readers consume from `PipelineState`. Sibling of the cross-unit field-lifetime audit (§24.167): when a field is written during setup-on-disk and later read from in-memory state, the gate that bridges the two must perform the propagation explicitly. Empirically, the gap was masked for an entire release window because all internal SVP exercises ran on the Python archetype, where the missing sync was a no-op.
+
+**Detection.** `tests/unit_14/test_unit_14.py::test_gate_0_3_profile_approved_syncs_primary_language_r` (asserts state mirrors profile for `r`); `test_gate_0_3_profile_approved_syncs_primary_language_python_noop` (asserts no regression on Python archetype); `test_gate_0_3_profile_approved_missing_language_field_defensive` (asserts handler does not crash on malformed profile). `tests/unit_13/test_unit_13.py::test_build_language_context_reflects_synced_primary_language` is the downstream regression anchor — confirms the post-sync state produces an R-flavored language context block.
+
 ---
 
 ## 25. Test Data
