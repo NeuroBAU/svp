@@ -1652,7 +1652,7 @@ INTEGRATION_TEST_AUTHOR_DEFINITION: str
 
 **All definitions:** reference `LANGUAGE_CONTEXT` placeholder for language-conditional guidance.
 
-**STAKEHOLDER_DIALOG_DEFINITION:** Socratic dialog, draft-review-approve cycle. Status lines: `SPEC_DRAFT_COMPLETE`, `SPEC_REVISION_COMPLETE`.
+**STAKEHOLDER_DIALOG_DEFINITION:** Socratic dialog, draft-review-approve cycle. **Cross-Reference Reconciliation (NEW IN 2.2 — Bug S3-157):** the definition MUST include a mandatory pre-emission cross-reference reconciliation step that requires the agent to enumerate every cross-reference in the drafted spec (bracketed slugs, Section citations, bug citations, or any other reference convention the spec uses), enumerate every defined target, verify every reference resolves to a defined target, fix unambiguous mismatches in place, and halt with a structured error listing unresolved references when ambiguous — all BEFORE emitting `SPEC_DRAFT_COMPLETE` or `SPEC_REVISION_COMPLETE`. The audit MUST be convention-agnostic (not hardcoded to bracketed slugs alone) and MUST appear before the Terminal Status section in the prompt. Status lines: `SPEC_DRAFT_COMPLETE`, `SPEC_REVISION_COMPLETE`.
 
 **STAKEHOLDER_REVIEWER_DEFINITION:** baked review checklist (Section 3.20) including downstream dependency analysis, contract granularity, gate reachability. Status: `REVIEW_COMPLETE`.
 

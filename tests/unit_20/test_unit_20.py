@@ -374,6 +374,65 @@ class TestBlueprintAuthorSplitFormatMandate:
         )
 
 
+class TestStakeholderDialogReconciliation:
+    """STAKEHOLDER_DIALOG_DEFINITION must mandate pre-emission cross-reference
+    reconciliation as a self-audit step before terminal status emission
+    (Bug S3-157).
+    """
+
+    def test_stakeholder_dialog_definition_includes_reconciliation_step(self):
+        """The reconciliation section must appear in the agent prompt."""
+        assert _contains(
+            STAKEHOLDER_DIALOG_DEFINITION, "Cross-Reference Reconciliation"
+        ), (
+            "STAKEHOLDER_DIALOG_DEFINITION must include a "
+            "'Cross-Reference Reconciliation' section that mandates a "
+            "pre-emission self-audit (per Bug S3-157)."
+        )
+
+    def test_stakeholder_dialog_reconciliation_precedes_terminal_status(self):
+        """The audit section must appear BEFORE the first SPEC_DRAFT_COMPLETE
+        mention so the agent encounters it before emitting terminal status."""
+        recon_idx = STAKEHOLDER_DIALOG_DEFINITION.find(
+            "Cross-Reference Reconciliation"
+        )
+        status_idx = STAKEHOLDER_DIALOG_DEFINITION.find("SPEC_DRAFT_COMPLETE")
+        assert recon_idx >= 0, (
+            "STAKEHOLDER_DIALOG_DEFINITION must contain the "
+            "'Cross-Reference Reconciliation' section."
+        )
+        assert status_idx >= 0, (
+            "STAKEHOLDER_DIALOG_DEFINITION must contain the "
+            "'SPEC_DRAFT_COMPLETE' terminal status line."
+        )
+        assert recon_idx < status_idx, (
+            "The 'Cross-Reference Reconciliation' section must appear "
+            "BEFORE the 'SPEC_DRAFT_COMPLETE' terminal status, so the "
+            "agent performs the audit before emitting completion "
+            "(per Bug S3-157)."
+        )
+
+    def test_stakeholder_dialog_reconciliation_is_convention_agnostic(self):
+        """The reconciliation prompt must mention multiple reference styles
+        (e.g., bracketed slugs AND Section citations), proving it is not
+        hardcoded to a single convention."""
+        # The prompt names "bracketed slugs" (or "slug") for the
+        # [INV-02]-style convention AND "Section" citations for the
+        # Section-N.N convention. Both must be present.
+        assert _contains(
+            STAKEHOLDER_DIALOG_DEFINITION, "bracketed"
+        ) or _contains(STAKEHOLDER_DIALOG_DEFINITION, "slug"), (
+            "STAKEHOLDER_DIALOG_DEFINITION reconciliation section must "
+            "mention bracketed-slug references (e.g. [INV-02]) as one "
+            "of the reference conventions to enumerate."
+        )
+        assert _contains(STAKEHOLDER_DIALOG_DEFINITION, "Section"), (
+            "STAKEHOLDER_DIALOG_DEFINITION reconciliation section must "
+            "mention Section citations as another reference convention "
+            "to enumerate, demonstrating convention-agnostic auditing."
+        )
+
+
 # ===========================================================================
 # BLUEPRINT_REVIEWER_DEFINITION
 # ===========================================================================

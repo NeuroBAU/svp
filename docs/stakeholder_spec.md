@@ -6080,6 +6080,16 @@ The S3-149 spec entry (§24.162) documented this as a sub-deferral: "`assembly_r
 
 **Resolution**: Update the agent prompt to mandate split-format output: TWO files at `blueprint/blueprint_prose.md` and `blueprint/blueprint_contracts.md`; explicitly forbid unified single-file output. Cite ARTIFACT_FILENAMES as canonical source. Resolves IMPROV-15.
 
+### S3-157 — STAKEHOLDER_DIALOG lacks pre-emission cross-reference reconciliation
+
+**Symptom**: stakeholder_dialog agent emits SPEC_DRAFT_COMPLETE without verifying that bracketed/section/bug cross-references in the spec resolve to defined targets. When drafting multi-chunk specs, references in later chunks may point to wrong slug numbers from earlier chunks (fmrpqc empirical evidence: 19/42 narrative cross-references wrong).
+
+**Root cause**: src/unit_20/stub.py STAKEHOLDER_DIALOG_DEFINITION methodology omits a reconciliation step. The prompt instructs the agent to write the spec then emit terminal status; no instruction enforces self-audit.
+
+**Surface area**: src/unit_20/stub.py STAKEHOLDER_DIALOG_DEFINITION (lines ~15-87).
+
+**Resolution**: Insert convention-agnostic Cross-Reference Reconciliation methodology step before terminal-status section. Audit enumerates references and targets, verifies resolution, fixes unambiguous mismatches, halts with structured error on ambiguous cases. Resolves IMPROV-01.
+
 ---
 
 ## 25. Test Data
