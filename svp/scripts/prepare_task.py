@@ -699,6 +699,16 @@ def _prepare_blueprint_author(
     if context and mode != "revision":
         sections.append(_format_section("Context", context))
 
+    # Bug S3-166: when the project profile requires statistical analysis,
+    # append BLUEPRINT_AUTHOR_STATISTICAL_PRIMER so blueprint contracts
+    # capture every statistical concept as machine-actionable Tier 2/Tier 3
+    # clauses. Defensive guard: only append when state is provided
+    # (legacy callers without state get the unchanged base prompt).
+    if state is not None and _requires_statistical_analysis(state):
+        from construction_agents import BLUEPRINT_AUTHOR_STATISTICAL_PRIMER
+
+        sections.append(BLUEPRINT_AUTHOR_STATISTICAL_PRIMER)
+
     return _assemble_sections(sections)
 
 

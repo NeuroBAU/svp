@@ -36,6 +36,7 @@ import pytest
 
 from construction_agents import (
     BLUEPRINT_AUTHOR_DEFINITION,
+    BLUEPRINT_AUTHOR_STATISTICAL_PRIMER,
     BLUEPRINT_REVIEWER_DEFINITION,
     COVERAGE_REVIEW_AGENT_DEFINITION,
     IMPLEMENTATION_AGENT_DEFINITION,
@@ -1391,4 +1392,68 @@ class TestStakeholderDialogSocraticAndStatisticalPrimer:
                 f"STAKEHOLDER_DIALOG_STATISTICAL_PRIMER must include "
                 f"category marker '{marker}' (Bug S3-165 — 14 mandatory "
                 f"question categories)."
+            )
+
+
+# ===========================================================================
+# Bug S3-166: Blueprint author statistical primer
+# ===========================================================================
+
+
+class TestBlueprintAuthorStatisticalPrimer:
+    """Bug S3-166: A new module-level constant
+    BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must exist and document the
+    Tier 2 / Tier 3 / library-version-pinning / error-class contract
+    requirements that drive the conditional primer append performed by
+    Unit 13's _prepare_blueprint_author."""
+
+    def test_blueprint_author_statistical_primer_constant_exists(self):
+        """BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must be a non-empty string
+        and must contain key statistical-domain terms the primer
+        documents."""
+        assert isinstance(BLUEPRINT_AUTHOR_STATISTICAL_PRIMER, str), (
+            "BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must be a str."
+        )
+        assert len(BLUEPRINT_AUTHOR_STATISTICAL_PRIMER.strip()) > 0, (
+            "BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must be non-empty."
+        )
+        for keyword in (
+            "Tier 2",
+            "Tier 3",
+            "Library-version pinning",
+            "Multiple-comparisons",
+        ):
+            assert _contains(
+                BLUEPRINT_AUTHOR_STATISTICAL_PRIMER, keyword
+            ), (
+                f"BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must mention "
+                f"'{keyword}' (Bug S3-166)."
+            )
+
+    def test_blueprint_author_statistical_primer_includes_library_pinning_per_language(
+        self,
+    ):
+        """The primer must cite per-language manifest files for library-
+        version pinning: pyproject.toml (Python) and renv.lock (R)."""
+        for manifest in ("pyproject.toml", "renv.lock"):
+            assert _contains(
+                BLUEPRINT_AUTHOR_STATISTICAL_PRIMER, manifest
+            ), (
+                f"BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must cite "
+                f"'{manifest}' as a per-language pinning manifest "
+                f"(Bug S3-166)."
+            )
+
+    def test_blueprint_author_statistical_primer_includes_anti_patterns_and_cross_checks(
+        self,
+    ):
+        """The primer must include an Anti-patterns section and a
+        Cross-checks section so the blueprint author has explicit
+        guard-rails before emitting BLUEPRINT_DRAFT_COMPLETE."""
+        for heading in ("Anti-patterns", "Cross-checks"):
+            assert _contains(
+                BLUEPRINT_AUTHOR_STATISTICAL_PRIMER, heading
+            ), (
+                f"BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must contain a "
+                f"'{heading}' heading (Bug S3-166)."
             )

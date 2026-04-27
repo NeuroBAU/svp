@@ -1787,3 +1787,65 @@ class TestPrepareStakeholderDialogStatisticalPrimerAppend:
             "STAKEHOLDER_DIALOG_STATISTICAL_PRIMER must NOT be appended "
             "(Bug S3-165 — defensive guard against legacy callers)."
         )
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-166: Conditional BLUEPRINT_AUTHOR_STATISTICAL_PRIMER append
+# ---------------------------------------------------------------------------
+
+
+class TestPrepareBlueprintAuthorStatisticalPrimerAppend:
+    """Bug S3-166: _prepare_blueprint_author must append
+    BLUEPRINT_AUTHOR_STATISTICAL_PRIMER to the assembled task prompt iff
+    state.requires_statistical_analysis is True. When the flag is False
+    or state is None (legacy callers), the primer must NOT appear."""
+
+    _PRIMER_MARKER = "Library-version pinning"
+
+    def test_prepare_blueprint_author_appends_primer_when_flag_true(
+        self, project_root
+    ):
+        """When the loaded state has requires_statistical_analysis=True,
+        the primer's distinctive substring must appear in the generated
+        prompt."""
+        _write_pipeline_state(project_root, requires_stats=True)
+        result = prepare_task_prompt(
+            project_root, "blueprint_author", mode="draft"
+        )
+        assert self._PRIMER_MARKER in result, (
+            "When state.requires_statistical_analysis=True, "
+            "BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must be appended to "
+            "the blueprint_author task prompt (Bug S3-166)."
+        )
+
+    def test_prepare_blueprint_author_omits_primer_when_flag_false(
+        self, project_root
+    ):
+        """When the loaded state has requires_statistical_analysis=False,
+        the primer's distinctive substring must NOT appear."""
+        _write_pipeline_state(project_root, requires_stats=False)
+        result = prepare_task_prompt(
+            project_root, "blueprint_author", mode="draft"
+        )
+        assert self._PRIMER_MARKER not in result, (
+            "When state.requires_statistical_analysis=False, "
+            "BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must NOT be appended "
+            "(Bug S3-166 — append is conditional on the profile flag)."
+        )
+
+    def test_prepare_blueprint_author_omits_primer_when_state_none(
+        self, project_root
+    ):
+        """When pipeline_state.json is absent (state=None), the primer
+        must NOT be appended (defensive guard for legacy callers)."""
+        state_path = project_root / ".svp" / "pipeline_state.json"
+        if state_path.exists():
+            state_path.unlink()
+        result = prepare_task_prompt(
+            project_root, "blueprint_author", mode="draft"
+        )
+        assert self._PRIMER_MARKER not in result, (
+            "When state is None (no pipeline_state.json), "
+            "BLUEPRINT_AUTHOR_STATISTICAL_PRIMER must NOT be appended "
+            "(Bug S3-166 — defensive guard against legacy callers)."
+        )

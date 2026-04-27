@@ -6195,6 +6195,16 @@ This is cycle 1 of the specialist-dispatch-wiring batch. Cycles 2-5 will add pri
 
 **Resolution**: Cycle 2 of the specialist-dispatch-wiring batch. Adds Socratic Question Format mandate to STAKEHOLDER_DIALOG_DEFINITION (parity with setup_agent from S3-164). Adds STAKEHOLDER_DIALOG_STATISTICAL_PRIMER constant covering 14 mandatory question categories. _prepare_stakeholder_dialog reads the centralized helper _requires_statistical_analysis(state) and appends the primer when true; otherwise unchanged. Primer placement does NOT alter routing or sub-stage flow.
 
+### S3-166 — Blueprint author statistical primer
+
+**Symptom**: When projects flagged requires_statistical_analysis = true, blueprint_author had no mechanism to translate statistical spec content into rigorous Tier 2 signatures and Tier 3 contracts. Library functions, version pinning, multiple-comparisons policy, effect-size, power/N, and missing-data strategy were silently absent from contracts.
+
+**Root cause**: BLUEPRINT_AUTHOR_DEFINITION had no statistical primer; prepare_task helper did not branch on the profile flag.
+
+**Surface area**: src/unit_20/stub.py (new BLUEPRINT_AUTHOR_STATISTICAL_PRIMER constant); src/unit_13/stub.py _prepare_blueprint_author (conditional primer append).
+
+**Resolution**: Cycle 3 of the specialist-dispatch-wiring batch. Mirror of S3-165 pattern but for Stage 2 blueprint authoring. New BLUEPRINT_AUTHOR_STATISTICAL_PRIMER constant covers 4 contract categories per unit (Tier 2 signature conventions, Tier 3 enumerated contract clauses, library-version pinning, error class), plus 5 anti-patterns and 5 pre-emission cross-checks. Append-only at task-prompt assembly time when _requires_statistical_analysis(state) is true; otherwise unchanged.
+
 ---
 
 ## 25. Test Data

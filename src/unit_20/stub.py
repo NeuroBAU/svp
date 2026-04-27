@@ -622,6 +622,58 @@ readers.
 """
 
 # ---------------------------------------------------------------------------
+# BLUEPRINT_AUTHOR_STATISTICAL_PRIMER (Bug S3-166)
+# ---------------------------------------------------------------------------
+
+BLUEPRINT_AUTHOR_STATISTICAL_PRIMER: str = """\
+## Statistical Analysis Primer (active when project requires statistics or data-analysis tools)
+
+This project has been flagged as requiring statistics or data-analysis tools. The spec authored at Stage 1 should already contain explicit thresholds, formulas, fallbacks, decision rules, multiple-comparisons policy, effect-size requirements, power/N rules, and missing-data mechanism. Your blueprint MUST translate every such concept into Tier 2 signatures and Tier 3 contracts that capture the spec's numerics exactly.
+
+### For each affected unit
+
+Per unit that implements any statistical computation:
+
+1. **Tier 2 signature**: declare the function with explicit parameter types and return type. Per-language conventions:
+   - **Python**: use `@dataclass(frozen=True)` for structured returns; never raw tuples; type-annotate every parameter.
+   - **R**: use a named `list()` with documented field order, OR an S4 class if mutation safety matters; `roxygen2` `@return` documents every field.
+2. **Tier 3 contract**: enumerate
+   - The exact formula AND the specific library function with full argument vector. Do not write "uses Cohen's kappa" — write `psych::cohen.kappa(ratings, weight = "unweighted")` (or `sklearn.metrics.cohen_kappa_score(y1, y2, weights=None)`). Defaults must be made explicit; library-default drift across versions is a real risk (e.g., `scipy.stats.kendalltau` tie handling changed; `psych::cohen.kappa` vs `irr::kappa2` weighting differ).
+   - The numeric threshold(s) with inclusive/exclusive boundary.
+   - The fallback behavior on degenerate inputs (cite spec edge-case rule).
+   - The decision rule combining multiple metrics, expressed as a logical expression.
+   - Sign convention for any signed metric.
+   - Bootstrap / seed policy if applicable; if a seed is used, the contract MUST include the seed in the structured return value (so it is reproducible from the artifact alone).
+   - Multiple-comparisons correction policy (which family, which method) — even if the policy is "none," it is a declared field.
+   - Effect-size statistic accompanying any p-value.
+   - Power / minimum-N gate condition (verdict deferred when N below threshold).
+   - Missing-data handling strategy (complete-case, MICE, etc.).
+3. **Library-version pinning**: cite the manifest file that pins the library version, BY language:
+   - **Python**: `pyproject.toml` constraint or `uv.lock` / `requirements.txt` hash.
+   - **R**: `renv.lock` hash, OR conda manifest if using `r_conda_testthat.json`.
+   The contract embeds the pinned version explicitly (e.g., `scipy>=1.11,<1.13`); deferring to "the manifest" without quoting it is insufficient.
+4. **Error class**: every fallback that produces a classed warning or error MUST cite the error class name (e.g., `fmrpqc_warn_degenerate_kappa`).
+
+### Anti-patterns to avoid
+
+- Implicit thresholds ("high enough"). Every threshold is a numeric literal in the contract.
+- Library defaults assumed. State every argument explicitly, including defaults you happen to want.
+- Boundary ambiguity. `>= 0.6` and `> 0.6` are different contracts; pick one and write it.
+- "Sensible defaults" for missing data. The spec's edge-case rules ARE the contract; defer to them, never invent.
+- Naming a metric without naming the library function that computes it.
+
+### Cross-checks before emitting BLUEPRINT_DRAFT_COMPLETE
+
+- Every spec-cited metric appears in some unit's Tier 2 signature with its specific library function.
+- Every spec-cited threshold appears verbatim in some unit's Tier 3 contract.
+- Every spec-cited fallback rule has a corresponding contract clause naming the same condition.
+- The decision-rule combinator in the contract is **logically equivalent** to the spec's logical expression. Equivalence is structural (parse to canonical form), not character-for-character; if the strings differ, the human should be asked to confirm equivalence.
+- Multiple-comparisons policy, effect-size statistic, power/N rule, and missing-data strategy are each declared as explicit contract clauses, not buried in prose.
+
+(This primer is active because the project's profile sets `requires_statistical_analysis = true`. The statistical-correctness reviewer at Stage 2 review will mechanically verify each of these points; the test_agent at Stage 3 will exercise the edge cases. Author the blueprint to make their work straightforward.)
+"""
+
+# ---------------------------------------------------------------------------
 # BLUEPRINT_REVIEWER_DEFINITION
 # ---------------------------------------------------------------------------
 
