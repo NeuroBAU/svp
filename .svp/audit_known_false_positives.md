@@ -44,3 +44,20 @@ Unit 23 stub calls 'primary_assembler()' but no Tier 2 signature declares it
 # `secondary_scanner` is a local variable in Unit 28 holding a callable
 # dispatched from `COMPLIANCE_SCANNERS`. Same dispatch-table-call pattern.
 Unit 28 stub calls 'secondary_scanner()' but no Tier 2 signature declares it
+
+# --- Calls-resolution false positives (Bug S3-172) ---
+
+# `_expected_terminal_status_for` is a private helper in Unit 14
+# referenced extensively in Unit 14's Tier 3 prose but not declared
+# in Unit 14's Tier 2 signature block. Unit 13's Calls section legitimately
+# cites it (private helper). The Tier-2 omission predates S3-172 and is
+# tracked as a separate Unit 14 Tier-2 completeness audit cycle (sibling
+# of the Unit 11 `ensure_pipeline_toolchain` deferred follow-up below).
+Unit 13 cites _expected_terminal_status_for() in Unit 14, but Unit 14's Tier-2 has no function named _expected_terminal_status_for
+
+# `ensure_pipeline_toolchain` — same Unit 11 Tier-2 omission already
+# tracked above for the phantom_call check. The S3-172 calls_resolution
+# check surfaces the same defect from the Calls-citation angle. Until
+# Unit 11's Tier 2 is normalized, the citation in Unit 14's Calls is a
+# documented exception.
+Unit 14 cites ensure_pipeline_toolchain() in Unit 11, but Unit 11's Tier-2 has no function named ensure_pipeline_toolchain

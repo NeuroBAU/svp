@@ -2541,3 +2541,292 @@ class TestAuditBlueprintContracts:
         assert "[dag]" in msg
         assert "[phantom_call]" in msg
         assert "audit_known_false_positives.md" in msg
+
+
+class TestS3_172CallsResolutionCheck:
+    """Bug S3-172: per-function Calls resolution check (cycle 3 of 3 of the
+    Calls/Called-by encoding sub-project).
+
+    Each `## Calls` citation must resolve to a declared function in the
+    target Unit's Tier-2 signatures. The `_compute_called_by_graph` helper
+    inverts the graph for downstream consumers; not materialized to disk.
+    """
+
+    def _make_project(self, tmp_path, blueprint_text=None, stubs=None):
+        """Build a synthetic project with blueprint + optional stubs.
+
+        Mirrors `TestAuditBlueprintContracts._make_project`. `stubs` is dict
+        mapping unit_num -> stub source string.
+        """
+        project_root = tmp_path / "proj"
+        project_root.mkdir()
+        (project_root / ".svp").mkdir()
+        (project_root / "blueprint").mkdir()
+        if blueprint_text is not None:
+            (project_root / "blueprint" / "blueprint_contracts.md").write_text(
+                blueprint_text, encoding="utf-8"
+            )
+        if stubs:
+            (project_root / "src").mkdir()
+            for n, src in stubs.items():
+                udir = project_root / "src" / f"unit_{n}"
+                udir.mkdir(parents=True)
+                (udir / "stub.py").write_text(src, encoding="utf-8")
+        return project_root
+
+    def test_audit_blueprint_contracts_calls_resolution_passes_on_current_blueprint(
+        self,
+    ):
+        """Audit on the actual workspace blueprint reports zero
+        `calls_resolution` violations after the false-positive filter
+        is applied. Guards future regressions in the Calls graph.
+        """
+        from pathlib import Path
+        here = Path(__file__).resolve()
+        candidate = here.parent
+        for _ in range(8):
+            if (candidate / "blueprint" / "blueprint_contracts.md").exists():
+                break
+            if (candidate / "docs" / "blueprint_contracts.md").exists():
+                break
+            candidate = candidate.parent
+        else:
+            raise AssertionError(
+                "blueprint_contracts.md not located by walking up from "
+                f"{here} (tried blueprint/ and docs/ at each level)"
+            )
+
+        violations = audit_blueprint_contracts(candidate)
+        calls_v = [v for v in violations if v.get("check") == "calls_resolution"]
+        assert calls_v == [], (
+            "Real-blueprint audit found calls_resolution violations not "
+            f"covered by .svp/audit_known_false_positives.md: {calls_v}"
+        )
+
+    def test_audit_blueprint_contracts_detects_unresolved_calls_citation(
+        self, tmp_path
+    ):
+        """Unit 1 cites foo() in Unit 2 but Unit 2's Tier-2 has no foo —
+        produces check='calls_resolution' violation."""
+        bp = (
+            "## Unit 1: Caller\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def caller_fn() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "- foo() in Unit 2\n"
+            "\n"
+            "**Dependencies:** Unit 2.\n"
+            "\n"
+            "## Unit 2: Callee\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def some_other_fn() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "None (leaf unit).\n"
+            "\n"
+            "**Dependencies:** None.\n"
+        )
+        stubs = {
+            1: "def caller_fn():\n    pass\n",
+            2: "def some_other_fn():\n    pass\n",
+        }
+        project_root = self._make_project(tmp_path, bp, stubs)
+        violations = audit_blueprint_contracts(project_root)
+        calls_v = [
+            v
+            for v in violations
+            if v.get("check") == "calls_resolution"
+            and "foo" in v["description"]
+            and "Unit 2" in v["description"]
+        ]
+        assert len(calls_v) == 1, (
+            f"Expected one calls_resolution violation for foo()/Unit 2, "
+            f"got: {violations}"
+        )
+
+    def test_audit_blueprint_contracts_resolves_private_helper_citation(
+        self, tmp_path
+    ):
+        """Citation `- _foo() in Unit 2 (private helper)` resolves cleanly
+        when Unit 2's Tier-2 declares `def _foo(...)`. No violation."""
+        bp = (
+            "## Unit 1: Caller\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def caller_fn() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "- _foo() in Unit 2 (private helper)\n"
+            "\n"
+            "**Dependencies:** Unit 2.\n"
+            "\n"
+            "## Unit 2: Callee\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def _foo() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "None (leaf unit).\n"
+            "\n"
+            "**Dependencies:** None.\n"
+        )
+        stubs = {
+            1: "def caller_fn():\n    pass\n",
+            2: "def _foo():\n    pass\n",
+        }
+        project_root = self._make_project(tmp_path, bp, stubs)
+        violations = audit_blueprint_contracts(project_root)
+        calls_v = [
+            v for v in violations if v.get("check") == "calls_resolution"
+        ]
+        assert calls_v == [], (
+            f"Expected zero calls_resolution violations for resolved "
+            f"private-helper citation, got: {calls_v}"
+        )
+
+    def test_audit_blueprint_contracts_skips_leaf_unit_calls_block(
+        self, tmp_path
+    ):
+        """A unit with `## Calls\n\nNone (leaf unit).` produces no
+        citations and no calls_resolution violations."""
+        bp = (
+            "## Unit 1: Lonely Leaf\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def lone_fn() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "None (leaf unit).\n"
+            "\n"
+            "**Dependencies:** None.\n"
+        )
+        stubs = {1: "def lone_fn():\n    pass\n"}
+        project_root = self._make_project(tmp_path, bp, stubs)
+        violations = audit_blueprint_contracts(project_root)
+        calls_v = [
+            v for v in violations if v.get("check") == "calls_resolution"
+        ]
+        assert calls_v == [], (
+            f"Leaf-unit Calls block should produce no citations or "
+            f"violations, got: {calls_v}"
+        )
+
+    def test_audit_blueprint_contracts_calls_resolution_respects_known_false_positives(
+        self, tmp_path
+    ):
+        """Same as the unresolved-citation test, but the violation
+        description substring is registered in
+        `.svp/audit_known_false_positives.md` — the violation is filtered
+        out."""
+        bp = (
+            "## Unit 1: Caller\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def caller_fn() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "- foo() in Unit 2\n"
+            "\n"
+            "**Dependencies:** Unit 2.\n"
+            "\n"
+            "## Unit 2: Callee\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def some_other_fn() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "None (leaf unit).\n"
+            "\n"
+            "**Dependencies:** None.\n"
+        )
+        stubs = {
+            1: "def caller_fn():\n    pass\n",
+            2: "def some_other_fn():\n    pass\n",
+        }
+        project_root = self._make_project(tmp_path, bp, stubs)
+        fp_path = project_root / ".svp" / "audit_known_false_positives.md"
+        # Register a substring of the expected description.
+        fp_path.write_text(
+            "# Known FPs\n"
+            "Unit 1 cites foo() in Unit 2\n",
+            encoding="utf-8",
+        )
+        violations = audit_blueprint_contracts(project_root)
+        calls_v = [
+            v for v in violations if v.get("check") == "calls_resolution"
+        ]
+        assert calls_v == [], (
+            f"calls_resolution violation should be filtered when its "
+            f"description matches a false-positives entry, got: {calls_v}"
+        )
+
+    def test_compute_called_by_graph_inverts_correctly(self):
+        """Pure unit test of the inversion helper. Build a small citations
+        list manually; assert the reverse map matches expected."""
+        from structural_check import _compute_called_by_graph
+
+        citations = [
+            (1, "foo", 2, False),
+            (1, "bar", 3, False),
+            (3, "_baz", 2, True),
+            (4, "foo", 2, False),
+        ]
+        result = _compute_called_by_graph(citations)
+        # Unit 2 is called by Unit 1 (foo), Unit 3 (_baz), Unit 4 (foo).
+        assert result.get(2) == {(1, "foo"), (3, "_baz"), (4, "foo")}, (
+            f"Unit 2 reverse map mismatch: {result.get(2)}"
+        )
+        # Unit 3 is called only by Unit 1 (bar).
+        assert result.get(3) == {(1, "bar")}, (
+            f"Unit 3 reverse map mismatch: {result.get(3)}"
+        )
+        # Units with no inbound citations have no entry in the dict.
+        assert 1 not in result and 4 not in result, (
+            f"Units with no callers must not appear as keys: "
+            f"{sorted(result.keys())}"
+        )

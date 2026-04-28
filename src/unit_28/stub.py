@@ -10,7 +10,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Set, Tuple
 
 # ---------------------------------------------------------------------------
 # Valid Claude Code tool names (for skill/agent frontmatter validation)
@@ -1707,6 +1707,8 @@ def _parse_blueprint_units(blueprint_text: str) -> Dict[int, Dict[str, Any]]:
       - "name": the unit heading title (after "Unit N:" or "Unit N -")
       - "deps": list of int unit numbers from the Dependencies line
       - "tier2_signatures": list of function names declared in Tier 2
+      - "calls_block": list of non-empty content lines under the unit's
+        `## Calls` heading (used by S3-172 audit; empty if absent)
     Empty/missing fields default to safe values.
     """
     units: Dict[int, Dict[str, Any]] = {}
@@ -1719,6 +1721,10 @@ def _parse_blueprint_units(blueprint_text: str) -> Dict[int, Dict[str, Any]]:
     tier3_re = re.compile(r"^###\s+Tier\s*3", re.IGNORECASE)
     next_section_re = re.compile(r"^##\s+|^---\s*$")
     sig_re = re.compile(r"^\s*def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(")
+    # `## Calls` heading regex (S3-172). The `##` heading lives inside a
+    # unit body (not a top-level unit heading) and signals the start of
+    # the Calls block.
+    calls_heading_re = re.compile(r"^##\s+Calls\s*$", re.IGNORECASE)
 
     # First pass: locate unit headings and their slice range.
     unit_starts: List[tuple] = []  # (unit_num, name, start_line)
@@ -1776,10 +1782,36 @@ def _parse_blueprint_units(blueprint_text: str) -> Dict[int, Dict[str, Any]]:
                 if sm:
                     tier2_sigs.append(sm.group(1))
 
+        # Calls block (S3-172): scan for `## Calls` heading; collect
+        # non-empty content lines until the next `##`/`###` heading or
+        # the `**Dependencies:**` line (which terminates the block).
+        calls_block: List[str] = []
+        in_calls = False
+        for ln in body:
+            if calls_heading_re.match(ln):
+                in_calls = True
+                continue
+            if in_calls:
+                stripped = ln.strip()
+                # Terminators: another section heading, the dependencies
+                # marker, or a horizontal rule.
+                if (
+                    ln.startswith("##")
+                    or ln.startswith("###")
+                    or stripped.startswith("**Dependencies:**")
+                    or stripped == "---"
+                ):
+                    in_calls = False
+                    continue
+                if not stripped:
+                    continue
+                calls_block.append(ln)
+
         units[num] = {
             "name": name,
             "deps": deps,
             "tier2_signatures": tier2_sigs,
+            "calls_block": calls_block,
         }
 
     return units
@@ -1871,6 +1903,111 @@ def _collect_stub_function_calls(
             # bare-name calls.
 
     return defined, called
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-172: Calls block parsing + per-function resolution check
+# ---------------------------------------------------------------------------
+
+
+def _extract_calls_citations(
+    units: Dict[int, Dict[str, Any]],
+) -> List[Tuple[int, str, int, bool]]:
+    """Parse each unit's `## Calls` block into citation tuples.
+
+    Returns a list of `(citing_unit, function_name, target_unit, is_private_helper)`
+    tuples. Skips leaf-unit blocks (`None (leaf unit).`).
+
+    The Calls block format is:
+
+        ## Calls
+
+        - function_name() in Unit N
+        - _private_helper() in Unit N (private helper)
+        - another_function() in Unit M
+
+    or for leaf units:
+
+        ## Calls
+
+        None (leaf unit).
+
+    Bug S3-172 — final cycle of the Calls/Called-by encoding sub-project.
+    Consumes cycle-1 (S3-170) format mandate + cycle-2 (S3-171) migration data.
+    """
+    citations: List[Tuple[int, str, int, bool]] = []
+
+    # We need the raw blueprint text to slice each unit's Calls block. The
+    # `units` dict was built by `_parse_blueprint_units` which holds the unit
+    # heading line ranges implicitly. To stay self-contained, re-parse the
+    # blueprint text from scratch using the same heading regex. The caller
+    # passes us the original text via the units dict's raw lines if present,
+    # else we fall back to scanning each unit's stored "raw_lines" key. To
+    # keep this helper decoupled, we instead consume `units[N]["calls_block"]`
+    # (a list of citation lines) populated by `_parse_blueprint_units`. If
+    # absent (legacy callers / cached parses), we return an empty list.
+    citation_re = re.compile(
+        r"^\s*-\s+([a-zA-Z_][a-zA-Z0-9_]*)\(\)\s+in\s+Unit\s+(\d+)"
+        r"(?:\s+\(private\s+helper\))?\s*$"
+    )
+    leaf_re = re.compile(r"^\s*None\s+\(leaf\s+unit\)\.?\s*$")
+
+    for unit_num in sorted(units):
+        info = units[unit_num]
+        block_lines = info.get("calls_block", [])
+        if not block_lines:
+            continue
+        # Skip leaf-unit blocks entirely (no citations to emit).
+        if any(leaf_re.match(ln) for ln in block_lines):
+            continue
+        for ln in block_lines:
+            m = citation_re.match(ln)
+            if not m:
+                continue
+            fn_name = m.group(1)
+            try:
+                target_unit = int(m.group(2))
+            except ValueError:
+                continue
+            is_private = "(private helper)" in ln
+            citations.append((unit_num, fn_name, target_unit, is_private))
+
+    return citations
+
+
+def _extract_tier2_function_names(
+    units: Dict[int, Dict[str, Any]],
+) -> Dict[int, Set[str]]:
+    """Return per-unit set of function names defined in Tier-2 signatures.
+
+    Reuses the existing `units[N]["tier2_signatures"]` data populated by
+    `_parse_blueprint_units()`. Each entry in `tier2_signatures` is already
+    a function name string (parsed via `^\\s*def\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(`).
+
+    Bug S3-172.
+    """
+    out: Dict[int, Set[str]] = {}
+    for unit_num, info in units.items():
+        out[unit_num] = set(info.get("tier2_signatures", []) or [])
+    return out
+
+
+def _compute_called_by_graph(
+    citations: List[Tuple[int, str, int, bool]],
+) -> Dict[int, Set[Tuple[int, str]]]:
+    """Invert the Calls graph for any consumer that needs the reverse map.
+
+    Returns dict keyed by `target_unit`, with value a set of
+    `(citing_unit, function_name)` pairs. Computed on-demand within
+    `audit_blueprint_contracts()`; not materialized to disk (per Q2 design
+    lock — the `## Called-by` section is NOT authored).
+
+    Bug S3-172.
+    """
+    out: Dict[int, Set[Tuple[int, str]]] = {}
+    for citing_unit, fn_name, target_unit, _is_private in citations:
+        out.setdefault(target_unit, set()).add((citing_unit, fn_name))
+    return out
 
 
 def audit_blueprint_contracts(
@@ -2032,6 +2169,32 @@ def audit_blueprint_contracts(
                     "description": (
                         f"Unit {unit_num} stub calls '{name}()' but no "
                         f"Tier 2 signature declares it"
+                    ),
+                }
+            )
+
+    # Check (S3-172): per-function Calls resolution. Every citation in a
+    # Unit's `## Calls` block must resolve to a declared function in the
+    # target Unit's Tier-2 signatures. Closes IMPROV-09 deferred check (b).
+    citations = _extract_calls_citations(units)
+    tier2_names = _extract_tier2_function_names(units)
+    # Compute the inverse graph for any future downstream consumer; not
+    # materialized to disk per Q2 design lock.
+    _called_by = _compute_called_by_graph(citations)  # noqa: F841
+    for citing_unit, fn_name, target_unit, _is_private in citations:
+        if (
+            target_unit not in tier2_names
+            or fn_name not in tier2_names[target_unit]
+        ):
+            violations.append(
+                {
+                    "check": "calls_resolution",
+                    "severity": "error",
+                    "location": f"Unit {citing_unit} Calls",
+                    "description": (
+                        f"Unit {citing_unit} cites {fn_name}() in Unit "
+                        f"{target_unit}, but Unit {target_unit}'s Tier-2 "
+                        f"has no function named {fn_name}"
                     ),
                 }
             )

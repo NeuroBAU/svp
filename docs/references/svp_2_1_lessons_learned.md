@@ -1222,3 +1222,5 @@
 
 - **Pattern.** **P55 (NEW — Format-Extension Migrations Are Mechanical When The Format Is Well-Specified)**. P55 — Format-extension migrations are mechanical when the format is well-specified. Subagent reads each Unit's stub imports, classifies each imported symbol (function vs class vs constant), and emits per-function citations. Stdlib + typing excluded. The cycle's regression test asserts every Unit has a `## Calls` block (populated or leaf), guarding against future Units being added without one. Cite S3-171.
 
+- **Pattern.** **P56 (NEW — Staged Blueprint Format Extensions Complete Cleanly When Each Cycle Has Clean Test Invariants)**. P56 — Staged blueprint format extensions complete cleanly when each cycle has clean test invariants: format mandate (cycle 1) lets new units conform; migration (cycle 2) brings existing data into compliance; audit (cycle 3) consumes the data to enforce invariants. Three small cycles, each independently rollback-safe, succeed where one big-bang cycle would have entangled invariants. Cite S3-172.
+

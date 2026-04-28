@@ -600,6 +600,11 @@ Additional validators: MCP config validation (Section 40.7.2), LSP config valida
 
 **(NEW IN 2.2 — Bug S3-158) `audit_blueprint_contracts(project_root)` function.** Unit 28 owns the new mechanical audit gate invoked from Unit 14's `dispatch_agent_status` for `blueprint_author + BLUEPRINT_DRAFT_COMPLETE` / `BLUEPRINT_REVISION_COMPLETE` AFTER `validate_unit_heading_format` (Bug S3-116). The audit performs three deterministic checks on the contract surface: (a) DAG acyclicity via DFS cycle detection on `**Dependencies:**` edges; (c) Tier 2 signature implementation existence in `src/unit_<N>/stub.py`; (d) phantom-call detection (bare-name `Call` AST nodes that match a snake_case heuristic, are not in any Tier 2 set, and are not in a hard-coded stdlib/builtin allow-list). Reciprocity check (b) is intentionally deferred. Raises `ValueError` with a formatted multi-line audit report if violations remain after filtering against `.svp/audit_known_false_positives.md`. Findings carry `check`, `severity`, `location`, `description`. See "Key Concept: Audit Gate Enforcement" above for the discipline (Pattern P42).
 
+**(Bug S3-172)** Audit gains per-function Calls resolution check;
+consumes cycle-2 migration data; closes IMPROV-09 deferred
+reciprocity check (b). Mechanical Called-by inversion computed
+in-function; not materialized.
+
 The compliance-scan entries also gain audit-related compliance entries: the unit-heading grammar invariant (Bug S3-116), the audit_known_false_positives.md formatting rules, and the dispatch-time validation of unit headings BEFORE Gate 2.1.
 
 ---
