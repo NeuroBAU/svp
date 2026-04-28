@@ -517,6 +517,54 @@ def _quality_tool_notification(project_root: Path) -> str:
     )
 
 
+def _get_language_architecture_primer(
+    project_root: Path,
+    state: Optional["PipelineState"],
+    agent_type: str,
+) -> Optional[str]:
+    """Return the language-architecture primer markdown for the given agent
+    if the project's archetype declares one; None otherwise.
+
+    Bug S3-182 (cycle E2): per-archetype × per-agent primer dispatch wired
+    through the toolchain manifest's ``language_architecture_primers``
+    field (S3-174 schema; populated for R by S3-181 / cycle E1, for Python
+    by S3-184 / cycle E4). Mirror of P49/P50/P51 (per-flag statistical
+    primer dispatch) but the axis is archetype, not flag — so the two
+    axes compose naturally inside a single ``_prepare_<agent>()`` helper.
+
+    Defensive at every step: returns ``None`` on missing state, missing
+    ``primary_language``, missing manifest, missing ``language_architecture_primers``
+    field, missing ``agent_type`` key, missing file, or any read error.
+    No primer-append site can crash the task-prompt assembly.
+    """
+    if state is None:
+        return None
+    primary_language = getattr(state, "primary_language", None)
+    if not primary_language:
+        return None
+    try:
+        from toolchain_reader import load_toolchain
+    except Exception:
+        return None
+    try:
+        toolchain = load_toolchain(project_root, language=primary_language)
+    except Exception:
+        return None
+    primers = toolchain.get("language_architecture_primers") or {}
+    if not isinstance(primers, dict):
+        return None
+    primer_path = primers.get(agent_type)
+    if not primer_path:
+        return None
+    full_path = Path(project_root) / primer_path
+    if not full_path.exists():
+        return None
+    try:
+        return full_path.read_text(encoding="utf-8")
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Per-agent-type dispatch functions
 # ---------------------------------------------------------------------------
@@ -725,6 +773,16 @@ def _prepare_blueprint_author(
         from construction_agents import BLUEPRINT_AUTHOR_STATISTICAL_PRIMER
 
         sections.append(BLUEPRINT_AUTHOR_STATISTICAL_PRIMER)
+
+    # Bug S3-182 (cycle E2): conditionally append the archetype-specific
+    # language-architecture primer for the blueprint_author role. Defensive
+    # at every step inside the helper — missing state / missing language /
+    # missing manifest field / missing key / missing file all return None.
+    primer = _get_language_architecture_primer(
+        project_root, state, "blueprint_author"
+    )
+    if primer:
+        sections.append(primer)
 
     return _assemble_sections(sections)
 
@@ -949,6 +1007,14 @@ def _prepare_test_agent(
 
         sections.append(TEST_AGENT_STATISTICAL_PRIMER)
 
+    # Bug S3-182 (cycle E2): conditionally append the archetype-specific
+    # language-architecture primer for the test_agent role.
+    primer = _get_language_architecture_primer(
+        project_root, state, "test_agent"
+    )
+    if primer:
+        sections.append(primer)
+
     return _assemble_sections(sections)
 
 
@@ -1019,6 +1085,14 @@ def _prepare_implementation_agent(
     if context:
         sections.append(_format_section("Context", context))
 
+    # Bug S3-182 (cycle E2): conditionally append the archetype-specific
+    # language-architecture primer for the implementation_agent role.
+    primer = _get_language_architecture_primer(
+        project_root, state, "implementation_agent"
+    )
+    if primer:
+        sections.append(primer)
+
     return _assemble_sections(sections)
 
 
@@ -1079,6 +1153,16 @@ def _prepare_coverage_review(
 
     if context:
         sections.append(_format_section("Context", context))
+
+    # Bug S3-182 (cycle E2): conditionally append the archetype-specific
+    # language-architecture primer for the coverage_review role. Canonical
+    # manifest key is "coverage_review" (not "coverage_review_agent");
+    # prepare_task_prompt routes both string forms to this helper.
+    primer = _get_language_architecture_primer(
+        project_root, state, "coverage_review"
+    )
+    if primer:
+        sections.append(primer)
 
     return _assemble_sections(sections)
 

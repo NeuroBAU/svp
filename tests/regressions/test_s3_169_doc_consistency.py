@@ -46,6 +46,12 @@ CONCEPTS = [
     # in all three docs without conflating the singular vs. plural form of
     # the existing language_architecture_primers concept.
     "scripts/primers/r/",
+    # NEW IN S3-182 (cycle E2 — wire R primers into prepare_task).
+    # The dispatch helper's literal name is the discriminating identifier
+    # across spec normative text, blueprint prose, and blueprint contracts —
+    # if a future cycle changes prose without updating contracts (or vice
+    # versa), this concept's absence in one of the three docs flags the gap.
+    "_get_language_architecture_primer",
 ]
 
 

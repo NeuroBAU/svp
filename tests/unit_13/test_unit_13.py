@@ -1955,6 +1955,401 @@ class TestPrepareTestAgentStatisticalPrimerAppend:
 
 
 # ---------------------------------------------------------------------------
+# Bug S3-182: Conditional language-architecture primer dispatch (cycle E2)
+# ---------------------------------------------------------------------------
+
+
+def _write_pipeline_state_with_language(
+    project_root, primary_language=None, requires_stats=False
+):
+    """Helper: rewrite the project's pipeline_state.json carrying both
+    primary_language and requires_statistical_analysis. Either field may
+    be None / omitted to exercise defensive guards in
+    _get_language_architecture_primer."""
+    state_path = project_root / ".svp" / "pipeline_state.json"
+    state_data = dict(MINIMAL_PIPELINE_STATE)
+    state_data["requires_statistical_analysis"] = bool(requires_stats)
+    if primary_language is not None:
+        state_data["primary_language"] = primary_language
+    state_path.write_text(json.dumps(state_data))
+
+
+def _provision_r_archetype_in_project(project_root):
+    """Helper: copy the project's r_conda_testthat manifest plus the 5 R
+    primer markdown files into the test project_root so load_toolchain
+    resolves and the primer files exist on disk under project_root.
+
+    Mirrors the production layout under scripts/toolchain_defaults/ and
+    scripts/primers/r/ so _get_language_architecture_primer can find both
+    the manifest (Path / "scripts" / "toolchain_defaults" / file) and the
+    primer files at the manifest's declared paths (project_root /
+    "scripts" / "primers" / "r" / "<role>.md").
+
+    Locates the source files under either workspace layout
+    (`<root>/scripts/...`) or repo layout (`<root>/svp/scripts/...`) so
+    the test is layout-agnostic — same precedent as cycle 6 / S3-158
+    dual-layout fallback in test_s3_169_doc_consistency.py."""
+    import shutil
+
+    test_file = Path(__file__).resolve()
+    # Walk up to find a directory containing either scripts/ (workspace) or
+    # svp/scripts/ (repo) with toolchain_defaults inside.
+    src_manifest_dir = None
+    src_primer_dir = None
+    for ancestor in test_file.parents:
+        ws_manifest = ancestor / "scripts" / "toolchain_defaults"
+        ws_primer = ancestor / "scripts" / "primers" / "r"
+        if ws_manifest.is_dir() and ws_primer.is_dir():
+            src_manifest_dir = ws_manifest
+            src_primer_dir = ws_primer
+            break
+        repo_manifest = ancestor / "svp" / "scripts" / "toolchain_defaults"
+        repo_primer = ancestor / "svp" / "scripts" / "primers" / "r"
+        if repo_manifest.is_dir() and repo_primer.is_dir():
+            src_manifest_dir = repo_manifest
+            src_primer_dir = repo_primer
+            break
+    if src_manifest_dir is None or src_primer_dir is None:
+        raise RuntimeError(
+            "Could not locate scripts/toolchain_defaults + "
+            "scripts/primers/r/ from the test file's ancestors "
+            "(checked both workspace and repo layouts)."
+        )
+
+    dst_manifest_dir = project_root / "scripts" / "toolchain_defaults"
+    dst_manifest_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        src_manifest_dir / "r_conda_testthat.json",
+        dst_manifest_dir / "r_conda_testthat.json",
+    )
+    # Copy python manifest too so the python negative case works.
+    shutil.copy2(
+        src_manifest_dir / "python_conda_pytest.json",
+        dst_manifest_dir / "python_conda_pytest.json",
+    )
+
+    dst_primer_dir = project_root / "scripts" / "primers" / "r"
+    dst_primer_dir.mkdir(parents=True, exist_ok=True)
+    for primer_file in src_primer_dir.glob("*.md"):
+        shutil.copy2(primer_file, dst_primer_dir / primer_file.name)
+
+
+class TestS3_182LanguageArchitecturePrimerDispatch:
+    """Bug S3-182 (cycle E2): per-archetype × per-agent primer dispatch.
+
+    Each of the four wired prepare_task helpers (blueprint_author,
+    implementation_agent, test_agent, coverage_review) MUST conditionally
+    append the archetype-specific primer when state.primary_language
+    declares a primer in its toolchain manifest's
+    language_architecture_primers field. Defensive: state=None,
+    primary_language unset, manifest has no primers field — all
+    silently no-op (no primer in the prompt).
+
+    Mirror of S3-165 / S3-166 / S3-167 statistical-primer pattern but
+    on the orthogonal archetype axis. The two axes compose naturally —
+    a single helper can append both flag-conditional and
+    archetype-conditional primers in the same task prompt.
+    """
+
+    # Distinctive markers in each R primer file (verified to be unique to
+    # the role-specific primer at authoring time — S3-181).
+    _BLUEPRINT_AUTHOR_MARKER = "test_path"
+    _IMPLEMENTATION_AGENT_MARKER = "test_path"
+    _TEST_AGENT_WITHR_MARKER = "withr"
+    _TEST_AGENT_SETWD_MARKER = "setwd"
+    _COVERAGE_REVIEW_COVR_MARKER = "covr"
+    _COVERAGE_REVIEW_ATTRIBUTION_MARKER = "attribution"
+
+    # ----- blueprint_author -----
+
+    def test_blueprint_author_appends_r_primer_when_archetype_is_r(
+        self, project_root
+    ):
+        """When state.primary_language=='r', the R blueprint_author primer's
+        distinctive marker must appear in the assembled task prompt."""
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(project_root, primary_language="r")
+        result = prepare_task_prompt(
+            project_root, "blueprint_author", mode="draft"
+        )
+        assert self._BLUEPRINT_AUTHOR_MARKER in result, (
+            "When state.primary_language='r', the R blueprint_author primer "
+            "MUST be appended to the blueprint_author task prompt "
+            "(Bug S3-182, cycle E2)."
+        )
+
+    def test_blueprint_author_no_primer_when_state_is_none(
+        self, project_root
+    ):
+        """When pipeline_state.json is absent, no primer is appended."""
+        _provision_r_archetype_in_project(project_root)
+        state_path = project_root / ".svp" / "pipeline_state.json"
+        if state_path.exists():
+            state_path.unlink()
+        result = prepare_task_prompt(
+            project_root, "blueprint_author", mode="draft"
+        )
+        # The marker is "test_path" — a substring that may appear in
+        # generic test scaffolding, so check for the surrounding context
+        # phrase from the R primer specifically.
+        assert "R Architectural Primer" not in result, (
+            "When state is None, the R primer must NOT be appended "
+            "(Bug S3-182 — defensive guard against legacy callers)."
+        )
+
+    def test_blueprint_author_no_primer_when_primary_language_is_empty(
+        self, project_root
+    ):
+        """When state.primary_language is empty string, no primer."""
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(project_root, primary_language="")
+        result = prepare_task_prompt(
+            project_root, "blueprint_author", mode="draft"
+        )
+        assert "R Architectural Primer" not in result, (
+            "When state.primary_language is empty, the R primer must "
+            "NOT be appended (Bug S3-182 — defensive guard)."
+        )
+
+    def test_blueprint_author_no_primer_when_archetype_has_no_primers(
+        self, project_root
+    ):
+        """When primary_language='python' (manifest has empty
+        language_architecture_primers), no primer is appended."""
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(
+            project_root, primary_language="python"
+        )
+        result = prepare_task_prompt(
+            project_root, "blueprint_author", mode="draft"
+        )
+        assert "R Architectural Primer" not in result, (
+            "When the archetype's manifest has no primer for "
+            "blueprint_author, NO primer must be appended (Bug S3-182)."
+        )
+
+    # ----- implementation_agent -----
+
+    def test_implementation_agent_appends_r_primer_when_archetype_is_r(
+        self, project_root
+    ):
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(project_root, primary_language="r")
+        result = prepare_task_prompt(
+            project_root, "implementation_agent", unit_number=5
+        )
+        assert self._IMPLEMENTATION_AGENT_MARKER in result, (
+            "When state.primary_language='r', the R implementation_agent "
+            "primer MUST be appended to the implementation_agent task "
+            "prompt (Bug S3-182)."
+        )
+
+    def test_implementation_agent_no_primer_when_state_is_none(
+        self, project_root
+    ):
+        _provision_r_archetype_in_project(project_root)
+        state_path = project_root / ".svp" / "pipeline_state.json"
+        if state_path.exists():
+            state_path.unlink()
+        result = prepare_task_prompt(
+            project_root, "implementation_agent", unit_number=5
+        )
+        assert "R Architectural Primer" not in result, (
+            "When state is None, the R primer must NOT be appended "
+            "(Bug S3-182 — defensive guard)."
+        )
+
+    def test_implementation_agent_no_primer_when_primary_language_is_empty(
+        self, project_root
+    ):
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(project_root, primary_language="")
+        result = prepare_task_prompt(
+            project_root, "implementation_agent", unit_number=5
+        )
+        assert "R Architectural Primer" not in result, (
+            "When state.primary_language is empty, the R primer must "
+            "NOT be appended (Bug S3-182 — defensive guard)."
+        )
+
+    def test_implementation_agent_no_primer_when_archetype_has_no_primers(
+        self, project_root
+    ):
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(
+            project_root, primary_language="python"
+        )
+        result = prepare_task_prompt(
+            project_root, "implementation_agent", unit_number=5
+        )
+        assert "R Architectural Primer" not in result, (
+            "When the archetype's manifest has no primer for "
+            "implementation_agent, NO primer must be appended "
+            "(Bug S3-182)."
+        )
+
+    # ----- test_agent -----
+
+    def test_test_agent_appends_r_primer_when_archetype_is_r(
+        self, project_root
+    ):
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(project_root, primary_language="r")
+        result = prepare_task_prompt(
+            project_root, "test_agent", unit_number=5
+        )
+        # The R test_agent primer mentions both setwd (anti-pattern) and
+        # withr (recommended substitute) in rule 2.
+        assert self._TEST_AGENT_WITHR_MARKER in result, (
+            "When state.primary_language='r', the R test_agent primer "
+            "(distinctive marker 'withr') MUST appear in the test_agent "
+            "task prompt (Bug S3-182)."
+        )
+        assert self._TEST_AGENT_SETWD_MARKER in result, (
+            "When state.primary_language='r', the R test_agent primer "
+            "(distinctive marker 'setwd') MUST appear in the test_agent "
+            "task prompt (Bug S3-182)."
+        )
+
+    def test_test_agent_no_primer_when_state_is_none(self, project_root):
+        _provision_r_archetype_in_project(project_root)
+        state_path = project_root / ".svp" / "pipeline_state.json"
+        if state_path.exists():
+            state_path.unlink()
+        result = prepare_task_prompt(
+            project_root, "test_agent", unit_number=5
+        )
+        assert "R Architectural Primer" not in result, (
+            "When state is None, the R primer must NOT be appended "
+            "(Bug S3-182 — defensive guard)."
+        )
+
+    def test_test_agent_no_primer_when_primary_language_is_empty(
+        self, project_root
+    ):
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(project_root, primary_language="")
+        result = prepare_task_prompt(
+            project_root, "test_agent", unit_number=5
+        )
+        assert "R Architectural Primer" not in result, (
+            "When state.primary_language is empty, the R primer must "
+            "NOT be appended (Bug S3-182 — defensive guard)."
+        )
+
+    def test_test_agent_no_primer_when_archetype_has_no_primers(
+        self, project_root
+    ):
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(
+            project_root, primary_language="python"
+        )
+        result = prepare_task_prompt(
+            project_root, "test_agent", unit_number=5
+        )
+        assert "R Architectural Primer" not in result, (
+            "When the archetype's manifest has no primer for test_agent, "
+            "NO primer must be appended (Bug S3-182)."
+        )
+
+    # ----- coverage_review -----
+
+    def test_coverage_review_appends_r_primer_when_archetype_is_r(
+        self, project_root
+    ):
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(project_root, primary_language="r")
+        result = prepare_task_prompt(
+            project_root, "coverage_review", unit_number=5
+        )
+        # The R coverage_review primer mentions both covr and attribution
+        # heavily.
+        assert self._COVERAGE_REVIEW_COVR_MARKER in result, (
+            "When state.primary_language='r', the R coverage_review primer "
+            "(distinctive marker 'covr') MUST appear in the coverage_review "
+            "task prompt (Bug S3-182)."
+        )
+        assert self._COVERAGE_REVIEW_ATTRIBUTION_MARKER in result, (
+            "When state.primary_language='r', the R coverage_review primer "
+            "(distinctive marker 'attribution') MUST appear in the "
+            "coverage_review task prompt (Bug S3-182)."
+        )
+
+    def test_coverage_review_no_primer_when_state_is_none(self, project_root):
+        _provision_r_archetype_in_project(project_root)
+        state_path = project_root / ".svp" / "pipeline_state.json"
+        if state_path.exists():
+            state_path.unlink()
+        result = prepare_task_prompt(
+            project_root, "coverage_review", unit_number=5
+        )
+        assert "R Architectural Primer" not in result, (
+            "When state is None, the R primer must NOT be appended "
+            "(Bug S3-182 — defensive guard)."
+        )
+
+    def test_coverage_review_no_primer_when_primary_language_is_empty(
+        self, project_root
+    ):
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(project_root, primary_language="")
+        result = prepare_task_prompt(
+            project_root, "coverage_review", unit_number=5
+        )
+        assert "R Architectural Primer" not in result, (
+            "When state.primary_language is empty, the R primer must "
+            "NOT be appended (Bug S3-182 — defensive guard)."
+        )
+
+    def test_coverage_review_no_primer_when_archetype_has_no_primers(
+        self, project_root
+    ):
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(
+            project_root, primary_language="python"
+        )
+        result = prepare_task_prompt(
+            project_root, "coverage_review", unit_number=5
+        )
+        assert "R Architectural Primer" not in result, (
+            "When the archetype's manifest has no primer for "
+            "coverage_review, NO primer must be appended (Bug S3-182)."
+        )
+
+    # ----- composition with statistical primer (orthogonal axes) -----
+
+    def test_blueprint_author_composes_statistical_and_r_primers(
+        self, project_root
+    ):
+        """Integration test: when state has BOTH
+        requires_statistical_analysis=True AND primary_language='r',
+        BOTH the statistical primer and the R language-architecture
+        primer must appear in the same blueprint_author task prompt.
+
+        Confirms the two axes (per-flag, per-archetype) compose
+        naturally — both append blocks fire from the same helper."""
+        _provision_r_archetype_in_project(project_root)
+        _write_pipeline_state_with_language(
+            project_root,
+            primary_language="r",
+            requires_stats=True,
+        )
+        result = prepare_task_prompt(
+            project_root, "blueprint_author", mode="draft"
+        )
+        # Statistical primer marker (from S3-166).
+        assert "Library-version pinning" in result, (
+            "Composition test (S3-182 + S3-166): statistical primer "
+            "marker must appear when requires_statistical_analysis=True."
+        )
+        # Language-architecture primer marker (this cycle).
+        assert self._BLUEPRINT_AUTHOR_MARKER in result, (
+            "Composition test (S3-182 + S3-166): R language-architecture "
+            "primer marker must appear when primary_language='r'."
+        )
+
+
+# ---------------------------------------------------------------------------
 # Bug S3-168: Statistical correctness reviewer registration + dispatch
 # ---------------------------------------------------------------------------
 
