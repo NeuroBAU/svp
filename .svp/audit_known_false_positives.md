@@ -61,3 +61,22 @@ Unit 13 cites _expected_terminal_status_for() in Unit 14, but Unit 14's Tier-2 h
 # Unit 11's Tier 2 is normalized, the citation in Unit 14's Calls is a
 # documented exception.
 Unit 14 cites ensure_pipeline_toolchain() in Unit 11, but Unit 11's Tier-2 has no function named ensure_pipeline_toolchain
+
+# --- Undeclared-import false positives (Bug S3-179) ---
+
+# `tomli` is a conditional fallback import in Unit 28 used only on
+# Python < 3.11 where `tomllib` is not in stdlib. The stub guards the
+# import with `try: import tomllib / except ImportError: import tomli`.
+# It is not a hard dependency of SVP — on supported runtimes (3.11+)
+# the stdlib `tomllib` is used. Documented as exception rather than
+# added to Unit 28's Package Dependencies, since SVP-self contract is
+# stdlib-only and the fallback exists only for older Python runtimes.
+Unit 28 stub imports 'tomli', but it is not declared in ## Package Dependencies
+
+# `pytest` is imported by Unit 29's pre-flight checks (`svp_launcher.py`)
+# strictly to verify pytest is available in the user's environment.
+# The import is wrapped in try/except ImportError and used only for an
+# importability probe — pytest is not a runtime dependency of SVP
+# itself, it's a precondition checked at launcher start. Documented as
+# exception.
+Unit 29 stub imports 'pytest', but it is not declared in ## Package Dependencies

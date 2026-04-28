@@ -10,7 +10,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 # ---------------------------------------------------------------------------
 # Valid Claude Code tool names (for skill/agent frontmatter validation)
@@ -1709,6 +1709,9 @@ def _parse_blueprint_units(blueprint_text: str) -> Dict[int, Dict[str, Any]]:
       - "tier2_signatures": list of function names declared in Tier 2
       - "calls_block": list of non-empty content lines under the unit's
         `## Calls` heading (used by S3-172 audit; empty if absent)
+      - "package_deps_block": list of non-empty content lines under the
+        unit's `## Package Dependencies` heading (used by S3-179 audit;
+        empty if absent)
     Empty/missing fields default to safe values.
     """
     units: Dict[int, Dict[str, Any]] = {}
@@ -1725,6 +1728,10 @@ def _parse_blueprint_units(blueprint_text: str) -> Dict[int, Dict[str, Any]]:
     # unit body (not a top-level unit heading) and signals the start of
     # the Calls block.
     calls_heading_re = re.compile(r"^##\s+Calls\s*$", re.IGNORECASE)
+    # `## Package Dependencies` heading regex (S3-179).
+    pkg_deps_heading_re = re.compile(
+        r"^##\s+Package\s+Dependencies\s*$", re.IGNORECASE
+    )
 
     # First pass: locate unit headings and their slice range.
     unit_starts: List[tuple] = []  # (unit_num, name, start_line)
@@ -1807,11 +1814,36 @@ def _parse_blueprint_units(blueprint_text: str) -> Dict[int, Dict[str, Any]]:
                     continue
                 calls_block.append(ln)
 
+        # Package Dependencies block (S3-179): scan for
+        # `## Package Dependencies` heading; collect non-empty content
+        # lines until the next `##`/`###` heading or the
+        # `**Dependencies:**` inline field (which terminates the block).
+        package_deps_block: List[str] = []
+        in_pkg_deps = False
+        for ln in body:
+            if pkg_deps_heading_re.match(ln):
+                in_pkg_deps = True
+                continue
+            if in_pkg_deps:
+                stripped = ln.strip()
+                if (
+                    ln.startswith("##")
+                    or ln.startswith("###")
+                    or stripped.startswith("**Dependencies:**")
+                    or stripped == "---"
+                ):
+                    in_pkg_deps = False
+                    continue
+                if not stripped:
+                    continue
+                package_deps_block.append(ln)
+
         units[num] = {
             "name": name,
             "deps": deps,
             "tier2_signatures": tier2_sigs,
             "calls_block": calls_block,
+            "package_deps_block": package_deps_block,
         }
 
     return units
@@ -2010,6 +2042,145 @@ def _compute_called_by_graph(
     return out
 
 
+# ---------------------------------------------------------------------------
+# Bug S3-179: Package Dependencies parsing + import-resolution helpers
+# ---------------------------------------------------------------------------
+
+# Flat module names produced by `derive_scripts_from_stubs.py` for SVP
+# internal units. These names are emitted in the workspace `scripts/`
+# directory but a stub can also import them directly (e.g.,
+# `from svp_launcher import ...`). The audit treats them as internal so
+# they don't surface as undeclared external imports.
+_SVP_INTERNAL_FLAT_MODULES: Set[str] = {
+    "svp_config", "language_registry", "profile_schema", "toolchain_reader",
+    "pipeline_state", "state_transitions", "ledger_manager",
+    "blueprint_extractor", "signature_parser", "stub_generator",
+    "infrastructure_setup", "hint_prompt_assembler", "prepare_task",
+    "routing", "quality_gate", "sync_debug_docs", "hooks", "setup_agent",
+    "blueprint_checker", "construction_agents", "diagnostic_agents",
+    "support_agents", "generate_assembly_map", "debug_agents",
+    "slash_commands", "orchestration_skill", "project_templates",
+    "structural_check", "svp_launcher",
+}
+
+
+# Fallback stdlib module set for environments without
+# `sys.stdlib_module_names` (Python < 3.10). Conservative — covers the
+# stdlib modules likely to appear in SVP and adjacent archetypes.
+_STDLIB_FALLBACK: Set[str] = {
+    "abc", "argparse", "ast", "asyncio", "base64", "bisect", "builtins",
+    "calendar", "collections", "concurrent", "configparser", "contextlib",
+    "copy", "csv", "ctypes", "datetime", "dataclasses", "decimal", "difflib",
+    "dis", "doctest", "email", "enum", "errno", "fnmatch", "functools",
+    "gc", "getopt", "getpass", "glob", "hashlib", "heapq", "html", "http",
+    "importlib", "inspect", "io", "ipaddress", "itertools", "json",
+    "keyword", "locale", "logging", "math", "mimetypes", "multiprocessing",
+    "numbers", "operator", "os", "pathlib", "pickle", "platform", "pprint",
+    "queue", "random", "re", "secrets", "select", "shlex", "shutil",
+    "signal", "site", "socket", "sqlite3", "ssl", "stat", "string", "struct",
+    "subprocess", "sys", "tarfile", "tempfile", "textwrap", "threading",
+    "time", "timeit", "token", "tokenize", "traceback", "types", "typing",
+    "unicodedata", "unittest", "urllib", "uuid", "warnings", "weakref",
+    "xml", "xmlrpc", "zipfile", "zipimport", "zlib",
+}
+
+
+def _extract_package_dependencies(
+    units: Dict[int, Dict[str, Any]],
+) -> Dict[int, List[str]]:
+    """Parse each unit's `## Package Dependencies` block.
+
+    Returns `{unit_num: [pkg_name, ...]}`. Empty list for leaf units
+    (`None (stdlib only).`). Strips parenthetical descriptors from bullet
+    entries (e.g., `- numpy (numerical arrays)` -> `numpy`).
+
+    Bug S3-179 — final cycle of round C in the env provisioning sub-project.
+    Consumes cycle-C1 (S3-177) format mandate + cycle-C2 (S3-178)
+    migration data.
+    """
+    out: Dict[int, List[str]] = {}
+    leaf_re = re.compile(
+        r"^\s*None\s*\(\s*stdlib\s+only\s*\)\.?\s*$", re.IGNORECASE
+    )
+    bullet_re = re.compile(r"^\s*-\s+(\S+)")
+
+    for unit_num in sorted(units):
+        info = units[unit_num]
+        block_lines = info.get("package_deps_block", [])
+        if not block_lines:
+            out[unit_num] = []
+            continue
+        # Skip leaf-unit (stdlib-only) blocks entirely.
+        if any(leaf_re.match(ln) for ln in block_lines):
+            out[unit_num] = []
+            continue
+        pkgs: List[str] = []
+        for ln in block_lines:
+            m = bullet_re.match(ln)
+            if not m:
+                continue
+            # Take first whitespace-delimited token; strip trailing
+            # punctuation that may follow (e.g. trailing comma).
+            token = m.group(1).rstrip(",.;:")
+            if token:
+                pkgs.append(token)
+        out[unit_num] = pkgs
+    return out
+
+
+def _collect_external_imports(stub_path: Path) -> Set[str]:
+    """Walk AST of a stub file; return external package names imported.
+
+    External = NOT stdlib (per `sys.stdlib_module_names` if Python 3.10+;
+    else fallback hardcoded set) AND NOT internal (NOT starting with
+    `src.unit_`). Returns top-level module names only (`import X.Y`
+    -> X; `from X.Y import Z` -> X).
+
+    Bug S3-179.
+    """
+    out: Set[str] = set()
+    try:
+        src = stub_path.read_text(encoding="utf-8")
+        tree = ast.parse(src, filename=str(stub_path))
+    except (SyntaxError, OSError, UnicodeDecodeError):
+        return out
+
+    # Use sys.stdlib_module_names (Python 3.10+) when available.
+    stdlib_names = getattr(sys, "stdlib_module_names", None)
+    if stdlib_names is None:
+        stdlib_names = _STDLIB_FALLBACK
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if not alias.name:
+                    continue
+                top = alias.name.split(".", 1)[0]
+                if top.startswith("src.unit_") or top == "src":
+                    continue
+                if top in stdlib_names:
+                    continue
+                if top in _SVP_INTERNAL_FLAT_MODULES:
+                    continue
+                out.add(top)
+        elif isinstance(node, ast.ImportFrom):
+            # Skip relative imports (from . import X) — node.module is None.
+            if node.module is None:
+                continue
+            top = node.module.split(".", 1)[0]
+            # Internal cross-unit imports look like
+            # `from src.unit_N.stub import X`. Skip the entire `src`
+            # namespace (it is not an external package).
+            if top == "src" or node.module.startswith("src.unit_"):
+                continue
+            if top in stdlib_names:
+                continue
+            if top in _SVP_INTERNAL_FLAT_MODULES:
+                continue
+            out.add(top)
+    return out
+
+
 def audit_blueprint_contracts(
     project_root: Path,
 ) -> List[Dict[str, Any]]:
@@ -2198,6 +2369,79 @@ def audit_blueprint_contracts(
                     ),
                 }
             )
+
+    # Check (S3-179): package_resolution + undeclared_import.
+    # Closes round C of the env provisioning sub-project. Consumes
+    # cycle-C1 (S3-177) format mandate + cycle-C2 (S3-178) migration data.
+    #
+    # Load profile + manifest to determine the archetype's package
+    # universe. Defensive: if profile or manifest is unavailable, skip
+    # the universe check (no error). The undeclared_import check still
+    # runs (it's profile-independent).
+    package_universe: Optional[Set[str]] = None
+    try:
+        from src.unit_3.stub import load_profile  # type: ignore
+        from src.unit_4.stub import load_toolchain  # type: ignore
+
+        profile = load_profile(project_root)
+        language = profile.get("language", {}).get("primary")
+        if language:
+            manifest = load_toolchain(project_root, language=language)
+            package_universe = (
+                set(manifest.get("testing", {}).get("framework_packages", []))
+                | set(manifest.get("quality", {}).get("packages", []))
+            )
+    except Exception:
+        # Defensive: any failure (FileNotFoundError, KeyError,
+        # JSONDecodeError, ImportError, attribute issues) → skip the
+        # universe check rather than fail the audit.
+        package_universe = None
+
+    package_deps = _extract_package_dependencies(units)
+
+    # Package_resolution check
+    if package_universe is not None:
+        for unit_num, declared_pkgs in package_deps.items():
+            for pkg in declared_pkgs:
+                if pkg not in package_universe:
+                    violations.append(
+                        {
+                            "check": "package_resolution",
+                            "severity": "error",
+                            "location": (
+                                f"Unit {unit_num} Package Dependencies"
+                            ),
+                            "description": (
+                                f"Unit {unit_num} declares package "
+                                f"{pkg!r}, but it is not in the "
+                                f"archetype's package universe "
+                                f"(testing.framework_packages union "
+                                f"quality.packages)"
+                            ),
+                        }
+                    )
+
+    # Undeclared_import check
+    for unit_num in units:
+        stub_path = project_root / "src" / f"unit_{unit_num}" / "stub.py"
+        if not stub_path.is_file():
+            continue
+        external_imports = _collect_external_imports(stub_path)
+        declared_set = set(package_deps.get(unit_num, []))
+        for imp in sorted(external_imports):
+            if imp not in declared_set:
+                violations.append(
+                    {
+                        "check": "undeclared_import",
+                        "severity": "warning",
+                        "location": f"Unit {unit_num} stub",
+                        "description": (
+                            f"Unit {unit_num} stub imports {imp!r}, "
+                            f"but it is not declared in "
+                            f"## Package Dependencies"
+                        ),
+                    }
+                )
 
     # Filter against known false positives
     fps = _read_known_false_positives(project_root)

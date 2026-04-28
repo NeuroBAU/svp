@@ -2830,3 +2830,434 @@ class TestS3_172CallsResolutionCheck:
             f"Units with no callers must not appear as keys: "
             f"{sorted(result.keys())}"
         )
+
+
+class TestS3_179PackageResolutionCheck:
+    """Bug S3-179: Audit Package Dependencies resolution + undeclared imports.
+
+    Final cycle of round C in the env provisioning sub-project. Two new
+    sub-checks inside `audit_blueprint_contracts()`:
+      - `package_resolution`: every package declared in a Unit's
+        `## Package Dependencies` block must be in the archetype's
+        package universe (manifest's testing.framework_packages union
+        quality.packages).
+      - `undeclared_import`: every external import in a stub must be
+        declared in the unit's Package Dependencies block (or be stdlib /
+        internal SVP module).
+    Defensive: when profile or manifest is unavailable, package_resolution
+    skips (no error). Undeclared_import always runs.
+    """
+
+    def _make_project(
+        self,
+        tmp_path,
+        blueprint_text=None,
+        stubs=None,
+        profile=None,
+        toolchain=None,
+        toolchain_filename="python_conda_pytest.json",
+    ):
+        """Build a synthetic project with blueprint + optional stubs +
+        optional profile + optional language toolchain manifest.
+
+        Mirrors `TestS3_172CallsResolutionCheck._make_project` and adds
+        manifest fixture support.
+        """
+        import json as _json
+
+        project_root = tmp_path / "proj"
+        project_root.mkdir()
+        (project_root / ".svp").mkdir()
+        (project_root / "blueprint").mkdir()
+        if blueprint_text is not None:
+            (project_root / "blueprint" / "blueprint_contracts.md").write_text(
+                blueprint_text, encoding="utf-8"
+            )
+        if stubs:
+            (project_root / "src").mkdir()
+            for n, src in stubs.items():
+                udir = project_root / "src" / f"unit_{n}"
+                udir.mkdir(parents=True)
+                (udir / "stub.py").write_text(src, encoding="utf-8")
+        if profile is not None:
+            (project_root / "project_profile.json").write_text(
+                _json.dumps(profile), encoding="utf-8"
+            )
+        if toolchain is not None:
+            tdir = project_root / "scripts" / "toolchain_defaults"
+            tdir.mkdir(parents=True)
+            (tdir / toolchain_filename).write_text(
+                _json.dumps(toolchain), encoding="utf-8"
+            )
+        return project_root
+
+    def _python_manifest_with_universe(self, framework_pkgs, quality_pkgs):
+        """Build a minimal python toolchain manifest with given package
+        sets in the universe-relevant fields."""
+        return {
+            "toolchain_id": "python_conda_pytest",
+            "environment": {
+                "tool": "conda",
+                "run_prefix": "conda run -n {env_name}",
+                "create_command": "conda create -n {env_name} -y",
+                "install_command": "pip install {packages}",
+                "install_dev": "pip install -e .",
+                "cleanup_command": "conda env remove -n {env_name} -y",
+                "verify_commands": ["python --version"],
+            },
+            "quality": {
+                "formatter": {"tool": "ruff"},
+                "linter": {"tool": "ruff"},
+                "type_checker": {"tool": "mypy"},
+                "packages": list(quality_pkgs),
+                "gate_a": [],
+                "gate_b": [],
+                "gate_c": [],
+            },
+            "testing": {
+                "tool": "pytest",
+                "run_command": "pytest",
+                "framework_packages": list(framework_pkgs),
+                "file_pattern": "test_*.py",
+                "collection_error_indicators": [],
+                "pass_fail_pattern": "(\\d+) passed",
+                "unit_flags": "",
+                "project_flags": "",
+            },
+            "packaging": {
+                "tool": "setuptools",
+                "manifest_file": "pyproject.toml",
+                "build_backend": "setuptools.build_meta",
+                "validate_command": "pip install -e .",
+            },
+            "vcs": {"tool": "git", "commands": {}},
+            "language": {
+                "name": "python",
+                "extension": ".py",
+                "version_constraint": ">=3.9",
+                "signature_parser": "ast",
+                "stub_body": "raise NotImplementedError",
+            },
+            "file_structure": {
+                "source_dir_pattern": "src/unit_{n}",
+                "test_dir_pattern": "tests/unit_{n}",
+                "source_extension": ".py",
+                "test_extension": ".py",
+            },
+            "language_architecture_primers": {},
+        }
+
+    def test_audit_blueprint_contracts_package_resolution_passes_on_current_blueprint(
+        self,
+    ):
+        """Audit on the actual workspace blueprint reports zero
+        `package_resolution` violations after the false-positive filter.
+        SVP-self units are stdlib-only so the universe check trivially
+        passes.
+        """
+        from pathlib import Path
+        here = Path(__file__).resolve()
+        candidate = here.parent
+        for _ in range(8):
+            if (candidate / "blueprint" / "blueprint_contracts.md").exists():
+                break
+            if (candidate / "docs" / "blueprint_contracts.md").exists():
+                break
+            candidate = candidate.parent
+        else:
+            raise AssertionError(
+                "blueprint_contracts.md not located by walking up from "
+                f"{here} (tried blueprint/ and docs/ at each level)"
+            )
+
+        violations = audit_blueprint_contracts(candidate)
+        pkg_v = [
+            v for v in violations if v.get("check") == "package_resolution"
+        ]
+        assert pkg_v == [], (
+            "Real-blueprint audit found package_resolution violations not "
+            f"covered by .svp/audit_known_false_positives.md: {pkg_v}"
+        )
+
+    def test_audit_blueprint_contracts_detects_undeclared_package(
+        self, tmp_path
+    ):
+        """Unit 1 declares package `numpy` in `## Package Dependencies`,
+        but the manifest's universe (framework_packages + quality.packages)
+        does not include `numpy`. Expect violation check='package_resolution'.
+        """
+        bp = (
+            "## Unit 1: Numerical Caller\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def caller_fn() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "None (leaf unit).\n"
+            "\n"
+            "## Package Dependencies\n"
+            "\n"
+            "- numpy (numerical arrays)\n"
+            "\n"
+            "**Dependencies:** None.\n"
+        )
+        stubs = {1: "def caller_fn():\n    pass\n"}
+        profile = {
+            "name": "p",
+            "version": "0.1.0",
+            "description": "d",
+            "author": "a",
+            "archetype": "claude_code_plugin",
+            "language": {"primary": "python", "components": []},
+        }
+        toolchain = self._python_manifest_with_universe(
+            framework_pkgs=["pytest", "pytest-cov"],
+            quality_pkgs=["ruff", "mypy"],
+        )
+        project_root = self._make_project(
+            tmp_path,
+            blueprint_text=bp,
+            stubs=stubs,
+            profile=profile,
+            toolchain=toolchain,
+        )
+        violations = audit_blueprint_contracts(project_root)
+        pkg_v = [
+            v
+            for v in violations
+            if v.get("check") == "package_resolution"
+            and "numpy" in v["description"]
+        ]
+        assert len(pkg_v) == 1, (
+            f"Expected one package_resolution violation for numpy, "
+            f"got: {violations}"
+        )
+        assert pkg_v[0]["severity"] == "error", (
+            f"Expected severity='error', got: {pkg_v[0]}"
+        )
+
+    def test_audit_blueprint_contracts_resolves_declared_package_in_universe(
+        self, tmp_path
+    ):
+        """Unit 1 declares `pytest`, manifest's framework_packages includes
+        `pytest`. Expect no `package_resolution` violation."""
+        bp = (
+            "## Unit 1: Test Caller\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def caller_fn() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "None (leaf unit).\n"
+            "\n"
+            "## Package Dependencies\n"
+            "\n"
+            "- pytest (test framework)\n"
+            "\n"
+            "**Dependencies:** None.\n"
+        )
+        stubs = {1: "def caller_fn():\n    pass\n"}
+        profile = {
+            "name": "p",
+            "version": "0.1.0",
+            "description": "d",
+            "author": "a",
+            "archetype": "claude_code_plugin",
+            "language": {"primary": "python", "components": []},
+        }
+        toolchain = self._python_manifest_with_universe(
+            framework_pkgs=["pytest", "pytest-cov"],
+            quality_pkgs=["ruff", "mypy"],
+        )
+        project_root = self._make_project(
+            tmp_path,
+            blueprint_text=bp,
+            stubs=stubs,
+            profile=profile,
+            toolchain=toolchain,
+        )
+        violations = audit_blueprint_contracts(project_root)
+        pkg_v = [
+            v for v in violations if v.get("check") == "package_resolution"
+        ]
+        assert pkg_v == [], (
+            f"Expected zero package_resolution violations for declared "
+            f"pytest in universe, got: {pkg_v}"
+        )
+
+    def test_audit_blueprint_contracts_warns_on_undeclared_import(
+        self, tmp_path
+    ):
+        """Unit 1 stub imports `requests` but blueprint Package Deps says
+        `None (stdlib only).`. Expect violation check='undeclared_import',
+        severity='warning'."""
+        bp = (
+            "## Unit 1: HTTP Caller\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def caller_fn() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "None (leaf unit).\n"
+            "\n"
+            "## Package Dependencies\n"
+            "\n"
+            "None (stdlib only).\n"
+            "\n"
+            "**Dependencies:** None.\n"
+        )
+        stubs = {
+            1: "import requests\n\ndef caller_fn():\n    pass\n",
+        }
+        project_root = self._make_project(
+            tmp_path,
+            blueprint_text=bp,
+            stubs=stubs,
+        )
+        violations = audit_blueprint_contracts(project_root)
+        und_v = [
+            v
+            for v in violations
+            if v.get("check") == "undeclared_import"
+            and "requests" in v["description"]
+        ]
+        assert len(und_v) == 1, (
+            f"Expected one undeclared_import violation for requests, "
+            f"got: {violations}"
+        )
+        assert und_v[0]["severity"] == "warning", (
+            f"Expected severity='warning', got: {und_v[0]}"
+        )
+
+    def test_audit_blueprint_contracts_skips_universe_check_when_no_profile(
+        self, tmp_path
+    ):
+        """No `project_profile.json`. The `package_resolution` check must
+        skip (no violations of that type), but the `undeclared_import`
+        check still runs."""
+        bp = (
+            "## Unit 1: Caller\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def caller_fn() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "None (leaf unit).\n"
+            "\n"
+            "## Package Dependencies\n"
+            "\n"
+            "- numpy (numerical arrays)\n"
+            "\n"
+            "**Dependencies:** None.\n"
+        )
+        stubs = {1: "def caller_fn():\n    pass\n"}
+        project_root = self._make_project(
+            tmp_path,
+            blueprint_text=bp,
+            stubs=stubs,
+            profile=None,
+            toolchain=None,
+        )
+        violations = audit_blueprint_contracts(project_root)
+        pkg_v = [
+            v for v in violations if v.get("check") == "package_resolution"
+        ]
+        assert pkg_v == [], (
+            f"Expected zero package_resolution violations when profile is "
+            f"absent (universe check skipped), got: {pkg_v}"
+        )
+
+    def test_audit_blueprint_contracts_undeclared_import_skips_stdlib_and_internal(
+        self, tmp_path
+    ):
+        """Unit 1's stub imports `json` (stdlib) and
+        `from src.unit_2.stub import X` (internal SVP cross-unit). Neither
+        should produce an `undeclared_import` violation."""
+        bp = (
+            "## Unit 1: Internal Caller\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def caller_fn() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "None (leaf unit).\n"
+            "\n"
+            "## Package Dependencies\n"
+            "\n"
+            "None (stdlib only).\n"
+            "\n"
+            "**Dependencies:** Unit 2.\n"
+            "\n"
+            "## Unit 2: Helper\n"
+            "\n"
+            "### Tier 2 — Signatures\n"
+            "\n"
+            "```python\n"
+            "def helper_fn() -> None: ...\n"
+            "```\n"
+            "\n"
+            "### Tier 3 -- Behavioral Contracts\n"
+            "\n"
+            "## Calls\n"
+            "\n"
+            "None (leaf unit).\n"
+            "\n"
+            "## Package Dependencies\n"
+            "\n"
+            "None (stdlib only).\n"
+            "\n"
+            "**Dependencies:** None.\n"
+        )
+        stubs = {
+            1: (
+                "import json\n"
+                "from src.unit_2.stub import helper_fn\n"
+                "\n"
+                "def caller_fn():\n"
+                "    return helper_fn()\n"
+            ),
+            2: "def helper_fn():\n    return None\n",
+        }
+        project_root = self._make_project(
+            tmp_path,
+            blueprint_text=bp,
+            stubs=stubs,
+        )
+        violations = audit_blueprint_contracts(project_root)
+        und_v = [
+            v for v in violations if v.get("check") == "undeclared_import"
+        ]
+        assert und_v == [], (
+            f"Expected zero undeclared_import violations for stdlib + "
+            f"internal-only imports, got: {und_v}"
+        )

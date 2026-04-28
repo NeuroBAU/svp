@@ -1236,3 +1236,5 @@
 
 - **Pattern.** **P62 (NEW — Uniformly Stdlib-Only Migrations Are Placeholder Insertions)**. P62 — When migrating a codebase that turns out to be uniformly stdlib-only, the migration is structurally a placeholder insertion: every unit gets the same leaf-form text. The mandate (cycle C1) and audit (cycle C3) have value not from current SVP units but from FUTURE archetypes (R with lme4/blme; Python with numpy/scipy/requests) where the section will carry real content. Sibling pattern P55 (S3-171 Calls migration) — uniform mechanical playbook. Cite S3-178.
 
+- **Pattern.** **P63 (NEW — Round-Of-Three Pattern Closes With A Two-Direction Audit)**. P63 — Round-of-three pattern (format → migration → audit) closes cleanly when each cycle has a clean test invariant. C1 mandates the format; C2 fills the data; C3 audits both directions: declarations conform to the universe AND imports conform to declarations. The two-direction audit catches missing-import-declaration AND wrong-package-named bugs symmetrically. Cite S3-179.
+

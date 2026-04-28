@@ -634,6 +634,12 @@ consumes cycle-2 migration data; closes IMPROV-09 deferred
 reciprocity check (b). Mechanical Called-by inversion computed
 in-function; not materialized.
 
+**(Bug S3-179)** Audit gains two new checks: package_resolution (declared
+deps in universe) and undeclared_import (stub imports in blueprint).
+Consumes cycle-C2 migration data. Closes round C of env provisioning
+sub-project. SVP-self is stdlib-only — audit passes clean on day one;
+real value materializes for future R/Python data-science archetypes.
+
 The compliance-scan entries also gain audit-related compliance entries: the unit-heading grammar invariant (Bug S3-116), the audit_known_false_positives.md formatting rules, and the dispatch-time validation of unit headings BEFORE Gate 2.1.
 
 ---
