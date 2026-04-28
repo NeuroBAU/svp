@@ -6388,6 +6388,20 @@ This is a meta-cycle: process improvement + accumulated documentation debt clean
 
 **Detection.** `tests/unit_20/test_unit_20.py::TestS3_170BlueprintAuthorCallsMandate::test_blueprint_author_definition_mandates_calls_section` (asserts Calls heading + per-function language); `..._per_function_citation_format` (asserts citation format example present); `..._does_not_mandate_called_by_in_cycle_1` (asserts Called-by deferral; prevents regression of mechanical-inversion design).
 
+### 24.185 Existing Blueprint Lacks Per-Unit Calls Sections (Post-delivery — Bug S3-171, NEW IN 2.2)
+
+**Symptom.** Cycle 1 (S3-170) shipped the format mandate requiring per-Unit `## Calls` sections in blueprint contracts, but the existing `blueprint/blueprint_contracts.md` across 29 units predates the mandate. The audit cycle (S3-172) cannot verify per-function reciprocity until the data exists in every unit's contract block.
+
+**Root cause.** No mechanism existed prior to cycle 1's format mandate; existing units were authored without Calls sections. Migration was deferred from cycle 1 to keep that cycle small and atomic (mandate + tests only, no data churn).
+
+**Surface area.** `blueprint/blueprint_contracts.md` (29 unit sections); `tests/regressions/test_s3_171_calls_migration.py` (NEW — guards future units).
+
+**Resolution.** Mechanical migration. Subagent reads each `src/unit_N/stub.py`, parses `from src.unit_M.stub import` statements, classifies imported symbols (function vs class vs constant), emits per-function citations. Classes and constants stay implicit in Dependencies. Leaf units (no inter-unit function imports) get `None (leaf unit).`. Regression test asserts every unit henceforth carries a Calls block.
+
+**Pattern.** P55 — format-extension migrations are mechanical when the format is well-specified.
+
+**Detection.** `tests/regressions/test_s3_171_calls_migration.py::test_every_unit_has_calls_section` — walks `blueprint_contracts.md`, asserts each `## Unit N` section contains a `## Calls` sub-block (populated or leaf).
+
 ---
 
 ## 25. Test Data
@@ -6528,7 +6542,7 @@ The profile says how the delivered project should look. The toolchain file says 
 
 **(NEW IN 2.2 — Bug S3-166) Statistical primer behavior.** When `state.requires_statistical_analysis` is true (set by `gate_0_3_profile_approval`, see Section 6.4), Unit 13's `_prepare_blueprint_author` appends `BLUEPRINT_AUTHOR_STATISTICAL_PRIMER` (a sibling module-level constant in Unit 20) to the task prompt. The primer covers four contract categories per unit (Tier 2 signature conventions for statistical functions, Tier 3 enumerated contract clauses with thresholds and fallbacks, library-version pinning for stats packages, error class for statistical violations), plus 5 anti-patterns and 5 pre-emission cross-checks. The static `BLUEPRINT_AUTHOR_DEFINITION` is unchanged when the flag is false — every cycle's append is gated on the centralized helper `_requires_statistical_analysis(state)`.
 
-**(NEW IN 2.2 — Bug S3-170) Per-function Calls citations.** `BLUEPRINT_AUTHOR_DEFINITION` mandates that every Unit's Tier 3 include a `## Calls` section listing per-function Calls citations of the form `- foo() in Unit N` (with `(private helper)` suffix for non-public callees). Citations are per-function, not per-unit, so a downstream audit can resolve each cited symbol against the callee unit's Tier-2 signature block. The corresponding `## Called-by` section is NOT authored — it will be mechanically derived from the global Calls graph by the audit-extension cycle (S3-172). Cycle 1 (S3-170) ships only the prompt mandate; the migration of existing 29 units' contracts is deferred to cycle 2 (S3-171); the reciprocity + Tier-2 resolution audit lands in cycle 3 (S3-172).
+**(NEW IN 2.2 — Bug S3-170) Per-function Calls citations.** `BLUEPRINT_AUTHOR_DEFINITION` mandates that every Unit's Tier 3 include a `## Calls` section listing per-function Calls citations of the form `- foo() in Unit N` (with `(private helper)` suffix for non-public callees). Citations are per-function, not per-unit, so a downstream audit can resolve each cited symbol against the callee unit's Tier-2 signature block. The corresponding `## Called-by` section is NOT authored — it will be mechanically derived from the global Calls graph by the audit-extension cycle (S3-172). Cycle 1 (S3-170) ships only the prompt mandate; the migration of existing 29 units' contracts is deferred to cycle 2 (S3-171); the reciprocity + Tier-2 resolution audit lands in cycle 3 (S3-172). Migration of all 29 existing Units to include `## Calls` sections completed in S3-171; subsequent revisions inherit this format by mandate.
 
 **Agent loading matrix (from Section 3.16).** For blueprint construction, the authoritative context-loading rules:
 

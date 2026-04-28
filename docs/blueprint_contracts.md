@@ -38,6 +38,10 @@ def get_model_for_agent(
 
 ### Tier 3 -- Behavioral Contracts
 
+## Calls
+
+None (leaf unit).
+
 **Dependencies:** None (root unit).
 
 **ARTIFACT_FILENAMES registry:**
@@ -114,6 +118,10 @@ def load_registry_extensions(extensions_path: str) -> Dict[str, Dict[str, Any]]:
 
 ### Tier 3 -- Behavioral Contracts
 
+## Calls
+
+None (leaf unit).
+
 **Dependencies:** Unit 1.
 
 **LANGUAGE_REGISTRY contents:**
@@ -182,6 +190,10 @@ def get_quality_config(
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+None (leaf unit).
 
 **Dependencies:** Unit 1, Unit 2.
 
@@ -256,6 +268,10 @@ def verify_toolchain_ready(
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+None (leaf unit).
 
 **Dependencies:** Unit 1, Unit 2.
 
@@ -346,6 +362,10 @@ def _requires_statistical_analysis(state: PipelineState) -> bool: ...  # Bug S3-
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+None (leaf unit).
 
 **Dependencies:** Unit 1, Unit 2.
 
@@ -494,6 +514,10 @@ def abandon_oracle_session(state: "PipelineState") -> "PipelineState": ...
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+None (leaf unit).
 
 **Dependencies:** Unit 5.
 
@@ -664,6 +688,10 @@ def read_oracle_run_ledger(project_root: Path) -> List[Dict[str, Any]]: ...
 
 ### Tier 3 -- Behavioral Contracts
 
+## Calls
+
+None (leaf unit).
+
 **Dependencies:** Unit 1.
 
 **append_entry:**
@@ -738,6 +766,10 @@ def format_unit_heading_violations(
 
 ### Tier 3 -- Behavioral Contracts
 
+## Calls
+
+None (leaf unit).
+
 **Dependencies:** Unit 1, Unit 2.
 
 **validate_unit_heading_format (NEW IN 2.2 — Bug S3-116):**
@@ -800,6 +832,10 @@ def main(argv: list = None) -> None: ...
 
 ### Tier 3 -- Behavioral Contracts
 
+## Calls
+
+None (leaf unit).
+
 **Dependencies:** Unit 2, Unit 8.
 
 **SIGNATURE_PARSERS dispatch table:**
@@ -849,6 +885,12 @@ def main(argv: list = None) -> None: ...
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+- get_language_config() in Unit 2
+- extract_units() in Unit 8
+- parse_signatures() in Unit 9
 
 **Dependencies:** Unit 2, Unit 8, Unit 9.
 
@@ -900,6 +942,20 @@ def main(argv: list = None) -> None: ...
 
 ### Tier 3 -- Behavioral Contracts
 
+## Calls
+
+- derive_env_name() in Unit 1
+- get_blueprint_dir() in Unit 1
+- get_delivery_config() in Unit 3
+- load_profile() in Unit 3
+- load_toolchain() in Unit 4
+- verify_toolchain_ready() in Unit 4
+- load_state() in Unit 5
+- save_state() in Unit 5
+- extract_units() in Unit 8
+- format_unit_heading_violations() in Unit 8
+- validate_unit_heading_format() in Unit 8
+
 **Dependencies:** Unit 1, Unit 2, Unit 3, Unit 4, Unit 5, Unit 8.
 
 **run_infrastructure_setup performs in order:**
@@ -941,6 +997,10 @@ def assemble_hint_prompt(
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+None (leaf unit).
 
 **Dependencies:** Unit 7.
 
@@ -1003,6 +1063,19 @@ def main(argv: list = None) -> None: ...
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+- get_blueprint_dir() in Unit 1
+- load_profile() in Unit 3
+- _requires_statistical_analysis() in Unit 5 (private helper)
+- load_state() in Unit 5
+- get_ledger_path() in Unit 7
+- read_ledger() in Unit 7
+- build_unit_context() in Unit 8
+- extract_units() in Unit 8
+- assemble_hint_prompt() in Unit 12
+- _expected_terminal_status_for() in Unit 14 (private helper)
 
 **Dependencies:** Unit 1, Unit 2, Unit 3, Unit 4, Unit 5, Unit 7, Unit 8, Unit 12.
 
@@ -1133,6 +1206,48 @@ def run_tests_main(argv: list = None) -> None: ...
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+- derive_env_name() in Unit 1
+- get_blueprint_dir() in Unit 1
+- load_config() in Unit 1
+- load_profile() in Unit 3
+- load_toolchain() in Unit 4
+- resolve_command() in Unit 4
+- _requires_statistical_analysis() in Unit 5 (private helper)
+- load_state() in Unit 5
+- save_state() in Unit 5
+- abandon_debug_session() in Unit 6
+- abandon_oracle_session() in Unit 6
+- advance_fix_ladder() in Unit 6
+- advance_stage() in Unit 6
+- advance_sub_stage() in Unit 6
+- authorize_debug_session() in Unit 6
+- complete_debug_session() in Unit 6
+- complete_oracle_session() in Unit 6
+- complete_redo_profile_revision() in Unit 6
+- complete_unit() in Unit 6
+- enter_debug_session() in Unit 6
+- enter_oracle_session() in Unit 6
+- enter_pass_2() in Unit 6
+- enter_redo_profile_revision() in Unit 6
+- increment_alignment_iteration() in Unit 6
+- increment_red_run_retries() in Unit 6
+- restart_from_stage() in Unit 6
+- rollback_to_unit() in Unit 6
+- set_debug_classification() in Unit 6
+- set_delivered_repo_path() in Unit 6
+- update_debug_phase() in Unit 6
+- append_oracle_run_entry() in Unit 7
+- extract_units() in Unit 8
+- format_unit_heading_violations() in Unit 8
+- validate_unit_heading_format() in Unit 8
+- ensure_pipeline_toolchain() in Unit 11
+- run_infrastructure_setup() in Unit 11
+- sync_pass1_artifacts() in Unit 16
+- audit_blueprint_contracts() in Unit 28
+- format_audit_violations() in Unit 28
 
 **Dependencies:** Unit 1, Unit 2, Unit 4, Unit 5, Unit 6.
 
@@ -1443,6 +1558,14 @@ def run_quality_gate_main(argv: list = None) -> None: ...
 
 ### Tier 3 -- Behavioral Contracts
 
+## Calls
+
+- derive_env_name() in Unit 1
+- get_language_config() in Unit 2
+- get_gate_composition() in Unit 4
+- load_toolchain() in Unit 4
+- resolve_command() in Unit 4
+
 **Dependencies:** Unit 2, Unit 4.
 
 **QUALITY_RUNNERS dispatch table:**
@@ -1494,6 +1617,15 @@ def sync_pass1_artifacts(project_root: Path) -> Dict[str, Any]: ...
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+- derive_env_name() in Unit 1
+- load_profile() in Unit 3
+- load_toolchain() in Unit 4
+- resolve_command() in Unit 4
+- load_state() in Unit 5
+- save_state() in Unit 5
 
 **Dependencies:** Unit 1, Unit 3, Unit 4, Unit 5.
 
@@ -1567,6 +1699,10 @@ def generate_monitoring_reminder_sh() -> str: ...
 
 ### Tier 3 -- Behavioral Contracts
 
+## Calls
+
+None (leaf unit).
+
 **Dependencies:** Unit 2, Unit 5.
 
 **generate_hooks_json:**
@@ -1621,6 +1757,10 @@ DIALOG_AREAS: list  # 7 dialog areas (0-6) — Area 6 added by Bug S3-164
 
 ### Tier 3 -- Behavioral Contracts
 
+## Calls
+
+None (leaf unit).
+
 **Dependencies:** Unit 2, Unit 3.
 
 **SETUP_AGENT_DEFINITION content requirements:**
@@ -1660,6 +1800,10 @@ BLUEPRINT_CHECKER_DEFINITION: str  # Complete markdown content
 
 ### Tier 3 -- Behavioral Contracts
 
+## Calls
+
+None (leaf unit).
+
 **Dependencies:** Unit 2.
 
 **BLUEPRINT_CHECKER_DEFINITION content requirements:**
@@ -1695,6 +1839,10 @@ STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION: str
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+None (leaf unit).
 
 **Dependencies:** Unit 2.
 
@@ -1740,6 +1888,10 @@ REDO_AGENT_DEFINITION: str
 
 ### Tier 3 -- Behavioral Contracts
 
+## Calls
+
+None (leaf unit).
+
 **Dependencies:** None.
 
 **DIAGNOSTIC_AGENT_DEFINITION:**
@@ -1770,6 +1922,10 @@ REFERENCE_INDEXING_AGENT_DEFINITION: str
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+None (leaf unit).
 
 **Dependencies:** None.
 
@@ -1827,6 +1983,16 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+- generate_hooks_json() in Unit 17
+- generate_monitoring_reminder_sh() in Unit 17
+- generate_non_svp_protection_sh() in Unit 17
+- generate_stub_sentinel_check_sh() in Unit 17
+- generate_write_authorization_sh() in Unit 17
+- generate_marketplace_json() in Unit 28
+- generate_plugin_json() in Unit 28
 
 **Dependencies:** Unit 1, Unit 2, Unit 3, Unit 4, Unit 5.
 
@@ -1933,6 +2099,10 @@ REPAIR_AGENT_DEFINITION: str
 
 ### Tier 3 -- Behavioral Contracts
 
+## Calls
+
+None (leaf unit).
+
 **Dependencies:** None.
 
 **BUG_TRIAGE_AGENT_DEFINITION:**
@@ -1970,6 +2140,10 @@ COMMAND_NAMES: List[str]
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+None (leaf unit).
 
 **Dependencies:** None (markdown files).
 
@@ -2009,6 +2183,10 @@ ORCHESTRATION_SKILL: str  # Complete SKILL.md content
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+None (leaf unit).
 
 **Dependencies:** None (markdown file).
 
@@ -2057,6 +2235,10 @@ def render_template(
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+None (leaf unit).
 
 **Dependencies:** Unit 2.
 
@@ -2141,6 +2323,11 @@ def compliance_scan_main(argv: list = None) -> None: ...
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+- load_profile() in Unit 3
+- load_state() in Unit 5
 
 **Dependencies:** Unit 1, Unit 2, Unit 3.
 
@@ -2269,6 +2456,10 @@ def main(argv: list = None) -> None: ...
 ```
 
 ### Tier 3 -- Behavioral Contracts
+
+## Calls
+
+None (leaf unit).
 
 **Dependencies:** Unit 2.
 

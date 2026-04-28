@@ -1220,3 +1220,5 @@
 
 - **Pattern.** **P54 (NEW — Blueprint Format Extensions Ship In Three Cycles)**. P54 — Blueprint format extensions ship in three cycles: (1) format mandate in author prompt; (2) one-time migration of existing data; (3) audit logic. Each cycle has clean test invariants and stable rollback. Mechanical derivation (inversion) for symmetry-redundant fields cuts authoring effort in half versus independent authoring; the audit's Tier-2 resolution check catches the high-cost defects that independent authoring was originally designed to surface. Cite S3-170.
 
+- **Pattern.** **P55 (NEW — Format-Extension Migrations Are Mechanical When The Format Is Well-Specified)**. P55 — Format-extension migrations are mechanical when the format is well-specified. Subagent reads each Unit's stub imports, classifies each imported symbol (function vs class vs constant), and emits per-function citations. Stdlib + typing excluded. The cycle's regression test asserts every Unit has a `## Calls` block (populated or leaf), guarding against future Units being added without one. Cite S3-171.
+
