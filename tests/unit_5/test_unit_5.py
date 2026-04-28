@@ -201,8 +201,19 @@ class TestValidSubStages:
         assert set(VALID_SUB_STAGES.keys()) == VALID_STAGES
 
     def test_valid_sub_stages_stage_0_values(self):
-        expected = {"hook_activation", "project_context", "project_profile"}
+        expected = {
+            "hook_activation",
+            "project_context",
+            "project_profile",
+            "toolchain_provisioning",
+        }
         assert VALID_SUB_STAGES["0"] == expected
+
+    def test_valid_sub_stages_includes_toolchain_provisioning(self):
+        """Bug S3-176: Stage 0 sub_stages MUST include the new
+        'toolchain_provisioning' sub_stage that hosts env-create + verify
+        between gate_0_3 PROFILE APPROVED and Stage 1."""
+        assert "toolchain_provisioning" in VALID_SUB_STAGES["0"]
 
     def test_valid_sub_stages_stage_1_values(self):
         expected = {None, "checklist_generation"}

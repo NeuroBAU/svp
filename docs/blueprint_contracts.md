@@ -939,6 +939,7 @@ def run_infrastructure_setup(
     toolchain: Dict[str, Any],
     language_registry: Dict[str, Dict[str, Any]],
     blueprint_dir: Path,
+    provision_only: bool = False,
 ) -> None: ...
 
 def main(argv: list = None) -> None: ...
@@ -976,10 +977,12 @@ def main(argv: list = None) -> None: ...
 - On any step failure: reports error and exits with non-zero code. No partial cleanup.
 - Component language packages installed into host environment.
 
+**(NEW IN 2.2 — Bug S3-176) provision_only mode.** `run_infrastructure_setup(..., provision_only=False)` MUST honor the `provision_only` parameter. When `provision_only=True`: skip Steps that require the blueprint or stubs (Step 3 dependency extraction, Step 4 import validation of blueprint imports, Step 5 directory scaffolding + `helper-svp.R` template, Step 6 DAG validation, Step 7 `total_units` derivation, Step 8 regression test adaptation, Step 9 build log creation); run only Step 4b (env-create — idempotent on existing envs via `_env_exists`) and Step 4c (`verify_toolchain_ready`). Write `state.toolchain_status` accordingly (`"READY"` on verify success; `"NOT_READY"` on verify failure with `RuntimeError` raised). The CLI flag `--provision-only` controls the parameter; this mode is invoked by `_route_stage_0 toolchain_provisioning` (Unit 14).
+
 **main (CLI entry point):**
-- Arguments: `--project-root` (path, required).
+- Arguments: `--project-root` (path, required), `--provision-only` (flag, default False — Bug S3-176).
 - Loads profile, toolchain, language registry, and blueprint directory from project root.
-- Calls `run_infrastructure_setup` with resolved arguments.
+- Calls `run_infrastructure_setup` with resolved arguments and `provision_only=args.provision_only`.
 - Exit code 0 on success, 1 on failure.
 
 ---
@@ -1255,11 +1258,12 @@ def run_tests_main(argv: list = None) -> None: ...
 
 **Dependencies:** Unit 1, Unit 2, Unit 4, Unit 5, Unit 6.
 
-**GATE_VOCABULARY (31 gates, all response options):**
+**GATE_VOCABULARY (32 gates, all response options) — CHANGED IN 2.2 (Bug S3-176: + gate_0_4_toolchain_provisioned):**
 - `"gate_0_1_hook_activation"`: `["HOOKS ACTIVATED", "HOOKS FAILED"]`
 - `"gate_0_2_context_approval"`: `["CONTEXT APPROVED", "CONTEXT REJECTED", "CONTEXT NOT READY"]`
 - `"gate_0_3_profile_approval"`: `["PROFILE APPROVED", "PROFILE REJECTED"]`
 - `"gate_0_3r_profile_revision"`: `["PROFILE APPROVED", "PROFILE REJECTED"]`
+- `"gate_0_4_toolchain_provisioned"`: `["PROCEED", "ABORT"]` **(NEW IN 2.2 — Bug S3-176)**
 - `"gate_1_1_spec_draft"`: `["APPROVE", "REVISE", "FRESH REVIEW"]`
 - `"gate_1_2_spec_post_review"`: `["APPROVE", "REVISE", "FRESH REVIEW"]`
 - `"gate_2_1_blueprint_approval"`: `["APPROVE", "REVISE", "FRESH REVIEW"]`
@@ -1327,6 +1331,7 @@ def run_tests_main(argv: list = None) -> None: ...
 - `_validate_stage3_completion()` runs at Stage 3/4 boundary: checks unit count (all units verified), build log sub-stage audit (9 sub-stages per unit), red run validation (`TESTS_FAILED` present for each unit), green run validation (`TESTS_PASSED` present for each unit). On failure, presents `gate_3_completion_failure`.
 - At `repo_complete`, if `pass_` is 1 or 2, advance to `pass_transition` sub-stage instead of returning `pipeline_complete`.
 - Gate routing completeness: `_route_stage_4` handles `sub_stage == "gate_4_1a"` -> emit `human_gate` with `gate_id: "gate_4_1a"`. `_route_stage_5` handles `sub_stage == "gate_5_2"` -> emit `human_gate` with `gate_id: "gate_5_2_assembly_exhausted"`. `_route_stage_5` handles `sub_stage == "gate_5_3"` -> emit `human_gate` with `gate_id: "gate_5_3_unused_functions"`. These sub_stages are registered in `ADDITIONAL_SUB_STAGES`. **(Bug S3-45 fix.)**
+- **Stage 0 toolchain provisioning routing (NEW IN 2.2 — Bug S3-176):** `_route_stage_0` MUST handle `sub_stage == "toolchain_provisioning"` with three arms: (a) when `last_status == "COMMAND_FAILED"`, emit `pipeline_held` whose `message` AND `reminder` BOTH contain the literal substring `TOOLCHAIN_PROVISION_FAILED` and direct the operator to fix the toolchain manifest or environment then write `PIPELINE_RESUME` to `.svp/last_status.txt` to retry; (b) when `state.toolchain_status != "READY"` AND `last_status != "COMMAND_FAILED"`, emit `run_command` with `command = "infrastructure_setup_provision_only"`, `cmd = "python scripts/infrastructure_setup.py --provision-only --project-root ."`, and `post = "python scripts/update_state.py --command infrastructure_setup_provision_only --project-root ."`; (c) when `state.toolchain_status == "READY"`, emit `human_gate` with `gate_id = "gate_0_4_toolchain_provisioned"` and `post = "python scripts/update_state.py --command gate_0_4_toolchain_provisioned --project-root ."`. The handler MUST be inserted, not replace, the existing project_profile arm — the sub-stage is reached after `gate_0_3` PROFILE APPROVED via `advance_sub_stage(state, "toolchain_provisioning")`. `dispatch_command_status` MUST accept `command_type = "infrastructure_setup_provision_only"` (returns `_copy(state)` for both `COMMAND_SUCCEEDED` and `COMMAND_FAILED` — the command itself sets `state.toolchain_status` as a side effect; routing consults the flag on the next pass).
 - `_route_stage_5` handles `sub_stage == "pass_transition"`: presents `gate_pass_transition_post_pass1` (pass=1) or `gate_pass_transition_post_pass2` (pass=2). Must not fall through to `git_repo_agent` default. **(Bug S3-54 fix.)**
 - Oracle state mutation invariant: `dispatch_gate_response` and `_route_oracle` must NOT directly set `oracle_session_active`, `oracle_phase`, `oracle_test_project`, or `oracle_nested_session_path`. All oracle session start/stop goes through `enter_oracle_session`, `complete_oracle_session`, or `abandon_oracle_session` from Unit 6. Direct `oracle_phase` assignment is acceptable only for intra-session phase transitions. **(Bug S3-63 fix.)**
 
@@ -1394,10 +1399,12 @@ def run_tests_main(argv: list = None) -> None: ...
 - `gate_0_2_context_approval` + `CONTEXT APPROVED`: advance_sub_stage("project_profile").
 - `gate_0_2_context_approval` + `CONTEXT REJECTED`: delete `project_context.md`, clear `last_status.txt`, re-invoke setup agent in context mode.
 - `gate_0_2_context_approval` + `CONTEXT NOT READY`: clear `last_status.txt`, re-invoke setup agent in context mode.
-- `gate_0_3_profile_approval` + `PROFILE APPROVED`: read `language.primary` from `project_profile.json` and set `state.primary_language` to that value BEFORE calling `advance_stage("1")`. In the same handler, also read `requires_statistical_analysis` from `project_profile.json` and set `state.requires_statistical_analysis` via `bool(profile.get("requires_statistical_analysis", False))` — a profile missing the field syncs to `False` (silent backward compat). **(Bug S3-164 — parallel sync to S3-154.)** Defensive on missing file / missing field / malformed JSON: log a warning to stderr and leave `state.primary_language` unchanged. **(Bug S3-154 fix.)**
+- `gate_0_3_profile_approval` + `PROFILE APPROVED`: read `language.primary` from `project_profile.json` and set `state.primary_language` to that value BEFORE the sub-stage transition. In the same handler, also read `requires_statistical_analysis` from `project_profile.json` and set `state.requires_statistical_analysis` via `bool(profile.get("requires_statistical_analysis", False))` — a profile missing the field syncs to `False` (silent backward compat). **(Bug S3-164 — parallel sync to S3-154.)** Defensive on missing file / missing field / malformed JSON: log a warning to stderr and leave `state.primary_language` unchanged. **(Bug S3-154 fix.)** **(CHANGED IN 2.2 — Bug S3-176)** MUST transition to `sub_stage = "toolchain_provisioning"` via `advance_sub_stage(state, "toolchain_provisioning")` instead of calling `advance_stage(state, "1")` directly (stage stays 0). The advance to stage 1 happens later, at gate_0_4 PROCEED. The full stage-0-to-stage-1 transition still terminates at `stage = 1` (just via gate_0_4 now). Existing in-flight projects pick up the new sub-stage on next PROFILE APPROVED (Pattern P57: SVP itself + future jobs migrate; existing children NOT retroactively migrated).
 - `gate_0_3_profile_approval` + `PROFILE REJECTED`: re-invoke setup agent in profile mode.
 - `gate_0_3r_profile_revision` + `PROFILE APPROVED`: complete_redo_profile_revision, restart per redo_type.
 - `gate_0_3r_profile_revision` + `PROFILE REJECTED`: re-invoke setup agent in appropriate redo mode.
+- `gate_0_4_toolchain_provisioned` + `PROCEED` **(NEW IN 2.2 — Bug S3-176)**: MUST call `advance_stage(state, "1")`. This is the new place that calls `advance_stage("1")` for the stage-0-to-stage-1 transition. The handler MUST NOT mutate `state.toolchain_status` (READY is preserved into Stage 1).
+- `gate_0_4_toolchain_provisioned` + `ABORT` **(NEW IN 2.2 — Bug S3-176)**: MUST set `state.toolchain_status = "NOT_READY"` AND call `advance_sub_stage(state, "project_profile")` so the operator can revise the project profile and re-provision. Clears `last_status.txt`.
 - `gate_1_1_spec_draft` + `APPROVE`: advance to `checklist_generation` sub_stage. Invoke checklist generation agent.
 - `gate_1_1_spec_draft` + `REVISE`: re-invoke stakeholder dialog in revision mode.
 - `gate_1_1_spec_draft` + `FRESH REVIEW`: set `sub_stage = "spec_review"`, which routes to stakeholder_reviewer (Bug S3-17 fix).

@@ -554,6 +554,7 @@ def run_infrastructure_setup(
     toolchain: Dict[str, Any],
     language_registry: Dict[str, Dict[str, Any]],
     blueprint_dir: Path,
+    provision_only: bool = False,
 ) -> None:
     """Perform the 9-step infrastructure setup sequence.
 
@@ -570,6 +571,16 @@ def run_infrastructure_setup(
 
     On any step failure: reports error and raises an exception.
     No partial cleanup.
+
+    **(Bug S3-176)** When ``provision_only=True``: runs ONLY the
+    blueprint-independent prefix — env-create (Step 4b, idempotent) plus
+    toolchain verification (Step 4c). All blueprint-dependent steps
+    (directory scaffolding, helper-svp.R templated copy, DAG validation,
+    total_units derivation, regression test adaptation, build log creation)
+    are SKIPPED. ``state.toolchain_status`` is written to
+    ``pipeline_state.json`` and the function returns early. Used by
+    Stage-0 provisioning (gate_0_3 PROFILE APPROVED) to create the conda
+    env immediately after profile approval, before any blueprint exists.
     """
     primary_language = profile.get("language", {}).get("primary", "python")
     env_name = derive_env_name(project_root)
@@ -623,26 +634,34 @@ def run_infrastructure_setup(
 
     # -----------------------------------------------------------------------
     # Step 3: Dependency extraction
+    # Bug S3-176: in provision_only mode the blueprint is not yet authored,
+    # so blueprint-derived imports are skipped. Env creation still proceeds
+    # with quality + bridge packages only.
     # -----------------------------------------------------------------------
-    imports = _extract_imports_from_blueprint(blueprint_dir)
-
     third_party_modules: List[str] = []
-    for stmt in imports:
-        module = _get_top_level_module(stmt)
-        if not _is_stdlib_or_internal(module) and module not in third_party_modules:
-            third_party_modules.append(module)
+    if not provision_only:
+        imports = _extract_imports_from_blueprint(blueprint_dir)
 
-    # -----------------------------------------------------------------------
-    # Step 4: Import validation
-    # Validates that extracted imports are resolvable. For stdlib and internal
-    # modules this is a static check; third-party modules are recorded for
-    # installation (actual import validation runs in the created environment).
-    # -----------------------------------------------------------------------
-    # Static validation: all imports must be parseable
-    for stmt in imports:
-        module = _get_top_level_module(stmt)
-        if not module:
-            raise ValueError(f"Could not extract module from import: {stmt}")
+        for stmt in imports:
+            module = _get_top_level_module(stmt)
+            if (
+                not _is_stdlib_or_internal(module)
+                and module not in third_party_modules
+            ):
+                third_party_modules.append(module)
+
+        # -------------------------------------------------------------------
+        # Step 4: Import validation
+        # Validates that extracted imports are resolvable. For stdlib and
+        # internal modules this is a static check; third-party modules are
+        # recorded for installation (actual import validation runs in the
+        # created environment).
+        # -------------------------------------------------------------------
+        # Static validation: all imports must be parseable
+        for stmt in imports:
+            module = _get_top_level_module(stmt)
+            if not module:
+                raise ValueError(f"Could not extract module from import: {stmt}")
 
     # -----------------------------------------------------------------------
     # Step 4b: Environment creation and package installation (Bug S3-137)
@@ -699,6 +718,35 @@ def run_infrastructure_setup(
                     "Toolchain verification failed: "
                     + "; ".join(errors)
                 )
+
+    # -----------------------------------------------------------------------
+    # Bug S3-176: provision_only mode early return.
+    # In Stage-0 provisioning the blueprint does not yet exist; env-create +
+    # verify is the entire job. state.toolchain_status was set by Step 4c
+    # above when the conda branch ran. For non-conda branches (renv /
+    # packrat / mixed without verify_commands), state remains NOT_READY and
+    # the operator must address that explicitly. We also write the state
+    # here defensively for the no-toolchain.json and non-conda cases so
+    # routing has a deterministic readiness flag to consult.
+    # -----------------------------------------------------------------------
+    if provision_only:
+        if env_info["env_manager"] != "conda":
+            try:
+                state = load_state(project_root)
+            except FileNotFoundError:
+                state = None
+            if state is not None:
+                # Non-conda paths skip mechanical verification; treat as
+                # NOT_READY until manual confirmation lands. The Stage-0
+                # router will hold the pipeline rather than presenting
+                # gate_0_4.
+                if state.toolchain_status != "READY":
+                    state.toolchain_status = "NOT_READY"
+                    try:
+                        save_state(project_root, state)
+                    except Exception:
+                        pass
+        return
 
     # -----------------------------------------------------------------------
     # Step 5: Directory scaffolding
@@ -919,6 +967,15 @@ def main(argv: list = None) -> None:
         required=True,
         help="Path to the project root",
     )
+    parser.add_argument(
+        "--provision-only",
+        action="store_true",
+        default=False,
+        help=(
+            "Bug S3-176: run only env-create + verify (skip blueprint-"
+            "dependent steps). Used by Stage-0 provisioning."
+        ),
+    )
     args = parser.parse_args(argv)
 
     project_root = Path(args.project_root).resolve()
@@ -936,6 +993,7 @@ def main(argv: list = None) -> None:
             toolchain=toolchain,
             language_registry=language_registry,
             blueprint_dir=blueprint_dir,
+            provision_only=args.provision_only,
         )
     except SystemExit:
         raise

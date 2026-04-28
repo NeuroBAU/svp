@@ -1230,3 +1230,5 @@
 
 - **Pattern.** **P59 (NEW — Schema Documentation And Validator Are Mutually Reinforcing)**. P59 — Schema documentation and a corresponding validator are mutually reinforcing. The doc describes intent in prose readable by humans; the validator enforces it mechanically and catches doc errors. Authoring them in adjacent cycles (A1 doc → A2 validator + corrections) catches drift between intent and reality before it propagates. Cite S3-175.
 
+- **Pattern.** **P60 (NEW — Long-Running Operations Crossing Pipeline Transitions Deserve A Sub-Stage Boundary)**. P60 — Pipeline transitions that cross a long-running operation (env create takes 1-2 min) deserve a sub-stage boundary, not a hidden side-effect inside a gate handler. The new sub_stage `toolchain_provisioning` makes the operation visible in pipeline_state.json (so resume/restart works), gives the human a discrete approval point (gate_0_4), and surfaces failures as a held state rather than an exception. Cite S3-176.
+

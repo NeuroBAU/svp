@@ -15,7 +15,12 @@ from src.unit_1.stub import ARTIFACT_FILENAMES
 VALID_STAGES: Set[str] = {"0", "1", "2", "pre_stage_3", "3", "4", "5"}
 
 VALID_SUB_STAGES: Dict[str, Set[Optional[str]]] = {
-    "0": {"hook_activation", "project_context", "project_profile"},
+    "0": {
+        "hook_activation",
+        "project_context",
+        "project_profile",
+        "toolchain_provisioning",
+    },
     "1": {None, "checklist_generation"},
     "2": {"blueprint_dialog", "alignment_check", "alignment_confirmed"},
     "pre_stage_3": {None},

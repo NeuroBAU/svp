@@ -76,11 +76,40 @@ class TestGateResponseCallsAdvanceStage:
     """Bug S3-8: gates that change stage+sub_stage+current_unit+fix_ladder+red_run
     must call advance_stage instead of setting fields directly."""
 
-    @patch("routing.advance_stage")
-    def test_gate_0_3_profile_approved_calls_advance_stage(self, mock_advance):
-        mock_advance.return_value = _make_state(stage="1")
+    @patch("routing.advance_sub_stage")
+    def test_gate_0_3_profile_approved_calls_advance_sub_stage(
+        self, mock_advance_sub
+    ):
+        """Bug S3-176: gate_0_3 PROFILE APPROVED now calls
+        advance_sub_stage(state, 'toolchain_provisioning') (stage stays 0)
+        instead of advance_stage(state, '1'). The advance_stage('1') call
+        moves to gate_0_4 PROCEED. Pattern P57: existing children NOT
+        retroactively migrated; SVP itself + future jobs follow this flow."""
+        mock_advance_sub.return_value = _make_state(
+            stage="0", sub_stage="toolchain_provisioning"
+        )
         state = _make_state(stage="0", sub_stage="project_profile")
-        dispatch_gate_response(state, "gate_0_3_profile_approval", "PROFILE APPROVED", Path("/tmp"))
+        dispatch_gate_response(
+            state, "gate_0_3_profile_approval", "PROFILE APPROVED", Path("/tmp")
+        )
+        # The mocked advance_sub_stage is called with (synced_state,
+        # 'toolchain_provisioning'); we only assert the destination
+        # because the state argument is a _copy() of the original after
+        # the field-sync block.
+        assert mock_advance_sub.called
+        call_args = mock_advance_sub.call_args
+        assert call_args[0][1] == "toolchain_provisioning"
+
+    @patch("routing.advance_stage")
+    def test_gate_0_4_proceed_calls_advance_stage(self, mock_advance):
+        """Bug S3-176: gate_0_4 PROCEED is the new place that calls
+        advance_stage(state, '1'). The full stage-0-to-stage-1 transition
+        still terminates at stage=1 (just via gate_0_4 now)."""
+        mock_advance.return_value = _make_state(stage="1")
+        state = _make_state(stage="0", sub_stage="toolchain_provisioning")
+        dispatch_gate_response(
+            state, "gate_0_4_toolchain_provisioned", "PROCEED", Path("/tmp")
+        )
         mock_advance.assert_called_once_with(state, "1")
 
     @patch("routing.advance_stage")

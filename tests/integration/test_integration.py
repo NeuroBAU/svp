@@ -646,16 +646,18 @@ class TestPipelineStateUsedByTransitions:
 class TestTransitionFunctionsCalledByDispatch:
     """Integration: Transition functions (Unit 6) called by dispatch (Unit 14)."""
 
-    def test_gate_0_3_profile_approved_calls_advance_stage(self, tmp_path):
-        """PROFILE APPROVED at Gate 0.3 advances pipeline to Stage 1."""
+    def test_gate_0_3_profile_approved_calls_advance_sub_stage(self, tmp_path):
+        """Bug S3-176: PROFILE APPROVED at Gate 0.3 transitions to the new
+        sub_stage 'toolchain_provisioning' (stage stays 0). Advance to stage
+        1 happens at gate_0_4 PROCEED."""
         _create_minimal_workspace(tmp_path)
         state = PipelineState(stage="0", sub_stage="project_profile")
 
         new_state = dispatch_gate_response(
             state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
         )
-        assert new_state.stage == "1"
-        assert new_state.sub_stage is None
+        assert new_state.stage == "0"
+        assert new_state.sub_stage == "toolchain_provisioning"
 
     def test_gate_0_3_profile_rejected_stays_at_profile(self, tmp_path):
         """PROFILE REJECTED at Gate 0.3 returns to project_profile."""
@@ -903,9 +905,10 @@ class TestPrepareTaskPromptDispatches:
 class TestGateVocabularyCoversAllGates:
     """Integration: GATE_VOCABULARY (Unit 14) covers all gates from Unit 13."""
 
-    def test_gate_vocabulary_has_31_gates(self):
-        """GATE_VOCABULARY contains exactly 31 gate entries."""
-        assert len(GATE_VOCABULARY) == 31
+    def test_gate_vocabulary_has_32_gates(self):
+        """GATE_VOCABULARY contains exactly 32 gate entries (31 baseline +
+        gate_0_4_toolchain_provisioned added by Bug S3-176)."""
+        assert len(GATE_VOCABULARY) == 32
 
     def test_all_gate_ids_have_vocabulary_entries(self):
         """Every gate in ALL_GATE_IDS has a GATE_VOCABULARY entry."""
@@ -941,9 +944,10 @@ class TestGateVocabularyCoversAllGates:
         for gate_id, responses in GATE_VOCABULARY.items():
             assert len(responses) > 0, f"Gate '{gate_id}' has no valid responses"
 
-    def test_all_gate_ids_list_has_31_entries(self):
-        """ALL_GATE_IDS contains exactly 31 entries."""
-        assert len(ALL_GATE_IDS) == 31
+    def test_all_gate_ids_list_has_32_entries(self):
+        """ALL_GATE_IDS contains exactly 32 entries (31 baseline +
+        gate_0_4_toolchain_provisioned added by Bug S3-176)."""
+        assert len(ALL_GATE_IDS) == 32
 
 
 # ===================================================================

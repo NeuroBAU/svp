@@ -72,6 +72,7 @@ GATE_VOCABULARY: Dict[str, List[str]] = {
     ],
     "gate_0_3_profile_approval": ["PROFILE APPROVED", "PROFILE REJECTED"],
     "gate_0_3r_profile_revision": ["PROFILE APPROVED", "PROFILE REJECTED"],
+    "gate_0_4_toolchain_provisioned": ["PROCEED", "ABORT"],
     "gate_1_1_spec_draft": ["APPROVE", "REVISE", "FRESH REVIEW"],
     "gate_1_2_spec_post_review": ["APPROVE", "REVISE", "FRESH REVIEW"],
     "gate_2_1_blueprint_approval": ["APPROVE", "REVISE", "FRESH REVIEW"],
@@ -1612,6 +1613,62 @@ def _route_stage_0(
             ),
         )
 
+    # Bug S3-176: Stage-0 provisioning sub-stage. Inserted between
+    # gate_0_3 PROFILE APPROVED and advance_stage("1") so the conda env
+    # is created+verified BEFORE Stage 1 work that may need language
+    # tooling (Quarto rendering, etc.). State machine:
+    #   - state.toolchain_status != "READY" AND last_status != COMMAND_FAILED:
+    #         emit run_command(infrastructure_setup.py --provision-only)
+    #   - last_status == "COMMAND_FAILED": emit pipeline_held
+    #   - state.toolchain_status == "READY": emit gate_0_4 human_gate
+    if sub == "toolchain_provisioning":
+        if last_status == "COMMAND_FAILED":
+            return _make_action_block(
+                action_type="pipeline_held",
+                message=(
+                    "TOOLCHAIN_PROVISION_FAILED: see scripts/"
+                    "infrastructure_setup.py stderr for details. Fix the "
+                    "toolchain manifest or environment, then write "
+                    "'PIPELINE_RESUME' to .svp/last_status.txt to retry."
+                ),
+                reminder=(
+                    "TOOLCHAIN_PROVISION_FAILED: see scripts/"
+                    "infrastructure_setup.py stderr for details. Fix the "
+                    "toolchain manifest or environment, then write "
+                    "'PIPELINE_RESUME' to .svp/last_status.txt to retry."
+                ),
+            )
+        if state.toolchain_status != "READY":
+            return _make_action_block(
+                action_type="run_command",
+                command="infrastructure_setup_provision_only",
+                cmd=(
+                    "python scripts/infrastructure_setup.py "
+                    "--provision-only --project-root ."
+                ),
+                reminder="Provisioning toolchain (Stage 0 close).",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command infrastructure_setup_provision_only "
+                    "--project-root ."
+                ),
+            )
+        # toolchain_status == "READY"
+        return _make_action_block(
+            action_type="human_gate",
+            gate_id="gate_0_4_toolchain_provisioned",
+            reminder=(
+                "Toolchain environment created and verified. PROCEED to "
+                "Stage 1 stakeholder dialog, or ABORT to revise the "
+                "project profile."
+            ),
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_0_4_toolchain_provisioned "
+                "--project-root ."
+            ),
+        )
+
     return _make_action_block(
         action_type="pipeline_held",
         message=f"Unknown Stage 0 sub-stage: {sub}",
@@ -2381,14 +2438,21 @@ def dispatch_gate_response(
     if gate_id == "gate_0_3_profile_approval":
         if response == "PROFILE APPROVED":
             # Bug S3-154: sync language.primary from project_profile.json into
-            # state.primary_language BEFORE advancing the stage. Without this,
-            # the field retains its default value ("python") and downstream
-            # task prompts misreport the language for non-Python archetypes.
+            # state.primary_language BEFORE advancing the sub_stage. Without
+            # this, the field retains its default value ("python") and
+            # downstream task prompts misreport the language for non-Python
+            # archetypes.
             #
             # Bug S3-164: in the same handler, sync requires_statistical_analysis
             # from project_profile.json into state.requires_statistical_analysis.
             # The bool(...) coercion + False default make the sync defensive: a
             # profile missing the field syncs to False (silent backward compat).
+            #
+            # Bug S3-176: instead of advancing directly to stage 1, transition
+            # into the new sub_stage "toolchain_provisioning" (stage stays 0).
+            # The stage-0 router runs infrastructure_setup --provision-only
+            # and presents gate_0_4 (PROCEED/ABORT) when the env is verified.
+            # gate_0_4 PROCEED is the new place that calls advance_stage("1").
             profile_path = project_root / "project_profile.json"
             try:
                 with open(profile_path, "r") as f:
@@ -2413,10 +2477,21 @@ def dispatch_gate_response(
                     f"unchanged.",
                     file=sys.stderr,
                 )
-            new = advance_stage(state, "1")
+            new = advance_sub_stage(state, "toolchain_provisioning")
         else:  # PROFILE REJECTED
             _clear_last_status(project_root)
             new = advance_sub_stage(state, "project_profile")
+        return new
+
+    # Gate 0.4: Toolchain provisioned (Bug S3-176)
+    if gate_id == "gate_0_4_toolchain_provisioned":
+        if response == "PROCEED":
+            new = advance_stage(state, "1")
+        else:  # ABORT
+            _clear_last_status(project_root)
+            new = _copy(state)
+            new.toolchain_status = "NOT_READY"
+            new = advance_sub_stage(new, "project_profile")
         return new
 
     # Gate 0.3r: Redo profile revision
@@ -3261,6 +3336,22 @@ def dispatch_command_status(
         elif status_line == "COMMAND_FAILED":
             new = _copy(state)
             # Present error to human -- state still changes (new copy)
+        else:
+            raise ValueError(f"Unknown status for {command_type}: {status_line}")
+        return new
+
+    # infrastructure_setup_provision_only (Bug S3-176)
+    # Stage-0 provisioning command. The command itself writes
+    # state.toolchain_status (via run_infrastructure_setup); routing
+    # consults the flag on the next pass. On COMMAND_FAILED, the
+    # toolchain_provisioning router emits pipeline_held with the
+    # TOOLCHAIN_PROVISION_FAILED message. State stays in
+    # sub_stage="toolchain_provisioning"; we return _copy(state) so the
+    # state-advance invariant is satisfied trivially (the next pass
+    # observes the toolchain_status side effect from the command itself).
+    if command_type == "infrastructure_setup_provision_only":
+        if status_line in ("COMMAND_SUCCEEDED", "COMMAND_FAILED"):
+            new = _copy(state)
         else:
             raise ValueError(f"Unknown status for {command_type}: {status_line}")
         return new

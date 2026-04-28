@@ -161,9 +161,10 @@ class TestGateVocabulary:
         """GATE_VOCABULARY must be a dict."""
         assert isinstance(GATE_VOCABULARY, dict)
 
-    def test_gate_vocabulary_has_31_gates(self):
-        """GATE_VOCABULARY must contain exactly 31 gate entries."""
-        assert len(GATE_VOCABULARY) == 31
+    def test_gate_vocabulary_has_32_gates(self):
+        """GATE_VOCABULARY must contain exactly 32 gate entries (31 baseline
+        + gate_0_4_toolchain_provisioned added by Bug S3-176)."""
+        assert len(GATE_VOCABULARY) == 32
 
     def test_all_gate_values_are_lists_of_strings(self):
         """Every gate entry must map to a list of string responses."""
@@ -434,12 +435,14 @@ class TestGateVocabulary:
         }
 
     def test_all_expected_gate_ids_present(self):
-        """All 31 expected gate IDs are present in GATE_VOCABULARY."""
+        """All 32 expected gate IDs are present in GATE_VOCABULARY (31
+        baseline + gate_0_4_toolchain_provisioned per Bug S3-176)."""
         expected_gates = {
             "gate_0_1_hook_activation",
             "gate_0_2_context_approval",
             "gate_0_3_profile_approval",
             "gate_0_3r_profile_revision",
+            "gate_0_4_toolchain_provisioned",
             "gate_1_1_spec_draft",
             "gate_1_2_spec_post_review",
             "gate_2_1_blueprint_approval",
@@ -2671,13 +2674,16 @@ class TestDispatchGateResponse:
 
     # -- Gate 0.3 --
 
-    def test_gate_0_3_profile_approved_advances_stage(self):
-        """gate_0_3 + PROFILE APPROVED: advance_stage to '1'."""
+    def test_gate_0_3_profile_approved_advances_to_toolchain_provisioning(self):
+        """Bug S3-176: gate_0_3 + PROFILE APPROVED transitions into the new
+        sub_stage 'toolchain_provisioning' (stage stays 0). Advance to stage
+        1 happens later, at gate_0_4 PROCEED."""
         state = _make_state(stage="0", sub_stage="project_profile")
         result = dispatch_gate_response(
             state, "gate_0_3_profile_approval", "PROFILE APPROVED", Path("/tmp")
         )
-        assert result.stage == "1"
+        assert result.stage == "0"
+        assert result.sub_stage == "toolchain_provisioning"
 
     def test_gate_0_3_profile_rejected_re_invokes(self):
         """gate_0_3 + PROFILE REJECTED: re-invoke setup agent in profile mode."""
@@ -2691,7 +2697,8 @@ class TestDispatchGateResponse:
 
     def test_gate_0_3_profile_approved_syncs_primary_language_r(self, tmp_path):
         """gate_0_3 + PROFILE APPROVED with profile language.primary == 'r':
-        state.primary_language is updated to 'r' and stage advances to '1'.
+        state.primary_language is updated to 'r'. Bug S3-176: transition is
+        into sub_stage='toolchain_provisioning', not stage='1' directly.
         """
         profile = {"language": {"primary": "r"}}
         (tmp_path / "project_profile.json").write_text(json.dumps(profile))
@@ -2702,13 +2709,15 @@ class TestDispatchGateResponse:
             state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
         )
         assert result.primary_language == "r"
-        assert result.stage == "1"
+        assert result.stage == "0"
+        assert result.sub_stage == "toolchain_provisioning"
 
     def test_gate_0_3_profile_approved_syncs_primary_language_python_noop(
         self, tmp_path
     ):
         """gate_0_3 + PROFILE APPROVED with profile language.primary == 'python':
-        state.primary_language remains 'python' and stage advances to '1'.
+        state.primary_language remains 'python'. Bug S3-176: transition is
+        into sub_stage='toolchain_provisioning'.
         """
         profile = {"language": {"primary": "python"}}
         (tmp_path / "project_profile.json").write_text(json.dumps(profile))
@@ -2719,13 +2728,15 @@ class TestDispatchGateResponse:
             state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
         )
         assert result.primary_language == "python"
-        assert result.stage == "1"
+        assert result.stage == "0"
+        assert result.sub_stage == "toolchain_provisioning"
 
     def test_gate_0_3_profile_approved_missing_language_field_defensive(
         self, tmp_path
     ):
         """gate_0_3 + PROFILE APPROVED with profile lacking the language block:
-        state.primary_language is unchanged, stage advances, no exception raised.
+        state.primary_language is unchanged, sub_stage advances, no exception
+        raised. Bug S3-176: transition is into sub_stage='toolchain_provisioning'.
         """
         profile = {"archetype": "python_project"}  # no "language" key
         (tmp_path / "project_profile.json").write_text(json.dumps(profile))
@@ -2736,7 +2747,8 @@ class TestDispatchGateResponse:
             state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
         )
         assert result.primary_language == "r"
-        assert result.stage == "1"
+        assert result.stage == "0"
+        assert result.sub_stage == "toolchain_provisioning"
 
     # -- Gate 0.3 (Bug S3-164: requires_statistical_analysis sync) --
 
@@ -2744,7 +2756,8 @@ class TestDispatchGateResponse:
         self, tmp_path
     ):
         """Bug S3-164: profile with requires_statistical_analysis=True is synced
-        into state.requires_statistical_analysis (True) and stage advances."""
+        into state.requires_statistical_analysis (True). Bug S3-176: transition
+        is into sub_stage='toolchain_provisioning'."""
         profile = {
             "language": {"primary": "python"},
             "requires_statistical_analysis": True,
@@ -2757,13 +2770,15 @@ class TestDispatchGateResponse:
             state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
         )
         assert result.requires_statistical_analysis is True
-        assert result.stage == "1"
+        assert result.stage == "0"
+        assert result.sub_stage == "toolchain_provisioning"
 
     def test_gate_0_3_profile_approved_syncs_requires_statistical_analysis_false(
         self, tmp_path
     ):
         """Bug S3-164: profile with requires_statistical_analysis=False keeps
-        state.requires_statistical_analysis at False; stage advances."""
+        state.requires_statistical_analysis at False. Bug S3-176: transition
+        is into sub_stage='toolchain_provisioning'."""
         profile = {
             "language": {"primary": "python"},
             "requires_statistical_analysis": False,
@@ -2774,13 +2789,15 @@ class TestDispatchGateResponse:
             state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
         )
         assert result.requires_statistical_analysis is False
-        assert result.stage == "1"
+        assert result.stage == "0"
+        assert result.sub_stage == "toolchain_provisioning"
 
     def test_gate_0_3_profile_approved_missing_requires_statistical_analysis_defaults_false(
         self, tmp_path
     ):
         """Bug S3-164 backward compat: profile lacking the field syncs to
-        False (silent default). Stage advances."""
+        False (silent default). Bug S3-176: transition is into
+        sub_stage='toolchain_provisioning'."""
         profile = {"language": {"primary": "python"}}  # no flag
         (tmp_path / "project_profile.json").write_text(json.dumps(profile))
         state = _make_state(stage="0", sub_stage="project_profile")
@@ -2788,14 +2805,17 @@ class TestDispatchGateResponse:
             state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
         )
         assert result.requires_statistical_analysis is False
-        assert result.stage == "1"
+        assert result.stage == "0"
+        assert result.sub_stage == "toolchain_provisioning"
 
     def test_gate_0_3_profile_approval_routing_invariant_with_flag_false(
         self, tmp_path
     ):
         """Bug S3-164 routing-safety regression: with the flag absent (False),
-        the gate handler emits exactly the same routing transitions as before
-        S3-164 -- stage advances to 1 and primary_language sync is preserved.
+        the gate handler still preserves the field syncs. Bug S3-176 update:
+        the post-sync transition target is sub_stage='toolchain_provisioning'
+        instead of stage='1'. The eventual transition to stage 1 still ends
+        at stage=1 (just via gate_0_4 PROCEED now).
         """
         profile = {"language": {"primary": "r"}}
         (tmp_path / "project_profile.json").write_text(json.dumps(profile))
@@ -2807,8 +2827,10 @@ class TestDispatchGateResponse:
         )
         # S3-154 behavior preserved.
         assert result.primary_language == "r"
-        # Stage advances to 1 -- routing emit unchanged.
-        assert result.stage == "1"
+        # Bug S3-176: routing target changed from stage=1 to
+        # sub_stage='toolchain_provisioning'.
+        assert result.stage == "0"
+        assert result.sub_stage == "toolchain_provisioning"
         # Flag remains False (silent default) -- routing-safety invariant.
         assert result.requires_statistical_analysis is False
 
@@ -4508,3 +4530,118 @@ class TestS3_168SpecialistDispatch:
             tmp_path,
         )
         assert result.statistical_review_done is False
+
+
+# ===========================================================================
+# Bug S3-176: Stage-0 toolchain provisioning sub-stage
+# ===========================================================================
+
+
+class TestS3_176Stage0Provisioning:
+    """Bug S3-176: gate_0_3 PROFILE APPROVED transitions to a new sub-stage
+    'toolchain_provisioning' (stage stays 0). The Stage-0 router emits
+    run_command (when state.toolchain_status != READY), pipeline_held (when
+    last_status == COMMAND_FAILED), or human_gate gate_0_4 (when READY).
+    gate_0_4 PROCEED advances to stage 1; ABORT returns to project_profile
+    sub-stage with toolchain_status reset to NOT_READY."""
+
+    def test_gate_0_3_profile_approved_routes_to_toolchain_provisioning_sub_stage(
+        self, tmp_path
+    ):
+        """gate_0_3 + PROFILE APPROVED transitions into sub_stage=
+        'toolchain_provisioning' (stage stays 0). Existing field syncs
+        (S3-154 primary_language, S3-164 requires_statistical_analysis)
+        are preserved."""
+        profile = {
+            "language": {"primary": "r"},
+            "requires_statistical_analysis": True,
+        }
+        (tmp_path / "project_profile.json").write_text(json.dumps(profile))
+        state = _make_state(
+            stage="0", sub_stage="project_profile", primary_language="python"
+        )
+        result = dispatch_gate_response(
+            state, "gate_0_3_profile_approval", "PROFILE APPROVED", tmp_path
+        )
+        # Stage stays 0; sub_stage advances.
+        assert result.stage == "0"
+        assert result.sub_stage == "toolchain_provisioning"
+        # Field syncs preserved.
+        assert result.primary_language == "r"
+        assert result.requires_statistical_analysis is True
+
+    def test_route_stage_0_toolchain_provisioning_emits_run_command_when_not_ready(
+        self, tmp_path
+    ):
+        """When state.toolchain_status != 'READY' and last_status is not
+        COMMAND_FAILED, route() emits a run_command action_type that runs
+        scripts/infrastructure_setup.py --provision-only."""
+        state = _make_state(stage="0", sub_stage="toolchain_provisioning")
+        # Default toolchain_status is "NOT_READY".
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "")
+        result = route(tmp_path)
+        assert result["action_type"] == "run_command"
+        assert "--provision-only" in result.get("cmd", "")
+        assert "infrastructure_setup.py" in result.get("cmd", "")
+
+    def test_route_stage_0_toolchain_provisioning_emits_human_gate_when_ready(
+        self, tmp_path
+    ):
+        """When state.toolchain_status == 'READY', route() emits a
+        human_gate action_type with gate_id=gate_0_4_toolchain_provisioned."""
+        state = _make_state(stage="0", sub_stage="toolchain_provisioning")
+        state.toolchain_status = "READY"
+        svp_dir = _write_state_file(tmp_path, state)
+        # _write_state_file omits toolchain_status; rewrite the file with
+        # the field included so load_state reads READY (the loader's
+        # default would be NOT_READY otherwise).
+        state_dict = json.loads((svp_dir / "pipeline_state.json").read_text())
+        state_dict["toolchain_status"] = "READY"
+        (svp_dir / "pipeline_state.json").write_text(json.dumps(state_dict))
+        _write_last_status(tmp_path, "")
+        result = route(tmp_path)
+        assert result["action_type"] == "human_gate"
+        assert result.get("gate_id") == "gate_0_4_toolchain_provisioned"
+
+    def test_route_stage_0_toolchain_provisioning_emits_pipeline_held_on_command_failed(
+        self, tmp_path
+    ):
+        """When last_status == 'COMMAND_FAILED' (env-create or verify
+        failed), route() emits pipeline_held with TOOLCHAIN_PROVISION_FAILED
+        in the message/reminder."""
+        state = _make_state(stage="0", sub_stage="toolchain_provisioning")
+        # toolchain_status remains NOT_READY (failure scenario).
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "COMMAND_FAILED")
+        result = route(tmp_path)
+        assert result["action_type"] == "pipeline_held"
+        combined = (
+            result.get("message", "") + result.get("reminder", "")
+        )
+        assert "TOOLCHAIN_PROVISION_FAILED" in combined
+
+    def test_dispatch_gate_0_4_proceed_advances_to_stage_1(self, tmp_path):
+        """gate_0_4 PROCEED is the new place that calls advance_stage('1');
+        result.stage == '1'."""
+        state = _make_state(stage="0", sub_stage="toolchain_provisioning")
+        state.toolchain_status = "READY"
+        result = dispatch_gate_response(
+            state, "gate_0_4_toolchain_provisioned", "PROCEED", tmp_path
+        )
+        assert result.stage == "1"
+
+    def test_dispatch_gate_0_4_abort_returns_to_project_profile_and_resets_toolchain_status(
+        self, tmp_path
+    ):
+        """gate_0_4 ABORT returns to sub_stage='project_profile' (stage 0)
+        AND resets state.toolchain_status='NOT_READY' so the operator can
+        revise the profile and re-provision."""
+        state = _make_state(stage="0", sub_stage="toolchain_provisioning")
+        state.toolchain_status = "READY"
+        result = dispatch_gate_response(
+            state, "gate_0_4_toolchain_provisioned", "ABORT", tmp_path
+        )
+        assert result.stage == "0"
+        assert result.sub_stage == "project_profile"
+        assert result.toolchain_status == "NOT_READY"

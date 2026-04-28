@@ -361,3 +361,156 @@ def test_python_conda_env_creation_also_verifies(
     assert len(verify_calls) == 1
     state = load_state(tmp_path)
     assert state.toolchain_status == "READY"
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-176: provision_only mode (Stage-0 provisioning).
+#
+# When provision_only=True, run_infrastructure_setup MUST run only the
+# blueprint-independent prefix (env-create + toolchain verification) and
+# return early. Blueprint-dependent steps (directory scaffolding,
+# helper-svp.R templated copy, DAG validation, total_units derivation,
+# regression test adaptation, build log creation) MUST be skipped because
+# the blueprint does not yet exist at Stage-0 close.
+# ---------------------------------------------------------------------------
+
+
+def test_run_infrastructure_setup_provision_only_runs_env_create_and_verify_only(
+    tmp_path, mock_infrastructure_subprocess, monkeypatch
+):
+    """provision_only=True runs env-create + verify but skips blueprint-
+    dependent steps (no helper-svp.R, no directory scaffolding, no build_log)."""
+    import infrastructure_setup
+
+    # No blueprint directory authored — provision_only must not need it.
+    blueprint_dir = tmp_path / "blueprint"
+    _seed_state(tmp_path)
+    # Materialize a python toolchain.json with verify_commands.
+    (tmp_path / "toolchain.json").write_text(
+        json.dumps(
+            {
+                "environment": {
+                    "tool": "conda",
+                    "run_prefix": "conda run -n {env_name}",
+                    "verify_commands": ["{run_prefix} python --version"],
+                },
+                "language": {"version_constraint": ">=3.11"},
+                "quality": {},
+            }
+        )
+    )
+    monkeypatch.setattr(
+        infrastructure_setup,
+        "verify_toolchain_ready",
+        lambda *a, **k: (True, []),
+    )
+
+    run_infrastructure_setup(
+        project_root=tmp_path,
+        profile=_minimal_profile(),
+        toolchain=_minimal_toolchain(),
+        language_registry=_minimal_registry(),
+        blueprint_dir=blueprint_dir,
+        provision_only=True,
+    )
+
+    # Env-create fired (Step 4b).
+    call_cmds = [c.args[0] for c in mock_infrastructure_subprocess.call_args_list]
+    assert any(cmd[:2] == ["conda", "create"] for cmd in call_cmds), (
+        f"Expected 'conda create' to fire in provision_only mode; got {call_cmds}"
+    )
+    # Blueprint-dependent artifacts NOT created.
+    assert not (tmp_path / "src").exists(), (
+        "src/ directory must NOT be scaffolded in provision_only mode "
+        "(blueprint not yet authored)."
+    )
+    assert not (tmp_path / "tests" / "testthat" / "helper-svp.R").exists()
+    # build_log.jsonl is part of Step 9 (skipped).
+    assert not (tmp_path / ".svp" / "build_log.jsonl").exists()
+
+
+def test_run_infrastructure_setup_provision_only_writes_toolchain_status_ready_on_success(
+    tmp_path, mock_infrastructure_subprocess, monkeypatch
+):
+    """provision_only=True with successful verify writes
+    state.toolchain_status='READY' to pipeline_state.json."""
+    import infrastructure_setup
+    from pipeline_state import load_state
+
+    blueprint_dir = tmp_path / "blueprint"
+    _seed_state(tmp_path)
+    (tmp_path / "toolchain.json").write_text(
+        json.dumps(
+            {
+                "environment": {
+                    "tool": "conda",
+                    "run_prefix": "conda run -n {env_name}",
+                    "verify_commands": ["{run_prefix} python --version"],
+                },
+                "language": {"version_constraint": ">=3.11"},
+                "quality": {},
+            }
+        )
+    )
+    monkeypatch.setattr(
+        infrastructure_setup,
+        "verify_toolchain_ready",
+        lambda *a, **k: (True, []),
+    )
+
+    run_infrastructure_setup(
+        project_root=tmp_path,
+        profile=_minimal_profile(),
+        toolchain=_minimal_toolchain(),
+        language_registry=_minimal_registry(),
+        blueprint_dir=blueprint_dir,
+        provision_only=True,
+    )
+
+    state = load_state(tmp_path)
+    assert state.toolchain_status == "READY"
+
+
+def test_run_infrastructure_setup_provision_only_writes_toolchain_status_not_ready_on_failure(
+    tmp_path, mock_infrastructure_subprocess, monkeypatch
+):
+    """provision_only=True with failing verify raises RuntimeError AND
+    persists state.toolchain_status='NOT_READY'."""
+    import pytest as _pytest
+
+    import infrastructure_setup
+    from pipeline_state import load_state
+
+    blueprint_dir = tmp_path / "blueprint"
+    _seed_state(tmp_path)
+    (tmp_path / "toolchain.json").write_text(
+        json.dumps(
+            {
+                "environment": {
+                    "tool": "conda",
+                    "run_prefix": "conda run -n {env_name}",
+                    "verify_commands": ["{run_prefix} python --version"],
+                },
+                "language": {"version_constraint": ">=3.11"},
+                "quality": {},
+            }
+        )
+    )
+    monkeypatch.setattr(
+        infrastructure_setup,
+        "verify_toolchain_ready",
+        lambda *a, **k: (False, ["verify failed: python --version"]),
+    )
+
+    with _pytest.raises(RuntimeError, match="Toolchain verification failed"):
+        run_infrastructure_setup(
+            project_root=tmp_path,
+            profile=_minimal_profile(),
+            toolchain=_minimal_toolchain(),
+            language_registry=_minimal_registry(),
+            blueprint_dir=blueprint_dir,
+            provision_only=True,
+        )
+
+    state = load_state(tmp_path)
+    assert state.toolchain_status == "NOT_READY"
