@@ -75,12 +75,18 @@ def validate_manifest(
     manifest: Dict[str, Any],
     *,
     expected_toolchain_id: str | None = None,
+    project_root: Path | None = None,
 ) -> List[str]:
     """Validate a toolchain manifest dict against the schema.
 
     Args:
         manifest: parsed manifest JSON.
         expected_toolchain_id: optional filename-stem match check.
+        project_root: optional path used to resolve primer file paths declared in
+            ``language_architecture_primers``. When provided, every non-null
+            primer path string is checked for on-disk existence relative to
+            ``project_root``. When None, existence checks are skipped (the
+            structural sub-key check still runs).
 
     Returns:
         List of human-readable error messages. Empty list == valid.
@@ -176,12 +182,33 @@ def validate_manifest(
                 "language_architecture_primers must be an object when present"
             )
         else:
-            for key in primers:
+            for key, value in primers.items():
                 if key not in _ALLOWED_PRIMER_SUBKEYS:
                     errors.append(
                         f"language_architecture_primers has unknown sub-key: "
                         f"{key} (allowed: {sorted(_ALLOWED_PRIMER_SUBKEYS)})"
                     )
+                    continue
+                # Per-key null is allowed (mixed null + path within the same dict).
+                if value is None:
+                    continue
+                if not isinstance(value, str):
+                    errors.append(
+                        f"language_architecture_primers.{key} must be a string "
+                        f"path or null (got: {type(value).__name__})"
+                    )
+                    continue
+                # Existence check (only when a project_root is supplied; this
+                # keeps the schema check structural by default and the path
+                # check opt-in for callers who know the project root).
+                if project_root is not None:
+                    primer_path = (project_root / value).resolve()
+                    if not primer_path.is_file():
+                        errors.append(
+                            f"language_architecture_primers.{key} references "
+                            f"non-existent primer file: {value} "
+                            f"(resolved to {primer_path})"
+                        )
 
     # Check 10: toolchain_id matches filename stem (if expected provided)
     if expected_toolchain_id is not None:
@@ -233,6 +260,23 @@ def _cli(argv: list[str] | None = None) -> int:
         print(f"ERROR: no .json files in {manifests_dir}", file=sys.stderr)
         return 1
 
+    # Locate project root for primer-path existence checks. The manifests live
+    # under either <ws>/scripts/toolchain_defaults/ (workspace layout) or
+    # <repo>/svp/scripts/toolchain_defaults/ (repo layout). Walking up from
+    # manifests_dir to the directory containing scripts/ (workspace) or svp/
+    # (repo) gives us the project root used to resolve primer paths declared in
+    # the manifests. Primer paths are always written workspace-relative
+    # ("scripts/primers/r/..."), so workspace layout resolves directly; repo
+    # layout falls back to <repo>/svp/<primer-path> via a dedicated check below.
+    project_root: Path | None = None
+    for ancestor in [manifests_dir, *manifests_dir.parents]:
+        if (ancestor / "scripts" / "toolchain_defaults").is_dir():
+            project_root = ancestor
+            break
+        if (ancestor / "svp" / "scripts" / "toolchain_defaults").is_dir():
+            project_root = ancestor / "svp"
+            break
+
     total_errors = 0
     for path in json_files:
         try:
@@ -241,7 +285,11 @@ def _cli(argv: list[str] | None = None) -> int:
             print(f"{path.name}: JSON parse error: {exc}", file=sys.stderr)
             total_errors += 1
             continue
-        errors = validate_manifest(manifest, expected_toolchain_id=path.stem)
+        errors = validate_manifest(
+            manifest,
+            expected_toolchain_id=path.stem,
+            project_root=project_root,
+        )
         if errors:
             total_errors += len(errors)
             print(f"{path.name}: {len(errors)} error(s):")

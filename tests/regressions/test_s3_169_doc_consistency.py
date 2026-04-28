@@ -38,6 +38,14 @@ CONCEPTS = [
     "per-function Calls citations",
     "language_architecture_primers",
     "Package Dependencies",
+    # NEW IN S3-181 (cycle E1 — R architectural primers).
+    # The directory path appears verbatim in spec section 40, blueprint_prose
+    # Unit 4, and blueprint_contracts Unit 4 — it is the canonical reference
+    # for every primer file authored by this cycle. Adding the path itself
+    # (rather than a single-word concept name) catches drift symmetrically
+    # in all three docs without conflating the singular vs. plural form of
+    # the existing language_architecture_primers concept.
+    "scripts/primers/r/",
 ]
 
 

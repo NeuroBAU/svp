@@ -133,6 +133,24 @@ if [ -d "$WORKSPACE/scripts/toolchain_defaults" ]; then
 fi
 echo ""
 
+# --- Step 1c: Language Architecture Primers (Bug S3-181) ---
+# Workspace primers live at scripts/primers/<lang>/*.md; repo primers live at
+# svp/scripts/primers/<lang>/*.md. The Step mirrors Step 1b's per-archetype
+# layout: walk every <lang> subdirectory and propagate its files one-way.
+echo "--- Step 1c: Language Architecture Primers ---"
+if [ -d "$WORKSPACE/scripts/primers" ]; then
+    for langdir in "$WORKSPACE"/scripts/primers/*/; do
+        [ -d "$langdir" ] || continue
+        lang="$(basename "$langdir")"
+        for f in "$langdir"*; do
+            [ -f "$f" ] || continue
+            name="$(basename "$f")"
+            sync_one_way "$f" "$REPO/svp/scripts/primers/$lang/$name" "scripts/primers/$lang/$name"
+        done
+    done
+fi
+echo ""
+
 # --- Step 2: Source units (workspace → repo, one-way) ---
 echo "--- Step 2: Source Units ---"
 for d in "$WORKSPACE"/src/unit_*/; do
@@ -337,6 +355,19 @@ if [ -d "$WORKSPACE/scripts/toolchain_defaults" ]; then
         [ -f "$f" ] || continue
         name="$(basename "$f")"
         verify_pair "$f" "$REPO/svp/scripts/toolchain_defaults/$name" "scripts/toolchain_defaults/$name"
+    done
+fi
+
+# Verify language architecture primers (Bug S3-181)
+if [ -d "$WORKSPACE/scripts/primers" ]; then
+    for langdir in "$WORKSPACE"/scripts/primers/*/; do
+        [ -d "$langdir" ] || continue
+        lang="$(basename "$langdir")"
+        for f in "$langdir"*; do
+            [ -f "$f" ] || continue
+            name="$(basename "$f")"
+            verify_pair "$f" "$REPO/svp/scripts/primers/$lang/$name" "scripts/primers/$lang/$name"
+        done
     done
 fi
 

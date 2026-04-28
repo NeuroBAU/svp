@@ -83,6 +83,34 @@ Schema:
 
 All five sub-keys are optional. When present, prepare_task appends the named primer's content to the corresponding agent's task prompt; when absent, no archetype-specific augmentation occurs (current behavior).
 
+**Canonical example (R archetype, S3-181 cycle E1):** the R manifests `r_conda_testthat.json` and `r_renv_testthat.json` populate the field with the five files authored in cycle E1:
+
+```json
+"language_architecture_primers": {
+  "blueprint_author":         "scripts/primers/r/blueprint_author.md",
+  "implementation_agent":     "scripts/primers/r/implementation_agent.md",
+  "test_agent":               "scripts/primers/r/test_agent.md",
+  "coverage_review":          "scripts/primers/r/coverage_review.md",
+  "orchestrator_break_glass": "scripts/primers/r/orchestrator_break_glass.md"
+}
+```
+
+Each path resolves workspace-relative; under repo layout the validator's CLI walks up from the manifests directory and falls back to `<repo>/svp/<path>` when the workspace path is absent. The Python manifest `python_conda_pytest.json` keeps an empty placeholder (`{}`) until cycle E4 (S3-184) authors the Python primer set.
+
+**Per-key null is allowed (mixed-mode).** A manifest may declare some roles and leave others null:
+
+```json
+"language_architecture_primers": {
+  "blueprint_author":         "scripts/primers/r/blueprint_author.md",
+  "implementation_agent":     null,
+  "test_agent":               "scripts/primers/r/test_agent.md",
+  "coverage_review":          null,
+  "orchestrator_break_glass": null
+}
+```
+
+The validator skips existence checks on null values; the prepare_task helper (E2) skips primer injection when the path is null. This lets future archetypes phase in primers role-by-role without forcing a complete set up front.
+
 The `orchestrator_break_glass` primer is the diagnostic-flavored subset of the archetype's architectural rules — it guides the orchestrator (main session) when in break-glass mode investigating an archetype-specific bug. It is embedded in the child project's CLAUDE.md at Stage 5 delivery so the orchestrator inherits it on session boot.
 
 ## verify_commands convention (LOCKED IN S3-174)
@@ -138,7 +166,7 @@ The validator performs 10 checks:
 6. `quality.packages` is a list.
 7. `file_structure` has all 4 required keys.
 8. `templated_helpers` (if present): list of `{src, dest}`; each `src` MUST live under `scripts/toolchain_defaults/templates/`.
-9. `language_architecture_primers` (if present): object with allowed sub-keys: `blueprint_author`, `implementation_agent`, `test_agent`, `coverage_review`, `orchestrator_break_glass`.
+9. `language_architecture_primers` (if present): object with allowed sub-keys: `blueprint_author`, `implementation_agent`, `test_agent`, `coverage_review`, `orchestrator_break_glass`. **Extended in S3-181:** when a non-null path string is present and the validator is invoked with a `project_root` (the CLI auto-detects this by walking up from the manifests directory), the path is checked for on-disk existence; non-existent paths surface as a structured error naming the missing path. Per-key null is allowed (mixed-mode declarations).
 10. `toolchain_id` matches the filename stem (when validating from a known file path).
 
 CLI invocation: `python scripts/validate_toolchain_schema.py` validates all manifests at `scripts/toolchain_defaults/*.json`; exits 0 on full conformance, 1 on any violations (with per-file error report).
@@ -149,4 +177,5 @@ CLI invocation: `python scripts/validate_toolchain_schema.py` validates all mani
 - S3-161 changed R run_command/run_coverage to `devtools::test()` + `covr::environment_coverage()`.
 - S3-174 (this) documents the schema and adds `language_architecture_primers`.
 - S3-175 (cycle A2) refactors existing manifests to conform.
-- S3-181..S3-184 (cycles E1-E4) author and wire the language architecture primers.
+- S3-181 (cycle E1, this update) authors the five R primers at `scripts/primers/r/` and populates both R manifests' `language_architecture_primers`; extends the validator with an existence check on non-null primer paths.
+- S3-182..S3-184 (cycles E2-E4) wire conditional primer injection at prepare_task and author the Python primer set.

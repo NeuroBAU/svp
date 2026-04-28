@@ -236,6 +236,17 @@ mechanically enforces the schema. Existing 3 manifests refactored additively
 framework_packages and quality_packages live under their natural parents
 (testing, quality) — not top-level.
 
+**(Bug S3-181)** The R archetype now ships five language_architecture_primer
+markdown files at `scripts/primers/r/*.md` (one per agent role: blueprint_author,
+implementation_agent, test_agent, coverage_review, orchestrator_break_glass).
+Both R manifests (`r_conda_testthat.json`, `r_renv_testthat.json`) reference
+those files via `language_architecture_primers`. The validator's primer check
+now verifies that every non-null primer path resolves to an existing file
+when invoked with a project_root. Cycle E1 ships authoring only; E2 wires
+conditional injection at prepare_task. Sync_workspace.sh Step 1c propagates
+`scripts/primers/<lang>/*` workspace ↔ repo (parallel to Step 1b for
+toolchain_defaults). Python primers are deferred to E4.
+
 ---
 
 ## Unit 5: Pipeline State

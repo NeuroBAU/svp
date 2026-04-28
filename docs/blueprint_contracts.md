@@ -325,6 +325,8 @@ None (stdlib only).
 
 **Schema validator (Bug S3-175):** `scripts/validate_toolchain_schema.py` provides `validate_manifest(manifest) -> List[str]` returning human-readable error messages. Empty list = valid. Future cycles invoke it as a precondition gate (e.g., during infrastructure_setup; not in cycle A2 scope).
 
+**R primers shipped (Bug S3-181):** `scripts/primers/r/` ships five language_architecture_primer markdown files (`blueprint_author.md`, `implementation_agent.md`, `test_agent.md`, `coverage_review.md`, `orchestrator_break_glass.md`). Both R manifests (`r_conda_testthat.json`, `r_renv_testthat.json`) reference those files through their `language_architecture_primers` object. The validator's primer check is extended: when `validate_manifest(..., project_root=...)` is called with a project_root, every non-null primer path string is checked for on-disk existence relative to project_root; missing paths surface as a structured error naming the path. The CLI walks up from the manifests directory to locate the project_root automatically (workspace layout: project_root contains `scripts/toolchain_defaults/`; repo layout: project_root contains `svp/scripts/toolchain_defaults/`). Cycle E1 ships authoring only — wiring (conditional injection at prepare_task) is E2's job. `sync_workspace.sh` ships a new Step 1c that propagates `scripts/primers/<lang>/*` workspace ↔ repo, parallel to Step 1b for `scripts/toolchain_defaults/`.
+
 ---
 
 ## Unit 5: Pipeline State

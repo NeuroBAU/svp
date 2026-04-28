@@ -68,5 +68,11 @@
     "source_extension": ".R",
     "test_extension": ".R"
   },
-  "language_architecture_primers": {}
+  "language_architecture_primers": {
+    "blueprint_author":         "scripts/primers/r/blueprint_author.md",
+    "implementation_agent":     "scripts/primers/r/implementation_agent.md",
+    "test_agent":               "scripts/primers/r/test_agent.md",
+    "coverage_review":          "scripts/primers/r/coverage_review.md",
+    "orchestrator_break_glass": "scripts/primers/r/orchestrator_break_glass.md"
+  }
 }
