@@ -427,6 +427,97 @@ class TestS3_170BlueprintAuthorCallsMandate:
         )
 
 
+class TestS3_177BlueprintAuthorPackageDependenciesMandate:
+    """BLUEPRINT_AUTHOR_DEFINITION must mandate a per-Unit Tier-3
+    ``## Package Dependencies`` section listing external packages with
+    canonical install-names, parallel to the S3-170 ``## Calls`` mandate
+    (Bug S3-177, cycle 1 of round C in the env provisioning sub-project).
+    """
+
+    def test_blueprint_author_definition_mandates_package_dependencies_section(
+        self,
+    ):
+        """The prompt must require a ``## Package Dependencies`` section and
+        explicitly reference external packages."""
+        assert _contains(
+            BLUEPRINT_AUTHOR_DEFINITION, "## Package Dependencies"
+        ), (
+            "BLUEPRINT_AUTHOR_DEFINITION must include the "
+            "``## Package Dependencies`` heading marker (per Bug S3-177 "
+            "Tier-3 mandate)."
+        )
+        assert _contains(
+            BLUEPRINT_AUTHOR_DEFINITION,
+            "external packages",
+            case_sensitive=False,
+        ), (
+            "BLUEPRINT_AUTHOR_DEFINITION must use the phrase "
+            "``external packages`` (case-insensitive) so authors understand "
+            "the section's scope (per Bug S3-177)."
+        )
+
+    def test_blueprint_author_definition_package_dependencies_format_example(
+        self,
+    ):
+        """The prompt must show a bullet-list format example for
+        ``## Package Dependencies`` so authors anchor on the exact shape."""
+        assert _contains(
+            BLUEPRINT_AUTHOR_DEFINITION, "- package_name"
+        ), (
+            "BLUEPRINT_AUTHOR_DEFINITION must contain a bullet-list format "
+            "example (e.g., ``- package_name (one-line purpose)``) for the "
+            "``## Package Dependencies`` section so authors anchor on the "
+            "exact citation shape (per Bug S3-177)."
+        )
+
+    def test_blueprint_author_definition_package_dependencies_handles_leaf_units(
+        self,
+    ):
+        """The prompt must show the leaf-unit phrasing for units with no
+        external package dependencies."""
+        assert _contains(
+            BLUEPRINT_AUTHOR_DEFINITION, "None (stdlib only)"
+        ), (
+            "BLUEPRINT_AUTHOR_DEFINITION must explicitly show the "
+            "``None (stdlib only).`` phrasing for units with no external "
+            "package dependencies (per Bug S3-177)."
+        )
+
+    def test_blueprint_author_definition_package_dependencies_distinguishes_from_unit_deps_and_calls(
+        self,
+    ):
+        """The prompt must explicitly note that ``## Package Dependencies`` is
+        distinct from the existing ``**Dependencies:**`` inline field AND from
+        the ``## Calls`` heading. This guards against future readers
+        confusing the three axes (inter-unit / external-package /
+        function-graph)."""
+        assert _contains(
+            BLUEPRINT_AUTHOR_DEFINITION, "**Dependencies:**"
+        ), (
+            "BLUEPRINT_AUTHOR_DEFINITION must explicitly mention the "
+            "existing ``**Dependencies:**`` inline field so readers see the "
+            "distinction from ``## Package Dependencies`` (per Bug S3-177)."
+        )
+        assert _contains(
+            BLUEPRINT_AUTHOR_DEFINITION, "## Calls"
+        ), (
+            "BLUEPRINT_AUTHOR_DEFINITION must explicitly reference the "
+            "``## Calls`` section so readers see the distinction from "
+            "``## Package Dependencies`` (per Bug S3-177)."
+        )
+        assert _contains(
+            BLUEPRINT_AUTHOR_DEFINITION,
+            "distinct from",
+            case_sensitive=False,
+        ), (
+            "BLUEPRINT_AUTHOR_DEFINITION must contain the phrase "
+            "``distinct from`` (case-insensitive) when describing the "
+            "``## Package Dependencies`` section's relationship to the "
+            "existing ``**Dependencies:**`` inline field and the ``## Calls`` "
+            "heading (per Bug S3-177)."
+        )
+
+
 class TestStakeholderDialogReconciliation:
     """STAKEHOLDER_DIALOG_DEFINITION must mandate pre-emission cross-reference
     reconciliation as a self-audit step before terminal status emission

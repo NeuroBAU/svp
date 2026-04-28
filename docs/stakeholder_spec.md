@@ -6472,6 +6472,20 @@ This is a meta-cycle: process improvement + accumulated documentation debt clean
 
 **Detection.** `tests/unit_5/test_unit_5.py::test_valid_sub_stages_includes_toolchain_provisioning`; `tests/unit_11/test_env_creation_executed.py::test_run_infrastructure_setup_provision_only_*` (3 tests covering env-create-only path, READY persistence, NOT_READY persistence); `tests/unit_14/test_unit_14.py::TestS3_176Stage0Provisioning` (6 tests covering gate_0_3 transition target, `_route_stage_0 toolchain_provisioning` arms, gate_0_4 PROCEED/ABORT). The full stage-0-to-stage-1 transition still terminates at `stage = 1` (just via gate_0_4 now); a routing-safety regression test (`test_gate_0_3_profile_approval_routing_invariant_with_flag_false`) pins the existing field syncs (`primary_language`, `requires_statistical_analysis`) across the new boundary.
 
+### 24.191 BLUEPRINT_AUTHOR_DEFINITION Lacked Per-Unit Package Dependencies Mandate (Post-delivery — Bug S3-177, NEW IN 2.2)
+
+**Symptom.** Blueprint contracts encoded inter-unit dependencies (`**Dependencies:** Unit X, Unit Y.`) and per-function call graphs (`## Calls`, S3-170/171/172) but had no per-unit declaration of EXTERNAL PACKAGE dependencies. Cycle D1 (S3-180) needs this data to compute dep-diff at pre_stage_3 (compare blueprint declarations vs archetype baseline; install delta). Without it, pre_stage_3 cannot detect that a unit added during Stage 2 authoring requires a new package.
+
+**Root cause.** BLUEPRINT_AUTHOR_DEFINITION did not mandate a `## Package Dependencies` section per Unit. Without the format, the audit (cycle C3) and the dep-diff (cycle D1) have nothing to read.
+
+**Surface area.** src/unit_20/stub.py BLUEPRINT_AUTHOR_DEFINITION; tests/unit_20/test_unit_20.py (new TestS3_177BlueprintAuthorPackageDependenciesMandate class).
+
+**Resolution.** Cycle C1 of round C in the env provisioning sub-project. Adds the format mandate only: per-Unit `## Package Dependencies` section (heading-level, parallel to S3-170 `## Calls`). Bullet list of external packages with canonical install-names; stdlib excluded; leaf units write `None (stdlib only).` Distinct naming (`Package Dependencies` vs the existing inline `**Dependencies:**`) avoids collision. Migration of existing 29 units deferred to cycle C2 (S3-178); audit deferred to cycle C3 (S3-179).
+
+**Pattern.** P61 — naming collisions with existing fields cause confusion at scale; prefer compound names. Sibling pattern P54 (S3-170 `## Calls` mandate) — same shape: format mandate first, migration second, audit third.
+
+**Detection.** tests/unit_20/test_unit_20.py::TestS3_177BlueprintAuthorPackageDependenciesMandate (4 tests covering the mandate text, format example, leaf-unit phrasing, distinction from existing inline Dependencies and Calls section).
+
 ---
 
 ## 25. Test Data
@@ -6613,6 +6627,8 @@ The profile says how the delivered project should look. The toolchain file says 
 **(NEW IN 2.2 — Bug S3-166) Statistical primer behavior.** When `state.requires_statistical_analysis` is true (set by `gate_0_3_profile_approval`, see Section 6.4), Unit 13's `_prepare_blueprint_author` appends `BLUEPRINT_AUTHOR_STATISTICAL_PRIMER` (a sibling module-level constant in Unit 20) to the task prompt. The primer covers four contract categories per unit (Tier 2 signature conventions for statistical functions, Tier 3 enumerated contract clauses with thresholds and fallbacks, library-version pinning for stats packages, error class for statistical violations), plus 5 anti-patterns and 5 pre-emission cross-checks. The static `BLUEPRINT_AUTHOR_DEFINITION` is unchanged when the flag is false — every cycle's append is gated on the centralized helper `_requires_statistical_analysis(state)`.
 
 **(NEW IN 2.2 — Bug S3-170) Per-function Calls citations.** `BLUEPRINT_AUTHOR_DEFINITION` mandates that every Unit's Tier 3 include a `## Calls` section listing per-function Calls citations of the form `- foo() in Unit N` (with `(private helper)` suffix for non-public callees). Citations are per-function, not per-unit, so a downstream audit can resolve each cited symbol against the callee unit's Tier-2 signature block. The corresponding `## Called-by` section is NOT authored — it will be mechanically derived from the global Calls graph by the audit-extension cycle (S3-172). Cycle 1 (S3-170) ships only the prompt mandate; the migration of existing 29 units' contracts is deferred to cycle 2 (S3-171); the reciprocity + Tier-2 resolution audit lands in cycle 3 (S3-172). Migration of all 29 existing Units to include `## Calls` sections completed in S3-171; subsequent revisions inherit this format by mandate. S3-172 closes the Calls/Called-by encoding sub-project: audit verifies per-function reciprocity. Calls citations that don't resolve to declared Tier-2 signatures in target units fail BLUEPRINT_DRAFT_COMPLETE / BLUEPRINT_REVISION_COMPLETE.
+
+**(NEW IN 2.2 — Bug S3-177) Per-unit Package Dependencies mandate.** S3-177 introduces a parallel `## Package Dependencies` section per Unit's Tier 3 (heading-level, distinct from inline `**Dependencies:**`) that lists external packages with canonical install-names. Cycles C2 (S3-178) migrate existing 29 units; cycle C3 (S3-179) audits dep-reachability.
 
 **Agent loading matrix (from Section 3.16).** For blueprint construction, the authoritative context-loading rules:
 

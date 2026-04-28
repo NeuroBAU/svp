@@ -37,6 +37,7 @@ CONCEPTS = [
     "statistical_review_done",
     "per-function Calls citations",
     "language_architecture_primers",
+    "Package Dependencies",
 ]
 
 

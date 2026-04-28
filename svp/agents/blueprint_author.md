@@ -192,6 +192,34 @@ Citations are per-function (NOT per-unit). Include both public and private helpe
 
 The corresponding `## Called-by` section is NOT authored. It will be mechanically derived from the global Calls graph by a later audit-extension cycle (S3-172). Authors must NOT write `## Called-by` sections by hand in cycle 1.
 
+### Per-Unit Package Dependencies (Tier 3 mandate, NEW IN 2.2 -- Bug S3-177)
+
+Each Unit's Tier 3 MUST include a `## Package Dependencies` section listing the external packages this unit imports or uses, with a bullet list:
+
+```markdown
+## Package Dependencies
+
+- package_name (one-line purpose)
+- another_package (one-line purpose)
+```
+
+Use the canonical install-name for the archetype (e.g., `r-lme4` for conda-managed R; `lme4` for renv-managed R; `numpy` for Python). Stdlib / language-builtin imports are NOT listed (e.g., Python stdlib `json`, `pathlib`, `typing`; R built-ins like `base`, `stats` ship with the language runtime).
+
+If the unit has no external package dependencies:
+```markdown
+## Package Dependencies
+
+None (stdlib only).
+```
+
+The archetype's package universe is declared in the toolchain manifest's `framework_packages` + `quality_packages` (referenced from `references/toolchain_manifest_schema.md`, S3-174). The audit in cycle C3 (S3-179) will mechanically verify that each declared dependency is within that universe AND that every external package imported in the unit's stub code is declared here.
+
+The `## Package Dependencies` section is distinct from:
+- The existing inline field `**Dependencies:** Unit X, Unit Y.` which lists INTER-UNIT dependencies (which other Units this Unit depends on at the architecture level).
+- The `## Calls` section (S3-170) which lists per-function citations into other Units.
+
+All three categories may coexist within a Unit's Tier 3.
+
 ## Profile Integration
 
 Use the project profile sections to drive blueprint content:

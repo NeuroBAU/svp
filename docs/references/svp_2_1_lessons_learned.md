@@ -1232,3 +1232,5 @@
 
 - **Pattern.** **P60 (NEW — Long-Running Operations Crossing Pipeline Transitions Deserve A Sub-Stage Boundary)**. P60 — Pipeline transitions that cross a long-running operation (env create takes 1-2 min) deserve a sub-stage boundary, not a hidden side-effect inside a gate handler. The new sub_stage `toolchain_provisioning` makes the operation visible in pipeline_state.json (so resume/restart works), gives the human a discrete approval point (gate_0_4), and surfaces failures as a held state rather than an exception. Cite S3-176.
 
+- **Pattern.** **P61 (NEW — Compound Names Avoid Naming Collisions When Multiple Axes Share A Domain Word)**. P61 — When extending a multi-tiered spec format, naming collisions with existing fields cause confusion at scale. The new `## Package Dependencies` section deliberately uses a different qualifier than the existing `**Dependencies:**` inline field to keep readers clear about which axis (unit-vs-package) is being declared. Pattern: prefer compound names (`## Package Dependencies`, `## Inter-unit Dependencies`) over bare ones when multiple axes share a domain word. Cite S3-177.
+

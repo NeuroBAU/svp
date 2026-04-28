@@ -506,6 +506,14 @@ sections completed; per-function citations now appear under each unit's
 Tier 3. Subsequent revisions inherit the format by mandate. The companion
 `## Called-by` section remains derived mechanically (cycle 3, S3-172).
 
+**(Bug S3-177)** BLUEPRINT_AUTHOR_DEFINITION mandates a per-Unit
+`## Package Dependencies` section in Tier 3 (parallel to S3-170's
+`## Calls`). Lists external packages with canonical install-names.
+Distinct from inline `**Dependencies:**` (inter-unit deps) and
+`## Calls` (per-function call graph). Cycle C2 (S3-178) migrates
+existing 29 units; cycle C3 (S3-179) ships the audit dep-reachability
+check.
+
 **(NEW IN 2.2 — Bug S3-157) Stakeholder dialog Cross-Reference Reconciliation.** `STAKEHOLDER_DIALOG_DEFINITION` includes a convention-agnostic Cross-Reference Reconciliation methodology step before terminal-status emission. The audit enumerates references and targets, verifies resolution, fixes unambiguous mismatches, and halts with structured error on ambiguous cases. Empirical evidence: in pipeline-authored multi-chunk specs without this step, ~45% of narrative cross-references pointed to wrong slug numbers (fmrpqc 19/42).
 
 **(NEW IN 2.2 — Bug S3-162) Standard 8-field finding block format.** STAKEHOLDER_REVIEWER, BLUEPRINT_REVIEWER, and COVERAGE_REVIEW definitions mandate the uniform 8-field finding block (Finding / Severity / Location / Violation / Consequence / Minimal Fix / Confidence / Open Questions). See "Key Concept: Standard Finding Block Format" above.
