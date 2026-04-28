@@ -905,10 +905,11 @@ class TestPrepareTaskPromptDispatches:
 class TestGateVocabularyCoversAllGates:
     """Integration: GATE_VOCABULARY (Unit 14) covers all gates from Unit 13."""
 
-    def test_gate_vocabulary_has_32_gates(self):
-        """GATE_VOCABULARY contains exactly 32 gate entries (31 baseline +
-        gate_0_4_toolchain_provisioned added by Bug S3-176)."""
-        assert len(GATE_VOCABULARY) == 32
+    def test_gate_vocabulary_has_33_gates(self):
+        """GATE_VOCABULARY contains exactly 33 gate entries (31 baseline +
+        gate_0_4_toolchain_provisioned added by Bug S3-176 +
+        gate_2_3_toolchain_verified added by Bug S3-180)."""
+        assert len(GATE_VOCABULARY) == 33
 
     def test_all_gate_ids_have_vocabulary_entries(self):
         """Every gate in ALL_GATE_IDS has a GATE_VOCABULARY entry."""
@@ -944,10 +945,11 @@ class TestGateVocabularyCoversAllGates:
         for gate_id, responses in GATE_VOCABULARY.items():
             assert len(responses) > 0, f"Gate '{gate_id}' has no valid responses"
 
-    def test_all_gate_ids_list_has_32_entries(self):
-        """ALL_GATE_IDS contains exactly 32 entries (31 baseline +
-        gate_0_4_toolchain_provisioned added by Bug S3-176)."""
-        assert len(ALL_GATE_IDS) == 32
+    def test_all_gate_ids_list_has_33_entries(self):
+        """ALL_GATE_IDS contains exactly 33 entries (31 baseline +
+        gate_0_4_toolchain_provisioned added by Bug S3-176 +
+        gate_2_3_toolchain_verified added by Bug S3-180)."""
+        assert len(ALL_GATE_IDS) == 33
 
 
 # ===================================================================

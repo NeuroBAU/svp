@@ -982,6 +982,18 @@ def run_infrastructure_setup(
     provision_only: bool = False,
 ) -> None: ...
 
+def compute_dep_diff(
+    project_root: Path,
+    env_name: str,
+    runner=None,
+) -> Dict[str, List[str]]: ...
+
+def install_dep_delta(
+    project_root: Path,
+    env_name: str,
+    runner=None,
+) -> Tuple[bool, List[str]]: ...
+
 def main(argv: list = None) -> None: ...
 ```
 
@@ -1023,10 +1035,30 @@ None (stdlib only).
 
 **(NEW IN 2.2 — Bug S3-176) provision_only mode.** `run_infrastructure_setup(..., provision_only=False)` MUST honor the `provision_only` parameter. When `provision_only=True`: skip Steps that require the blueprint or stubs (Step 3 dependency extraction, Step 4 import validation of blueprint imports, Step 5 directory scaffolding + `helper-svp.R` template, Step 6 DAG validation, Step 7 `total_units` derivation, Step 8 regression test adaptation, Step 9 build log creation); run only Step 4b (env-create — idempotent on existing envs via `_env_exists`) and Step 4c (`verify_toolchain_ready`). Write `state.toolchain_status` accordingly (`"READY"` on verify success; `"NOT_READY"` on verify failure with `RuntimeError` raised). The CLI flag `--provision-only` controls the parameter; this mode is invoked by `_route_stage_0 toolchain_provisioning` (Unit 14).
 
-**main (CLI entry point):**
-- Arguments: `--project-root` (path, required), `--provision-only` (flag, default False — Bug S3-176).
-- Loads profile, toolchain, language registry, and blueprint directory from project root.
-- Calls `run_infrastructure_setup` with resolved arguments and `provision_only=args.provision_only`.
+**(NEW IN 2.2 — Bug S3-180) compute_dep_diff and install_dep_delta.** Two top-level functions implement the pre_stage_3 dep-diff state machine. Both expose a `runner` parameter for test injection (defaults to `subprocess.run`).
+
+`compute_dep_diff(project_root, env_name, runner=None) -> Dict[str, List[str]]` MUST:
+1. Parse every `## Package Dependencies` block in `blueprint/blueprint_contracts.md` via the helper `_parse_blueprint_package_deps`. The helper strips parenthetical descriptors, ignores the `None (stdlib only).` sentinel, terminates each block at the next `##` heading or `---` horizontal rule, and skips inter-unit `**Dependencies:**` lines.
+2. Read the language-specific manifest baseline as the union `testing.framework_packages ∪ quality.packages` via `load_toolchain(project_root, language=primary_language)` where `primary_language` is sourced from `load_profile(project_root)["language"]["primary"]` (defensive on missing files: empty baseline).
+3. Compute `desired = blueprint_pkgs ∪ baseline`.
+4. Run `conda list -n <env_name> --json`, parse the JSON list of `{"name": ...}` dicts to a set of installed package names. On any failure (conda not in PATH, non-zero exit, malformed JSON): treat as empty installed set.
+5. Compute `delta = desired - installed`.
+6. Partition: `delta_baseline = sorted(delta ∩ baseline)`; `delta_blueprint_only = sorted(delta - baseline)`.
+7. Write `.svp/dep_diff_pending.json` with the keys `"delta_baseline"` and `"delta_blueprint_only"` mapping to the sorted lists.
+8. Return the same dict.
+
+`install_dep_delta(project_root, env_name, runner=None) -> Tuple[bool, List[str]]` MUST:
+1. Read `.svp/dep_diff_pending.json`. If missing or malformed: return `(False, [error])`.
+2. Compose `["conda", "install", "-n", env_name, "-y"] + pkgs` where `pkgs` is the union of `delta_baseline + delta_blueprint_only` (deduplicated, baseline first). When `pkgs` is empty: skip the conda install step (proceed directly to verify).
+3. Subprocess invoke. On non-zero exit: return `(False, ["conda install exited <rc>: <stderr>"])`. The pending file is preserved so the operator can retry.
+4. Run `verify_toolchain_ready(project_root, env_name)` (Unit 4). On failure: return `(False, errors)` (pending file preserved).
+5. On full success: load state, set `state.toolchain_status = "READY"`, save state, remove `.svp/dep_diff_pending.json`, return `(True, [])`.
+
+**main (CLI entry point) — CHANGED IN 2.2:**
+- Arguments: `--project-root` (path, required), `--provision-only` (flag, default False — Bug S3-176), `--dep-diff` (flag, default False — Bug S3-180), `--install-delta` (flag, default False — Bug S3-180).
+- `--dep-diff` and `--install-delta` are mutually exclusive mini-modes that bypass the full 9-step run_infrastructure_setup flow. `--dep-diff` calls `ensure_pipeline_toolchain` then `compute_dep_diff`. `--install-delta` calls `install_dep_delta` and exits 1 on failure. When neither flag is set, runs the existing flow (with `provision_only=args.provision_only`).
+- Loads profile, toolchain, language registry, and blueprint directory from project root (full-flow path only).
+- Calls `run_infrastructure_setup` with resolved arguments (full-flow path only).
 - Exit code 0 on success, 1 on failure.
 
 ---
@@ -1314,7 +1346,7 @@ None (stdlib only).
 
 **Dependencies:** Unit 1, Unit 2, Unit 4, Unit 5, Unit 6.
 
-**GATE_VOCABULARY (32 gates, all response options) — CHANGED IN 2.2 (Bug S3-176: + gate_0_4_toolchain_provisioned):**
+**GATE_VOCABULARY (33 gates, all response options) — CHANGED IN 2.2 (Bug S3-176: + gate_0_4_toolchain_provisioned; Bug S3-180: + gate_2_3_toolchain_verified):**
 - `"gate_0_1_hook_activation"`: `["HOOKS ACTIVATED", "HOOKS FAILED"]`
 - `"gate_0_2_context_approval"`: `["CONTEXT APPROVED", "CONTEXT REJECTED", "CONTEXT NOT READY"]`
 - `"gate_0_3_profile_approval"`: `["PROFILE APPROVED", "PROFILE REJECTED"]`
@@ -1325,6 +1357,7 @@ None (stdlib only).
 - `"gate_2_1_blueprint_approval"`: `["APPROVE", "REVISE", "FRESH REVIEW"]`
 - `"gate_2_2_blueprint_post_review"`: `["APPROVE", "REVISE", "FRESH REVIEW"]`
 - `"gate_2_3_alignment_exhausted"`: `["REVISE SPEC", "RESTART SPEC", "RETRY BLUEPRINT"]`
+- `"gate_2_3_toolchain_verified"`: `["PROCEED", "ABORT"]` **(NEW IN 2.2 — Bug S3-180)**
 - `"gate_3_1_test_validation"`: `["TEST CORRECT", "TEST WRONG"]`
 - `"gate_3_2_diagnostic_decision"`: `["FIX IMPLEMENTATION", "FIX BLUEPRINT", "FIX SPEC"]`
 - `"gate_3_completion_failure"`: `["INVESTIGATE", "FORCE ADVANCE", "RESTART STAGE 3"]`
@@ -1387,6 +1420,7 @@ None (stdlib only).
 - `_validate_stage3_completion()` runs at Stage 3/4 boundary: checks unit count (all units verified), build log sub-stage audit (9 sub-stages per unit), red run validation (`TESTS_FAILED` present for each unit), green run validation (`TESTS_PASSED` present for each unit). On failure, presents `gate_3_completion_failure`.
 - At `repo_complete`, if `pass_` is 1 or 2, advance to `pass_transition` sub-stage instead of returning `pipeline_complete`.
 - Gate routing completeness: `_route_stage_4` handles `sub_stage == "gate_4_1a"` -> emit `human_gate` with `gate_id: "gate_4_1a"`. `_route_stage_5` handles `sub_stage == "gate_5_2"` -> emit `human_gate` with `gate_id: "gate_5_2_assembly_exhausted"`. `_route_stage_5` handles `sub_stage == "gate_5_3"` -> emit `human_gate` with `gate_id: "gate_5_3_unused_functions"`. These sub_stages are registered in `ADDITIONAL_SUB_STAGES`. **(Bug S3-45 fix.)**
+- **pre_stage_3 dep-diff routing (NEW IN 2.2 — Bug S3-180):** `_route_pre_stage_3` MUST branch on `state.sub_stage` BEFORE the existing advance-to-stage-3 flow. (a) `sub_stage == "dep_diff"`: when `last_status == "COMMAND_FAILED"`, emit `pipeline_held` whose `message` AND `reminder` BOTH contain the literal substring `TOOLCHAIN_DEP_DIFF_FAILED` and direct the operator to fix the manifest or blueprint then write `PIPELINE_RESUME` to `.svp/last_status.txt` to retry; when `last_status != "COMMAND_SUCCEEDED"`, emit `run_command` with `command = "infrastructure_setup_dep_diff"`, `cmd = "python scripts/infrastructure_setup.py --dep-diff --project-root ."`, and matching `post = "python scripts/update_state.py --command infrastructure_setup_dep_diff --project-root ."`; when `last_status == "COMMAND_SUCCEEDED"`, read `.svp/dep_diff_pending.json` (defensive on missing/malformed) and either advance `sub_stage` to `None` (when `delta_baseline + delta_blueprint_only` is empty) and re-enter `route()`, or emit `human_gate` with `gate_id = "gate_2_3_toolchain_verified"` and `post = "python scripts/update_state.py --command gate_2_3_toolchain_verified --project-root ."` plus a reminder summarizing the package list (and explicitly calling out non-baseline packages requiring approval). (b) `sub_stage == "dep_diff_install"`: when `last_status == "COMMAND_FAILED"`, emit `pipeline_held` carrying `TOOLCHAIN_DELTA_INSTALL_FAILED`; when `last_status != "COMMAND_SUCCEEDED"`, emit `run_command` with `command = "infrastructure_setup_install_delta"`, `cmd = "python scripts/infrastructure_setup.py --install-delta --project-root ."`, and matching `post`; when `last_status == "COMMAND_SUCCEEDED"`, advance `sub_stage` to `None` and re-enter `route()`. (c) `sub_stage` is `None` or any other unrecognized value: existing flow (advance_stage to "3", run_infrastructure_setup if total_units==0, etc.) — preserving the routing-safety invariant that pre_stage_3 → stage="3" still terminates correctly. The handler MUST be inserted BEFORE the existing flow, not replace it. The sub-stages are reached after `gate_2_2_blueprint_post_review` APPROVE via `advance_stage(state, "pre_stage_3")` followed by `advance_sub_stage(state, "dep_diff")`. `dispatch_gate_response` for `gate_2_3_toolchain_verified` PROCEED MUST call `advance_sub_stage(state, "dep_diff_install")`; ABORT MUST set `state.stage = "2"`, `state.sub_stage = "blueprint_dialog"` and remove `.svp/dep_diff_pending.json` (defensive on missing file). `dispatch_command_status` MUST accept two new `command_type` values: `"infrastructure_setup_dep_diff"` and `"infrastructure_setup_install_delta"` (both return `_copy(state)` for `COMMAND_SUCCEEDED` and `COMMAND_FAILED` — the commands write their side effects directly; routing reads them on the next pass).
 - **Stage 0 toolchain provisioning routing (NEW IN 2.2 — Bug S3-176):** `_route_stage_0` MUST handle `sub_stage == "toolchain_provisioning"` with three arms: (a) when `last_status == "COMMAND_FAILED"`, emit `pipeline_held` whose `message` AND `reminder` BOTH contain the literal substring `TOOLCHAIN_PROVISION_FAILED` and direct the operator to fix the toolchain manifest or environment then write `PIPELINE_RESUME` to `.svp/last_status.txt` to retry; (b) when `state.toolchain_status != "READY"` AND `last_status != "COMMAND_FAILED"`, emit `run_command` with `command = "infrastructure_setup_provision_only"`, `cmd = "python scripts/infrastructure_setup.py --provision-only --project-root ."`, and `post = "python scripts/update_state.py --command infrastructure_setup_provision_only --project-root ."`; (c) when `state.toolchain_status == "READY"`, emit `human_gate` with `gate_id = "gate_0_4_toolchain_provisioned"` and `post = "python scripts/update_state.py --command gate_0_4_toolchain_provisioned --project-root ."`. The handler MUST be inserted, not replace, the existing project_profile arm — the sub-stage is reached after `gate_0_3` PROFILE APPROVED via `advance_sub_stage(state, "toolchain_provisioning")`. `dispatch_command_status` MUST accept `command_type = "infrastructure_setup_provision_only"` (returns `_copy(state)` for both `COMMAND_SUCCEEDED` and `COMMAND_FAILED` — the command itself sets `state.toolchain_status` as a side effect; routing consults the flag on the next pass).
 - `_route_stage_5` handles `sub_stage == "pass_transition"`: presents `gate_pass_transition_post_pass1` (pass=1) or `gate_pass_transition_post_pass2` (pass=2). Must not fall through to `git_repo_agent` default. **(Bug S3-54 fix.)**
 - Oracle state mutation invariant: `dispatch_gate_response` and `_route_oracle` must NOT directly set `oracle_session_active`, `oracle_phase`, `oracle_test_project`, or `oracle_nested_session_path`. All oracle session start/stop goes through `enter_oracle_session`, `complete_oracle_session`, or `abandon_oracle_session` from Unit 6. Direct `oracle_phase` assignment is acceptable only for intra-session phase transitions. **(Bug S3-63 fix.)**
@@ -1470,12 +1504,14 @@ None (stdlib only).
 - `gate_2_1_blueprint_approval` + `APPROVE`: invoke blueprint checker (enter alignment_check).
 - `gate_2_1_blueprint_approval` + `REVISE`: re-invoke blueprint author in revision mode.
 - `gate_2_1_blueprint_approval` + `FRESH REVIEW`: invoke blueprint reviewer.
-- `gate_2_2_blueprint_post_review` + `APPROVE`: enter alignment_check. **(Bug S3-168: does NOT reset `state.statistical_review_done` — no next iteration.)**
+- `gate_2_2_blueprint_post_review` + `APPROVE`: enter alignment_check. **(Bug S3-168: does NOT reset `state.statistical_review_done` — no next iteration.)** **(CHANGED IN 2.2 — Bug S3-180)** MUST call `advance_stage(state, "pre_stage_3")` AND `advance_sub_stage(state, "dep_diff")` (was `sub_stage = None` pre-S3-180) so the dep-diff state machine runs before the existing infrastructure-setup full flow. The eventual transition to `stage = "3"` still terminates correctly via the dep_diff and dep_diff_install sub-stages (or directly when delta is empty).
 - `gate_2_2_blueprint_post_review` + `REVISE`: version_document(prose, companion_paths=[contracts]), re-invoke blueprint author in revision mode. **(Bug S3-168: resets `state.statistical_review_done = False` so next iteration repeats both reviewers.)**
 - `gate_2_2_blueprint_post_review` + `FRESH REVIEW`: invoke blueprint reviewer. **(Bug S3-168: resets `state.statistical_review_done = False` so next iteration repeats both reviewers.)**
 - `gate_2_3_alignment_exhausted` + `REVISE SPEC`: version_document(spec), advance_sub_stage("targeted_spec_revision"), reset `alignment_iterations` to 0. Invoke stakeholder dialog in targeted revision mode.
 - `gate_2_3_alignment_exhausted` + `RESTART SPEC`: restart_from_stage("1").
 - `gate_2_3_alignment_exhausted` + `RETRY BLUEPRINT`: re-invoke blueprint author in revision mode.
+- `gate_2_3_toolchain_verified` + `PROCEED` **(NEW IN 2.2 — Bug S3-180)**: MUST call `advance_sub_stage(state, "dep_diff_install")` (stage stays `pre_stage_3`). The next routing pass invokes `infrastructure_setup.py --install-delta`.
+- `gate_2_3_toolchain_verified` + `ABORT` **(NEW IN 2.2 — Bug S3-180)**: MUST set `state.stage = "2"`, `state.sub_stage = "blueprint_dialog"` so the human can revise the blueprint's Package Dependencies declarations, AND remove `.svp/dep_diff_pending.json` (defensive on missing file). Clears `last_status.txt`.
 - `gate_3_1_test_validation`: autonomous, defaults to `TEST CORRECT`. No human presentation.
 - `gate_3_2_diagnostic_decision` + `FIX IMPLEMENTATION`: advance_fix_ladder (to diagnostic_impl), re-invoke implementation agent with diagnostic report.
 - `gate_3_2_diagnostic_decision` + `FIX BLUEPRINT`: version_document(prose, companion_paths=[contracts]), restart_from_stage("2").

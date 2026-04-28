@@ -325,6 +325,12 @@ class TestResponseOptionsVsDispatchHandlers:
             return _make_state(stage="0", sub_stage="hook_activation", current_unit=None)
         elif gate_id.startswith("gate_1"):
             return _make_state(stage="1", sub_stage=None, current_unit=None)
+        elif gate_id == "gate_2_3_toolchain_verified":
+            # Bug S3-180: this gate is presented at pre_stage_3 / dep_diff,
+            # not stage 2. Distinct from gate_2_3_alignment_exhausted.
+            return _make_state(
+                stage="pre_stage_3", sub_stage="dep_diff", current_unit=None
+            )
         elif gate_id.startswith("gate_2"):
             return _make_state(stage="2", sub_stage="alignment_check", current_unit=None)
         elif gate_id == "gate_3_1_test_validation":

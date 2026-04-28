@@ -108,7 +108,7 @@ MINIMAL_TOOLCHAIN = {
     "pytest": "7.4",
 }
 
-EXPECTED_GATE_COUNT = 32  # Bug S3-176: + gate_0_4_toolchain_provisioned
+EXPECTED_GATE_COUNT = 33  # Bug S3-176: + gate_0_4_toolchain_provisioned; Bug S3-180: + gate_2_3_toolchain_verified
 EXPECTED_AGENT_COUNT = 22  # Bug S3-168: +1 for statistical_correctness_reviewer
 
 EXPECTED_GATE_IDS = [
@@ -122,6 +122,7 @@ EXPECTED_GATE_IDS = [
     "gate_2_1_blueprint_approval",
     "gate_2_2_blueprint_post_review",
     "gate_2_3_alignment_exhausted",
+    "gate_2_3_toolchain_verified",  # Bug S3-180
     "gate_3_1_test_validation",
     "gate_3_2_diagnostic_decision",
     "gate_3_completion_failure",
@@ -277,7 +278,7 @@ def blueprint_dir(project_root):
 
 
 class TestAllGateIds:
-    """ALL_GATE_IDS must be a list of exactly 32 gate ID strings (Bug S3-176:
+    """ALL_GATE_IDS must be a list of exactly 33 gate ID strings (Bug S3-176:
     + gate_0_4_toolchain_provisioned) matching the specification."""
 
     def test_all_gate_ids_is_a_list(self):

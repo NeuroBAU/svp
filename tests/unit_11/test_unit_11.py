@@ -33,9 +33,12 @@ from pathlib import Path
 import pytest
 
 from infrastructure_setup import (
+    compute_dep_diff,
+    install_dep_delta,
     main,
     run_infrastructure_setup,
 )
+from infrastructure_setup import _parse_blueprint_package_deps
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -2414,3 +2417,242 @@ import os
                 python_language_registry,
                 blueprint_dir,
             )
+
+
+# ---------------------------------------------------------------------------
+# Bug S3-180: pre_stage_3 dep-diff + delta-install
+# ---------------------------------------------------------------------------
+
+
+class _FakeProc:
+    """Minimal subprocess.run result stand-in for runner injection."""
+
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class TestS3_180DepDiff:
+    """Bug S3-180: pre_stage_3 dep-diff + delta-install. compute_dep_diff()
+    parses blueprint Package Dependencies, unions with manifest baseline,
+    diffs against installed conda env packages, partitions delta into
+    baseline-vs-blueprint-only buckets, and writes
+    .svp/dep_diff_pending.json. install_dep_delta() reads the pending file,
+    runs conda install, runs verify_toolchain_ready, and on full success
+    sets state.toolchain_status=READY and removes the pending file."""
+
+    def _make_blueprint(self, blueprint_dir, units_pkgs):
+        """Write a minimal blueprint_contracts.md with per-unit Package
+        Dependencies blocks matching the supplied unit -> packages map."""
+        chunks = []
+        for unit_no, pkgs in units_pkgs.items():
+            block_body = (
+                "\n".join(f"- {p}" for p in pkgs)
+                if pkgs
+                else "None (stdlib only)."
+            )
+            chunks.append(
+                f"""## Unit {unit_no}: U{unit_no}
+
+### Tier 2 -- Signatures
+
+```python
+import os
+```
+
+### Tier 3 -- Behavioral Contracts
+
+## Package Dependencies
+
+{block_body}
+
+**Dependencies:** None.
+
+---
+"""
+            )
+        (blueprint_dir / "blueprint_contracts.md").write_text(
+            "\n".join(chunks), encoding="utf-8"
+        )
+
+    def _seed_profile_and_toolchain(self, project_root, monkeypatch):
+        """Write a python project_profile.json and patch
+        infrastructure_setup.load_toolchain to return a deterministic
+        manifest so compute_dep_diff() reads a known baseline."""
+        profile = {
+            "language": {"primary": "python"},
+            "archetype": "python_project",
+        }
+        (project_root / "project_profile.json").write_text(json.dumps(profile))
+        toolchain = {
+            "testing": {"framework_packages": ["pytest"]},
+            "quality": {"packages": ["ruff", "mypy"]},
+        }
+        import infrastructure_setup as infra_mod
+
+        monkeypatch.setattr(
+            infra_mod,
+            "load_toolchain",
+            lambda pr, language=None: toolchain,
+        )
+        monkeypatch.setattr(
+            infra_mod,
+            "load_profile",
+            lambda pr: profile,
+        )
+
+    def test_parse_blueprint_package_deps_extracts_declared_packages(
+        self, project_root, blueprint_dir
+    ):
+        """_parse_blueprint_package_deps walks every '## Package
+        Dependencies' block, strips parenthetical descriptors, and skips
+        the 'None (stdlib only).' sentinel."""
+        self._make_blueprint(
+            blueprint_dir,
+            {
+                1: ["numpy", "pandas (data wrangling)"],
+                2: [],  # stdlib-only sentinel
+                3: ["requests"],
+            },
+        )
+        contracts = blueprint_dir / "blueprint_contracts.md"
+        result = _parse_blueprint_package_deps(contracts)
+        assert result == {"numpy", "pandas", "requests"}
+
+    def test_compute_dep_diff_returns_baseline_and_blueprint_only_partitions(
+        self, project_root, blueprint_dir, monkeypatch
+    ):
+        """compute_dep_diff() returns delta partitioned into
+        delta_baseline (intersection with manifest baseline) and
+        delta_blueprint_only (declared in blueprint but not in baseline)."""
+        self._make_blueprint(
+            blueprint_dir,
+            {
+                1: ["numpy"],  # blueprint-only
+                2: ["pytest"],  # baseline (in manifest framework_packages)
+            },
+        )
+        self._seed_profile_and_toolchain(project_root, monkeypatch)
+
+        # Fake conda list: only ruff is installed already.
+        def fake_runner(cmd, **kwargs):
+            assert cmd[0:3] == ["conda", "list", "-n"]
+            return _FakeProc(
+                returncode=0,
+                stdout=json.dumps([{"name": "ruff"}]),
+            )
+
+        result = compute_dep_diff(project_root, "svp-test", runner=fake_runner)
+        # baseline = {pytest, ruff, mypy}; ruff installed → not in delta.
+        # desired = {pytest, ruff, mypy, numpy}.
+        # installed = {ruff}.
+        # delta = {pytest, mypy, numpy}.
+        # delta_baseline = {pytest, mypy} (sorted).
+        # delta_blueprint_only = {numpy}.
+        assert set(result["delta_baseline"]) == {"pytest", "mypy"}
+        assert result["delta_blueprint_only"] == ["numpy"]
+
+    def test_compute_dep_diff_writes_pending_json(
+        self, project_root, blueprint_dir, monkeypatch
+    ):
+        """compute_dep_diff() persists the partitioned delta to
+        .svp/dep_diff_pending.json with both 'delta_baseline' and
+        'delta_blueprint_only' keys."""
+        self._make_blueprint(blueprint_dir, {1: ["scipy"]})
+        self._seed_profile_and_toolchain(project_root, monkeypatch)
+
+        def fake_runner(cmd, **kwargs):
+            return _FakeProc(returncode=0, stdout=json.dumps([]))
+
+        compute_dep_diff(project_root, "svp-test", runner=fake_runner)
+        pending_path = project_root / ".svp" / "dep_diff_pending.json"
+        assert pending_path.exists()
+        data = json.loads(pending_path.read_text())
+        assert "delta_baseline" in data
+        assert "delta_blueprint_only" in data
+        assert data["delta_blueprint_only"] == ["scipy"]
+        assert set(data["delta_baseline"]) == {"pytest", "ruff", "mypy"}
+
+    def test_install_dep_delta_runs_conda_install_and_verify(
+        self, project_root, blueprint_dir, monkeypatch
+    ):
+        """install_dep_delta() reads .svp/dep_diff_pending.json, runs
+        conda install for the union of partitions, runs
+        verify_toolchain_ready, sets state.toolchain_status=READY on
+        success, and removes the pending file."""
+        from pipeline_state import PipelineState, save_state
+
+        # Seed pending file.
+        (project_root / ".svp").mkdir(exist_ok=True)
+        pending = {
+            "delta_baseline": ["pytest"],
+            "delta_blueprint_only": ["numpy"],
+        }
+        (project_root / ".svp" / "dep_diff_pending.json").write_text(
+            json.dumps(pending)
+        )
+        # Seed pipeline state.
+        save_state(project_root, PipelineState(stage="pre_stage_3"))
+
+        # Capture conda install calls.
+        invocations = []
+
+        def fake_runner(cmd, **kwargs):
+            invocations.append(cmd)
+            return _FakeProc(returncode=0, stdout="", stderr="")
+
+        # Stub verify_toolchain_ready to avoid real conda invocation.
+        import infrastructure_setup as infra_mod
+
+        monkeypatch.setattr(
+            infra_mod, "verify_toolchain_ready", lambda pr, env: (True, [])
+        )
+
+        ok, errors = install_dep_delta(
+            project_root, "svp-test", runner=fake_runner
+        )
+        assert ok is True
+        assert errors == []
+        # conda install command was issued.
+        assert any(
+            cmd[0:5] == ["conda", "install", "-n", "svp-test", "-y"]
+            for cmd in invocations
+        )
+        # Both partitions were unioned into the install args.
+        all_args = [arg for cmd in invocations for arg in cmd]
+        assert "pytest" in all_args
+        assert "numpy" in all_args
+        # Pending file removed on full success.
+        assert not (project_root / ".svp" / "dep_diff_pending.json").exists()
+        # State toolchain_status set to READY.
+        from pipeline_state import load_state
+
+        state = load_state(project_root)
+        assert state.toolchain_status == "READY"
+
+    def test_install_dep_delta_returns_false_on_conda_install_failure(
+        self, project_root, blueprint_dir, monkeypatch
+    ):
+        """install_dep_delta() returns (False, [errors]) when conda install
+        exits non-zero. The pending file is preserved so the operator can
+        retry."""
+        (project_root / ".svp").mkdir(exist_ok=True)
+        pending = {"delta_baseline": [], "delta_blueprint_only": ["numpy"]}
+        (project_root / ".svp" / "dep_diff_pending.json").write_text(
+            json.dumps(pending)
+        )
+
+        def fake_runner(cmd, **kwargs):
+            return _FakeProc(
+                returncode=1, stdout="", stderr="package not found"
+            )
+
+        ok, errors = install_dep_delta(
+            project_root, "svp-test", runner=fake_runner
+        )
+        assert ok is False
+        assert errors  # non-empty
+        assert any("conda install" in e or "exited" in e for e in errors)
+        # Pending file preserved on failure.
+        assert (project_root / ".svp" / "dep_diff_pending.json").exists()

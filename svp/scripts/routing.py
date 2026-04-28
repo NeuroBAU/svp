@@ -82,6 +82,13 @@ GATE_VOCABULARY: Dict[str, List[str]] = {
         "RESTART SPEC",
         "RETRY BLUEPRINT",
     ],
+    # Bug S3-180: pre_stage_3 dep-diff approval gate. Presented after
+    # `python scripts/infrastructure_setup.py --dep-diff` writes
+    # .svp/dep_diff_pending.json with a non-empty package delta. PROCEED
+    # advances to sub_stage="dep_diff_install" (run conda install + verify);
+    # ABORT rolls back to stage="2", sub_stage="blueprint_dialog" so the
+    # blueprint author can revise package declarations.
+    "gate_2_3_toolchain_verified": ["PROCEED", "ABORT"],
     "gate_3_1_test_validation": ["TEST CORRECT", "TEST WRONG"],
     "gate_3_2_diagnostic_decision": [
         "FIX IMPLEMENTATION",
@@ -1960,7 +1967,133 @@ def _route_pre_stage_3(
     (Bug S3-135) and running infrastructure setup to populate total_units and
     scaffold src/unit_N/ and tests/unit_N/ directories (Bug S3-136). See spec
     §24.148 / §24.149.
+
+    **(NEW IN 2.2 — Bug S3-180)** Two new sub-stages run BEFORE the existing
+    advance-to-stage-3 flow:
+
+    - ``sub_stage = "dep_diff"``: emits ``run_command(infrastructure_setup.py
+      --dep-diff)``, reads ``.svp/dep_diff_pending.json``, and either
+      advances directly into the existing flow (empty delta) or presents
+      ``gate_2_3_toolchain_verified`` for human approval.
+    - ``sub_stage = "dep_diff_install"``: emits
+      ``run_command(infrastructure_setup.py --install-delta)`` (which runs
+      conda install + verify_toolchain_ready) then advances into the
+      existing flow.
+
+    The existing flow runs unchanged when ``sub_stage`` is ``None`` (the
+    transition target after dep_diff resolves), so the routing invariant
+    that pre_stage_3 → stage="3" still terminates correctly.
     """
+    sub = state.sub_stage
+
+    # Bug S3-180: dep_diff sub-stage handler.
+    if sub == "dep_diff":
+        if last_status == "COMMAND_FAILED":
+            return _make_action_block(
+                action_type="pipeline_held",
+                message=(
+                    "TOOLCHAIN_DEP_DIFF_FAILED: see scripts/"
+                    "infrastructure_setup.py stderr for details. Fix the "
+                    "manifest or blueprint, then write 'PIPELINE_RESUME' to "
+                    ".svp/last_status.txt to retry."
+                ),
+                reminder=(
+                    "TOOLCHAIN_DEP_DIFF_FAILED: see scripts/"
+                    "infrastructure_setup.py stderr for details. Fix the "
+                    "manifest or blueprint, then write 'PIPELINE_RESUME' to "
+                    ".svp/last_status.txt to retry."
+                ),
+            )
+        if last_status != "COMMAND_SUCCEEDED":
+            return _make_action_block(
+                action_type="run_command",
+                command="infrastructure_setup_dep_diff",
+                cmd=(
+                    "python scripts/infrastructure_setup.py "
+                    "--dep-diff --project-root ."
+                ),
+                reminder="Computing dep-diff at pre_stage_3.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command infrastructure_setup_dep_diff "
+                    "--project-root ."
+                ),
+            )
+        # COMMAND_SUCCEEDED — read pending file.
+        pending_path = project_root / ".svp" / "dep_diff_pending.json"
+        if pending_path.exists():
+            try:
+                pending = json.loads(pending_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                pending = {"delta_baseline": [], "delta_blueprint_only": []}
+            delta_baseline = pending.get("delta_baseline", []) or []
+            delta_blueprint_only = pending.get("delta_blueprint_only", []) or []
+            delta = list(delta_baseline) + [
+                p for p in delta_blueprint_only if p not in delta_baseline
+            ]
+            if delta:
+                summary = "Packages to install: " + ", ".join(delta) + "."
+                if delta_blueprint_only:
+                    summary += (
+                        " Non-baseline packages requiring approval: "
+                        + ", ".join(delta_blueprint_only)
+                        + "."
+                    )
+                return _make_action_block(
+                    action_type="human_gate",
+                    gate_id="gate_2_3_toolchain_verified",
+                    reminder=summary,
+                    post=(
+                        "python scripts/update_state.py "
+                        "--command gate_2_3_toolchain_verified "
+                        "--project-root ."
+                    ),
+                )
+        # Empty delta (or no pending file) — advance to existing flow.
+        state = advance_sub_stage(state, None)
+        save_state(project_root, state)
+        return route(project_root)
+
+    # Bug S3-180: dep_diff_install sub-stage handler.
+    if sub == "dep_diff_install":
+        if last_status == "COMMAND_FAILED":
+            return _make_action_block(
+                action_type="pipeline_held",
+                message=(
+                    "TOOLCHAIN_DELTA_INSTALL_FAILED: see scripts/"
+                    "infrastructure_setup.py stderr for details. Fix the "
+                    "package list or environment, then write 'PIPELINE_RESUME' "
+                    "to .svp/last_status.txt to retry."
+                ),
+                reminder=(
+                    "TOOLCHAIN_DELTA_INSTALL_FAILED: see scripts/"
+                    "infrastructure_setup.py stderr for details. Fix the "
+                    "package list or environment, then write 'PIPELINE_RESUME' "
+                    "to .svp/last_status.txt to retry."
+                ),
+            )
+        if last_status != "COMMAND_SUCCEEDED":
+            return _make_action_block(
+                action_type="run_command",
+                command="infrastructure_setup_install_delta",
+                cmd=(
+                    "python scripts/infrastructure_setup.py "
+                    "--install-delta --project-root ."
+                ),
+                reminder="Installing dep-diff delta packages.",
+                post=(
+                    "python scripts/update_state.py "
+                    "--command infrastructure_setup_install_delta "
+                    "--project-root ."
+                ),
+            )
+        # COMMAND_SUCCEEDED — advance to existing flow.
+        state = advance_sub_stage(state, None)
+        save_state(project_root, state)
+        return route(project_root)
+
+    # Existing flow (sub_stage is None or any other unrecognized value):
+    # advance to stage 3 and run infrastructure setup if total_units==0.
     state = advance_stage(state, "3")
     # Publish stage=3 before infrastructure_setup reads pipeline_state.json.
     save_state(project_root, state)
@@ -2548,7 +2681,15 @@ def dispatch_gate_response(
     # Gate 2.2: Blueprint post-review
     if gate_id == "gate_2_2_blueprint_post_review":
         if response == "APPROVE":
+            # Bug S3-180: gate_2_2 APPROVE transitions to pre_stage_3 with
+            # sub_stage="dep_diff" so the dep-diff sub-state machine can run
+            # before the existing infrastructure_setup full flow. The eventual
+            # advance to stage="3" still happens (after dep_diff resolves with
+            # an empty delta or after dep_diff_install completes), preserving
+            # the routing-safety invariant that pre_stage_3 → stage 3 still
+            # terminates correctly.
             new = advance_stage(state, "pre_stage_3")
+            new = advance_sub_stage(new, "dep_diff")
         elif response == "REVISE":
             _clear_last_status(project_root)
             new = advance_sub_stage(state, "blueprint_dialog")
@@ -2571,6 +2712,28 @@ def dispatch_gate_response(
         else:  # RETRY BLUEPRINT
             _clear_last_status(project_root)
             new = advance_sub_stage(state, "blueprint_dialog")
+        return new
+
+    # Gate 2.3 (Bug S3-180): Toolchain verified at pre_stage_3 dep-diff
+    if gate_id == "gate_2_3_toolchain_verified":
+        if response == "PROCEED":
+            # Advance into dep_diff_install sub-stage so the next routing
+            # pass runs `conda install` + verify_toolchain_ready.
+            new = advance_sub_stage(state, "dep_diff_install")
+        else:  # ABORT
+            # Roll back to Stage 2 blueprint_dialog so the human can revise
+            # the blueprint's Package Dependencies declarations. Clean up
+            # the pending file (it referenced packages no longer in scope).
+            _clear_last_status(project_root)
+            new = _copy(state)
+            new.stage = "2"
+            new.sub_stage = "blueprint_dialog"
+            try:
+                pending_path = project_root / ".svp" / "dep_diff_pending.json"
+                if pending_path.exists():
+                    pending_path.unlink()
+            except OSError:
+                pass
         return new
 
     # Gate 3.1: Test validation (autonomous)
@@ -3350,6 +3513,30 @@ def dispatch_command_status(
     # state-advance invariant is satisfied trivially (the next pass
     # observes the toolchain_status side effect from the command itself).
     if command_type == "infrastructure_setup_provision_only":
+        if status_line in ("COMMAND_SUCCEEDED", "COMMAND_FAILED"):
+            new = _copy(state)
+        else:
+            raise ValueError(f"Unknown status for {command_type}: {status_line}")
+        return new
+
+    # infrastructure_setup_dep_diff (Bug S3-180)
+    # pre_stage_3 dep-diff computation. The command writes
+    # .svp/dep_diff_pending.json as a side effect; routing reads the file
+    # on the next pass and either presents gate_2_3_toolchain_verified or
+    # advances directly. State stays in sub_stage="dep_diff" — no transition.
+    if command_type == "infrastructure_setup_dep_diff":
+        if status_line in ("COMMAND_SUCCEEDED", "COMMAND_FAILED"):
+            new = _copy(state)
+        else:
+            raise ValueError(f"Unknown status for {command_type}: {status_line}")
+        return new
+
+    # infrastructure_setup_install_delta (Bug S3-180)
+    # pre_stage_3 delta install. The command itself sets
+    # state.toolchain_status to READY on success and removes the pending
+    # file. Routing's dep_diff_install handler advances out of the sub-stage
+    # on COMMAND_SUCCEEDED.
+    if command_type == "infrastructure_setup_install_delta":
         if status_line in ("COMMAND_SUCCEEDED", "COMMAND_FAILED"):
             new = _copy(state)
         else:

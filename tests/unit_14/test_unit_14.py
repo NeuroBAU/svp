@@ -161,10 +161,11 @@ class TestGateVocabulary:
         """GATE_VOCABULARY must be a dict."""
         assert isinstance(GATE_VOCABULARY, dict)
 
-    def test_gate_vocabulary_has_32_gates(self):
-        """GATE_VOCABULARY must contain exactly 32 gate entries (31 baseline
-        + gate_0_4_toolchain_provisioned added by Bug S3-176)."""
-        assert len(GATE_VOCABULARY) == 32
+    def test_gate_vocabulary_has_33_gates(self):
+        """GATE_VOCABULARY must contain exactly 33 gate entries (31 baseline
+        + gate_0_4_toolchain_provisioned added by Bug S3-176
+        + gate_2_3_toolchain_verified added by Bug S3-180)."""
+        assert len(GATE_VOCABULARY) == 33
 
     def test_all_gate_values_are_lists_of_strings(self):
         """Every gate entry must map to a list of string responses."""
@@ -448,6 +449,7 @@ class TestGateVocabulary:
             "gate_2_1_blueprint_approval",
             "gate_2_2_blueprint_post_review",
             "gate_2_3_alignment_exhausted",
+            "gate_2_3_toolchain_verified",  # Bug S3-180
             "gate_3_1_test_validation",
             "gate_3_2_diagnostic_decision",
             "gate_3_completion_failure",
@@ -4645,3 +4647,181 @@ class TestS3_176Stage0Provisioning:
         assert result.stage == "0"
         assert result.sub_stage == "project_profile"
         assert result.toolchain_status == "NOT_READY"
+
+
+class TestS3_180DepDiff:
+    """Bug S3-180: pre_stage_3 dep-diff + delta-install. Two new sub-stages
+    ('dep_diff', 'dep_diff_install') run BEFORE the existing pre_stage_3
+    flow. gate_2_2 APPROVE transitions into pre_stage_3 with
+    sub_stage='dep_diff'. The dep_diff handler emits run_command for
+    `--dep-diff`, then either advances to existing flow (empty delta) or
+    presents gate_2_3_toolchain_verified. PROCEED advances to
+    'dep_diff_install'; ABORT rolls back to stage 2 blueprint_dialog."""
+
+    def test_gate_2_2_approve_transitions_to_pre_stage_3_dep_diff_sub_stage(
+        self, tmp_path
+    ):
+        """gate_2_2 + APPROVE: state.stage='pre_stage_3',
+        state.sub_stage='dep_diff' (was sub_stage=None pre-S3-180)."""
+        state = _make_state(stage="2", sub_stage="alignment_confirmed")
+        result = dispatch_gate_response(
+            state,
+            "gate_2_2_blueprint_post_review",
+            "APPROVE",
+            tmp_path,
+        )
+        assert result.stage == "pre_stage_3"
+        assert result.sub_stage == "dep_diff"
+
+    def test_route_pre_stage_3_dep_diff_emits_run_command_initially(
+        self, tmp_path
+    ):
+        """When sub_stage='dep_diff' and last_status is empty (first entry),
+        route() emits run_command for `infrastructure_setup.py --dep-diff`."""
+        state = _make_state(stage="pre_stage_3", sub_stage="dep_diff")
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "")
+        result = route(tmp_path)
+        assert result["action_type"] == "run_command"
+        assert "--dep-diff" in result.get("cmd", "")
+        assert "infrastructure_setup.py" in result.get("cmd", "")
+
+    def test_route_pre_stage_3_dep_diff_emits_human_gate_when_delta_non_empty(
+        self, tmp_path
+    ):
+        """After the --dep-diff command succeeds and pending file lists a
+        non-empty delta, route() presents gate_2_3_toolchain_verified."""
+        state = _make_state(stage="pre_stage_3", sub_stage="dep_diff")
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "COMMAND_SUCCEEDED")
+        # Seed pending file with a non-empty delta.
+        svp_dir = tmp_path / ".svp"
+        svp_dir.mkdir(exist_ok=True)
+        (svp_dir / "dep_diff_pending.json").write_text(
+            json.dumps(
+                {"delta_baseline": ["pytest"], "delta_blueprint_only": ["numpy"]}
+            )
+        )
+        result = route(tmp_path)
+        assert result["action_type"] == "human_gate"
+        assert result.get("gate_id") == "gate_2_3_toolchain_verified"
+        # Reminder mentions the delta packages.
+        assert "numpy" in result.get("reminder", "")
+        assert "pytest" in result.get("reminder", "")
+
+    def test_route_pre_stage_3_dep_diff_advances_to_stage_3_when_delta_empty(
+        self, tmp_path, monkeypatch
+    ):
+        """When the --dep-diff command succeeds with an empty delta,
+        route() advances sub_stage to None and re-enters the existing
+        infrastructure-setup flow that ultimately advances to stage 3.
+        We monkey-patch run_infrastructure_setup so the test does not
+        actually create directories or invoke conda."""
+        import routing as _routing
+
+        state = _make_state(
+            stage="pre_stage_3",
+            sub_stage="dep_diff",
+            total_units=5,
+            current_unit=None,
+        )
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "COMMAND_SUCCEEDED")
+        # Empty delta pending file.
+        svp_dir = tmp_path / ".svp"
+        svp_dir.mkdir(exist_ok=True)
+        (svp_dir / "dep_diff_pending.json").write_text(
+            json.dumps({"delta_baseline": [], "delta_blueprint_only": []})
+        )
+        # Stub run_infrastructure_setup so the existing-flow pass is a no-op.
+        monkeypatch.setattr(
+            _routing, "run_infrastructure_setup", lambda **kw: None
+        )
+        monkeypatch.setattr(
+            _routing,
+            "ensure_pipeline_toolchain",
+            lambda p: None,
+        )
+        monkeypatch.setattr(
+            _routing,
+            "load_profile",
+            lambda p: {"language": {"primary": "python"}},
+        )
+        monkeypatch.setattr(
+            _routing,
+            "load_toolchain",
+            lambda p: {"toolchain_id": "python_conda_pytest"},
+        )
+        monkeypatch.setattr(
+            _routing, "get_blueprint_dir", lambda p: p / "blueprint"
+        )
+        # Run route(). It should self-advance through dep_diff (None) and
+        # land in stage 3 (the existing pre_stage_3 → stage 3 transition).
+        result = route(tmp_path)
+        # Reload state to verify the transition terminated at stage 3.
+        from pipeline_state import load_state as _ls
+        new_state = _ls(tmp_path)
+        assert new_state.stage == "3"
+        # Result is whatever stage 3 routes to (run_command for stub_gen, etc).
+        assert result["action_type"] in {"run_command", "invoke_agent"}
+
+    def test_route_pre_stage_3_dep_diff_emits_pipeline_held_on_command_failed(
+        self, tmp_path
+    ):
+        """When last_status='COMMAND_FAILED' inside the dep_diff sub-stage,
+        route() emits pipeline_held with TOOLCHAIN_DEP_DIFF_FAILED."""
+        state = _make_state(stage="pre_stage_3", sub_stage="dep_diff")
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "COMMAND_FAILED")
+        result = route(tmp_path)
+        assert result["action_type"] == "pipeline_held"
+        combined = result.get("message", "") + result.get("reminder", "")
+        assert "TOOLCHAIN_DEP_DIFF_FAILED" in combined
+
+    def test_route_pre_stage_3_dep_diff_install_emits_run_command(
+        self, tmp_path
+    ):
+        """When sub_stage='dep_diff_install' and last_status is empty,
+        route() emits run_command for `infrastructure_setup.py
+        --install-delta`."""
+        state = _make_state(stage="pre_stage_3", sub_stage="dep_diff_install")
+        _write_state_file(tmp_path, state)
+        _write_last_status(tmp_path, "")
+        result = route(tmp_path)
+        assert result["action_type"] == "run_command"
+        assert "--install-delta" in result.get("cmd", "")
+        assert "infrastructure_setup.py" in result.get("cmd", "")
+
+    def test_dispatch_gate_2_3_toolchain_verified_proceed_advances_to_dep_diff_install(
+        self, tmp_path
+    ):
+        """gate_2_3_toolchain_verified PROCEED transitions to
+        sub_stage='dep_diff_install' (stage stays pre_stage_3)."""
+        state = _make_state(stage="pre_stage_3", sub_stage="dep_diff")
+        result = dispatch_gate_response(
+            state, "gate_2_3_toolchain_verified", "PROCEED", tmp_path
+        )
+        assert result.stage == "pre_stage_3"
+        assert result.sub_stage == "dep_diff_install"
+
+    def test_dispatch_gate_2_3_toolchain_verified_abort_rolls_back_to_blueprint_dialog(
+        self, tmp_path
+    ):
+        """gate_2_3_toolchain_verified ABORT rolls back to stage='2',
+        sub_stage='blueprint_dialog' so the human can revise the
+        blueprint's Package Dependencies declarations. Cleans up the
+        pending file."""
+        # Seed a pending file so we can verify cleanup.
+        svp_dir = tmp_path / ".svp"
+        svp_dir.mkdir(exist_ok=True)
+        (svp_dir / "dep_diff_pending.json").write_text(
+            json.dumps({"delta_baseline": [], "delta_blueprint_only": ["x"]})
+        )
+        state = _make_state(stage="pre_stage_3", sub_stage="dep_diff")
+        result = dispatch_gate_response(
+            state, "gate_2_3_toolchain_verified", "ABORT", tmp_path
+        )
+        assert result.stage == "2"
+        assert result.sub_stage == "blueprint_dialog"
+        # Pending file removed.
+        assert not (svp_dir / "dep_diff_pending.json").exists()

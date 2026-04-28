@@ -224,8 +224,21 @@ class TestValidSubStages:
         assert VALID_SUB_STAGES["2"] == expected
 
     def test_valid_sub_stages_pre_stage_3_values(self):
-        expected = {None}
+        # Bug S3-180: pre_stage_3 gains dep_diff and dep_diff_install
+        # sub-stages BEFORE the existing flow (sub_stage=None).
+        expected = {None, "dep_diff", "dep_diff_install"}
         assert VALID_SUB_STAGES["pre_stage_3"] == expected
+
+    def test_valid_sub_stages_pre_stage_3_includes_dep_diff_and_install(self):
+        """Bug S3-180: pre_stage_3 sub_stages MUST include the new
+        'dep_diff' and 'dep_diff_install' sub_stages that host the dep-diff
+        compute and delta-install state machines between gate_2_2 APPROVE
+        and the existing infrastructure_setup full flow."""
+        assert "dep_diff" in VALID_SUB_STAGES["pre_stage_3"]
+        assert "dep_diff_install" in VALID_SUB_STAGES["pre_stage_3"]
+        # Existing baseline (None) preserved so the existing flow continues
+        # to terminate at stage 3 after dep_diff resolves.
+        assert None in VALID_SUB_STAGES["pre_stage_3"]
 
     def test_valid_sub_stages_stage_3_values(self):
         expected = {

@@ -44,6 +44,10 @@ ALL_GATE_IDS: List[str] = [
     "gate_2_1_blueprint_approval",
     "gate_2_2_blueprint_post_review",
     "gate_2_3_alignment_exhausted",
+    # Bug S3-180: pre_stage_3 dep-diff approval gate. Distinct from
+    # gate_2_3_alignment_exhausted; presented at pre_stage_3 / dep_diff after
+    # `--dep-diff` finds a non-empty package delta.
+    "gate_2_3_toolchain_verified",
     "gate_3_1_test_validation",
     "gate_3_2_diagnostic_decision",
     "gate_3_completion_failure",
@@ -138,6 +142,8 @@ _GATE_RESPONSE_OPTIONS: Dict[str, List[str]] = {
         "RESTART SPEC",
         "RETRY BLUEPRINT",
     ],
+    # Bug S3-180: pre_stage_3 dep-diff approval gate.
+    "gate_2_3_toolchain_verified": ["PROCEED", "ABORT"],
     "gate_3_1_test_validation": ["TEST CORRECT", "TEST WRONG"],
     "gate_3_2_diagnostic_decision": [
         "FIX IMPLEMENTATION",

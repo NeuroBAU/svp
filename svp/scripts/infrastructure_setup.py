@@ -26,6 +26,82 @@ from blueprint_extractor import extract_units
 # ---------------------------------------------------------------------------
 
 
+def _parse_blueprint_package_deps(blueprint_path: Path) -> set:
+    """Parse ``## Package Dependencies`` blocks across the blueprint contracts.
+
+    Bug S3-180: walks ``blueprint_contracts.md`` and, for every ``## Package
+    Dependencies`` heading inside a unit block, extracts the package names
+    declared up to (but not including) the next ``##`` heading or end of file.
+
+    Format: each non-blank line declares one package; a leading ``- `` bullet
+    is tolerated. Trailing parenthetical descriptors like
+    ``blme (mixed-effects extensions)`` are stripped. The literal sentinel
+    ``None (stdlib only).`` (case-insensitive on the leading ``None``) is
+    treated as an empty declaration for that unit.
+
+    Returns the union of declared package names across all units. Returns an
+    empty set when ``blueprint_path`` does not exist.
+    """
+    if not blueprint_path.exists():
+        return set()
+    content = blueprint_path.read_text(encoding="utf-8")
+    lines = content.splitlines()
+    pkgs: set = set()
+    in_block = False
+    for raw in lines:
+        line = raw.rstrip()
+        stripped = line.strip()
+        if stripped.startswith("##"):
+            # Heading boundary — block continues only if this heading is
+            # specifically "## Package Dependencies".
+            in_block = stripped.lower().startswith("## package dependencies")
+            continue
+        if stripped.startswith("---"):
+            # Horizontal-rule unit boundary terminates the current block.
+            in_block = False
+            continue
+        if stripped.startswith("**Dependencies:**"):
+            # Inter-unit dependency line is a separate axis (S3-177); not a
+            # package declaration.
+            continue
+        if not in_block:
+            continue
+        if not stripped:
+            continue
+        # Strip leading bullet if present.
+        if stripped.startswith("- "):
+            stripped = stripped[2:].strip()
+        elif stripped.startswith("* "):
+            stripped = stripped[2:].strip()
+        # Sentinel: "None (stdlib only)." or just "None"
+        low = stripped.lower()
+        if low.startswith("none (stdlib only)") or low == "none." or low == "none":
+            continue
+        # Strip trailing parenthetical descriptor.
+        paren = stripped.find("(")
+        if paren > 0:
+            stripped = stripped[:paren].strip()
+        # Drop a trailing period (declarations are sometimes terminated by ".").
+        if stripped.endswith("."):
+            stripped = stripped[:-1].strip()
+        # Drop a trailing comma.
+        if stripped.endswith(","):
+            stripped = stripped[:-1].strip()
+        if not stripped:
+            continue
+        # Skip prose-y lines (e.g., italic markers, inline backticks isolated).
+        # A package name is a single token; reject lines containing whitespace
+        # AFTER stripping the parenthetical above.
+        if " " in stripped:
+            continue
+        # Strip surrounding backticks (e.g., `numpy`).
+        if stripped.startswith("`") and stripped.endswith("`") and len(stripped) >= 2:
+            stripped = stripped[1:-1].strip()
+        if stripped:
+            pkgs.add(stripped)
+    return pkgs
+
+
 def _extract_imports_from_blueprint(blueprint_dir: Path) -> List[str]:
     """Extract import statements from blueprint_contracts.md code blocks.
 
@@ -952,6 +1028,188 @@ def ensure_pipeline_toolchain(project_root: Path) -> None:
     toolchain_path.write_text(json.dumps(template, indent=2), encoding="utf-8")
 
 
+def _baseline_packages(toolchain: Dict[str, Any]) -> set:
+    """Bug S3-180: baseline package set = testing.framework_packages ∪ quality.packages.
+
+    Reads the language-specific manifest's framework_packages (testing harness)
+    and quality.packages (linter/formatter/etc.) and returns the union of those
+    two declared sets. The baseline is the archetype-mandated package universe.
+    """
+    baseline: set = set()
+    testing = toolchain.get("testing", {})
+    for pkg in testing.get("framework_packages", []) or []:
+        if pkg:
+            baseline.add(pkg)
+    quality = toolchain.get("quality", {})
+    for pkg in quality.get("packages", []) or []:
+        if pkg:
+            baseline.add(pkg)
+    return baseline
+
+
+def _list_installed_conda_packages(env_name: str, runner=None) -> set:
+    """Bug S3-180: parse ``conda list -n {env_name} --json`` output for names.
+
+    The ``runner`` parameter accepts an injected callable with the same shape
+    as ``subprocess.run`` for testability. The returned set is the lowercase
+    package names reported by conda. On any failure (conda not in PATH,
+    non-zero exit, malformed JSON), returns an empty set so downstream callers
+    treat the env as installed-with-nothing.
+    """
+    if runner is None:
+        runner = subprocess.run
+    try:
+        result = runner(
+            ["conda", "list", "-n", env_name, "--json"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError):
+        return set()
+    if getattr(result, "returncode", 1) != 0:
+        return set()
+    stdout = getattr(result, "stdout", "") or ""
+    try:
+        data = json.loads(stdout)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return set()
+    installed: set = set()
+    if isinstance(data, list):
+        for entry in data:
+            if isinstance(entry, dict):
+                name = entry.get("name")
+                if isinstance(name, str) and name:
+                    installed.add(name)
+    return installed
+
+
+def compute_dep_diff(
+    project_root: Path, env_name: str, runner=None
+) -> Dict[str, List[str]]:
+    """Bug S3-180: compute the dep-diff at pre_stage_3 (before per-unit TDD).
+
+    Steps:
+    1. Parse ``blueprint/blueprint_contracts.md`` Package Dependencies sections
+       via ``_parse_blueprint_package_deps``.
+    2. Load the language-specific manifest baseline
+       (``testing.framework_packages`` ∪ ``quality.packages``) via
+       ``load_toolchain(project_root, language)``.
+    3. ``desired = blueprint_pkgs ∪ baseline``.
+    4. List currently installed packages via ``conda list -n env --json``.
+    5. ``delta = desired - installed``.
+    6. Partition: ``delta_baseline = delta ∩ baseline`` (auto-installable);
+       ``delta_blueprint_only = delta - baseline`` (require human approval).
+    7. Write ``.svp/dep_diff_pending.json`` with both partitions and return
+       the same dict.
+
+    The ``runner`` parameter is forwarded to ``_list_installed_conda_packages``
+    so tests can inject a fake subprocess runner.
+    """
+    blueprint_dir = get_blueprint_dir(project_root)
+    contracts_path = (
+        blueprint_dir / Path(ARTIFACT_FILENAMES["blueprint_contracts"]).name
+    )
+    blueprint_pkgs = _parse_blueprint_package_deps(contracts_path)
+
+    # Load language-specific manifest baseline.
+    try:
+        profile = load_profile(project_root)
+        primary_lang = profile.get("language", {}).get("primary", "python")
+    except (FileNotFoundError, KeyError):
+        primary_lang = "python"
+    try:
+        toolchain = load_toolchain(project_root, language=primary_lang)
+    except (FileNotFoundError, KeyError):
+        toolchain = {}
+    baseline = _baseline_packages(toolchain)
+
+    desired = set(blueprint_pkgs) | baseline
+    installed = _list_installed_conda_packages(env_name, runner=runner)
+    delta = desired - installed
+
+    delta_baseline = sorted(delta & baseline)
+    delta_blueprint_only = sorted(delta - baseline)
+
+    pending = {
+        "delta_baseline": delta_baseline,
+        "delta_blueprint_only": delta_blueprint_only,
+    }
+
+    pending_path = project_root / ".svp" / "dep_diff_pending.json"
+    pending_path.parent.mkdir(parents=True, exist_ok=True)
+    pending_path.write_text(json.dumps(pending, indent=2), encoding="utf-8")
+
+    return pending
+
+
+def install_dep_delta(
+    project_root: Path, env_name: str, runner=None
+) -> "tuple":
+    """Bug S3-180: install delta packages from ``.svp/dep_diff_pending.json``.
+
+    Reads the pending file, runs ``conda install -n <env_name> -y <pkgs>``
+    (union of both partitions), then runs ``verify_toolchain_ready`` (Unit 4).
+    On full success: sets ``state.toolchain_status = "READY"``, removes the
+    pending file, returns ``(True, [])``. On any failure: returns
+    ``(False, [error_messages])``; the pending file is preserved so the
+    operator can inspect/retry.
+
+    The ``runner`` parameter is the conda-install subprocess runner (mockable
+    for tests). When not provided, defaults to ``subprocess.run``.
+    """
+    if runner is None:
+        runner = subprocess.run
+
+    pending_path = project_root / ".svp" / "dep_diff_pending.json"
+    if not pending_path.exists():
+        return (False, ["dep_diff_pending.json not found"])
+
+    try:
+        pending = json.loads(pending_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        return (False, [f"failed to parse dep_diff_pending.json: {exc}"])
+
+    delta_baseline = pending.get("delta_baseline", []) or []
+    delta_blueprint_only = pending.get("delta_blueprint_only", []) or []
+    pkgs = list(delta_baseline) + [
+        p for p in delta_blueprint_only if p not in delta_baseline
+    ]
+
+    if pkgs:
+        cmd = ["conda", "install", "-n", env_name, "-y"] + pkgs
+        try:
+            result = runner(cmd, capture_output=True, text=True, check=False)
+        except (FileNotFoundError, OSError) as exc:
+            return (False, [f"conda install failed to launch: {exc}"])
+        rc = getattr(result, "returncode", 1)
+        if rc != 0:
+            stderr = getattr(result, "stderr", "") or ""
+            return (False, [f"conda install exited {rc}: {stderr.strip()}"])
+
+    # Verify the env is now functional.
+    ok, errors = verify_toolchain_ready(project_root, env_name)
+    if not ok:
+        return (False, list(errors))
+
+    # Full success: update state + remove pending file.
+    try:
+        state = load_state(project_root)
+    except FileNotFoundError:
+        state = None
+    if state is not None:
+        state.toolchain_status = "READY"
+        try:
+            save_state(project_root, state)
+        except Exception:
+            pass
+    try:
+        pending_path.unlink()
+    except OSError:
+        pass
+    return (True, [])
+
+
 def main(argv: list = None) -> None:
     """CLI entry point for infrastructure setup.
 
@@ -976,9 +1234,59 @@ def main(argv: list = None) -> None:
             "dependent steps). Used by Stage-0 provisioning."
         ),
     )
+    parser.add_argument(
+        "--dep-diff",
+        action="store_true",
+        default=False,
+        help=(
+            "Bug S3-180: compute pre_stage_3 dep-diff. Reads blueprint "
+            "Package Dependencies + manifest baseline; writes "
+            ".svp/dep_diff_pending.json listing packages to install."
+        ),
+    )
+    parser.add_argument(
+        "--install-delta",
+        action="store_true",
+        default=False,
+        help=(
+            "Bug S3-180: install pre_stage_3 dep delta from "
+            ".svp/dep_diff_pending.json into the conda env, then verify."
+        ),
+    )
     args = parser.parse_args(argv)
 
     project_root = Path(args.project_root).resolve()
+
+    # Bug S3-180: --dep-diff and --install-delta are mutually exclusive
+    # mini-modes that bypass the full 9-step run_infrastructure_setup flow.
+    if args.dep_diff:
+        try:
+            ensure_pipeline_toolchain(project_root)
+            env_name = derive_env_name(project_root)
+            compute_dep_diff(project_root, env_name)
+        except SystemExit:
+            raise
+        except Exception as e:
+            print(f"Dep-diff failed: {e}", file=sys.stderr)
+            sys.exit(1)
+        return
+
+    if args.install_delta:
+        try:
+            env_name = derive_env_name(project_root)
+            ok, errors = install_dep_delta(project_root, env_name)
+            if not ok:
+                print(
+                    "Delta install failed: " + "; ".join(errors),
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+        except SystemExit:
+            raise
+        except Exception as e:
+            print(f"Delta install failed: {e}", file=sys.stderr)
+            sys.exit(1)
+        return
 
     try:
         profile = load_profile(project_root)

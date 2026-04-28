@@ -23,7 +23,7 @@ VALID_SUB_STAGES: Dict[str, Set[Optional[str]]] = {
     },
     "1": {None, "checklist_generation"},
     "2": {"blueprint_dialog", "alignment_check", "alignment_confirmed"},
-    "pre_stage_3": {None},
+    "pre_stage_3": {None, "dep_diff", "dep_diff_install"},
     "3": {
         None,
         "stub_generation",
