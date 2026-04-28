@@ -177,6 +177,21 @@ Each unit in the blueprint must have exactly three tiers:
 
 **Tier 3 -- Behavioral Contracts:** Observable behaviors the implementation must exhibit, including error conditions, invariants, and edge cases. Each contract must be testable.
 
+### Per-Unit Calls Section (Tier 3 mandate, NEW IN 2.2 -- Bug S3-170)
+
+Each Unit's Tier 3 MUST include a `## Calls` section listing **per-function citations** of which functions in OTHER Units this unit invokes. Format:
+
+```markdown
+## Calls
+- function_name() in Unit N
+- another_function() in Unit M
+- private_helper() in Unit N (private helper)
+```
+
+Citations are per-function (NOT per-unit). Include both public and private helpers; mark private helpers with the `(private helper)` suffix. If the unit calls no other unit's functions, write `## Calls\n\nNone (leaf unit).`
+
+The corresponding `## Called-by` section is NOT authored. It will be mechanically derived from the global Calls graph by a later audit-extension cycle (S3-172). Authors must NOT write `## Called-by` sections by hand in cycle 1.
+
 ## Profile Integration
 
 Use the project profile sections to drive blueprint content:

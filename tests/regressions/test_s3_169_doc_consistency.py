@@ -35,6 +35,7 @@ CONCEPTS = [
     "STAKEHOLDER_DIALOG_STATISTICAL_PRIMER",
     "TEST_AGENT_STATISTICAL_PRIMER",
     "statistical_review_done",
+    "per-function Calls citations",
 ]
 
 

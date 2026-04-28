@@ -377,6 +377,56 @@ class TestBlueprintAuthorSplitFormatMandate:
         )
 
 
+class TestS3_170BlueprintAuthorCallsMandate:
+    """BLUEPRINT_AUTHOR_DEFINITION must mandate a per-Unit Tier-3 ``## Calls``
+    section with per-function citations, while explicitly deferring the
+    reciprocal ``## Called-by`` section to a later mechanical-derivation cycle
+    (Bug S3-170, cycle 1 of the Calls/Called-by sub-project).
+    """
+
+    def test_blueprint_author_definition_mandates_calls_section(self):
+        """The prompt must require a ``## Calls`` section and use the phrase
+        ``per-function`` (case-insensitive) to fix the citation granularity."""
+        assert _contains(BLUEPRINT_AUTHOR_DEFINITION, "## Calls"), (
+            "BLUEPRINT_AUTHOR_DEFINITION must include the ``## Calls`` "
+            "heading marker (per Bug S3-170 Tier-3 mandate)."
+        )
+        assert _contains(
+            BLUEPRINT_AUTHOR_DEFINITION, "per-function", case_sensitive=False
+        ), (
+            "BLUEPRINT_AUTHOR_DEFINITION must use the phrase ``per-function`` "
+            "(case-insensitive) to lock the per-function citation granularity "
+            "for the ``## Calls`` section (per Bug S3-170)."
+        )
+
+    def test_blueprint_author_definition_per_function_citation_format(self):
+        """The prompt must show the per-function citation shape -- each citation
+        carries the ``in Unit`` token to point at the callee unit."""
+        assert _contains(BLUEPRINT_AUTHOR_DEFINITION, "in Unit"), (
+            "BLUEPRINT_AUTHOR_DEFINITION must contain a per-function "
+            "citation example using ``in Unit`` (e.g., "
+            "``- function_name() in Unit N``) so authors anchor on the "
+            "exact citation shape (per Bug S3-170)."
+        )
+
+    def test_blueprint_author_definition_does_not_mandate_called_by_in_cycle_1(
+        self,
+    ):
+        """The prompt must explicitly defer ``## Called-by`` to the later
+        mechanical-inversion cycle. This regression guard prevents a future
+        edit from accidentally re-introducing a Called-by authoring mandate
+        (which was deliberately excluded by the Phase-0 design dialog: cycle 3
+        will mechanically derive the inverse from the global Calls graph)."""
+        assert _contains(
+            BLUEPRINT_AUTHOR_DEFINITION, "mechanically derived"
+        ), (
+            "BLUEPRINT_AUTHOR_DEFINITION must explicitly note that the "
+            "``## Called-by`` section is mechanically derived (deferred to "
+            "the audit-extension cycle), not authored by hand. This guard "
+            "prevents regression of the cycle-1 design (per Bug S3-170)."
+        )
+
+
 class TestStakeholderDialogReconciliation:
     """STAKEHOLDER_DIALOG_DEFINITION must mandate pre-emission cross-reference
     reconciliation as a self-audit step before terminal status emission
