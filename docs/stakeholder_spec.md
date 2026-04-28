@@ -6486,6 +6486,20 @@ This is a meta-cycle: process improvement + accumulated documentation debt clean
 
 **Detection.** tests/unit_20/test_unit_20.py::TestS3_177BlueprintAuthorPackageDependenciesMandate (4 tests covering the mandate text, format example, leaf-unit phrasing, distinction from existing inline Dependencies and Calls section).
 
+### 24.192 Existing Blueprint Lacks Per-Unit Package Dependencies Sections (Post-delivery — Bug S3-178, NEW IN 2.2)
+
+**Symptom.** Cycle C1 (S3-177) shipped the format mandate requiring per-Unit `## Package Dependencies` sections in blueprint contracts, but the existing `blueprint/blueprint_contracts.md` across 29 units predates the mandate. The audit cycle (S3-179) cannot verify dep-reachability until the data exists in every unit's contract block.
+
+**Root cause.** No mechanism existed prior to cycle C1's format mandate; existing units were authored without Package Dependencies sections. Migration was deferred from C1 to keep that cycle small and atomic (mandate + tests only).
+
+**Surface area.** blueprint/blueprint_contracts.md (29 unit sections); tests/regressions/test_s3_178_package_deps_migration.py (NEW — guards future units).
+
+**Resolution.** Mechanical migration. Phase-1 inventory confirmed all 29 SVP units are stdlib-only (no external Python package imports beyond stdlib + internal `from src.unit_N.stub` references). Every unit's section receives `## Package Dependencies\n\nNone (stdlib only).` placed under Tier 3 after `## Calls` and before `**Dependencies:**`. Regression test asserts every unit henceforth carries a Package Dependencies block.
+
+**Pattern.** P62 — when an entire codebase is stdlib-only, the migration is uniform; the Package Dependencies block becomes a structural placeholder that future archetypes (R, Python with numpy/scipy, etc.) populate per their imports. Sibling pattern P55 (S3-171 Calls migration) — same shape; same playbook.
+
+**Detection.** tests/regressions/test_s3_178_package_deps_migration.py::test_every_unit_has_package_dependencies_section walks blueprint_contracts.md, asserts each `## Unit N` section contains a `## Package Dependencies` sub-block (populated or stdlib-only).
+
 ---
 
 ## 25. Test Data
@@ -6628,7 +6642,7 @@ The profile says how the delivered project should look. The toolchain file says 
 
 **(NEW IN 2.2 — Bug S3-170) Per-function Calls citations.** `BLUEPRINT_AUTHOR_DEFINITION` mandates that every Unit's Tier 3 include a `## Calls` section listing per-function Calls citations of the form `- foo() in Unit N` (with `(private helper)` suffix for non-public callees). Citations are per-function, not per-unit, so a downstream audit can resolve each cited symbol against the callee unit's Tier-2 signature block. The corresponding `## Called-by` section is NOT authored — it will be mechanically derived from the global Calls graph by the audit-extension cycle (S3-172). Cycle 1 (S3-170) ships only the prompt mandate; the migration of existing 29 units' contracts is deferred to cycle 2 (S3-171); the reciprocity + Tier-2 resolution audit lands in cycle 3 (S3-172). Migration of all 29 existing Units to include `## Calls` sections completed in S3-171; subsequent revisions inherit this format by mandate. S3-172 closes the Calls/Called-by encoding sub-project: audit verifies per-function reciprocity. Calls citations that don't resolve to declared Tier-2 signatures in target units fail BLUEPRINT_DRAFT_COMPLETE / BLUEPRINT_REVISION_COMPLETE.
 
-**(NEW IN 2.2 — Bug S3-177) Per-unit Package Dependencies mandate.** S3-177 introduces a parallel `## Package Dependencies` section per Unit's Tier 3 (heading-level, distinct from inline `**Dependencies:**`) that lists external packages with canonical install-names. Cycles C2 (S3-178) migrate existing 29 units; cycle C3 (S3-179) audits dep-reachability.
+**(NEW IN 2.2 — Bug S3-177) Per-unit Package Dependencies mandate.** S3-177 introduces a parallel `## Package Dependencies` section per Unit's Tier 3 (heading-level, distinct from inline `**Dependencies:**`) that lists external packages with canonical install-names. Cycles C2 (S3-178) migrate existing 29 units; cycle C3 (S3-179) audits dep-reachability. Migration of all 29 existing Units to include `## Package Dependencies` sections completed in S3-178. SVP units are stdlib-only; future archetypes (R, Python with external libs, etc.) populate accordingly.
 
 **Agent loading matrix (from Section 3.16).** For blueprint construction, the authoritative context-loading rules:
 

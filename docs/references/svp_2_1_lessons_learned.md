@@ -1234,3 +1234,5 @@
 
 - **Pattern.** **P61 (NEW — Compound Names Avoid Naming Collisions When Multiple Axes Share A Domain Word)**. P61 — When extending a multi-tiered spec format, naming collisions with existing fields cause confusion at scale. The new `## Package Dependencies` section deliberately uses a different qualifier than the existing `**Dependencies:**` inline field to keep readers clear about which axis (unit-vs-package) is being declared. Pattern: prefer compound names (`## Package Dependencies`, `## Inter-unit Dependencies`) over bare ones when multiple axes share a domain word. Cite S3-177.
 
+- **Pattern.** **P62 (NEW — Uniformly Stdlib-Only Migrations Are Placeholder Insertions)**. P62 — When migrating a codebase that turns out to be uniformly stdlib-only, the migration is structurally a placeholder insertion: every unit gets the same leaf-form text. The mandate (cycle C1) and audit (cycle C3) have value not from current SVP units but from FUTURE archetypes (R with lme4/blme; Python with numpy/scipy/requests) where the section will carry real content. Sibling pattern P55 (S3-171 Calls migration) — uniform mechanical playbook. Cite S3-178.
+

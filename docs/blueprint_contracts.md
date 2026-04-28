@@ -42,6 +42,10 @@ def get_model_for_agent(
 
 None (leaf unit).
 
+## Package Dependencies
+
+None (stdlib only).
+
 **Dependencies:** None (root unit).
 
 **ARTIFACT_FILENAMES registry:**
@@ -122,6 +126,10 @@ def load_registry_extensions(extensions_path: str) -> Dict[str, Dict[str, Any]]:
 
 None (leaf unit).
 
+## Package Dependencies
+
+None (stdlib only).
+
 **Dependencies:** Unit 1.
 
 **LANGUAGE_REGISTRY contents:**
@@ -194,6 +202,10 @@ def get_quality_config(
 ## Calls
 
 None (leaf unit).
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 1, Unit 2.
 
@@ -272,6 +284,10 @@ def verify_toolchain_ready(
 ## Calls
 
 None (leaf unit).
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 1, Unit 2.
 
@@ -370,6 +386,10 @@ def _requires_statistical_analysis(state: PipelineState) -> bool: ...  # Bug S3-
 ## Calls
 
 None (leaf unit).
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 1, Unit 2.
 
@@ -522,6 +542,10 @@ def abandon_oracle_session(state: "PipelineState") -> "PipelineState": ...
 ## Calls
 
 None (leaf unit).
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 5.
 
@@ -696,6 +720,10 @@ def read_oracle_run_ledger(project_root: Path) -> List[Dict[str, Any]]: ...
 
 None (leaf unit).
 
+## Package Dependencies
+
+None (stdlib only).
+
 **Dependencies:** Unit 1.
 
 **append_entry:**
@@ -774,6 +802,10 @@ def format_unit_heading_violations(
 
 None (leaf unit).
 
+## Package Dependencies
+
+None (stdlib only).
+
 **Dependencies:** Unit 1, Unit 2.
 
 **validate_unit_heading_format (NEW IN 2.2 — Bug S3-116):**
@@ -840,6 +872,10 @@ def main(argv: list = None) -> None: ...
 
 None (leaf unit).
 
+## Package Dependencies
+
+None (stdlib only).
+
 **Dependencies:** Unit 2, Unit 8.
 
 **SIGNATURE_PARSERS dispatch table:**
@@ -895,6 +931,10 @@ def main(argv: list = None) -> None: ...
 - get_language_config() in Unit 2
 - extract_units() in Unit 8
 - parse_signatures() in Unit 9
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 2, Unit 8, Unit 9.
 
@@ -961,6 +1001,10 @@ def main(argv: list = None) -> None: ...
 - format_unit_heading_violations() in Unit 8
 - validate_unit_heading_format() in Unit 8
 
+## Package Dependencies
+
+None (stdlib only).
+
 **Dependencies:** Unit 1, Unit 2, Unit 3, Unit 4, Unit 5, Unit 8.
 
 **run_infrastructure_setup performs in order:**
@@ -1008,6 +1052,10 @@ def assemble_hint_prompt(
 ## Calls
 
 None (leaf unit).
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 7.
 
@@ -1083,6 +1131,10 @@ def main(argv: list = None) -> None: ...
 - extract_units() in Unit 8
 - assemble_hint_prompt() in Unit 12
 - _expected_terminal_status_for() in Unit 14 (private helper)
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 1, Unit 2, Unit 3, Unit 4, Unit 5, Unit 7, Unit 8, Unit 12.
 
@@ -1255,6 +1307,10 @@ def run_tests_main(argv: list = None) -> None: ...
 - sync_pass1_artifacts() in Unit 16
 - audit_blueprint_contracts() in Unit 28
 - format_audit_violations() in Unit 28
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 1, Unit 2, Unit 4, Unit 5, Unit 6.
 
@@ -1577,6 +1633,10 @@ def run_quality_gate_main(argv: list = None) -> None: ...
 - load_toolchain() in Unit 4
 - resolve_command() in Unit 4
 
+## Package Dependencies
+
+None (stdlib only).
+
 **Dependencies:** Unit 2, Unit 4.
 
 **QUALITY_RUNNERS dispatch table:**
@@ -1637,6 +1697,10 @@ def sync_pass1_artifacts(project_root: Path) -> Dict[str, Any]: ...
 - resolve_command() in Unit 4
 - load_state() in Unit 5
 - save_state() in Unit 5
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 1, Unit 3, Unit 4, Unit 5.
 
@@ -1714,6 +1778,10 @@ def generate_monitoring_reminder_sh() -> str: ...
 
 None (leaf unit).
 
+## Package Dependencies
+
+None (stdlib only).
+
 **Dependencies:** Unit 2, Unit 5.
 
 **generate_hooks_json:**
@@ -1772,6 +1840,10 @@ DIALOG_AREAS: list  # 7 dialog areas (0-6) — Area 6 added by Bug S3-164
 
 None (leaf unit).
 
+## Package Dependencies
+
+None (stdlib only).
+
 **Dependencies:** Unit 2, Unit 3.
 
 **SETUP_AGENT_DEFINITION content requirements:**
@@ -1815,6 +1887,10 @@ BLUEPRINT_CHECKER_DEFINITION: str  # Complete markdown content
 
 None (leaf unit).
 
+## Package Dependencies
+
+None (stdlib only).
+
 **Dependencies:** Unit 2.
 
 **BLUEPRINT_CHECKER_DEFINITION content requirements:**
@@ -1854,6 +1930,10 @@ STATISTICAL_CORRECTNESS_REVIEWER_DEFINITION: str
 ## Calls
 
 None (leaf unit).
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 2.
 
@@ -1903,6 +1983,10 @@ REDO_AGENT_DEFINITION: str
 
 None (leaf unit).
 
+## Package Dependencies
+
+None (stdlib only).
+
 **Dependencies:** None.
 
 **DIAGNOSTIC_AGENT_DEFINITION:**
@@ -1937,6 +2021,10 @@ REFERENCE_INDEXING_AGENT_DEFINITION: str
 ## Calls
 
 None (leaf unit).
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** None.
 
@@ -2004,6 +2092,10 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 - generate_write_authorization_sh() in Unit 17
 - generate_marketplace_json() in Unit 28
 - generate_plugin_json() in Unit 28
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 1, Unit 2, Unit 3, Unit 4, Unit 5.
 
@@ -2114,6 +2206,10 @@ REPAIR_AGENT_DEFINITION: str
 
 None (leaf unit).
 
+## Package Dependencies
+
+None (stdlib only).
+
 **Dependencies:** None.
 
 **BUG_TRIAGE_AGENT_DEFINITION:**
@@ -2155,6 +2251,10 @@ COMMAND_NAMES: List[str]
 ## Calls
 
 None (leaf unit).
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** None (markdown files).
 
@@ -2198,6 +2298,10 @@ ORCHESTRATION_SKILL: str  # Complete SKILL.md content
 ## Calls
 
 None (leaf unit).
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** None (markdown file).
 
@@ -2250,6 +2354,10 @@ def render_template(
 ## Calls
 
 None (leaf unit).
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 2.
 
@@ -2339,6 +2447,10 @@ def compliance_scan_main(argv: list = None) -> None: ...
 
 - load_profile() in Unit 3
 - load_state() in Unit 5
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 1, Unit 2, Unit 3.
 
@@ -2472,6 +2584,10 @@ def main(argv: list = None) -> None: ...
 ## Calls
 
 None (leaf unit).
+
+## Package Dependencies
+
+None (stdlib only).
 
 **Dependencies:** Unit 2.
 
