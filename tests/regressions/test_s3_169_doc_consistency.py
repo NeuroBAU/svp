@@ -36,6 +36,7 @@ CONCEPTS = [
     "TEST_AGENT_STATISTICAL_PRIMER",
     "statistical_review_done",
     "per-function Calls citations",
+    "language_architecture_primers",
 ]
 
 

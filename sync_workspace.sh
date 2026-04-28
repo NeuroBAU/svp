@@ -203,6 +203,12 @@ if [ -f "$WORKSPACE/references/existing_readme.md" ]; then
         "$REPO/docs/references/existing_readme.md"
 fi
 
+# S3-174: toolchain manifest schema doc (canonical schema for toolchain manifests)
+if [ -f "$WORKSPACE/references/toolchain_manifest_schema.md" ]; then
+    doc_sync "$WORKSPACE/references/toolchain_manifest_schema.md" \
+        "$REPO/docs/references/toolchain_manifest_schema.md"
+fi
+
 # Workspace root docs → repo docs/ (restore-only artifacts)
 doc_sync "$WORKSPACE/CLAUDE.md" \
     "$REPO/docs/CLAUDE.md"

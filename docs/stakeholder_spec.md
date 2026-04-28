@@ -6430,6 +6430,20 @@ This is a meta-cycle: process improvement + accumulated documentation debt clean
 
 **Detection.** Code review of CLAUDE.md presence of the "Propagation Scope of SVP Improvements" section. The doc-consistency regression test (S3-169) does not specifically check for this section — it's a project-level convention, not a behavior change with cross-doc terms to verify.
 
+### 24.188 Toolchain Manifest Schema Was Undocumented (Post-delivery — Bug S3-174, NEW IN 2.2)
+
+**Symptom.** SVP's toolchain manifests (python_conda_pytest.json, r_conda_testthat.json, r_renv_testthat.json) accumulated fields ad-hoc as new archetypes landed (S3-160 added verify_commands; S3-161 changed R run_command/run_coverage; S3-119 added quality_packages; etc.). Adding a new archetype required reverse-engineering the schema from existing files. No canonical schema doc.
+
+**Root cause.** Schema lived implicitly in unit_4 reader code + scattered consumer code in units 11/13/14/15/16. Field semantics, conventions, and required vs optional status undocumented.
+
+**Surface area.** references/toolchain_manifest_schema.md (NEW); tests/regressions/test_s3_174_toolchain_schema_doc.py (NEW).
+
+**Resolution.** Cycle A1 of the archetype env provisioning + language architecture primers sub-project. Authors a canonical schema doc that documents every top-level key, every nested key, semantics, required vs optional, examples. Adds the new `language_architecture_primers` field with 5 sub-keys (blueprint_author, implementation_agent, test_agent, coverage_review, orchestrator_break_glass) — used in cycles E1-E4 to drive archetype-conditional primer injection. Locks two conventions: templated_helpers at scripts/toolchain_defaults/templates/<helper>; verify_commands always via {run_prefix} substitution. NO manifest edits (cycle A2 refactors existing manifests). NO code changes (cycle A2 ships JSON-schema validator).
+
+**Pattern.** P58 — single source of truth for archetype-specific behavior is the manifest, NOT scattered reader/consumer code. Documenting the schema is the precondition for clean extensibility (cycle F1 ships a synthetic Julia-or-Rust manifest as proof). Sibling pattern P54 (S3-170 cycle-1 mandate) — incremental schema extensions ship in dedicated cycles with format-first / data-second / audit-third structure.
+
+**Detection.** tests/regressions/test_s3_174_toolchain_schema_doc.py (asserts schema doc presence, key coverage, conventions).
+
 ---
 
 ## 25. Test Data
@@ -7759,6 +7773,8 @@ Given failures during Pass 1 or Pass 2 of an E/F self-build that trigger the orc
 ### 40.1 Overview
 
 SVP 2.2 is a polyglot pipeline. While the pipeline itself always runs as Python, the delivered project can be written in Python or R (with component languages like Stan). The language provider framework is the mechanism that makes this possible.
+
+The toolchain manifest schema is canonically documented at `references/toolchain_manifest_schema.md`. Each archetype (python_project, r_project, etc.) has a manifest file at `scripts/toolchain_defaults/<id>.json` conforming to that schema. The schema includes a `language_architecture_primers` field (NEW IN 2.2 — S3-174) for archetype-conditional primer injection at agent task prompts.
 
 The framework has three active components:
 1. **Language Registry** — a data structure mapping language identifiers to complete build/test/lint/deliver configurations

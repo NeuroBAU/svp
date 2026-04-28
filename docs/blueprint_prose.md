@@ -225,6 +225,11 @@ The three-layer toolchain separation (Section 3.25) is enforced here: `load_tool
 
 Placeholder resolution is single-pass: resolve `{run_prefix}` first (from `environment.run_prefix`), then substitute into all templates. `{env_name}` is resolved from `derive_env_name()` (Unit 1), `{python_version}` from the profile, `{flags}` from the appropriate flags key (unit_flags for Gates A/B, project_flags for Gate C), and `{target}` from the caller. After resolution, whitespace is normalized (collapsing multiple spaces, trimming).
 
+**(Bug S3-174)** Toolchain manifest schema canonically documented at
+`references/toolchain_manifest_schema.md` — covers all top-level keys,
+the new `language_architecture_primers` field (cycles E1-E4 consume it),
+and locks templated_helpers + verify_commands conventions.
+
 ---
 
 ## Unit 5: Pipeline State

@@ -1226,3 +1226,5 @@
 
 - **Pattern.** **P57 (NEW — Improvements Port Forward; Existing Children Are Not Retroactively Migrated)**. P57 — Improvements port forward (SVP itself + future jobs); existing children are not retroactively migrated. Codified in CLAUDE.md "Propagation Scope of SVP Improvements" section. Sibling pattern P53 (S3-169 protocol enforcement also lives in CLAUDE.md — same shape: codify project-level conventions explicitly to prevent erosion). Cite S3-173.
 
+- **Pattern.** **P58 (NEW — Documenting A Schema Is The Precondition For Clean Extensibility)**. P58 — Documenting a schema is the precondition for clean extensibility. Before refactoring data files (cycle A2) or building consumers (cycles A2-F1), the schema MUST exist as a canonical doc. This sequence (doc-first, data-second, code-third) parallels the S3-170/171/172 format-mandate / migration / audit pattern. Cite S3-174.
+

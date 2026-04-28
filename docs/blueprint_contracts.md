@@ -305,6 +305,8 @@ None (leaf unit).
 
 **Structural regression test:** No function in this module reads `project_profile.json`. No function reads delivery quality settings. This enforces the Layer 1/Layer 2 vs. Layer 3 separation (Section 3.25).
 
+**Schema reference (Bug S3-174):** `load_toolchain()` consumers MUST refer to `references/toolchain_manifest_schema.md` for field semantics; the schema doc is the canonical source. The new `language_architecture_primers` field (S3-174) is optional in cycle A1 (not yet present in any manifest); cycle A2 (S3-175) adds it to existing manifests.
+
 ---
 
 ## Unit 5: Pipeline State
