@@ -307,6 +307,8 @@ None (leaf unit).
 
 **Schema reference (Bug S3-174):** `load_toolchain()` consumers MUST refer to `references/toolchain_manifest_schema.md` for field semantics; the schema doc is the canonical source. The new `language_architecture_primers` field (S3-174) is optional in cycle A1 (not yet present in any manifest); cycle A2 (S3-175) adds it to existing manifests.
 
+**Schema validator (Bug S3-175):** `scripts/validate_toolchain_schema.py` provides `validate_manifest(manifest) -> List[str]` returning human-readable error messages. Empty list = valid. Future cycles invoke it as a precondition gate (e.g., during infrastructure_setup; not in cycle A2 scope).
+
 ---
 
 ## Unit 5: Pipeline State

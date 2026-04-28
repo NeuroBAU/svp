@@ -67,5 +67,6 @@
     "test_dir_pattern": "tests/testthat",
     "source_extension": ".R",
     "test_extension": ".R"
-  }
+  },
+  "language_architecture_primers": {}
 }

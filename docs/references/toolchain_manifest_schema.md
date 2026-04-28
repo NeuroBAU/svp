@@ -11,9 +11,7 @@ The reader is `scripts/toolchain_reader.py::load_toolchain` (derived from `src/u
 | `toolchain_id` | string | yes | Unique identifier (e.g., "r_conda_testthat", "python_conda_pytest") |
 | `language` | object | yes | Language metadata. See "language object" below. |
 | `environment` | object | yes | Env tool, run_prefix, lifecycle commands. See "environment object" below. |
-| `framework_packages` | list[string] | yes | Test framework packages installed at env creation. |
 | `quality` | object | yes | Quality tooling config. See "quality object" below. |
-| `quality_packages` | list[string] | optional | Some manifests inline this in `quality.packages`. Reader aggregates both. |
 | `testing` | object | yes | Test runner config. See "testing object" below. |
 | `packaging` | object | optional | Build/packaging config (Python: pyproject.toml; R: DESCRIPTION). |
 | `vcs` | object | optional | Version control commands. |
@@ -29,9 +27,11 @@ The `name` field is the canonical language identifier (lowercase, e.g. `"python"
 
 ## environment object
 
-`{tool: "conda" | "venv" | "renv", run_prefix: string, create_command: string, install_command: string, install_dev?: string, cleanup_command: string, verify_commands: list[string]}`
+`{tool: "conda" | "venv" | "renv", run_prefix: string, create_command: string, install_command: string, install_dev?: string, cleanup_command: string, verify_commands?: list[string]}`
 
 The `run_prefix` is the templated command prefix that wraps every other command run inside the env (e.g., `conda run -n {env_name}`). The `verify_commands` list is consumed by `verify_toolchain_ready` (Unit 4, S3-160) — see the verify_commands convention below.
+
+`verify_commands` is **optional** for renv-path manifests where env verification is handled by the renv lifecycle itself. **Required** for conda-path manifests.
 
 ## quality object
 
@@ -120,6 +120,28 @@ These were authored across multiple cycles (S3-160, S3-161, S3-119, etc.). Cycle
 ## Schema versioning
 
 This schema is v1. Future versions add new fields additively (new optional keys; never remove or rename existing ones). Major version bumps require a deliberate cycle.
+
+A1 (S3-174) was v1-draft; A2 (S3-175) corrections produce v1-stable. Future field additions are additive (new optional keys); breaking changes require deliberate version bump.
+
+## Validator
+
+The schema is enforced mechanically by `scripts/validate_toolchain_schema.py` (S3-175). Pure-Python (stdlib only); no external dependencies. Function signature:
+
+`validate_manifest(manifest: Dict[str, Any]) -> List[str]` returns a list of human-readable error messages. Empty list means valid.
+
+The validator performs 10 checks:
+1. Top-level required keys: `toolchain_id`, `environment`, `quality`, `testing`, `language`, `file_structure`.
+2. `environment` required nested: `tool`, `run_prefix`, `create_command`, `install_command`, `cleanup_command`.
+3. `environment.verify_commands` (if present): non-empty list; every entry uses `{run_prefix}`.
+4. `language` required nested: `name`, `extension`, `version_constraint`.
+5. `testing` required nested: `tool`, `run_command`, `framework_packages` (list).
+6. `quality.packages` is a list.
+7. `file_structure` has all 4 required keys.
+8. `templated_helpers` (if present): list of `{src, dest}`; each `src` MUST live under `scripts/toolchain_defaults/templates/`.
+9. `language_architecture_primers` (if present): object with allowed sub-keys: `blueprint_author`, `implementation_agent`, `test_agent`, `coverage_review`, `orchestrator_break_glass`.
+10. `toolchain_id` matches the filename stem (when validating from a known file path).
+
+CLI invocation: `python scripts/validate_toolchain_schema.py` validates all manifests at `scripts/toolchain_defaults/*.json`; exits 0 on full conformance, 1 on any violations (with per-file error report).
 
 ## Cross-references
 

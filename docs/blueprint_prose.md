@@ -230,6 +230,12 @@ Placeholder resolution is single-pass: resolve `{run_prefix}` first (from `envir
 the new `language_architecture_primers` field (cycles E1-E4 consume it),
 and locks templated_helpers + verify_commands conventions.
 
+**(Bug S3-175)** A pure-Python validator at `scripts/validate_toolchain_schema.py`
+mechanically enforces the schema. Existing 3 manifests refactored additively
+(language_architecture_primers placeholder added). Schema doc corrected:
+framework_packages and quality_packages live under their natural parents
+(testing, quality) — not top-level.
+
 ---
 
 ## Unit 5: Pipeline State

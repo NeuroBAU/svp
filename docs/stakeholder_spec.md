@@ -6444,6 +6444,20 @@ This is a meta-cycle: process improvement + accumulated documentation debt clean
 
 **Detection.** tests/regressions/test_s3_174_toolchain_schema_doc.py (asserts schema doc presence, key coverage, conventions).
 
+### 24.189 Toolchain Manifest Schema Doc Inaccuracies + No Validator (Post-delivery — Bug S3-175, NEW IN 2.2)
+
+**Symptom.** A1 schema doc (S3-174) listed `framework_packages` and `quality_packages` at top-level, but reality places them under `testing.framework_packages` and `quality.packages` respectively. Without a validator, future manifest authors couldn't mechanically check conformance. r_renv_testthat lacks verify_commands; schema doc didn't mark this optional.
+
+**Root cause.** A1 schema was authored from aspirational notes, not from inspecting actual manifest files. No validator existed to flag the divergence.
+
+**Surface area.** references/toolchain_manifest_schema.md (corrections); scripts/validate_toolchain_schema.py (NEW); 3 manifests (add language_architecture_primers placeholder); tests/regressions/test_s3_175_toolchain_validator.py (NEW).
+
+**Resolution.** Cycle A2. Schema doc corrected: framework_packages and quality_packages removed from top-level table; verify_commands marked optional for renv paths. Pure-Python validator script ships at scripts/validate_toolchain_schema.py: 10 checks (top-level required keys; nested required keys per object; verify_commands convention; templated_helpers location convention; language_architecture_primers structure; toolchain_id matches filename). Existing 3 manifests refactored additively to include empty language_architecture_primers placeholder. Cycles E1/E4 populate.
+
+**Pattern.** P59 — schema docs and validators are mutually reinforcing artifacts: the doc describes intent in prose; the validator enforces it mechanically. When written together, they catch each other's errors. Sibling pattern P58 (S3-174 documenting schema is precondition for clean extensibility) — A2 is the natural follow-on that catches A1 errors and prevents future drift.
+
+**Detection.** tests/regressions/test_s3_175_toolchain_validator.py (9 tests covering each manifest accepted, conventions enforced, malformed rejected).
+
 ---
 
 ## 25. Test Data
@@ -7774,7 +7788,7 @@ Given failures during Pass 1 or Pass 2 of an E/F self-build that trigger the orc
 
 SVP 2.2 is a polyglot pipeline. While the pipeline itself always runs as Python, the delivered project can be written in Python or R (with component languages like Stan). The language provider framework is the mechanism that makes this possible.
 
-The toolchain manifest schema is canonically documented at `references/toolchain_manifest_schema.md`. Each archetype (python_project, r_project, etc.) has a manifest file at `scripts/toolchain_defaults/<id>.json` conforming to that schema. The schema includes a `language_architecture_primers` field (NEW IN 2.2 — S3-174) for archetype-conditional primer injection at agent task prompts.
+The toolchain manifest schema is canonically documented at `references/toolchain_manifest_schema.md`. Each archetype (python_project, r_project, etc.) has a manifest file at `scripts/toolchain_defaults/<id>.json` conforming to that schema. The schema includes a `language_architecture_primers` field (NEW IN 2.2 — S3-174) for archetype-conditional primer injection at agent task prompts. A pure-Python validator at `scripts/validate_toolchain_schema.py` enforces the schema mechanically (10 checks including conventions for verify_commands templates and templated_helpers location). New archetype manifests must pass the validator before being merged.
 
 The framework has three active components:
 1. **Language Registry** — a data structure mapping language identifiers to complete build/test/lint/deliver configurations

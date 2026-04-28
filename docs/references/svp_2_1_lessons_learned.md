@@ -1228,3 +1228,5 @@
 
 - **Pattern.** **P58 (NEW — Documenting A Schema Is The Precondition For Clean Extensibility)**. P58 — Documenting a schema is the precondition for clean extensibility. Before refactoring data files (cycle A2) or building consumers (cycles A2-F1), the schema MUST exist as a canonical doc. This sequence (doc-first, data-second, code-third) parallels the S3-170/171/172 format-mandate / migration / audit pattern. Cite S3-174.
 
+- **Pattern.** **P59 (NEW — Schema Documentation And Validator Are Mutually Reinforcing)**. P59 — Schema documentation and a corresponding validator are mutually reinforcing. The doc describes intent in prose readable by humans; the validator enforces it mechanically and catches doc errors. Authoring them in adjacent cycles (A1 doc → A2 validator + corrections) catches drift between intent and reality before it propagates. Cite S3-175.
+

@@ -98,5 +98,6 @@
     "test_dir_pattern": "tests/unit_{n}",
     "source_extension": ".py",
     "test_extension": ".py"
-  }
+  },
+  "language_architecture_primers": {}
 }
