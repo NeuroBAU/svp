@@ -74,3 +74,19 @@ When the SVP routing mechanism is too broken to function and the human asks you 
    - k. **TEST FROM BOTH** — Run `pytest` from BOTH the workspace AND the repo directory. Do not skip either. Failures in one but not the other indicate stale test files or permission issues.
 
 3. **EVALUATE** — All tests pass from BOTH workspace AND repo. 0 skipped, 0 failed. Repos fully in sync. Clean up any stale test artifacts (e.g., `test_project/`, `test_restore/`) left by previous runs.
+
+## Propagation Scope of SVP Improvements
+
+When a break-glass cycle (or any improvement cycle) lands a change to SVP — to a stub, to an agent prompt, to the blueprint format, to the audit, to a deployed artifact — the change propagates to:
+
+1. **SVP itself** (when self-hosted, F-mode oracle, or any future re-author of SVP's own blueprint/code).
+2. **Future jobs** SVP authors (new children projects). The deployed plugin (`svp/agents/`, `svp/scripts/`, `svp/commands/`, `svp/skills/`, `svp/hooks/`) IS the propagation mechanism — new children pick up the improvement automatically when they invoke SVP.
+
+The change does **NOT** retroactively migrate:
+
+- **Existing children projects in-flight** (mid-pipeline). If they re-enter a stage that exercises the improved logic, they may benefit; otherwise, they continue with the state they were authored in.
+- **Existing children projects shipped** (Stage 5 complete or delivered). They are static deliverables; SVP improvements do not edit them.
+
+Children that want a retroactive improvement run their own one-time migration (or re-author through the relevant pipeline phase). SVP improvement cycles must NOT include "migrate every existing child" as in-scope work — that would entangle the cycle with arbitrarily many downstream projects and erode atomicity.
+
+This convention applies symmetrically: every cycle's PLAN explicitly limits scope to "SVP itself + future jobs" and treats existing children as out-of-scope.

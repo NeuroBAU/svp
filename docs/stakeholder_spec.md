@@ -6416,6 +6416,20 @@ This is a meta-cycle: process improvement + accumulated documentation debt clean
 
 **Detection.** `tests/unit_28/test_unit_28.py::TestS3_172CallsResolutionCheck` (6 tests: passes-on-current-blueprint guards regression; detects-unresolved verifies the new check fires; private-helper handling; leaf-unit skip; false-positive respect; inversion correctness).
 
+### 24.187 Propagation Scope of SVP Improvements Was Implicit (Post-delivery — Bug S3-173, NEW IN 2.2)
+
+**Symptom.** During the Calls/Called-by encoding sub-project closeout (S3-170/171/172), it surfaced that cycle 2 (migration) had only migrated SVP's own blueprint, not children projects' blueprints. Conversation established this is the correct scope, but the convention was not written down. Future cycles risk re-raising the same concern OR over-extending scope to include existing-child migration.
+
+**Root cause.** No project-level convention codified the propagation scope. The break-glass protocol (CLAUDE.md step 2) describes WHAT to do per cycle but did not state which projects an improvement applies to.
+
+**Surface area.** CLAUDE.md (new top-level section); references/svp_2_1_lessons_learned.md (P57).
+
+**Resolution.** Codify the convention: improvements port forward to SVP itself + future jobs SVP authors; existing children (in-flight or shipped) are NOT retroactively migrated. The deployed plugin (svp/agents/, svp/scripts/, etc.) is the propagation mechanism for future jobs. Existing children that want improvements run their own one-time migration or re-author through the relevant phase.
+
+**Pattern.** P57 — small projects with deferred follow-ups should codify scope conventions explicitly. Implicit conventions erode under churn; explicit conventions in CLAUDE.md scope future work cleanly. Sibling pattern P53 (S3-169 protocol enforcement — also CLAUDE.md tightening; same shape).
+
+**Detection.** Code review of CLAUDE.md presence of the "Propagation Scope of SVP Improvements" section. The doc-consistency regression test (S3-169) does not specifically check for this section — it's a project-level convention, not a behavior change with cross-doc terms to verify.
+
 ---
 
 ## 25. Test Data

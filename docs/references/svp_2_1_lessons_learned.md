@@ -1224,3 +1224,5 @@
 
 - **Pattern.** **P56 (NEW — Staged Blueprint Format Extensions Complete Cleanly When Each Cycle Has Clean Test Invariants)**. P56 — Staged blueprint format extensions complete cleanly when each cycle has clean test invariants: format mandate (cycle 1) lets new units conform; migration (cycle 2) brings existing data into compliance; audit (cycle 3) consumes the data to enforce invariants. Three small cycles, each independently rollback-safe, succeed where one big-bang cycle would have entangled invariants. Cite S3-172.
 
+- **Pattern.** **P57 (NEW — Improvements Port Forward; Existing Children Are Not Retroactively Migrated)**. P57 — Improvements port forward (SVP itself + future jobs); existing children are not retroactively migrated. Codified in CLAUDE.md "Propagation Scope of SVP Improvements" section. Sibling pattern P53 (S3-169 protocol enforcement also lives in CLAUDE.md — same shape: codify project-level conventions explicitly to prevent erosion). Cite S3-173.
+
