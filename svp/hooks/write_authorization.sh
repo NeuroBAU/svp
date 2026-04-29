@@ -57,9 +57,10 @@ DEBUG_CLASSIFICATION=""
 DEBUG_PHASE=""
 DEBUG_AFFECTED_UNITS=""
 DELIVERED_REPO_PATH=""
+DEBUG_SESSION_MODE="none"
 
 if [ -f "$STATE_FILE" ]; then
-    read -r STAGE SUB_STAGE CURRENT_UNIT ORACLE_SESSION_ACTIVE ORACLE_PHASE DEBUG_AUTHORIZED DEBUG_CLASSIFICATION DEBUG_PHASE DEBUG_AFFECTED_UNITS DELIVERED_REPO_PATH <<< "$(cat "$STATE_FILE" | python3 -c "
+    read -r STAGE SUB_STAGE CURRENT_UNIT ORACLE_SESSION_ACTIVE ORACLE_PHASE DEBUG_AUTHORIZED DEBUG_CLASSIFICATION DEBUG_PHASE DEBUG_AFFECTED_UNITS DELIVERED_REPO_PATH DEBUG_SESSION_MODE <<< "$(cat "$STATE_FILE" | python3 -c "
 import sys, json
 data = json.load(sys.stdin)
 stage = data.get('stage', '0')
@@ -74,12 +75,14 @@ if ds:
     classification = ds.get('classification', '') or ''
     phase = ds.get('phase', '') or ''
     affected = ','.join(str(u) for u in ds.get('affected_units', []))
+    mode_str = ds.get('mode', '') or ''
 else:
     authorized = 'none'
     classification = ''
     phase = ''
     affected = ''
-print(f'{stage} {sub_stage or "_"} {current_unit or "_"} {oracle_active} {oracle_phase or "_"} {authorized} {classification or "_"} {phase or "_"} {affected or "_"} {delivered_repo_path or "_"}')
+    mode_str = ''
+print(f'{stage} {sub_stage or "_"} {current_unit or "_"} {oracle_active} {oracle_phase or "_"} {authorized} {classification or "_"} {phase or "_"} {affected or "_"} {delivered_repo_path or "_"} {mode_str or "_"}')
 " 2>/dev/null)"
     # Normalize underscore placeholders to empty
     [ "$SUB_STAGE" = "_" ] && SUB_STAGE=""
@@ -89,6 +92,7 @@ print(f'{stage} {sub_stage or "_"} {current_unit or "_"} {oracle_active} {oracle
     [ "$DEBUG_PHASE" = "_" ] && DEBUG_PHASE=""
     [ "$DEBUG_AFFECTED_UNITS" = "_" ] && DEBUG_AFFECTED_UNITS=""
     [ "$DELIVERED_REPO_PATH" = "_" ] && DELIVERED_REPO_PATH=""
+    [ "$DEBUG_SESSION_MODE" = "_" ] && DEBUG_SESSION_MODE=""
 fi
 
 # --- (2) Check pipeline_state.json protection ---
@@ -190,6 +194,18 @@ if [ "$DEBUG_AUTHORIZED" = "true" ]; then
                     ;;
             esac
         done
+    fi
+
+    # Cycle G3 (S3-188): enhancement mode permits writes to upstream layers
+    # (specs, blueprint, references, .svp) on top of bug-mode permits.
+    # Enhancement mode work legitimately needs to amend specs/contracts per
+    # the SPEC_AMENDMENT-first mini-pipeline.
+    if [ "$DEBUG_SESSION_MODE" = "enhancement" ]; then
+        case "$FILE_PATH" in
+            specs/*|blueprint/*|references/*|.svp/*)
+                exit 0
+                ;;
+        esac
     fi
 elif [ "$DEBUG_AUTHORIZED" = "false" ]; then
     # Debug session present but not yet authorized

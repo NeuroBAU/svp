@@ -91,6 +91,17 @@ CONCEPTS = [
     "Layer-Triage",
     "Enhancement Mode",
     "SPEC_AMENDMENT",
+    # NEW IN S3-188 (cycle G3 of Gate 6 break-glass inversion sub-project).
+    # The two concepts are introduced as authoritative break-glass surface
+    # vocabulary in BUG_COMMAND (Unit 25 -- "Scope guard" section) and in
+    # generate_write_authorization_sh (Unit 17 -- DEBUG_SESSION_MODE shell
+    # variable + enhancement-mode permit branch). They MUST also appear in
+    # spec normative text (Section 24.202 + cross-refs in Section 17 /
+    # Section 18.1 / Section 19.2), in blueprint_prose (Unit 17 + Unit 23 +
+    # Unit 25), and in blueprint_contracts (Unit 17 + Unit 23 + Unit 25).
+    # Drift in any of the three docs surfaces here.
+    "Scope guard",
+    "DEBUG_SESSION_MODE",
 ]
 
 

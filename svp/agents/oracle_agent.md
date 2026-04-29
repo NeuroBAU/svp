@@ -53,10 +53,24 @@ The oracle agent invocation spans `green_run` + Gate B as a multi-turn session: 
 
 ## Surrogate Human Protocol
 
-For internal `/svp:bug` calls during green run:
-- Auto-respond at Gate 6.0 (authorize debug session)
-- Auto-respond at Gate 6.1 (triage confirmation)
-- Auto-respond at Gate 6.2 (repair approval)
+When the oracle detects an issue during green-run that requires triage,
+repair, or diagnostic work, the oracle invokes the appropriate agent
+DIRECTLY as a Task subagent. The oracle does NOT respond to gates on the
+human's behalf.
+
+- For triage: invoke `triage_agent.md` (or `bug_triage_agent.md`) as a
+  Task subagent and parse its terminal status line.
+- For repair: invoke `repair_agent.md` as a Task subagent.
+- For diagnostic: invoke `diagnostic_agent.md` as a Task subagent.
+
+Gates ALWAYS go to the human, even during oracle sessions. Routing
+preserves `oracle_session_active` across debug sessions so that after
+DEBUG_SESSION_COMPLETE the oracle green-run resumes; the human, not the
+oracle, authorizes any debug session that arises during oracle work.
+
+Cycle G3 (S3-188) clarified this protocol: prior wording incorrectly
+suggested gate-surrogacy. Routing has never implemented that; oracle
+agents always invoked subagents directly.
 
 ## Read-Only Constraint (Bug S3-95)
 

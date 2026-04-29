@@ -1250,19 +1250,34 @@ class TestOracleAgentDefinitionSurrogateHuman:
             ORACLE_AGENT_DEFINITION, "surrogate", case_sensitive=False
         )
 
-    def test_mentions_auto_responds_at_gates(self):
-        """Definition must reference auto-responding at Gates 6.0, 6.1, 6.2."""
+    def test_mentions_task_subagent_invocation(self):
+        """Surrogate Human Protocol describes Task subagent invocation
+        rather than gate-surrogacy (CHANGED IN 2.2 -- Bug S3-188, cycle G3
+        of Gate 6 inversion). The oracle invokes triage_agent /
+        bug_triage_agent / repair_agent / diagnostic_agent as Task
+        subagents directly; gates ALWAYS go to the human, even during
+        oracle sessions. The prior wording (auto-respond at Gates 6.0/6.1/6.2)
+        was documentation-only and is removed.
+        """
         text = ORACLE_AGENT_DEFINITION
+        # Must describe Task subagent invocation.
+        assert definition_contains(
+            ORACLE_AGENT_DEFINITION, "Task subagent", case_sensitive=False
+        )
+        # Must name at least one of the invokable agent definitions.
         assert (
-            "6.0" in text
-            or "6.1" in text
-            or "6.2" in text
-            or definition_contains(
-                ORACLE_AGENT_DEFINITION, "auto-respond", case_sensitive=False
-            )
-            or definition_contains(
-                ORACLE_AGENT_DEFINITION, "auto respond", case_sensitive=False
-            )
+            "triage_agent" in text
+            or "bug_triage_agent" in text
+            or "repair_agent" in text
+            or "diagnostic_agent" in text
+        )
+        # Must state explicitly that gates go to the human.
+        assert definition_contains(
+            ORACLE_AGENT_DEFINITION, "Gates ALWAYS go to the human", case_sensitive=False
+        ) or definition_contains(
+            ORACLE_AGENT_DEFINITION,
+            "does NOT respond to gates",
+            case_sensitive=False,
         )
 
 

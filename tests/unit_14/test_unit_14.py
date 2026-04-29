@@ -4965,3 +4965,91 @@ class TestS3_186Gate6Inversion:
         # Routed to bug_triage_agent (existing flow).
         assert action["action_type"] == "invoke_agent"
         assert action["agent_type"] == "bug_triage_agent"
+
+    # ----- Cycle G3 (S3-188) end-to-end flows -----
+
+    def test_gate_6_0_to_6_1_bug_mode_full_flow(self, tmp_path):
+        """End-to-end: human-sourced debug session -> AUTHORIZE -> BUG ->
+        invoke_break_glass{mode:bug}.
+
+        Asserts each step produces the expected action block:
+          1. State at gate_6_0 (authorized=False, mode=None, source='human_authorize').
+          2. dispatch_gate_response gate_6_0 AUTHORIZE DEBUG -> authorized=True.
+          3. route(state) -> emits human_gate gate_6_1_mode_classification.
+          4. dispatch_gate_response gate_6_1 BUG -> mode='bug'.
+          5. route(state) -> emits invoke_break_glass with payload.mode='bug'.
+        """
+        # Step 1: state at gate_6_0 (pre-authorization)
+        ds = _make_debug_session(authorized=False, phase="triage")
+        ds["mode"] = None
+        ds["source"] = "human_authorize"
+        state = _make_state(stage="5", sub_stage="repo_complete", debug_session=ds)
+
+        # Step 2: dispatch AUTHORIZE DEBUG -> authorized=True
+        state = dispatch_gate_response(
+            state, "gate_6_0_debug_permission", "AUTHORIZE DEBUG", tmp_path
+        )
+        assert state.debug_session["authorized"] is True
+        assert state.debug_session["mode"] is None
+
+        # Step 3: route -> emits gate_6_1_mode_classification
+        _write_state_file(tmp_path, state)
+        (tmp_path / ".svp" / "last_status.txt").write_text("")
+        action = route(tmp_path)
+        assert action["action_type"] == "human_gate"
+        assert action["gate_id"] == "gate_6_1_mode_classification"
+        assert set(action["valid_responses"]) == {"BUG", "ENHANCEMENT"}
+
+        # Step 4: dispatch BUG -> mode='bug'
+        state = dispatch_gate_response(
+            state, "gate_6_1_mode_classification", "BUG", tmp_path
+        )
+        assert state.debug_session["mode"] == "bug"
+
+        # Step 5: route -> emits invoke_break_glass{mode:bug}
+        _write_state_file(tmp_path, state)
+        (tmp_path / ".svp" / "last_status.txt").write_text("")
+        action = route(tmp_path)
+        assert action["action_type"] == "invoke_break_glass"
+        assert action["payload"] == {"mode": "bug"}
+
+    def test_gate_6_0_to_6_1_enhancement_mode_full_flow(self, tmp_path):
+        """End-to-end: human-sourced debug session -> AUTHORIZE -> ENHANCEMENT ->
+        invoke_break_glass{mode:enhancement}.
+
+        Same shape as the bug-mode flow; ENHANCEMENT response yields
+        mode='enhancement'.
+        """
+        # Step 1: state at gate_6_0 (pre-authorization)
+        ds = _make_debug_session(authorized=False, phase="triage")
+        ds["mode"] = None
+        ds["source"] = "human_authorize"
+        state = _make_state(stage="5", sub_stage="repo_complete", debug_session=ds)
+
+        # Step 2: dispatch AUTHORIZE DEBUG -> authorized=True
+        state = dispatch_gate_response(
+            state, "gate_6_0_debug_permission", "AUTHORIZE DEBUG", tmp_path
+        )
+        assert state.debug_session["authorized"] is True
+        assert state.debug_session["mode"] is None
+
+        # Step 3: route -> emits gate_6_1_mode_classification
+        _write_state_file(tmp_path, state)
+        (tmp_path / ".svp" / "last_status.txt").write_text("")
+        action = route(tmp_path)
+        assert action["action_type"] == "human_gate"
+        assert action["gate_id"] == "gate_6_1_mode_classification"
+        assert set(action["valid_responses"]) == {"BUG", "ENHANCEMENT"}
+
+        # Step 4: dispatch ENHANCEMENT -> mode='enhancement'
+        state = dispatch_gate_response(
+            state, "gate_6_1_mode_classification", "ENHANCEMENT", tmp_path
+        )
+        assert state.debug_session["mode"] == "enhancement"
+
+        # Step 5: route -> emits invoke_break_glass{mode:enhancement}
+        _write_state_file(tmp_path, state)
+        (tmp_path / ".svp" / "last_status.txt").write_text("")
+        action = route(tmp_path)
+        assert action["action_type"] == "invoke_break_glass"
+        assert action["payload"] == {"mode": "enhancement"}
