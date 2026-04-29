@@ -102,6 +102,15 @@ CONCEPTS = [
     # Drift in any of the three docs surfaces here.
     "Scope guard",
     "DEBUG_SESSION_MODE",
+    # NEW IN S3-189 (cycle G4 of Gate 6 break-glass inversion sub-project).
+    # The generic lessons-learned destination is the canonical replacement
+    # for the SVP-self-specific `references/svp_2_1_lessons_learned.md`
+    # in the delivered child CLAUDE.md template. The path appears verbatim
+    # in spec Section 40.8 + Section 24.203, in blueprint_prose Unit 23
+    # (two-template architecture paragraph), and in blueprint_contracts
+    # Unit 23 (C-23-G4c MUST-CONTAIN clause). Drift across the three docs
+    # surfaces here.
+    "references/lessons_learned.md",
 ]
 
 

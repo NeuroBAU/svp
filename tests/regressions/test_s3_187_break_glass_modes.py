@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 
 # ---------------------------------------------------------------------------
 # Path resolvers (dual-layout: workspace OR repo)
@@ -57,24 +59,56 @@ def _scripts_dir() -> Path:
     raise RuntimeError("scripts dir with svp_launcher.py not found")
 
 
-def _workspace_claude_md_text() -> str:
+def _workspace_claude_md_text():
     """Read top-level workspace CLAUDE.md text.
 
     Workspace layout has the file directly at <root>/CLAUDE.md. In the
     repo layout, the workspace CLAUDE.md is not synced (it is the
-    workspace orchestrator's project instructions, not a deliverable).
-    For the repo case, fall back to the child-template content via
-    Unit 29 — the test that asserts the same content is in BOTH still
-    discriminates because the template is sourced from src/unit_29.
+    workspace orchestrator's project instructions, not a deliverable),
+    and after G4 (S3-189) the workspace and the delivered child template
+    diverge in step phrasing — workspace retains SVP-self SYNC + TEST
+    FROM BOTH, child uses generic VERIFY + COMMIT. Falling back to the
+    child template would mask drift in either surface.
+
+    Resolution order:
+      1. ``<project_root>/CLAUDE.md`` (workspace layout — file present in-tree).
+      2. Sibling-workspace fallback: if the project root ends with ``-repo``,
+         look for the matching workspace at ``<repo_root>/../<repo_root.name[:-len("-repo")]>/CLAUDE.md``
+         (the canonical workspace+repo sibling layout SVP itself uses).
+      3. Returns ``None`` otherwise. Callers use
+         :func:`_workspace_claude_md_or_skip` to skip cleanly when a
+         workspace CLAUDE.md genuinely cannot be located.
     """
     root = _project_root()
     path = root / "CLAUDE.md"
     if path.is_file():
         return path.read_text(encoding="utf-8")
-    # Repo layout fallback: workspace CLAUDE.md does not exist in the
-    # delivered repo. Use the child-template constant text instead so
-    # the workspace-side assertions still run with meaningful content.
-    return _child_template_text()
+    # Sibling-workspace fallback for repo layout: the workspace
+    # directory is the repo's sibling without the "-repo" suffix.
+    if root.name.endswith("-repo"):
+        sibling = root.parent / root.name[: -len("-repo")]
+        sibling_claude = sibling / "CLAUDE.md"
+        if sibling_claude.is_file():
+            return sibling_claude.read_text(encoding="utf-8")
+    return None
+
+
+def _workspace_claude_md_or_skip() -> str:
+    """Return the workspace CLAUDE.md text, or pytest.skip if unavailable.
+
+    Workspace-specific tests run only from the workspace layout. From the
+    repo layout (the delivered repo has no workspace CLAUDE.md), they
+    skip cleanly — workspace invariants are validated by the workspace
+    test pass, and tests that pin the child template content run from
+    both layouts via the `_child_template_text()` source-extraction path.
+    """
+    text = _workspace_claude_md_text()
+    if text is None:
+        pytest.skip(
+            "workspace CLAUDE.md not present in this layout (repo layout); "
+            "workspace-specific invariants run from the workspace test pass"
+        )
+    return text
 
 
 def _child_template_text() -> str:
@@ -139,7 +173,11 @@ LAYER_MARKERS = (
 LAYER_NAMES = ("Reproduce", "Spec", "Blueprint", "Code", "Test")
 
 BUG_MODE_HEADER = "### Bug Mode"
-BUG_MODE_STEPS = (
+# Workspace CLAUDE.md is SVP-self-specific and retains the SYNC + TEST FROM
+# BOTH steps from G2. The delivered child template (G4 / S3-189) has those
+# SVP-self markers replaced with generic VERIFY+COMMIT. Two separate
+# step-lists pin each surface independently.
+BUG_MODE_STEPS_WORKSPACE = (
     "DIAGNOSE",
     "PLAN",
     "EXECUTE",
@@ -150,9 +188,23 @@ BUG_MODE_STEPS = (
     "SYNC",
     "TEST FROM BOTH",
 )
+BUG_MODE_STEPS_CHILD = (
+    "DIAGNOSE",
+    "PLAN",
+    "EXECUTE",
+    "EVALUATE",
+    "LESSONS LEARNED",
+    "REGRESSION TESTS",
+    "VERIFY",
+    "COMMIT",
+)
+# Backward-compat alias used by older test sites that pre-date G4.
+BUG_MODE_STEPS = BUG_MODE_STEPS_WORKSPACE
 
 ENHANCEMENT_MODE_HEADER = "### Enhancement Mode"
-ENHANCEMENT_MODE_STEPS = (
+# Workspace retains SVP-self-specific SYNC + COMMIT step. Child template
+# (G4 / S3-189) drops the SYNC half — single-repo COMMIT only.
+ENHANCEMENT_MODE_STEPS_WORKSPACE = (
     "SPEC_AMENDMENT",
     "BLUEPRINT_AMENDMENT",
     "IMPLEMENTATION",
@@ -160,6 +212,15 @@ ENHANCEMENT_MODE_STEPS = (
     "VERIFY",
     "SYNC + COMMIT",
 )
+ENHANCEMENT_MODE_STEPS_CHILD = (
+    "SPEC_AMENDMENT",
+    "BLUEPRINT_AMENDMENT",
+    "IMPLEMENTATION",
+    "TESTS",
+    "VERIFY",
+    "COMMIT",
+)
+ENHANCEMENT_MODE_STEPS = ENHANCEMENT_MODE_STEPS_WORKSPACE
 
 ENTRY_POINT_HEADER = "### Choosing the entry-point"
 
@@ -171,7 +232,7 @@ ENTRY_POINT_HEADER = "### Choosing the entry-point"
 
 def test_workspace_claude_md_has_gate_6_canonical_path_section():
     """Workspace CLAUDE.md contains the locked Gate 6 canonical-path header."""
-    text = _workspace_claude_md_text()
+    text = _workspace_claude_md_or_skip()
     assert GATE_6_HEADER in text, (
         f"workspace CLAUDE.md missing locked section header {GATE_6_HEADER!r}. "
         "Re-author the section with the em-dash variant."
@@ -180,7 +241,7 @@ def test_workspace_claude_md_has_gate_6_canonical_path_section():
 
 def test_workspace_claude_md_contains_layer_triage_L1_L5():
     """Workspace CLAUDE.md contains all five Layer-Triage L1-L5 markers."""
-    text = _workspace_claude_md_text()
+    text = _workspace_claude_md_or_skip()
     assert LAYER_TRIAGE_HEADER in text, (
         f"workspace CLAUDE.md missing locked Layer-Triage header "
         f"{LAYER_TRIAGE_HEADER!r}."
@@ -195,38 +256,38 @@ def test_workspace_claude_md_contains_layer_triage_L1_L5():
 
 def test_workspace_claude_md_contains_bug_mode_section():
     """Workspace CLAUDE.md contains the Bug Mode section header + step markers."""
-    text = _workspace_claude_md_text()
+    text = _workspace_claude_md_or_skip()
     assert BUG_MODE_HEADER in text, (
         f"workspace CLAUDE.md missing {BUG_MODE_HEADER!r} sub-section header."
     )
-    missing = [s for s in BUG_MODE_STEPS if s not in text]
+    missing = [s for s in BUG_MODE_STEPS_WORKSPACE if s not in text]
     assert not missing, (
         f"workspace CLAUDE.md Bug Mode missing required step markers: "
         f"{missing}. The 8-step cycle (DIAGNOSE → PLAN → EXECUTE → "
         f"EVALUATE → LESSONS LEARNED → REGRESSION TESTS → VERIFY → "
-        f"SYNC + TEST FROM BOTH) is locked content."
+        f"SYNC + TEST FROM BOTH) is locked content for the workspace."
     )
 
 
 def test_workspace_claude_md_contains_enhancement_mode_section():
     """Workspace CLAUDE.md contains the Enhancement Mode section + mini-pipeline steps."""
-    text = _workspace_claude_md_text()
+    text = _workspace_claude_md_or_skip()
     assert ENHANCEMENT_MODE_HEADER in text, (
         f"workspace CLAUDE.md missing {ENHANCEMENT_MODE_HEADER!r} sub-section "
         "header."
     )
-    missing = [s for s in ENHANCEMENT_MODE_STEPS if s not in text]
+    missing = [s for s in ENHANCEMENT_MODE_STEPS_WORKSPACE if s not in text]
     assert not missing, (
         f"workspace CLAUDE.md Enhancement Mode missing required step markers: "
         f"{missing}. The mini-pipeline (SPEC_AMENDMENT → "
         f"BLUEPRINT_AMENDMENT → IMPLEMENTATION → TESTS → VERIFY → "
-        f"SYNC + COMMIT) is locked content."
+        f"SYNC + COMMIT) is locked content for the workspace."
     )
 
 
 def test_workspace_claude_md_contains_entry_point_guidance():
     """Workspace CLAUDE.md contains the entry-point guidance section."""
-    text = _workspace_claude_md_text()
+    text = _workspace_claude_md_or_skip()
     assert ENTRY_POINT_HEADER in text, (
         f"workspace CLAUDE.md missing {ENTRY_POINT_HEADER!r} sub-section header."
     )
@@ -242,7 +303,7 @@ def test_workspace_claude_md_contains_entry_point_guidance():
 
 def test_workspace_claude_md_references_invoke_break_glass():
     """Workspace CLAUDE.md mentions the invoke_break_glass action_type."""
-    text = _workspace_claude_md_text()
+    text = _workspace_claude_md_or_skip()
     assert "invoke_break_glass" in text, (
         "workspace CLAUDE.md must reference the invoke_break_glass action_type "
         "introduced by G1 (S3-186) in the Gate 6 Canonical Break-Glass Path."
@@ -251,7 +312,7 @@ def test_workspace_claude_md_references_invoke_break_glass():
 
 def test_workspace_claude_md_references_state_debug_session_mode():
     """Workspace CLAUDE.md mentions debug_session["mode"] (the dispatch field)."""
-    text = _workspace_claude_md_text()
+    text = _workspace_claude_md_or_skip()
     assert 'debug_session["mode"]' in text, (
         "workspace CLAUDE.md must reference debug_session[\"mode\"] (the "
         "dispatch field set by gate_6_1_mode_classification per G1 / S3-186)."
@@ -294,15 +355,20 @@ def test_child_template_contains_bug_mode_and_enhancement_mode():
     assert ENHANCEMENT_MODE_HEADER in text, (
         f"CLAUDE_MD_DELIVERED_REPO_TEMPLATE missing {ENHANCEMENT_MODE_HEADER!r}."
     )
-    bug_missing = [s for s in BUG_MODE_STEPS if s not in text]
+    bug_missing = [s for s in BUG_MODE_STEPS_CHILD if s not in text]
     assert not bug_missing, (
         f"CLAUDE_MD_DELIVERED_REPO_TEMPLATE Bug Mode missing step markers: "
-        f"{bug_missing}."
+        f"{bug_missing}. The genericized cycle (G4 / S3-189) is "
+        f"DIAGNOSE → PLAN → EXECUTE → EVALUATE → LESSONS LEARNED → "
+        f"REGRESSION TESTS → VERIFY → COMMIT — SVP-self machinery (SYNC, "
+        f"TEST FROM BOTH) is dropped from the delivered child template."
     )
-    enh_missing = [s for s in ENHANCEMENT_MODE_STEPS if s not in text]
+    enh_missing = [s for s in ENHANCEMENT_MODE_STEPS_CHILD if s not in text]
     assert not enh_missing, (
         f"CLAUDE_MD_DELIVERED_REPO_TEMPLATE Enhancement Mode missing step "
-        f"markers: {enh_missing}."
+        f"markers: {enh_missing}. The genericized mini-pipeline (G4 / "
+        f"S3-189) is SPEC_AMENDMENT → BLUEPRINT_AMENDMENT → IMPLEMENTATION "
+        f"→ TESTS → VERIFY → COMMIT — SVP-self SYNC step is dropped."
     )
 
 
@@ -314,7 +380,7 @@ def test_child_and_workspace_share_layer_triage_definitions():
     consistent across SVP self-build orchestrators (workspace) and
     delivered children (template).
     """
-    workspace = _workspace_claude_md_text()
+    workspace = _workspace_claude_md_or_skip()
     child = _child_template_text()
     workspace_missing = [n for n in LAYER_NAMES if n not in workspace]
     child_missing = [n for n in LAYER_NAMES if n not in child]

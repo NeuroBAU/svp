@@ -91,11 +91,12 @@ def test_write_delivered_claude_md_writes_for_a_d_archetype(tmp_path):
     assert "Gate 6" in content and "Canonical Break-Glass Path" in content
     assert "Break-Glass" in content
     assert "**RULE 0:" in content
-    # Bug-mode 8-step cycle markers (DIAGNOSE → PLAN → EXECUTE → EVALUATE →
-    # LESSONS LEARNED → REGRESSION TESTS → VERIFY → SYNC + TEST FROM BOTH);
-    # these now appear under the "### Bug Mode" sub-section. The G2 rewrite
-    # replaces the "8. COMMIT TO GIT" final-step phrasing with SYNC +
-    # TEST FROM BOTH (the deployed-artifacts step is incorporated as 2.i).
+    # Bug-mode cycle markers (DIAGNOSE → PLAN → EXECUTE → EVALUATE →
+    # LESSONS LEARNED → REGRESSION TESTS → VERIFY → COMMIT); these appear
+    # under the "### Bug Mode" sub-section. G4 (S3-189) genericized the
+    # delivered child template — SVP-self-specific SYNC + TEST FROM BOTH
+    # markers were replaced with single-repo VERIFY+COMMIT phrasing because
+    # children are typically single-repo with no workspace/repo split.
     for step in (
         "DIAGNOSE",
         "PLAN",
@@ -104,7 +105,7 @@ def test_write_delivered_claude_md_writes_for_a_d_archetype(tmp_path):
         "LESSONS LEARNED",
         "REGRESSION TESTS",
         "VERIFY",
-        "SYNC",
+        "COMMIT",
     ):
         assert step in content, f"Cycle step not found: {step!r}"
     # Layer-Triage L1-L5 markers (locked content for the canonical path).
@@ -429,7 +430,7 @@ def test_existing_template_content_preserved_when_primer_appended(tmp_path):
         "LESSONS LEARNED",
         "REGRESSION TESTS",
         "VERIFY",
-        "SYNC",
+        "COMMIT",
     ):
         assert step in content, f"Cycle step not found alongside primer: {step!r}"
     # The primer section must appear AFTER the standard template body.

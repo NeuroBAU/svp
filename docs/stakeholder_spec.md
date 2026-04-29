@@ -6659,6 +6659,20 @@ This is a meta-cycle: process improvement + accumulated documentation debt clean
 
 **Detection.** `tests/unit_14/test_unit_14.py::TestS3_186Gate6Inversion` (2 new tests): `test_gate_6_0_to_6_1_bug_mode_full_flow`, `test_gate_6_0_to_6_1_enhancement_mode_full_flow`. `tests/unit_17/test_hook_enhancement_mode.py` (4 new subprocess tests): `test_hook_permits_specs_write_in_enhancement_mode`, `test_hook_denies_specs_write_in_bug_mode`, `test_hook_permits_blueprint_write_in_enhancement_mode`, `test_hook_denies_blueprint_write_in_bug_mode`. Doc-consistency drift caught by `tests/regressions/test_s3_169_doc_consistency.py` via the new `"Scope guard"` and `"DEBUG_SESSION_MODE"` CONCEPTS entries — both strings appear in spec §24.202 + cross-refs in §17 / §18.1 / §19.2, in blueprint_prose Unit 17 / Unit 23 / Unit 25, and in blueprint_contracts Unit 17 / Unit 23 / Unit 25.
 
+### 24.203 Cycle G4 — Genericize Delivered Child CLAUDE.md Template (Post-delivery — Bug S3-189, NEW IN 2.2)
+
+**Symptom.** After Gate 6 inversion (G1/G2/G3), the delivered child CLAUDE.md template (`CLAUDE_MD_DELIVERED_REPO_TEMPLATE` in `src/unit_29/stub.py`) contained five SVP-self-specific references that confused a child project orchestrator: `references/svp_2_1_lessons_learned.md` (SVP own file), specific section numbers (§17/§18.1/§22.4/§6.4/§21/§40), Unit-to-svp/ deployment paths (such as Unit 25 mapped to svp/commands/), `bash sync_workspace.sh`, and "TEST FROM BOTH".
+
+**Root cause.** G2 mirrored workspace CLAUDE.md content into the delivered template verbatim without genericizing destinations. SPEC and BLUEPRINT silently failed to constrain the template against SVP-self leakage.
+
+**Surface area.** `src/unit_29/stub.py` `CLAUDE_MD_DELIVERED_REPO_TEMPLATE` constant; `specs/stakeholder_spec.md` Section 40.8 (new); `blueprint/blueprint_prose.md` Unit 23; `blueprint/blueprint_contracts.md` Unit 23 (C-23-G4a/b/c/d).
+
+**Resolution.** Genericized template uses `references/lessons_learned.md` (orchestrator creates if absent), topic-named section discovery, generic distribution guidance, single-repo verify+commit. New normative Section 40.8 codifies MUST/MUST-NOT requirements. Four blueprint contract clauses (C-23-G4a/b/c/d) constrain template content with detection tests. Workspace CLAUDE.md is NOT modified — its SVP-self text is correct since SVP-self IS the project being managed.
+
+**Pattern.** P73.
+
+**Detection.** `tests/regressions/test_s3_189_child_template_genericized.py` (10 tests covering negative-presence + positive-presence + workspace-exemption). Doc-consistency drift caught by `tests/regressions/test_s3_169_doc_consistency.py` via the new `"references/lessons_learned.md"` CONCEPTS entry — the string appears in spec Section 40.8, in blueprint_prose Unit 23, and in blueprint_contracts Unit 23 (C-23-G4c).
+
 ---
 
 ## 25. Test Data
@@ -8768,6 +8782,24 @@ The GoL spec generator plugin demonstrates the `"claude_code_plugin"` archetype 
 **Approximate unit scope:** ~6-8 units covering: core evaluation logic (Python), agent definitions (markdown), skill definition (markdown), command definitions (markdown), hook configurations (JSON/bash), plugin manifest (JSON), GoL implementations (Python, embedded as test fixtures).
 
 **Pipeline paths exercised:** Stage 0 Option C archetype selection, Stage 3 multi-artifact-type dispatch (Python + markdown + bash + JSON per Section 40.7.4), plugin-specific quality gates (Section 40.7.5), Stage 5 plugin assembly (Section 40.7.6), plugin manifest validation, structural validation of all plugin artifact types.
+
+### 40.8 Delivered Child CLAUDE.md Template Genericization (NEW IN 2.2)
+
+The `CLAUDE_MD_DELIVERED_REPO_TEMPLATE` constant in `src/unit_29/stub.py` defines the CLAUDE.md content embedded in every delivered child project at Stage 5 (via `write_delivered_claude_md`). Its content authoritatively encodes the orchestrator's break-glass protocol for the child.
+
+**MUST**: contain the canonical break-glass protocol structure introduced by S3-187 — Layer-Triage L1-L5, Bug Mode 8-step cycle, Enhancement Mode mini-pipeline, "Choosing the entry-point" guidance.
+
+**MUST**: use generic phrasing applicable to any SVP-managed project. Lessons-learned writes go to `references/lessons_learned.md` (orchestrator creates on first break-glass use). Spec-section discovery uses topic names (sections covering routing, state, setup, archetype) rather than section numbers. Deployed-artifact guidance is generic (if your project produces deployable artifacts, update them). Verify-and-commit step is single-repo (pytest 0/0; commit and push if your project has a remote).
+
+**MUST NOT**: reference SVP-self-specific files (such as `references/svp_2_1_lessons_learned.md`, `sync_workspace.sh`).
+
+**MUST NOT**: reference SVP-self-specific spec section numbers (children's specs are free-form per stakeholder_dialog convention and use different numbering).
+
+**MUST NOT**: reference SVP-self-specific Unit-to-svp/ deployment paths (such as Unit 25 mapped to svp/commands/, Unit 26 mapped to svp/skills/, Unit 23 mapped to svp/agents/, svp/hooks/).
+
+**MUST NOT**: reference workspace+repo dual-test patterns ("TEST FROM BOTH", "from BOTH workspace AND repo") — children are typically single-repo.
+
+**Distinct from workspace CLAUDE.md**: the workspace `CLAUDE.md` correctly retains SVP-self-specific references (svp_2_1_lessons_learned.md, section numbers, Unit-to-svp/ paths, sync_workspace.sh, TEST FROM BOTH) because SVP-self IS the project being managed there. Only the delivered child template is subject to the genericization MUSTs/MUST-NOTs above.
 
 ---
 
