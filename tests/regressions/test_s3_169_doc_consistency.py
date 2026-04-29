@@ -64,6 +64,13 @@ CONCEPTS = [
     # surface) across spec normative text, blueprint prose, and blueprint
     # contracts.
     "_get_orchestrator_break_glass_primer_text",
+    # NEW IN S3-185 (cycle F1 — synthetic Rust archetype + extending-languages.md).
+    # Mirror of "scripts/primers/r/" and "scripts/primers/python/": the
+    # directory path appears verbatim in spec section 40 (synthetic Rust
+    # worked example note) + section 24.199, in blueprint_prose Unit 4, and
+    # in blueprint_contracts Unit 4. Adding the path itself catches drift
+    # symmetrically across the three docs.
+    "scripts/primers/rust/",
 ]
 
 

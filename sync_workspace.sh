@@ -227,6 +227,12 @@ if [ -f "$WORKSPACE/references/toolchain_manifest_schema.md" ]; then
         "$REPO/docs/references/toolchain_manifest_schema.md"
 fi
 
+# S3-185: extending-languages.md (canonical extension-contract doc)
+if [ -f "$WORKSPACE/references/extending-languages.md" ]; then
+    doc_sync "$WORKSPACE/references/extending-languages.md" \
+        "$REPO/docs/references/extending-languages.md"
+fi
+
 # Workspace root docs → repo docs/ (restore-only artifacts)
 doc_sync "$WORKSPACE/CLAUDE.md" \
     "$REPO/docs/CLAUDE.md"

@@ -262,6 +262,22 @@ architectural primer files at `scripts/primers/<lang>/`. See Pattern P68
 that asserted "python has no primers" are inverted to positive cross-archetype
 dispatch correctness assertions).
 
+**(Bug S3-185)** The toolchain manifest schema is the canonical extension
+contract for archetype-specific behavior, documented at
+`references/extending-languages.md` (~350 lines). The two-contract
+architecture is intentional: the manifest schema (`scripts/toolchain_defaults/<archetype>.json`)
+is the BEHAVIOR contract; `LANGUAGE_REGISTRY` (`scripts/language_registry.py`)
+is the DISPATCH contract. A synthetic Rust archetype is included as a worked
+example at `scripts/toolchain_defaults/rust_cargo_test.json` and
+`scripts/primers/rust/` (5 primer files). The synthetic archetype is NOT
+registered in `LANGUAGE_REGISTRY`; `load_toolchain(project_root, "rust")`
+raises `KeyError` to document the dispatch-contract boundary. Real Rust
+support would require implementing stub generator + test parser + quality
+runner for Rust — out of F1 scope. After rounds A-E, adding a third language
+archetype is content-only on the dispatch side: a single manifest file + 5
+primer files + 1 `LANGUAGE_REGISTRY` entry, with zero dispatch-code edits.
+See Pattern P69 (F1 cap-stone proof).
+
 ---
 
 ## Unit 5: Pipeline State

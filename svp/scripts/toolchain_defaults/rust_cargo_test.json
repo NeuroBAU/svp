@@ -1,0 +1,103 @@
+{
+  "toolchain_id": "rust_cargo_test",
+  "environment": {
+    "tool": "rustup",
+    "run_prefix": "",
+    "create_command": "rustup toolchain install {rust_version}",
+    "install_command": "cargo build",
+    "install_dev": "cargo build --all-features",
+    "cleanup_command": "cargo clean",
+    "verify_commands": [
+      "{run_prefix} cargo --version",
+      "{run_prefix} rustc --version"
+    ]
+  },
+  "quality": {
+    "formatter": {
+      "tool": "rustfmt",
+      "format": "{run_prefix} cargo fmt {target}",
+      "check": "{run_prefix} cargo fmt --check {target}"
+    },
+    "linter": {
+      "tool": "clippy",
+      "light": "{run_prefix} cargo clippy {target} -- -W clippy::all",
+      "heavy": "{run_prefix} cargo clippy {target} -- -D warnings",
+      "check": "{run_prefix} cargo clippy {target} -- -D warnings"
+    },
+    "type_checker": {
+      "tool": "rustc",
+      "check": "{run_prefix} cargo check {target}"
+    },
+    "packages": [
+      "rustfmt",
+      "clippy",
+      "cargo-tarpaulin"
+    ],
+    "gate_a": [
+      "formatter.format",
+      "linter.light"
+    ],
+    "gate_b": [
+      "formatter.format",
+      "linter.heavy",
+      "type_checker.check"
+    ],
+    "gate_c": [
+      "formatter.check",
+      "linter.check",
+      "type_checker.check"
+    ]
+  },
+  "testing": {
+    "tool": "cargo-test",
+    "run_command": "{run_prefix} cargo test {test_path}",
+    "run_coverage": "{run_prefix} cargo tarpaulin --out Json --output-dir target/tarpaulin",
+    "framework_packages": [
+      "cargo-tarpaulin"
+    ],
+    "file_pattern": "*.rs",
+    "collection_error_indicators": [
+      "error[E",
+      "could not compile",
+      "linker `cc` not found",
+      "no test target"
+    ],
+    "pass_fail_pattern": "test result: ok\\. (\\d+) passed",
+    "unit_flags": "--lib",
+    "project_flags": "--workspace"
+  },
+  "packaging": {
+    "tool": "cargo",
+    "manifest_file": "Cargo.toml",
+    "build_backend": "cargo",
+    "validate_command": "{run_prefix} cargo check --all-targets"
+  },
+  "vcs": {
+    "tool": "git",
+    "commands": {
+      "init": "git init",
+      "add": "git add {files}",
+      "commit": "git commit -m \"{message}\"",
+      "status": "git status"
+    }
+  },
+  "language": {
+    "name": "rust",
+    "extension": ".rs",
+    "version_constraint": ">=1.70",
+    "stub_body": "unimplemented!()"
+  },
+  "file_structure": {
+    "source_dir_pattern": "src/unit_{n}",
+    "test_dir_pattern": "tests/unit_{n}",
+    "source_extension": ".rs",
+    "test_extension": ".rs"
+  },
+  "language_architecture_primers": {
+    "blueprint_author":         "scripts/primers/rust/blueprint_author.md",
+    "implementation_agent":     "scripts/primers/rust/implementation_agent.md",
+    "test_agent":               "scripts/primers/rust/test_agent.md",
+    "coverage_review":          "scripts/primers/rust/coverage_review.md",
+    "orchestrator_break_glass": "scripts/primers/rust/orchestrator_break_glass.md"
+  }
+}
