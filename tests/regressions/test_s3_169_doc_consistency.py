@@ -119,6 +119,13 @@ CONCEPTS = [
     # Unit 23 (C-23-H1a MUST clause). Drift across the three docs
     # surfaces here.
     "_copy_r_project_sources",
+    # NEW IN S3-192 (cycle H2 -- R-archetype delivery doc generation).
+    # The new helper name is the canonical identifier for R-archetype
+    # delivery doc generation. It appears verbatim in spec Section 40.10
+    # + Section 24.206, in blueprint_prose Unit 23 (R-archetype delivery
+    # doc generation paragraph), and in blueprint_contracts Unit 23
+    # (C-23-H2a MUST clause). Drift across the three docs surfaces here.
+    "generate_r_delivery_docs",
 ]
 
 

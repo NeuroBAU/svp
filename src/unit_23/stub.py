@@ -7,6 +7,7 @@ and R, assembly map generation, and regression test import adaptation CLI.
 
 import argparse
 import ast
+import datetime as _datetime
 import json
 import re
 import shutil
@@ -705,6 +706,358 @@ def _copy_r_project_sources(
     return count
 
 
+# ---------------------------------------------------------------------------
+# Bug S3-192 (cycle H2): R-archetype delivery doc generation.
+#
+# Layered fallback architecture: workspace > H2 generator > H1 hardcoded > nothing.
+# `generate_r_delivery_docs` produces the 5 required R-archetype delivery files
+# (README.md, LICENSE, .gitignore, environment.yml, CHANGELOG.md) when workspace
+# versions copied by `_copy_r_project_sources` (H1) are missing. Each file is
+# guarded by `.exists()` so workspace edits are never overwritten.
+# ---------------------------------------------------------------------------
+
+_R_LICENSE_MIT_BODY = """\
+MIT License
+
+Copyright (c) {year} {holder}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
+_R_LICENSE_APACHE2_BODY = """\
+Apache License
+Version 2.0, January 2004
+http://www.apache.org/licenses/
+
+Copyright {year} {holder}
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
+_R_LICENSE_GPL3_BODY = """\
+GNU GENERAL PUBLIC LICENSE
+Version 3, 29 June 2007
+
+Copyright (C) {year} {holder}
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+"""
+
+_R_LICENSE_BSD3_BODY = """\
+BSD 3-Clause License
+
+Copyright (c) {year} {holder}
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+"""
+
+_R_LICENSE_TEMPLATES: Dict[str, str] = {
+    "MIT": _R_LICENSE_MIT_BODY,
+    "Apache-2.0": _R_LICENSE_APACHE2_BODY,
+    "GPL-3.0": _R_LICENSE_GPL3_BODY,
+    "BSD-3-Clause": _R_LICENSE_BSD3_BODY,
+}
+
+
+def _r_readme_content(profile: Dict[str, Any], project_name: str) -> str:
+    """Build a default README.md body for an R-archetype delivered repo."""
+    description = (
+        profile.get("description")
+        or profile.get("readme", {}).get("description")
+        or f"R package {project_name}"
+    )
+    license_block = profile.get("license", {}) if isinstance(
+        profile.get("license"), dict
+    ) else {}
+    license_type = license_block.get("type", "MIT")
+    author = (
+        profile.get("author")
+        or license_block.get("holder")
+        or "Unknown"
+    )
+    return (
+        f"# {project_name}\n\n"
+        f"{description}\n\n"
+        f"## Installation\n\n"
+        f"```r\n"
+        f"# Install via devtools (from a local clone):\n"
+        f'devtools::install("./{project_name}")\n'
+        f"```\n\n"
+        f"## Usage\n\n"
+        f"See documentation in `man/` and the test suite in `tests/testthat/` "
+        f"for examples.\n\n"
+        f"## License\n\n"
+        f"This project is licensed under the {license_type} License -- see "
+        f"the LICENSE file for details.\n\n"
+        f"## Author\n\n"
+        f"{author}\n"
+    )
+
+
+def _r_license_content(profile: Dict[str, Any]) -> str:
+    """Build a default LICENSE body for an R-archetype delivered repo.
+
+    Dispatches by profile["license"]["type"] for the supported set
+    (MIT, Apache-2.0, GPL-3.0, BSD-3-Clause). Unknown types fall back
+    to MIT with a documentation comment naming the requested type.
+    """
+    license_block = profile.get("license", {}) if isinstance(
+        profile.get("license"), dict
+    ) else {}
+    license_type = license_block.get("type", "MIT")
+    holder = (
+        license_block.get("holder")
+        or license_block.get("author")
+        or profile.get("author")
+        or "Unknown"
+    )
+    year = _datetime.date.today().year
+    template = _R_LICENSE_TEMPLATES.get(license_type)
+    if template is None:
+        prefix = (
+            f'# Note: license type "{license_type}" not in built-in '
+            f"templates; defaulting to MIT.\n"
+            f'# To use {license_type}, add a LICENSE file to your '
+            f"workspace before assembly.\n\n"
+        )
+        return prefix + _R_LICENSE_MIT_BODY.format(year=year, holder=holder)
+    return template.format(year=year, holder=holder)
+
+
+_R_DEFAULT_GITIGNORE_PATTERNS = (
+    ".Rhistory",
+    ".RData",
+    ".Rproj.user/",
+    "*.Rproj",
+    "inst/doc/",
+    "Meta/",
+    ".Rcheck/",
+    "*.tar.gz",
+    ".DS_Store",
+)
+
+
+def _r_gitignore_content() -> str:
+    """Build the default .gitignore body for an R-archetype delivered repo.
+
+    Sources patterns from `language_registry["r"]["gitignore_patterns"]`
+    when import succeeds; falls back to the canonical hardcoded set above
+    when the registry is unavailable (defensive).
+    """
+    try:
+        from language_registry import LANGUAGE_REGISTRY
+        patterns = LANGUAGE_REGISTRY.get("r", {}).get("gitignore_patterns")
+    except Exception:
+        patterns = None
+    if not patterns:
+        try:
+            from src.unit_2.stub import LANGUAGE_REGISTRY  # type: ignore
+            patterns = LANGUAGE_REGISTRY.get("r", {}).get("gitignore_patterns")
+        except Exception:
+            patterns = None
+    if not patterns:
+        patterns = list(_R_DEFAULT_GITIGNORE_PATTERNS)
+    return "\n".join(patterns) + "\n"
+
+
+def _r_environment_yml_content(
+    project_root: Path, toolchain: Dict[str, Any]
+) -> str:
+    """Build the default environment.yml body for an R-archetype repo.
+
+    Constructed deterministically from manifest data (no `conda env export`
+    subprocess). env_name from `derive_env_name(project_root)`; r_version
+    from `toolchain["language"]["version_constraint"]` (stripped of
+    comparator prefix); package set is the deduplicated, sorted union of
+    `toolchain["testing"]["framework_packages"]` and
+    `toolchain["quality"]["packages"]`.
+    """
+    try:
+        from svp_config import derive_env_name as _derive
+        env_name = _derive(project_root)
+    except Exception:
+        try:
+            from src.unit_1.stub import derive_env_name as _derive  # type: ignore
+            env_name = _derive(project_root)
+        except Exception:
+            env_name = f"svp-{project_root.name or 'project'}"
+
+    language_block = toolchain.get("language", {}) if isinstance(
+        toolchain.get("language"), dict
+    ) else {}
+    r_version_constraint = language_block.get("version_constraint", ">=4.3")
+    r_version = re.sub(r"^[>=<~!]+", "", str(r_version_constraint)).strip()
+    if not r_version:
+        r_version = "4.3"
+
+    framework_pkgs = set(
+        toolchain.get("testing", {}).get("framework_packages", []) or []
+    )
+    quality_pkgs = set(
+        toolchain.get("quality", {}).get("packages", []) or []
+    )
+    all_pkgs = sorted(framework_pkgs | quality_pkgs)
+
+    lines = [
+        f"name: {env_name}",
+        "channels:",
+        "  - conda-forge",
+        "dependencies:",
+        f"  - r-base={r_version}",
+    ]
+    for pkg in all_pkgs:
+        lines.append(f"  - {pkg}")
+    return "\n".join(lines) + "\n"
+
+
+def _r_changelog_content(project_name: str) -> str:
+    """Build the default CHANGELOG.md body for an R-archetype repo.
+
+    Keep-a-Changelog stub with an [Unreleased] section.
+    """
+    return (
+        "# Changelog\n\n"
+        "All notable changes to this project will be documented in this "
+        "file.\n\n"
+        "The format is based on [Keep a Changelog]"
+        "(https://keepachangelog.com/en/1.1.0/).\n\n"
+        "## [Unreleased]\n\n"
+        "### Added\n"
+        "- Initial project structure.\n"
+    )
+
+
+# Files that H1's `_copy_r_project_sources` does NOT cover but H2 must
+# still honor workspace precedence for. H2 first copies the workspace
+# version when present; the generator only fires for files still missing
+# after the copy step.
+_R_DELIVERY_DOCS_WORKSPACE_FALLBACK = (
+    ".gitignore",
+    "environment.yml",
+    "CHANGELOG.md",
+)
+
+
+def generate_r_delivery_docs(
+    project_root: Path,
+    repo_dir: Path,
+    profile: Dict[str, Any],
+    toolchain: Dict[str, Any],
+) -> int:
+    """Generate default R-archetype delivery docs into repo_dir.
+
+    Generates README.md, LICENSE, .gitignore, environment.yml, and
+    CHANGELOG.md for files that do not already exist. Workspace versions
+    copied by `_copy_r_project_sources` (H1 / S3-191) take precedence
+    for README.md/LICENSE; for the three files that H1 does not cover
+    (.gitignore, environment.yml, CHANGELOG.md), H2 first copies the
+    workspace version when present, then falls back to the generator.
+
+    Layered fallback: workspace > H2 generator > nothing. Returns the
+    count of files generated by the generator step (0..5); workspace
+    copies are not counted.
+    """
+    # First: pull through workspace versions of the 3 files that H1 does
+    # not cover. _copy_r_project_sources already handles README.md /
+    # LICENSE so those are NOT in this list. Each copy is guarded by
+    # repo_dir.exists() so workspace edits made before assembly always
+    # win over the H2 generator.
+    for fname in _R_DELIVERY_DOCS_WORKSPACE_FALLBACK:
+        target = repo_dir / fname
+        if target.exists():
+            continue
+        src = project_root / fname
+        if src.is_file():
+            try:
+                shutil.copy2(str(src), str(target))
+            except OSError:
+                continue
+
+    project_name = _get_project_name(profile, {}, repo_dir.name)
+    if project_name.endswith("-repo"):
+        project_name = project_name[: -len("-repo")]
+
+    files_to_generate = [
+        ("README.md", _r_readme_content(profile, project_name)),
+        ("LICENSE", _r_license_content(profile)),
+        (".gitignore", _r_gitignore_content()),
+        (
+            "environment.yml",
+            _r_environment_yml_content(project_root, toolchain),
+        ),
+        ("CHANGELOG.md", _r_changelog_content(project_name)),
+    ]
+
+    count = 0
+    for filename, content in files_to_generate:
+        target = repo_dir / filename
+        if not target.exists():
+            target.write_text(content, encoding="utf-8")
+            count += 1
+    return count
+
+
 def _rewrite_imports_with_prefix(
     repo_dir: Path, workspace_modules: List[str], package: str
 ) -> int:
@@ -1172,6 +1525,17 @@ def assemble_r_project(
     # precedence; hardcoded DESCRIPTION/NAMESPACE only fire if absent.
     _copy_r_project_sources(project_root, repo_dir, profile)
     copy_workspace_tests_to_repo(project_root, repo_dir, profile)
+
+    # Bug S3-192 (cycle H2): generate default R-archetype delivery docs
+    # (README.md, LICENSE, .gitignore, environment.yml, CHANGELOG.md) for
+    # files that do NOT already exist after the H1 copy phase. Layered
+    # fallback: workspace > H2 generator > H1 hardcoded > nothing.
+    try:
+        from src.unit_4.stub import load_toolchain
+        r_toolchain = load_toolchain(project_root, language="r")
+    except Exception:
+        r_toolchain = {}
+    generate_r_delivery_docs(project_root, repo_dir, profile, r_toolchain)
 
     # Generate DESCRIPTION (only when workspace did not provide one)
     r_delivery = profile.get("delivery", {}).get("r", {})
