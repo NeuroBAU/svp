@@ -299,6 +299,22 @@ def sync_workspace_to_repo(project_root: Path) -> Dict[str, int]:
         if init.is_file():
             shutil.copy2(str(init), str(repo / "tests" / "__init__.py"))
 
+    # Bug S3-191 (cycle H1): R archetype walks tests/testthat/ for *.R
+    # files. The Python branch above (regressions/, integration/, unit_*/
+    # walks filtered by .py) is unchanged; this branch is ADDITIVE and
+    # only fires when state.primary_language == "r". Test 9 of
+    # tests/regressions/test_s3_191_r_copy_phases.py guards the Python
+    # branch from regression.
+    if state.primary_language == "r":
+        testthat_src = project_root / "tests" / "testthat"
+        if testthat_src.is_dir():
+            testthat_dst = repo / "tests" / "testthat"
+            testthat_dst.mkdir(parents=True, exist_ok=True)
+            for f in testthat_src.iterdir():
+                if f.is_file() and f.suffix == ".R":
+                    shutil.copy2(str(f), str(testthat_dst / f.name))
+                    counts["tests"] += 1
+
     # 4. Rebuild svp/scripts/ with import rewriting
     # (This is handled by assemble_plugin_components or manual script rebuild)
     # For now, just copy workspace scripts/ to repo svp/scripts/ directly

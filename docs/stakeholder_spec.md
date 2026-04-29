@@ -6687,6 +6687,20 @@ This is a meta-cycle: process improvement + accumulated documentation debt clean
 
 **Detection.** `tests/regressions/test_s3_190_pattern_catalog_sync.py` (3 tests: `test_every_referenced_pattern_in_catalog`, `test_catalog_rows_are_chronologically_ordered`, `test_catalog_includes_all_post_S3_154_patterns`).
 
+### 24.205 Cycle H1 — R-archetype Stage-5 copy phases (Post-delivery — Bug S3-191, NEW IN 2.2)
+
+**Symptom.** `assemble_r_project` (src/unit_23/stub.py) creates empty `R/`, `man/`, `tests/testthat/` directories and writes a hardcoded DESCRIPTION + NAMESPACE + tests/testthat.R stub, but does NOT copy any workspace files into the delivered repo. `sync_workspace_to_repo` (src/unit_16/stub.py) filters tests by the Python suffix `.py` and walks `tests/unit_*/` Python-only -- it does not copy R `*.R` files from `tests/testthat/`. Result: any R-archetype project's delivered repo lacks all source code, all test files, all installed assets, and all CI workflows. Reported by R child fmrpqc as IMPROV-23 (assemble_r_project) plus IMPROV-24 (sync_workspace_to_repo testthat layout).
+
+**Root cause.** `assemble_r_project` was authored mirroring the OLD Python pattern (pre-S3-146 hardcoded scaffolding). The S3-146 / S3-147 / S3-148 Python pattern (deterministic source/test copy plus import adapt) was never ported to R. `sync_workspace_to_repo` was never extended for the R archetype's `*.R` plus `tests/testthat/` layout.
+
+**Surface area.** `src/unit_23/stub.py` (NEW `_copy_r_project_sources` helper, `assemble_r_project` extension, hardcoded-write guards on DESCRIPTION/NAMESPACE/testthat.R); `src/unit_16/stub.py` (sync_workspace_to_repo R-archetype branch). Plus spec Section 40.9 (NEW), blueprint_prose Unit 23 (R-archetype source-copy paragraph), blueprint_contracts Unit 23 (C-23-H1a / C-23-H1b / C-23-H1c).
+
+**Resolution.** The new module-level helper `_copy_r_project_sources(workspace, repo_dir, profile)` copies workspace `R/`, `inst/`, `.github/`, `man/` directories plus top-level `DESCRIPTION`, `NAMESPACE`, `LICENSE`, `README.md`, `NEWS.md` files to the delivered repo. `assemble_r_project` calls this helper plus the existing `copy_workspace_tests_to_repo` (already archetype-generic) BEFORE the hardcoded fallback writes. Hardcoded DESCRIPTION / NAMESPACE / tests/testthat.R writes are now guarded by `if not (repo_dir / <file>).exists()` so workspace versions take precedence. `sync_workspace_to_repo` gains an explicit R-archetype branch keyed on `state.primary_language == "r"` that walks `tests/testthat/` and copies `*.R` files. The Python branch is bit-for-bit unchanged (regression-guarded by tests 9 + 10 of the new regression file).
+
+**Pattern.** P75.
+
+**Detection.** `tests/regressions/test_s3_191_r_copy_phases.py` (10 tests including 2 Python regression guards): `test_h1_assemble_r_project_copies_R_directory`, `test_h1_assemble_r_project_copies_testthat_directory`, `test_h1_assemble_r_project_copies_inst_directory`, `test_h1_assemble_r_project_copies_github_directory`, `test_h1_assemble_r_project_copies_man_directory`, `test_h1_assemble_r_project_prefers_workspace_DESCRIPTION`, `test_h1_assemble_r_project_falls_back_to_hardcoded_DESCRIPTION`, `test_h1_sync_workspace_to_repo_R_archetype_copies_R_files`, `test_h1_sync_workspace_to_repo_python_archetype_unchanged`, `test_h1_assemble_python_project_unchanged`. Doc-consistency drift caught by `tests/regressions/test_s3_169_doc_consistency.py` via the new `"_copy_r_project_sources"` CONCEPTS entry -- the helper name appears in spec Section 40.9 plus Section 24.205, in blueprint_prose Unit 23, and in blueprint_contracts Unit 23 (C-23-H1a clause).
+
 ---
 
 ## 25. Test Data
@@ -8814,6 +8828,31 @@ The `CLAUDE_MD_DELIVERED_REPO_TEMPLATE` constant in `src/unit_29/stub.py` define
 **MUST NOT**: reference workspace+repo dual-test patterns ("TEST FROM BOTH", "from BOTH workspace AND repo") — children are typically single-repo.
 
 **Distinct from workspace CLAUDE.md**: the workspace `CLAUDE.md` correctly retains SVP-self-specific references (svp_2_1_lessons_learned.md, section numbers, Unit-to-svp/ paths, sync_workspace.sh, TEST FROM BOTH) because SVP-self IS the project being managed there. Only the delivered child template is subject to the genericization MUSTs/MUST-NOTs above.
+
+### 40.9 R-archetype Stage-5 source copy (NEW IN 2.2 — Bug S3-191, cycle H1)
+
+The `assemble_r_project` function in `src/unit_23/stub.py` MUST copy the following from the workspace to the delivered repo BEFORE writing any hardcoded fallback content. This mirrors the proven Python pattern (S3-146, S3-147, S3-148) for the R archetype.
+
+**Directories** (via the new `_copy_r_project_sources` helper):
+
+- `R/` -> `repo/R/` (R-package source code).
+- `inst/` -> `repo/inst/` (installed assets, if present in workspace).
+- `.github/` -> `repo/.github/` (CI workflows, if present in workspace).
+- `man/` -> `repo/man/` (pre-generated documentation, if present in workspace).
+
+**Top-level files** (via the same `_copy_r_project_sources` helper):
+
+- `DESCRIPTION`, `NAMESPACE`, `LICENSE`, `README.md`, `NEWS.md` (each copied if present in workspace).
+
+**Test directory** (via `copy_workspace_tests_to_repo`, which is already archetype-generic):
+
+- `tests/testthat/` -> `repo/tests/testthat/` (testthat test files).
+
+**Workspace versions take precedence.** When a workspace `DESCRIPTION` or `NAMESPACE` exists, it MUST ship as-is. The hardcoded fallback in `assemble_r_project` only fires when the workspace lacks the file (guarded by `if not (repo_dir / <file>).exists()`). The same precedence applies to `tests/testthat.R`.
+
+**Defensive copy semantics.** `_copy_r_project_sources` MUST skip directories and files that are absent from the workspace and MUST NOT raise when copy operations fail; missing inputs are normal for projects that do not yet author every R-package surface. The ignore filter strips `.svp/`, `__pycache__`, `*.pyc`, and `.DS_Store`.
+
+The `sync_workspace_to_repo` function in `src/unit_16/stub.py` (used at the Pass-1 -> Pass-2 transition) MUST handle the R-archetype `tests/testthat/` layout: when `state.primary_language == "r"`, the function walks `tests/testthat/` and copies `*.R` files. The Python archetype branch (walks `tests/regressions/` plus `tests/integration/` plus `tests/unit_*/` filtered by the `.py` suffix) MUST be unchanged. The R-archetype branch is ADDITIVE.
 
 ---
 

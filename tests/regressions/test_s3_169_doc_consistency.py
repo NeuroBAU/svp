@@ -111,6 +111,14 @@ CONCEPTS = [
     # Unit 23 (C-23-G4c MUST-CONTAIN clause). Drift across the three docs
     # surfaces here.
     "references/lessons_learned.md",
+    # NEW IN S3-191 (cycle H1 -- R-archetype Stage-5 source copy).
+    # The new helper name is the canonical identifier for R-archetype
+    # source-copy machinery in `assemble_r_project`. It appears verbatim
+    # in spec Section 40.9 + Section 24.205, in blueprint_prose Unit 23
+    # (R-archetype source-copy paragraph), and in blueprint_contracts
+    # Unit 23 (C-23-H1a MUST clause). Drift across the three docs
+    # surfaces here.
+    "_copy_r_project_sources",
 ]
 
 
