@@ -79,6 +79,18 @@ CONCEPTS = [
     # _route_debug routing branches, dispatch_gate_response handlers).
     "gate_6_1_mode_classification",
     "invoke_break_glass",
+    # NEW IN S3-187 (cycle G2 of Gate 6 break-glass inversion sub-project).
+    # The three concepts are introduced as authoritative break-glass
+    # vocabulary in workspace CLAUDE.md and the child-template
+    # CLAUDE_MD_DELIVERED_REPO_TEMPLATE (Unit 29). They MUST also appear in
+    # spec normative text (Section 24.201 + cross-refs in §17 / §18.1 /
+    # §22.4), in blueprint_prose (Unit 23 narrative for the delivered
+    # CLAUDE.md template content), and in blueprint_contracts (Unit 23
+    # formal contract clauses). Drift in any of the three docs surfaces
+    # here.
+    "Layer-Triage",
+    "Enhancement Mode",
+    "SPEC_AMENDMENT",
 ]
 
 

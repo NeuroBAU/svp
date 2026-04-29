@@ -85,21 +85,32 @@ def test_write_delivered_claude_md_writes_for_a_d_archetype(tmp_path):
     assert claude.is_file()
     content = claude.read_text()
     assert content.startswith("# demo\n")
-    assert "Manual Bug-Fixing Protocol" in content
-    assert "Break-Glass Mode" in content
+    # CHANGED IN 2.2 — Bug S3-187, cycle G2: "Manual Bug-Fixing Protocol
+    # (Break-Glass Mode)" replaced by "Gate 6 — Canonical Break-Glass Path"
+    # with mode-aware sub-flows + Layer-Triage L1-L5.
+    assert "Gate 6" in content and "Canonical Break-Glass Path" in content
+    assert "Break-Glass" in content
     assert "**RULE 0:" in content
-    # 8-step cycle markers
+    # Bug-mode 8-step cycle markers (DIAGNOSE → PLAN → EXECUTE → EVALUATE →
+    # LESSONS LEARNED → REGRESSION TESTS → VERIFY → SYNC + TEST FROM BOTH);
+    # these now appear under the "### Bug Mode" sub-section. The G2 rewrite
+    # replaces the "8. COMMIT TO GIT" final-step phrasing with SYNC +
+    # TEST FROM BOTH (the deployed-artifacts step is incorporated as 2.i).
     for step in (
-        "1. **DIAGNOSE**",
-        "2. **PLAN**",
-        "3. **EXECUTE**",
-        "4. **EVALUATE**",
-        "5. **LESSONS LEARNED**",
-        "6. **REGRESSION TESTS**",
-        "7. **VERIFY**",
-        "8. **COMMIT TO GIT**",
+        "DIAGNOSE",
+        "PLAN",
+        "EXECUTE",
+        "EVALUATE",
+        "LESSONS LEARNED",
+        "REGRESSION TESTS",
+        "VERIFY",
+        "SYNC",
     ):
         assert step in content, f"Cycle step not found: {step!r}"
+    # Layer-Triage L1-L5 markers (locked content for the canonical path).
+    for marker in ("L1 — Reproduce", "L2 — Spec", "L3 — Blueprint",
+                   "L4 — Code", "L5 — Test"):
+        assert marker in content, f"Layer-Triage marker not found: {marker!r}"
 
 
 def test_write_delivered_claude_md_skips_svp_build(tmp_path):
@@ -154,7 +165,10 @@ def test_python_assembler_writes_delivered_claude_md(tmp_path):
     )
     claude = repo_dir / "CLAUDE.md"
     assert claude.is_file()
-    assert "Manual Bug-Fixing Protocol" in claude.read_text()
+    # CHANGED IN 2.2 — Bug S3-187, cycle G2: header is "## Gate 6 —
+    # Canonical Break-Glass Path".
+    assert "Gate 6" in claude.read_text()
+    assert "Canonical Break-Glass Path" in claude.read_text()
 
 
 def test_r_assembler_writes_delivered_claude_md(tmp_path):
@@ -164,7 +178,9 @@ def test_r_assembler_writes_delivered_claude_md(tmp_path):
     repo_dir = assemble_r_project(workspace, _r_profile(), {"description": "demo"})
     claude = repo_dir / "CLAUDE.md"
     assert claude.is_file()
-    assert "Manual Bug-Fixing Protocol" in claude.read_text()
+    # CHANGED IN 2.2 — Bug S3-187, cycle G2.
+    assert "Gate 6" in claude.read_text()
+    assert "Canonical Break-Glass Path" in claude.read_text()
 
 
 def test_plugin_assembler_writes_delivered_claude_md(tmp_path):
@@ -176,7 +192,9 @@ def test_plugin_assembler_writes_delivered_claude_md(tmp_path):
     )
     claude = repo_dir / "CLAUDE.md"
     assert claude.is_file()
-    assert "Manual Bug-Fixing Protocol" in claude.read_text()
+    # CHANGED IN 2.2 — Bug S3-187, cycle G2.
+    assert "Gate 6" in claude.read_text()
+    assert "Canonical Break-Glass Path" in claude.read_text()
 
 
 # ---------------------------------------------------------------------------
@@ -302,8 +320,10 @@ def test_orchestrator_primer_not_appended_when_project_root_is_none(tmp_path):
     content = (repo / "CLAUDE.md").read_text()
 
     assert _PRIMER_SECTION_HEADER not in content
-    # Template content still present.
-    assert "Manual Bug-Fixing Protocol" in content
+    # Template content still present (CHANGED IN 2.2 — Bug S3-187: section
+    # renamed from "Manual Bug-Fixing Protocol" to "Gate 6 — Canonical
+    # Break-Glass Path").
+    assert "Gate 6" in content and "Canonical Break-Glass Path" in content
 
 
 def test_orchestrator_primer_not_appended_when_primary_language_missing(tmp_path):
@@ -374,8 +394,17 @@ def test_orchestrator_primer_not_appended_when_primer_file_missing(tmp_path):
 
 def test_existing_template_content_preserved_when_primer_appended(tmp_path):
     """When the primer section is appended, the standard template content
-    (RULE 0, the 8-step cycle, the protocol header) must still be present
-    in full alongside it."""
+    (RULE 0, mode-aware sub-flows, the canonical-path header) must still
+    be present in full alongside it.
+
+    CHANGED IN 2.2 — Bug S3-187, cycle G2: the legacy "Manual Bug-Fixing
+    Protocol (Break-Glass Mode)" header is replaced by "## Gate 6 —
+    Canonical Break-Glass Path" with Layer-Triage L1-L5 in DIAGNOSE,
+    explicit "### Bug Mode" + "### Enhancement Mode" sub-sections, and
+    "### Choosing the entry-point" guidance. The 8-step COMMIT TO GIT
+    final-step phrasing is replaced by SYNC + TEST FROM BOTH (the
+    deployed-artifacts step is incorporated as 2.i within Bug Mode).
+    """
     workspace_root = _find_workspace_root()
     repo = tmp_path / "demo-repo"
     repo.mkdir()
@@ -387,23 +416,27 @@ def test_existing_template_content_preserved_when_primer_appended(tmp_path):
 
     # Primer present.
     assert _PRIMER_SECTION_HEADER in content
-    # Template invariants still intact.
-    assert "Manual Bug-Fixing Protocol" in content
-    assert "Break-Glass Mode" in content
+    # Canonical-path template invariants still intact.
+    assert "Gate 6" in content and "Canonical Break-Glass Path" in content
     assert "**RULE 0:" in content
+    assert "### Bug Mode" in content
+    assert "### Enhancement Mode" in content
     for step in (
-        "1. **DIAGNOSE**",
-        "2. **PLAN**",
-        "3. **EXECUTE**",
-        "4. **EVALUATE**",
-        "5. **LESSONS LEARNED**",
-        "6. **REGRESSION TESTS**",
-        "7. **VERIFY**",
-        "8. **COMMIT TO GIT**",
+        "DIAGNOSE",
+        "PLAN",
+        "EXECUTE",
+        "EVALUATE",
+        "LESSONS LEARNED",
+        "REGRESSION TESTS",
+        "VERIFY",
+        "SYNC",
     ):
         assert step in content, f"Cycle step not found alongside primer: {step!r}"
     # The primer section must appear AFTER the standard template body.
-    template_marker_pos = content.find("8. **COMMIT TO GIT**")
+    # The canonical-path "### Choosing the entry-point" is the last
+    # sub-section of the Gate 6 section, so its position is the natural
+    # template-end marker.
+    template_marker_pos = content.find("### Choosing the entry-point")
     primer_marker_pos = content.find(_PRIMER_SECTION_HEADER)
     assert template_marker_pos != -1 and primer_marker_pos != -1
     assert primer_marker_pos > template_marker_pos

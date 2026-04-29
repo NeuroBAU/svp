@@ -230,7 +230,11 @@ def test_stage_5_end_to_end_synthetic_a_d_workspace(tmp_path):
     # CLAUDE.md present (S3-147)
     claude_md = repo_dir / "CLAUDE.md"
     assert claude_md.is_file()
-    assert "Manual Bug-Fixing Protocol" in claude_md.read_text()
+    # CHANGED IN 2.2 — Bug S3-187, cycle G2: section header is now
+    # "## Gate 6 — Canonical Break-Glass Path" (replaces legacy
+    # "Manual Bug-Fixing Protocol (Break-Glass Mode)").
+    claude_md_text = claude_md.read_text()
+    assert "Gate 6" in claude_md_text and "Canonical Break-Glass Path" in claude_md_text
 
     # Tests delivered (S3-146)
     assert (repo_dir / "tests" / "unit_1" / "test_engine.py").is_file()

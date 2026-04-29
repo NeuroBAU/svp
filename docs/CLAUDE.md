@@ -41,41 +41,161 @@ When invoking an agent, pass the contents of TASK_PROMPT_FILE as the task prompt
 - If the human types during an autonomous sequence, acknowledge and defer.
 - You MUST NOT write to pipeline_state.json directly or batch multiple units.
 
-## Manual Bug-Fixing Protocol (Break-Glass Mode)
+## Gate 6 — Canonical Break-Glass Path
 
-**Action type `invoke_break_glass`**: routing may emit this action_type when the human authorizes a debug session and selects a mode at gate_6_1_mode_classification. Follow the Manual Bug-Fixing Protocol below; consult `state.debug_session["mode"]` ("bug" or "enhancement") for which sub-flow applies. (Mode-aware sub-flows ship in cycle G2.)
+When the human authorizes a debug session at `gate_6_0_debug_permission`,
+SVP routes through `gate_6_1_mode_classification` (BUG | ENHANCEMENT).
+Routing then emits action_type=`invoke_break_glass` with the mode tag.
+Orchestrator (this Claude session) follows the corresponding sub-flow
+below. Both modes share the existing Gate 6.0 authorization and
+DEBUG_SESSION_COMPLETE terminal status.
 
-When the SVP routing mechanism is too broken to function and the human asks you to fix bugs directly, follow this protocol EXACTLY.
+**RULE 0: NEVER directly fix a bug or amend a contract. ALWAYS enter
+plan mode first.**
 
-**RULE 0: NEVER directly fix a bug. ALWAYS enter plan mode first.**
+### DIAGNOSE — Layer-Triage L1-L5
 
-### Bug-Fixing Cycle (repeat for each bug):
+Systematically check each architectural layer to identify where the bug
+actually lives. The symptom may appear in one layer while the root cause
+lives in another. Rule out (or rule in) each layer in order.
 
-1. **DIAGNOSE** — Identify root cause. Trace through spec → blueprint → code to understand WHY.
+**L1 — Reproduce the symptom**
+- Run the failing test / agent / command end-to-end. Capture exact failure
+  modes: stack traces, missing tokens, agent loops, wrong outputs.
+- Note non-determinism (flaky tests, retry-success, environment-sensitive
+  failures). If you cannot reliably reproduce, STOP and escalate to user.
+- Output: a concise reproducer (test name + expected vs observed).
+
+**L2 — Spec layer**
+- Read the relevant normative spec sections (§17 routing, §18.1 statuses,
+  §22.4 state, §6 setup_agent, §40 archetypes — match to symptom).
+- Read Section 24 most recent related entries; check if a prior cycle
+  introduced the behavior in question.
+- Verdict: spec says X but you observed Y → continue to L3+. Spec is
+  silent / self-contradictory → spec-layer bug (rare; usually means
+  enhancement mode is the right flow, not bug mode).
+
+**L3 — Blueprint layer**
+- Read `blueprint/blueprint_contracts.md` (formal Tier-2/3) for the
+  affected unit.
+- Read `blueprint/blueprint_prose.md` (narrative Tier-1) for the same unit.
+- Check Calls / Called-by / Package Dependencies sections for accuracy.
+- Verdict: contract says X but spec says Y → blueprint-layer bug.
+  Contract matches spec → continue to L4.
+
+**L4 — Code layer**
+- Find the relevant `src/unit_*/stub.py`.
+- Trace data flow, control flow, state transitions through the function
+  named in the contract. Check for missing branches, off-by-one, wrong
+  data structures, swallowed exceptions.
+- Verdict: most bugs live here. Code says X but contract says Y →
+  code-layer bug.
+
+**L5 — Test layer**
+- Does the test correctly assert on the contract? Or does it lie about
+  state / assert on wrong fixtures / pass for the wrong reason?
+- Is regression coverage adequate? If yes, why did existing regression
+  not catch this?
+- Verdict: test-layer bug often co-occurs with L4 (incorrect test masked
+  the L4 bug).
+
+After L1-L5: state the root cause in one sentence and the layer it lives
+in. Do NOT proceed to PLAN until the root layer is named.
+
+### Bug Mode (`debug_session["mode"] == "bug"`)
+
+For changes that ALIGN code with already-specified behavior. Specs and
+contracts already say what should happen; you are restoring intended
+behavior. Use this when L1-L5 found the root cause in L2-L5.
+
+1. **DIAGNOSE** — Layer-Triage L1-L5 (see above). State root cause + layer.
 
 2. **PLAN** the fixes in:
    - a. **SPEC** — port the change upstream to the stakeholder spec:
-     - Add bug entry to Section 24 (changelog narrative). Use the rich format: Symptom / Root cause / Surface area / Resolution / Pattern (link to lessons-learned pattern number) / Detection (name regression test functions).
-     - **MANDATORY**: Update every normative spec section whose described behavior changes. If the cycle changes setup_agent → update §6.4 / §21 setup_agent entries. If the cycle changes a state field → update §22.4. If the cycle changes routing action blocks → update §17. If the cycle changes terminal statuses → update §18.1. Failing to port the change upstream creates accumulated debt.
-     - **MANDATORY**: Update `blueprint/blueprint_prose.md` (Tier-1 narrative) to mirror any new contract clauses in `blueprint/blueprint_contracts.md` (Tier-2/3). Prose is the human-readable summary; contracts is the formal specification. Keep them aligned.
-   - b. **BLUEPRINT** — Amend contracts in affected units
-   - c. **CODE** — Fix implementation in `src/unit_*/stub.py`. **Stubs are the single source of truth.** Never edit `scripts/*.py` directly — they are derived from stubs by `sync_workspace.sh` Step 0 (import rewriting). Fix the stub, run sync, scripts auto-update.
-   - d. **EXECUTE** — Apply the code changes
-   - e. **EVALUATE** — Run tests, verify the fix works
-   - f. **LESSONS LEARNED** — Write entry in `references/svp_2_1_lessons_learned.md`
-   - g. **REGRESSION TESTS** — Author tests covering ALL aspects of the bug
-   - h. **VERIFY** — Tests pass with 0 skipped
-   - i. **DEPLOYED ARTIFACTS** — If the fix touches Units that produce deployed plugin artifacts (Unit 25 → `svp/commands/`, Unit 26 → `svp/skills/`, Unit 23 → `svp/agents/`, `svp/hooks/`), manually update the corresponding `.md` files in the repo's `svp/` directory. `sync_workspace.sh` does NOT sync these. The deployed `.md` file is what Claude Code loads — the Python source is only an input to assembly.
-   - j. **SYNC** — Run `bash sync_workspace.sh` from the workspace directory. This handles:
-     - Step 0: Derives `scripts/*.py` from `src/unit_*/stub.py` by rewriting imports (stubs → flat modules)
-     - Scripts: workspace `scripts/` ↔ repo `svp/scripts/` (newer wins)
-     - Source units: workspace `src/unit_*/stub.py` ↔ repo `src/unit_*/stub.py` (newer wins)
-     - Docs: workspace is authoritative → repo `docs/`, `specs/`, `blueprint/`, `references/` + Pass 1 repo
-     - Tests: workspace `tests/` ↔ repo `tests/` (newer wins)
-     - Use `--dry-run` to preview, `--force-workspace` or `--force-repo` to override timestamps
-   - k. **TEST FROM BOTH** — Run `pytest` from BOTH the workspace AND the repo directory. Do not skip either. Failures in one but not the other indicate stale test files or permission issues.
+     - Add bug entry to Section 24 (changelog narrative). Use the rich
+       format: Symptom / Root cause / Surface area / Resolution / Pattern
+       (link to lessons-learned pattern number) / Detection (name
+       regression test functions).
+     - **MANDATORY**: Update every normative spec section whose described
+       behavior changes (§6.4 / §21 setup_agent, §22.4 state, §17 routing,
+       §18.1 statuses — match to layer).
+     - **MANDATORY**: Update `blueprint/blueprint_prose.md` (Tier-1
+       narrative) to mirror any new contract clauses in
+       `blueprint/blueprint_contracts.md` (Tier-2/3).
+   - b. **BLUEPRINT** — Amend contracts in affected units.
+   - c. **CODE** — Fix implementation in `src/unit_*/stub.py`. Stubs are
+     the single source of truth. Never edit `scripts/*.py` directly.
+   - d. **EXECUTE** — Apply the code changes.
+   - e. **EVALUATE** — Run tests, verify the fix works.
+   - f. **LESSONS LEARNED** — Write entry in
+     `references/svp_2_1_lessons_learned.md`.
+   - g. **REGRESSION TESTS** — Author tests covering ALL aspects of
+     the bug.
+   - h. **VERIFY** — Tests pass with 0 skipped.
+   - i. **DEPLOYED ARTIFACTS** — If the fix touches Units that produce
+     deployed plugin artifacts (Unit 25 → `svp/commands/`, Unit 26 →
+     `svp/skills/`, Unit 23 → `svp/agents/`, `svp/hooks/`), manually
+     update the corresponding `.md` files in the repo svp/ directory.
+   - j. **SYNC** — Run `bash sync_workspace.sh` from the workspace.
+   - k. **TEST FROM BOTH** — Run pytest from BOTH workspace AND repo.
 
-3. **EVALUATE** — All tests pass from BOTH workspace AND repo. 0 skipped, 0 failed. Repos fully in sync. Clean up any stale test artifacts (e.g., `test_project/`, `test_restore/`) left by previous runs.
+3. **EVALUATE** — All tests pass from both. Repos in sync. Clean up
+   stale test artifacts.
+
+### Enhancement Mode (`debug_session["mode"] == "enhancement"`)
+
+For changes that ALTER intended behavior — the desired behavior is new
+or different, not previously specified. Specs and/or contracts must be
+amended. Use this when L1-L5 found the root cause is in L2 (spec is
+silent / wants to change).
+
+Do NOT use bug mode for these; the framing is wrong.
+
+1. **SPEC_AMENDMENT** — Author the upstream change first.
+   - Section 24 entry in rich format describing the new behavior.
+   - Update normative sections (§6, §17, §18.1, §22.4, §40, etc.) for
+     anything whose described behavior is changing.
+   - This is MANDATORY first step (S3-169): code must not get ahead of
+     spec.
+
+2. **BLUEPRINT_AMENDMENT** — Mirror the spec change in blueprint.
+   - `blueprint/blueprint_prose.md` (Tier-1 narrative summary).
+   - `blueprint/blueprint_contracts.md` (Tier-2/3 formal contract clauses).
+   - Both must move in lockstep.
+
+3. **IMPLEMENTATION** — Edit `src/unit_*/stub.py` to satisfy the new
+   contracts. Stubs are the single source of truth.
+
+4. **TESTS** — Author regression tests asserting the newly-introduced
+   behavior. For enhancement, regression tests document the contract
+   that was just added.
+
+5. **VERIFY** — pytest from BOTH workspace and repo. 0 fail / 0 skip.
+
+6. **SYNC + COMMIT** — `bash sync_workspace.sh`, then commit + push.
+
+### Choosing the entry-point
+
+**Run break-glass directly** (default for human-initiated work):
+- The bug spans multiple layers (e.g., spec + code).
+- You need to investigate before knowing the root layer.
+- The issue may turn out to be an enhancement.
+- Multiple units may be affected.
+
+**Call /svp:bug as a sub-tool** (narrow):
+- The bug is genuinely localized to a single unit.
+- The contract is well-specified and the violation is mechanical.
+- You expect the fix to be a small contract-bounded change.
+
+**Auto-dispatched /svp:bug** (routing-detected red runs):
+- Routing emits this when a single Stage-3 red run is genuinely
+  contract-bounded.
+- The orchestrator MAY abort /svp:bug and escalate to break-glass at
+  any time if scope turns out wider (G3 wires the abort path).
+
+If /svp:bug invocation reveals scope creep (multiple units affected,
+spec questions arise, behavior intent unclear), ABORT and escalate to
+break-glass.
 
 ## Propagation Scope of SVP Improvements
 
