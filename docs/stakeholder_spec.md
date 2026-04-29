@@ -6673,6 +6673,20 @@ This is a meta-cycle: process improvement + accumulated documentation debt clean
 
 **Detection.** `tests/regressions/test_s3_189_child_template_genericized.py` (10 tests covering negative-presence + positive-presence + workspace-exemption). Doc-consistency drift caught by `tests/regressions/test_s3_169_doc_consistency.py` via the new `"references/lessons_learned.md"` CONCEPTS entry — the string appears in spec Section 40.8, in blueprint_prose Unit 23, and in blueprint_contracts Unit 23 (C-23-G4c).
 
+### 24.204 Cycle G5 — Pattern Catalog Refresh (Post-delivery — Bug S3-190, NEW IN 2.2)
+
+**Symptom.** Post-G4 audit found the Pattern Catalog table in `references/svp_2_1_lessons_learned.md` Part 2 listed only 5 patterns (P1, P2, P7, P14, P15) while the file referenced 65 patterns (P1-P73 with gaps at P3, P5, P6, P8, P9, P11, P12, P13). Discoverability gap: a future SVP 2.3 build's Stage-1 reference indexing or the orchestrator in break-glass mode that consults the catalog table would under-recall recurring shapes.
+
+**Root cause.** No regression test enforced catalog table sync with inline pattern blocks. Cycles authored inline blocks without adding catalog rows; the discipline existed as prose convention but not as a runnable check.
+
+**Surface area.** `references/svp_2_1_lessons_learned.md` Part 2 (catalog refresh) plus a new Pattern P74 inline block. NEW `tests/regressions/test_s3_190_pattern_catalog_sync.py`.
+
+**Resolution.** Appended approximately 60 catalog rows for P4, P10, and P16-P73 (skipping numbering gaps at P3, P5, P6, P8, P9, P11, P12, P13). Added Pattern P74 codifying catalog-sync discipline. New regression test enforces sync going forward — every P# referenced in the file must appear as a catalog row, in ascending order, with P40-P73 explicitly required.
+
+**Pattern.** P74.
+
+**Detection.** `tests/regressions/test_s3_190_pattern_catalog_sync.py` (3 tests: `test_every_referenced_pattern_in_catalog`, `test_catalog_rows_are_chronologically_ordered`, `test_catalog_includes_all_post_S3_154_patterns`).
+
 ---
 
 ## 25. Test Data
