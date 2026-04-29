@@ -2091,7 +2091,7 @@ None (stdlib only).
 ### Tier 2 — Signatures
 
 ```python
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 from pathlib import Path
 
 PROJECT_ASSEMBLERS: Dict[str, Callable[[Path, Dict[str, Any], Dict[str, Any]], Path]]
@@ -2120,6 +2120,20 @@ def generate_assembly_map(
 ) -> Dict[str, str]: ...
 
 def adapt_regression_tests_main(argv: list = None) -> None: ...
+
+# (NEW IN 2.2 -- Bug S3-147; EXTENDED IN 2.2 -- Bug S3-183)
+def write_delivered_claude_md(
+    repo_dir: Path,
+    profile: Dict[str, Any],
+    project_name: str,
+    project_root: Optional[Path] = None,
+) -> bool: ...
+
+# (NEW IN 2.2 -- Bug S3-183)
+def _get_orchestrator_break_glass_primer_text(
+    project_root: Path,
+    profile: Dict[str, Any],
+) -> Optional[str]: ...
 ```
 
 ### Tier 3 -- Behavioral Contracts
@@ -2133,6 +2147,7 @@ def adapt_regression_tests_main(argv: list = None) -> None: ...
 - generate_write_authorization_sh() in Unit 17
 - generate_marketplace_json() in Unit 28
 - generate_plugin_json() in Unit 28
+- load_toolchain() in Unit 4 (lazy import inside `_get_orchestrator_break_glass_primer_text`, NEW IN 2.2 — Bug S3-183)
 
 ## Package Dependencies
 
@@ -2194,6 +2209,25 @@ None (stdlib only).
 - Copies `examples/` directory to repo root.
 - Normal (A-D) projects do NOT call this — their repos stay clean.
 - Makes Stage 5 the authoritative delivery mechanism for workspace carry-over files.
+
+**write_delivered_claude_md (Bug S3-147; EXTENDED IN 2.2 — Bug S3-183):**
+- Called during Stage 5 assembly by `assemble_python_project`, `assemble_r_project`, and `assemble_plugin_project` (mixed inherits via the primary assembler).
+- Returns False (without writing) when `profile["is_svp_build"]` is true; the SVP-meta path is handled by `assemble_svp_workspace_artifacts`.
+- Otherwise renders `CLAUDE_MD_DELIVERED_REPO_TEMPLATE.format(project_name=project_name)` (Unit 29 constant, unchanged by S3-183) and writes it to `repo_dir/CLAUDE.md`.
+- **(NEW IN 2.2 — Bug S3-183) Orchestrator break-glass primer append.** Accepts an optional `project_root: Optional[Path]` parameter (default `None` for back-compat). When `project_root` is non-`None`, MUST call `_get_orchestrator_break_glass_primer_text(project_root, profile)` exactly once and, when the helper returns a non-`None` primer text, append `"\n\n## Orchestrator Break-Glass Primer (Archetype-Specific)\n\n" + primer_text` to the rendered template before writing to disk. The append fires AFTER the standard template body so the existing template invariants (RULE 0, the 8-step bug-fixing cycle, `Manual Bug-Fixing Protocol` header) remain intact at the start of the file. Defensive: never raises from the primer append — Stage 5 delivery never fails because of primer plumbing. The three assembler call sites pass `project_root=project_root` through (see `assemble_python_project`, `assemble_r_project`, `assemble_plugin_project`).
+- Returns True iff the file was written (regardless of whether the primer section was appended).
+
+**_get_orchestrator_break_glass_primer_text (NEW IN 2.2 — Bug S3-183):**
+- Module-level helper in unit_23.
+- Reads `profile["language"]["primary"]`. Returns `None` if missing or empty.
+- Lazy-imports `load_toolchain` from Unit 4 (with `scripts.toolchain_reader` as a fallback path); returns `None` on import failure.
+- Calls `load_toolchain(project_root, language=primary_language)`; returns `None` on any exception (missing manifest, malformed JSON, unknown language, etc.).
+- Reads `toolchain["language_architecture_primers"]`; returns `None` if missing, empty, or not a dict.
+- Reads `primers["orchestrator_break_glass"]`; returns `None` if missing or falsy.
+- Resolves the primer path against `project_root`; returns `None` if the resolved file does not exist.
+- Reads the file with UTF-8 encoding and returns the contents; returns `None` on any read error.
+- Mirror of Unit 13's `_get_language_architecture_primer` but takes `profile` (the dict Stage 5 has on hand) rather than `state` (a `PipelineState`), and looks up the fixed key `"orchestrator_break_glass"` rather than a parameterized `agent_type`.
+- Defensive at every step: never raises. Pattern P67.
 
 **GIT_REPO_AGENT_DEFINITION:** assembly mapping rules, commit order (conventional commits), delivery compliance awareness, README generation, quality config generation, bounded fix cycle (iteration_limit attempts). Mixed archetype assembly: when profile `archetype` is `"mixed"`, execute two-phase composition — Phase 1 using primary language assembler for root structure, Phase 2 creating `<secondary_language>/` subdirectory for secondary source files and `<secondary_language>/tests/` for secondary tests; generate quality configs for both languages; produce single `environment.yml` listing both languages' dependencies and bridge libraries. **(Bug S3-97 fix.)** **Delivered Repo Location (CHANGED IN 2.2 — Bug S3-112):** MUST contain a "## Delivered Repo Location" section that (a) states the canonical sibling convention `{project_root.parent}/{project_name}-repo`, (b) names the four assembler helpers (`assemble_python_project`, `assemble_r_project`, `assemble_plugin_project`, `assemble_mixed_project`) that the agent MUST call, (c) forbids `delivered/`/`delivered_repo/`/`output/` and any sub-directory of the project root as destinations, (d) forbids manual writes to `.svp/pipeline_state.json`, and (e) notes that `state.delivered_repo_path` is automatically set by the dispatch step. Status: `REPO_ASSEMBLY_COMPLETE`.
 

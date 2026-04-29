@@ -52,6 +52,12 @@ CONCEPTS = [
     # if a future cycle changes prose without updating contracts (or vice
     # versa), this concept's absence in one of the three docs flags the gap.
     "_get_language_architecture_primer",
+    # NEW IN S3-183 (cycle E3 — orchestrator primer in child CLAUDE.md).
+    # The dispatch helper's literal name is the discriminating identifier
+    # for the Stage 5 delivery surface (distinct from S3-182's prepare_task
+    # surface) across spec normative text, blueprint prose, and blueprint
+    # contracts.
+    "_get_orchestrator_break_glass_primer_text",
 ]
 
 

@@ -13,7 +13,7 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 from src.unit_1.stub import ARTIFACT_FILENAMES
 
@@ -878,8 +878,58 @@ def deliver_source_files(
     return count
 
 
+def _get_orchestrator_break_glass_primer_text(
+    project_root: Path,
+    profile: Dict[str, Any],
+) -> Optional[str]:
+    """Return the orchestrator_break_glass primer markdown for the project's
+    archetype if the toolchain manifest declares one; None otherwise.
+
+    Bug S3-183 (cycle E3): the 5th primer key in the manifest's
+    ``language_architecture_primers`` field is wired at Stage 5 delivery
+    rather than at ``prepare_task`` time (the four other keys are dispatched
+    by Unit 13's ``_get_language_architecture_primer`` per S3-182). Rationale:
+    the orchestrator is the main Claude Code session — its "task prompt" is
+    the on-disk CLAUDE.md loaded on session boot, not a subagent prompt.
+    Mirror of P66 but the dispatch surface is "session boot" not "task prompt
+    assembly".
+
+    Defensive at every step: returns ``None`` on missing profile fields,
+    missing manifest, missing ``language_architecture_primers`` field,
+    missing ``orchestrator_break_glass`` key, missing file, or any read
+    error. No primer-append site can crash Stage 5 delivery.
+    """
+    primary_language = (profile.get("language") or {}).get("primary")
+    if not primary_language:
+        return None
+    try:
+        from src.unit_4.stub import load_toolchain
+    except Exception:
+        return None
+    try:
+        toolchain = load_toolchain(project_root, language=primary_language)
+    except Exception:
+        return None
+    primers = toolchain.get("language_architecture_primers") or {}
+    if not isinstance(primers, dict):
+        return None
+    primer_path = primers.get("orchestrator_break_glass")
+    if not primer_path:
+        return None
+    full_path = Path(project_root) / primer_path
+    if not full_path.exists():
+        return None
+    try:
+        return full_path.read_text(encoding="utf-8")
+    except Exception:
+        return None
+
+
 def write_delivered_claude_md(
-    repo_dir: Path, profile: Dict[str, Any], project_name: str
+    repo_dir: Path,
+    profile: Dict[str, Any],
+    project_name: str,
+    project_root: Optional[Path] = None,
 ) -> bool:
     """Write a delivered-repo-scoped CLAUDE.md to repo_dir (Bug S3-147).
 
@@ -892,12 +942,31 @@ def write_delivered_claude_md(
     regenerative (_backup_existing already preserved any prior content
     under .bak.YYYYMMDD-HHMMSS). Same inputs → same output every assembly.
 
+    Bug S3-183 (cycle E3): when ``project_root`` is supplied and the
+    toolchain manifest for ``profile["language"]["primary"]`` declares an
+    ``orchestrator_break_glass`` primer path under
+    ``language_architecture_primers``, this function appends the primer's
+    file contents as a top-level section at the end of the rendered
+    template. Defensive: silent no-op on any missing prerequisite. The
+    parameter defaults to ``None`` for back-compat with callers that do not
+    pass it (existing tests, etc.) — no primer section is appended in that
+    case.
+
     Returns True iff the file was written.
     """
     if profile.get("is_svp_build", False):
         return False
     from src.unit_29.stub import CLAUDE_MD_DELIVERED_REPO_TEMPLATE
     content = CLAUDE_MD_DELIVERED_REPO_TEMPLATE.format(project_name=project_name)
+    if project_root is not None:
+        primer_text = _get_orchestrator_break_glass_primer_text(
+            project_root, profile
+        )
+        if primer_text:
+            content += (
+                "\n\n## Orchestrator Break-Glass Primer (Archetype-Specific)\n\n"
+                + primer_text
+            )
     (repo_dir / "CLAUDE.md").write_text(content, encoding="utf-8")
     return True
 
@@ -966,7 +1035,12 @@ def assemble_python_project(
     # Bug S3-147: deterministic delivered-repo CLAUDE.md with break-glass
     # protocol. Skipped for E/F self-builds (assemble_svp_workspace_artifacts
     # writes a different template).
-    write_delivered_claude_md(repo_dir, profile, project_name)
+    # Bug S3-183 (cycle E3): pass project_root so write_delivered_claude_md
+    # can resolve the toolchain manifest's orchestrator_break_glass primer
+    # and append it as an archetype-specific section.
+    write_delivered_claude_md(
+        repo_dir, profile, project_name, project_root=project_root
+    )
 
     # Bug S3-148: deterministic source-file delivery. Reads the assembly_map
     # produced by generate_assembly_map and copies/rewrites each .py source
@@ -1050,7 +1124,11 @@ def assemble_r_project(
     (repo_dir / "tests" / "testthat.R").write_text(testthat_r)
 
     # Bug S3-147: deterministic delivered-repo CLAUDE.md.
-    write_delivered_claude_md(repo_dir, profile, project_name)
+    # Bug S3-183 (cycle E3): pass project_root so the orchestrator
+    # break-glass primer can be appended for R archetypes.
+    write_delivered_claude_md(
+        repo_dir, profile, project_name, project_root=project_root
+    )
 
     return repo_dir
 
@@ -1097,7 +1175,11 @@ def assemble_plugin_project(
     (plugin_dir / "strategies").mkdir(parents=True, exist_ok=True)
 
     # Bug S3-147: deterministic delivered-repo CLAUDE.md.
-    write_delivered_claude_md(repo_dir, profile, project_name)
+    # Bug S3-183 (cycle E3): pass project_root so the orchestrator
+    # break-glass primer can be appended for plugin archetypes.
+    write_delivered_claude_md(
+        repo_dir, profile, project_name, project_root=project_root
+    )
 
     return repo_dir
 
