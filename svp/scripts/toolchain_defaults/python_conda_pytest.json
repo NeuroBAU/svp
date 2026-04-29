@@ -99,5 +99,11 @@
     "source_extension": ".py",
     "test_extension": ".py"
   },
-  "language_architecture_primers": {}
+  "language_architecture_primers": {
+    "blueprint_author":         "scripts/primers/python/blueprint_author.md",
+    "implementation_agent":     "scripts/primers/python/implementation_agent.md",
+    "test_agent":               "scripts/primers/python/test_agent.md",
+    "coverage_review":          "scripts/primers/python/coverage_review.md",
+    "orchestrator_break_glass": "scripts/primers/python/orchestrator_break_glass.md"
+  }
 }

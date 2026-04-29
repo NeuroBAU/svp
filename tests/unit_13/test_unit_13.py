@@ -1995,21 +1995,28 @@ def _provision_r_archetype_in_project(project_root):
     # Walk up to find a directory containing either scripts/ (workspace) or
     # svp/scripts/ (repo) with toolchain_defaults inside.
     src_manifest_dir = None
-    src_primer_dir = None
+    src_primer_r_dir = None
+    src_primer_python_dir = None
     for ancestor in test_file.parents:
         ws_manifest = ancestor / "scripts" / "toolchain_defaults"
-        ws_primer = ancestor / "scripts" / "primers" / "r"
-        if ws_manifest.is_dir() and ws_primer.is_dir():
+        ws_primer_r = ancestor / "scripts" / "primers" / "r"
+        ws_primer_python = ancestor / "scripts" / "primers" / "python"
+        if ws_manifest.is_dir() and ws_primer_r.is_dir():
             src_manifest_dir = ws_manifest
-            src_primer_dir = ws_primer
+            src_primer_r_dir = ws_primer_r
+            if ws_primer_python.is_dir():
+                src_primer_python_dir = ws_primer_python
             break
         repo_manifest = ancestor / "svp" / "scripts" / "toolchain_defaults"
-        repo_primer = ancestor / "svp" / "scripts" / "primers" / "r"
-        if repo_manifest.is_dir() and repo_primer.is_dir():
+        repo_primer_r = ancestor / "svp" / "scripts" / "primers" / "r"
+        repo_primer_python = ancestor / "svp" / "scripts" / "primers" / "python"
+        if repo_manifest.is_dir() and repo_primer_r.is_dir():
             src_manifest_dir = repo_manifest
-            src_primer_dir = repo_primer
+            src_primer_r_dir = repo_primer_r
+            if repo_primer_python.is_dir():
+                src_primer_python_dir = repo_primer_python
             break
-    if src_manifest_dir is None or src_primer_dir is None:
+    if src_manifest_dir is None or src_primer_r_dir is None:
         raise RuntimeError(
             "Could not locate scripts/toolchain_defaults + "
             "scripts/primers/r/ from the test file's ancestors "
@@ -2022,16 +2029,25 @@ def _provision_r_archetype_in_project(project_root):
         src_manifest_dir / "r_conda_testthat.json",
         dst_manifest_dir / "r_conda_testthat.json",
     )
-    # Copy python manifest too so the python negative case works.
+    # Copy python manifest too so the python cross-archetype case works.
     shutil.copy2(
         src_manifest_dir / "python_conda_pytest.json",
         dst_manifest_dir / "python_conda_pytest.json",
     )
 
-    dst_primer_dir = project_root / "scripts" / "primers" / "r"
-    dst_primer_dir.mkdir(parents=True, exist_ok=True)
-    for primer_file in src_primer_dir.glob("*.md"):
-        shutil.copy2(primer_file, dst_primer_dir / primer_file.name)
+    dst_primer_r_dir = project_root / "scripts" / "primers" / "r"
+    dst_primer_r_dir.mkdir(parents=True, exist_ok=True)
+    for primer_file in src_primer_r_dir.glob("*.md"):
+        shutil.copy2(primer_file, dst_primer_r_dir / primer_file.name)
+
+    # Copy python primers too (S3-184, cycle E4) so when
+    # primary_language='python' the dispatch resolves the python primer file
+    # under project_root.
+    if src_primer_python_dir is not None:
+        dst_primer_python_dir = project_root / "scripts" / "primers" / "python"
+        dst_primer_python_dir.mkdir(parents=True, exist_ok=True)
+        for primer_file in src_primer_python_dir.glob("*.md"):
+            shutil.copy2(primer_file, dst_primer_python_dir / primer_file.name)
 
 
 class TestS3_182LanguageArchitecturePrimerDispatch:
@@ -2111,11 +2127,17 @@ class TestS3_182LanguageArchitecturePrimerDispatch:
             "NOT be appended (Bug S3-182 — defensive guard)."
         )
 
-    def test_blueprint_author_no_primer_when_archetype_has_no_primers(
+    def test_blueprint_author_does_not_get_R_primer_when_archetype_is_python(
         self, project_root
     ):
-        """When primary_language='python' (manifest has empty
-        language_architecture_primers), no primer is appended."""
+        """When primary_language='python', the python primer (not the R
+        primer) is dispatched. Cross-archetype dispatch correctness:
+
+        - The R-archetype marker MUST NOT appear in the assembled prompt.
+        - The python-archetype marker MUST appear (after E4 / S3-184, the
+          python manifest's ``language_architecture_primers`` carries the
+          five python primer paths and dispatch returns the python primer).
+        """
         _provision_r_archetype_in_project(project_root)
         _write_pipeline_state_with_language(
             project_root, primary_language="python"
@@ -2124,8 +2146,12 @@ class TestS3_182LanguageArchitecturePrimerDispatch:
             project_root, "blueprint_author", mode="draft"
         )
         assert "R Architectural Primer" not in result, (
-            "When the archetype's manifest has no primer for "
-            "blueprint_author, NO primer must be appended (Bug S3-182)."
+            "When primary_language='python', the R primer MUST NOT be "
+            "appended (Bug S3-182 / Bug S3-184)."
+        )
+        assert "Python Architectural Primer" in result, (
+            "When primary_language='python', the Python blueprint_author "
+            "primer MUST be appended (Bug S3-184)."
         )
 
     # ----- implementation_agent -----
@@ -2172,9 +2198,13 @@ class TestS3_182LanguageArchitecturePrimerDispatch:
             "NOT be appended (Bug S3-182 — defensive guard)."
         )
 
-    def test_implementation_agent_no_primer_when_archetype_has_no_primers(
+    def test_implementation_agent_does_not_get_R_primer_when_archetype_is_python(
         self, project_root
     ):
+        """When primary_language='python', the python primer (not the R
+        primer) is dispatched. Cross-archetype dispatch correctness:
+        R-archetype marker absent, python-archetype marker present
+        (Bug S3-184)."""
         _provision_r_archetype_in_project(project_root)
         _write_pipeline_state_with_language(
             project_root, primary_language="python"
@@ -2183,9 +2213,12 @@ class TestS3_182LanguageArchitecturePrimerDispatch:
             project_root, "implementation_agent", unit_number=5
         )
         assert "R Architectural Primer" not in result, (
-            "When the archetype's manifest has no primer for "
-            "implementation_agent, NO primer must be appended "
-            "(Bug S3-182)."
+            "When primary_language='python', the R primer MUST NOT be "
+            "appended (Bug S3-182 / Bug S3-184)."
+        )
+        assert "Python Architectural Primer" in result, (
+            "When primary_language='python', the Python implementation_agent "
+            "primer MUST be appended (Bug S3-184)."
         )
 
     # ----- test_agent -----
@@ -2237,9 +2270,13 @@ class TestS3_182LanguageArchitecturePrimerDispatch:
             "NOT be appended (Bug S3-182 — defensive guard)."
         )
 
-    def test_test_agent_no_primer_when_archetype_has_no_primers(
+    def test_test_agent_does_not_get_R_primer_when_archetype_is_python(
         self, project_root
     ):
+        """When primary_language='python', the python primer (not the R
+        primer) is dispatched. Cross-archetype dispatch correctness:
+        R-archetype marker absent, python-archetype marker present
+        (Bug S3-184)."""
         _provision_r_archetype_in_project(project_root)
         _write_pipeline_state_with_language(
             project_root, primary_language="python"
@@ -2248,8 +2285,12 @@ class TestS3_182LanguageArchitecturePrimerDispatch:
             project_root, "test_agent", unit_number=5
         )
         assert "R Architectural Primer" not in result, (
-            "When the archetype's manifest has no primer for test_agent, "
-            "NO primer must be appended (Bug S3-182)."
+            "When primary_language='python', the R primer MUST NOT be "
+            "appended (Bug S3-182 / Bug S3-184)."
+        )
+        assert "Python Architectural Primer" in result, (
+            "When primary_language='python', the Python test_agent primer "
+            "MUST be appended (Bug S3-184)."
         )
 
     # ----- coverage_review -----
@@ -2301,9 +2342,13 @@ class TestS3_182LanguageArchitecturePrimerDispatch:
             "NOT be appended (Bug S3-182 — defensive guard)."
         )
 
-    def test_coverage_review_no_primer_when_archetype_has_no_primers(
+    def test_coverage_review_does_not_get_R_primer_when_archetype_is_python(
         self, project_root
     ):
+        """When primary_language='python', the python primer (not the R
+        primer) is dispatched. Cross-archetype dispatch correctness:
+        R-archetype marker absent, python-archetype marker present
+        (Bug S3-184)."""
         _provision_r_archetype_in_project(project_root)
         _write_pipeline_state_with_language(
             project_root, primary_language="python"
@@ -2312,8 +2357,12 @@ class TestS3_182LanguageArchitecturePrimerDispatch:
             project_root, "coverage_review", unit_number=5
         )
         assert "R Architectural Primer" not in result, (
-            "When the archetype's manifest has no primer for "
-            "coverage_review, NO primer must be appended (Bug S3-182)."
+            "When primary_language='python', the R primer MUST NOT be "
+            "appended (Bug S3-182 / Bug S3-184)."
+        )
+        assert "Python Architectural Primer" in result, (
+            "When primary_language='python', the Python coverage_review "
+            "primer MUST be appended (Bug S3-184)."
         )
 
     # ----- composition with statistical primer (orthogonal axes) -----

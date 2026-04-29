@@ -46,6 +46,12 @@ CONCEPTS = [
     # in all three docs without conflating the singular vs. plural form of
     # the existing language_architecture_primers concept.
     "scripts/primers/r/",
+    # NEW IN S3-184 (cycle E4 — Python architectural primers authoring).
+    # Mirror of "scripts/primers/r/": the directory path appears verbatim
+    # in spec section 40 (R + Python primer note) + section 24.198, in
+    # blueprint_prose Unit 4, and in blueprint_contracts Unit 4. Adding
+    # the path itself catches drift symmetrically across the three docs.
+    "scripts/primers/python/",
     # NEW IN S3-182 (cycle E2 — wire R primers into prepare_task).
     # The dispatch helper's literal name is the discriminating identifier
     # across spec normative text, blueprint prose, and blueprint contracts —

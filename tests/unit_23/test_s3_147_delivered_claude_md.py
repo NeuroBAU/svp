@@ -242,20 +242,54 @@ def test_orchestrator_primer_appended_for_r_archetype(tmp_path):
     assert _R_PRIMER_BODY_MARKER in content
 
 
-def test_orchestrator_primer_not_appended_for_python_archetype(tmp_path):
-    """Python profile (manifest's primer field is empty) -> no primer
-    section appended even with a valid project_root."""
+def test_orchestrator_primer_appended_for_python_archetype(tmp_path):
+    """Python profile -> primer section appended with python markers, NOT
+    R markers. After E4 (S3-184), the python manifest's
+    language_architecture_primers field is populated with paths to the five
+    python primers; this is the cross-archetype dispatch correctness check
+    (the dispatch returns the python primer, not the R primer)."""
     workspace_root = _find_workspace_root()
     repo = tmp_path / "demo-repo"
     repo.mkdir()
 
-    write_delivered_claude_md(
+    wrote = write_delivered_claude_md(
         repo, _python_profile(), "demo", project_root=workspace_root
     )
+    assert wrote is True
+    content = (repo / "CLAUDE.md").read_text()
+
+    # Primer section header must be present.
+    assert _PRIMER_SECTION_HEADER in content
+    # Python-specific marker must appear; R-specific markers must NOT.
+    assert "Python Architectural Primer" in content
+    assert _R_PRIMER_MARKER not in content
+    assert _R_PRIMER_BODY_MARKER not in content
+
+
+def test_orchestrator_primer_not_appended_for_unknown_archetype(tmp_path):
+    """An unknown-archetype profile (e.g. ``primary_language='rust'``) -> no
+    primer section. This exercises the defensive-guard branch on missing
+    manifest: ``load_toolchain`` cannot find ``rust_*.json`` so the helper
+    returns ``None``. After E4 both R and Python carry primers; an unknown
+    third archetype is the canonical "no primers" fixture."""
+    workspace_root = _find_workspace_root()
+    repo = tmp_path / "demo-repo"
+    repo.mkdir()
+    rust_profile = {
+        "language": {"primary": "rust"},
+        "archetype": "rust_project",
+        "delivery": {"rust": {}},
+    }
+
+    wrote = write_delivered_claude_md(
+        repo, rust_profile, "demo", project_root=workspace_root
+    )
+    assert wrote is True
     content = (repo / "CLAUDE.md").read_text()
 
     assert _PRIMER_SECTION_HEADER not in content
     assert _R_PRIMER_MARKER not in content
+    assert "Python Architectural Primer" not in content
 
 
 def test_orchestrator_primer_not_appended_when_project_root_is_none(tmp_path):

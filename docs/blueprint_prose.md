@@ -247,6 +247,21 @@ conditional injection at prepare_task. Sync_workspace.sh Step 1c propagates
 `scripts/primers/<lang>/*` workspace ↔ repo (parallel to Step 1b for
 toolchain_defaults). Python primers are deferred to E4.
 
+**(Bug S3-184)** The Python archetype now ships its own five
+language_architecture_primer markdown files at `scripts/primers/python/*.md`
+(one per agent role, mirroring the R-side shape: blueprint_author,
+implementation_agent, test_agent, coverage_review, orchestrator_break_glass).
+The Python toolchain manifest (`python_conda_pytest.json`) references those
+files via `language_architecture_primers`. Cycle E4 is content-only and rides
+the existing E2/E3 dispatch wiring — no edits to dispatch helpers or to
+`prepare_task_prompt` / `write_delivered_claude_md` are required because the
+helpers already iterate over the manifest's `language_architecture_primers`
+keys at lookup time. Both R archetype and Python archetype now ship
+architectural primer files at `scripts/primers/<lang>/`. See Pattern P68
+(second-archetype authoring rides existing wiring; cross-cycle test couplings
+that asserted "python has no primers" are inverted to positive cross-archetype
+dispatch correctness assertions).
+
 ---
 
 ## Unit 5: Pipeline State
