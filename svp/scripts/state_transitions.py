@@ -284,7 +284,22 @@ def version_document(
 
 
 def enter_debug_session(state: PipelineState, bug_number: int) -> PipelineState:
-    """Enter a new debug session."""
+    """Enter a new debug session.
+
+    Bug S3-186 (cycle G1, Gate 6 inversion): two new fields are initialized
+    on entry:
+      - "mode" (Optional[Literal["bug", "enhancement"]]): set later by
+        gate_6_1_mode_classification when source == "human_authorize".
+        Always None at entry.
+      - "source" (Literal["bug_command", "human_authorize"]): provenance
+        signal that drives _route_debug dispatch. bug_number > 0 means the
+        session was entered via the /svp:bug command (which carries an
+        explicit bug number); bug_number == 0 means routing-detected red
+        run or any other auto-dispatch. The two routing dispatch arms are:
+        bug_command -> existing bug_triage_agent -> gate_6_2 -> repair_agent
+        -> gate_6_3_regression_test path; human_authorize -> new
+        gate_6_1_mode_classification -> invoke_break_glass path.
+    """
     if state.debug_session is not None:
         raise TransitionError("A debug session is already active")
 
@@ -298,6 +313,9 @@ def enter_debug_session(state: PipelineState, bug_number: int) -> PipelineState:
         "repair_retry_count": 0,
         "triage_refinement_count": 0,
         "ledger_path": None,
+        # Bug S3-186 (cycle G1 -- Gate 6 inversion).
+        "mode": None,
+        "source": "bug_command" if bug_number > 0 else "human_authorize",
     }
     return new
 

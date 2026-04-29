@@ -162,7 +162,7 @@ class TestBug69E2Gate61(unittest.TestCase):
         ds = _make_debug_session(phase="regression_test", authorized=True)
         state = _make_state(debug_session=ds)
         new_state = _dispatch_gate_with_config(
-            state, "gate_6_1_regression_test", "TEST CORRECT"
+            state, "gate_6_3_regression_test", "TEST CORRECT"
         )
         self.assertIsNotNone(new_state.debug_session)
         self.assertEqual(new_state.debug_session["phase"], "lessons_learned")
@@ -172,7 +172,7 @@ class TestBug69E2Gate61(unittest.TestCase):
         ds = _make_debug_session(phase="regression_test", authorized=True)
         state = _make_state(debug_session=ds)
         new_state = _dispatch_gate_with_config(
-            state, "gate_6_1_regression_test", "TEST WRONG"
+            state, "gate_6_3_regression_test", "TEST WRONG"
         )
         self.assertIsNotNone(new_state.debug_session)
 
@@ -211,10 +211,10 @@ class TestBug69RoutingDebugPhases(unittest.TestCase):
         self.assertIn("ABANDON DEBUG", GATE_VOCABULARY["gate_6_0_debug_permission"])
 
     def test_vocabulary_gate_6_1(self):
-        """gate_6_1_regression_test is in vocabulary."""
-        self.assertIn("gate_6_1_regression_test", GATE_VOCABULARY)
-        self.assertIn("TEST CORRECT", GATE_VOCABULARY["gate_6_1_regression_test"])
-        self.assertIn("TEST WRONG", GATE_VOCABULARY["gate_6_1_regression_test"])
+        """gate_6_3_regression_test is in vocabulary."""
+        self.assertIn("gate_6_3_regression_test", GATE_VOCABULARY)
+        self.assertIn("TEST CORRECT", GATE_VOCABULARY["gate_6_3_regression_test"])
+        self.assertIn("TEST WRONG", GATE_VOCABULARY["gate_6_3_regression_test"])
 
     def test_vocabulary_gate_6_5(self):
         """gate_6_5_debug_commit is in vocabulary."""
@@ -256,7 +256,7 @@ class TestBug69WorkspaceRouting(unittest.TestCase):
         state = _make_state(debug_session=ds)
         action = _route_with_state(state, last_status="REGRESSION_TEST_COMPLETE")
         self.assertEqual(action["action_type"], "human_gate")
-        self.assertEqual(action["gate_id"], "gate_6_1_regression_test")
+        self.assertEqual(action["gate_id"], "gate_6_3_regression_test")
 
     def test_regression_test_no_status_invokes_test_agent(self):
         """route() with regression_test and no status invokes test_agent."""
@@ -292,7 +292,7 @@ class TestBug69WorkspaceRouting(unittest.TestCase):
         ds = _make_debug_session(phase="regression_test", authorized=True)
         state = _make_state(debug_session=ds)
         new_state = _dispatch_gate_with_config(
-            state, "gate_6_1_regression_test", "TEST CORRECT"
+            state, "gate_6_3_regression_test", "TEST CORRECT"
         )
         self.assertIsNotNone(new_state.debug_session)
         self.assertEqual(new_state.debug_session["phase"], "lessons_learned")

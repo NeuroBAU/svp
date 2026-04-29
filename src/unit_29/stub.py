@@ -156,6 +156,12 @@ machinery to develop here.
 
 ## Manual Bug-Fixing Protocol (Break-Glass Mode)
 
+**Action type `invoke_break_glass`**: routing may emit this action_type when \
+the human authorizes a debug session and selects a mode at \
+gate_6_1_mode_classification. Follow the Manual Bug-Fixing Protocol below; \
+consult `state.debug_session["mode"]` ("bug" or "enhancement") for which \
+sub-flow applies. (Mode-aware sub-flows ship in cycle G2.)
+
 When asked to fix a bug or apply a non-trivial change to this repository, \
 follow this protocol.
 

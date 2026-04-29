@@ -816,6 +816,34 @@ class TestEnterDebugSession:
         result = enter_debug_session(state, 1)
         assert len(result.debug_history) == 1
 
+    # Bug S3-186 (cycle G1 of Gate 6 break-glass inversion).
+
+    def test_enter_debug_session_initializes_mode_to_None(self):
+        """enter_debug_session initializes debug_session['mode'] to None
+        regardless of bug_number. Mode is set later by gate_6_1
+        mode classification dispatch."""
+        # bug_number == 0 (human_authorize source).
+        state = _make_state(debug_session=None)
+        result = enter_debug_session(state, 0)
+        assert result.debug_session["mode"] is None
+        # bug_number > 0 (bug_command source).
+        state = _make_state(debug_session=None)
+        result = enter_debug_session(state, 5)
+        assert result.debug_session["mode"] is None
+
+    def test_enter_debug_session_sets_source_field(self):
+        """enter_debug_session sets debug_session['source'] from
+        bug_number provenance. bug_number > 0 -> 'bug_command';
+        bug_number == 0 -> 'human_authorize'."""
+        # bug_number > 0.
+        state = _make_state(debug_session=None)
+        result = enter_debug_session(state, 5)
+        assert result.debug_session["source"] == "bug_command"
+        # bug_number == 0.
+        state = _make_state(debug_session=None)
+        result = enter_debug_session(state, 0)
+        assert result.debug_session["source"] == "human_authorize"
+
 
 # ===================================================================
 # authorize_debug_session

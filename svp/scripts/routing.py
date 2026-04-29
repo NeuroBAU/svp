@@ -112,7 +112,17 @@ GATE_VOCABULARY: Dict[str, List[str]] = {
     "gate_5_2_assembly_exhausted": ["RETRY ASSEMBLY", "FIX BLUEPRINT", "FIX SPEC"],
     "gate_5_3_unused_functions": ["FIX SPEC", "OVERRIDE CONTINUE"],
     "gate_6_0_debug_permission": ["AUTHORIZE DEBUG", "ABANDON DEBUG"],
-    "gate_6_1_regression_test": ["TEST CORRECT", "TEST WRONG"],
+    # Bug S3-186 (cycle G1, Gate 6 inversion): NEW gate. Inserted after
+    # gate_6_0 authorization for human-sourced debug sessions to classify
+    # the work as bug or enhancement before invoke_break_glass.
+    "gate_6_1_mode_classification": ["BUG", "ENHANCEMENT"],
+    # Bug S3-186 (cycle G1): the existing regression-test gate is renamed
+    # from gate_6_1_regression_test to gate_6_3_regression_test to free
+    # the gate_6_1 slot for mode classification. Behavior is unchanged;
+    # only the gate ID is renamed. (gate_6_3_repair_exhausted continues
+    # to coexist with the renamed gate_6_3_regression_test -- they are
+    # distinct dictionary keys with different valid responses.)
+    "gate_6_3_regression_test": ["TEST CORRECT", "TEST WRONG"],
     "gate_6_1a_divergence_warning": ["PROCEED", "FIX DIVERGENCE", "ABANDON DEBUG"],
     "gate_6_2_debug_classification": [
         "FIX UNIT",
@@ -764,6 +774,7 @@ def _make_action_block(
     reminder: str = "",
     message: Optional[str] = None,
     expected_terminal_status: Optional[List[str]] = None,
+    payload: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Create an action block dict with standard keys.
 
@@ -771,6 +782,11 @@ def _make_action_block(
     mode) whitelist of acceptable terminal status lines for invoke_agent action
     blocks targeting multi-mode agents. The orchestrator surfaces this to the
     operator; dispatch_agent_status enforces it.
+
+    Bug S3-186 (cycle G1): optional `payload` field carries a structured
+    payload dict for action_types that need to communicate values to the
+    orchestrator beyond the reminder string. The first consumer is
+    invoke_break_glass, which carries `{"mode": "bug" | "enhancement"}`.
     """
     block: Dict[str, Any] = {
         "action_type": action_type,
@@ -792,6 +808,8 @@ def _make_action_block(
         block["post"] = post
     if message is not None:
         block["message"] = message
+    if payload is not None:
+        block["payload"] = dict(payload)
     if expected_terminal_status is not None:
         block["expected_terminal_status"] = list(expected_terminal_status)
     return block
@@ -1341,6 +1359,72 @@ def _route_debug(
             ),
         )
 
+    # Bug S3-186 (cycle G1 -- Gate 6 inversion). Two new routing branches
+    # gate the debug flow for human-sourced (non-/svp:bug) sessions BEFORE
+    # the existing phase-based dispatch. /svp:bug-sourced sessions
+    # (source == "bug_command") fall through to the existing flow
+    # bit-for-bit. Authorization is required for both branches (already
+    # checked above); the source field selects which path runs.
+    source = ds.get("source")
+    mode = ds.get("mode")
+    if source == "human_authorize" and mode is None:
+        # Mode classification gate. Verbatim Socratic dialog (cycle G1
+        # ships the dialog inline in the reminder; G2 will codify how the
+        # orchestrator processes the answers in CLAUDE.md).
+        socratic = (
+            "You authorized a debug session. Before continuing, "
+            "classify the work:\n\n"
+            "  BUG          - the current behavior is wrong; you are "
+            "restoring intended behavior.\n"
+            "                 Specs and contracts already say what "
+            "should happen; you are aligning code to them.\n\n"
+            "  ENHANCEMENT  - the desired behavior is new or different; "
+            "you are changing what the\n"
+            "                 system should do. Specs and/or contracts "
+            "will be amended.\n\n"
+            "Socratic prompts (the assistant should consult these and "
+            "may suggest a mode; the\n"
+            "human always has final say):\n"
+            "  - Is the current behavior wrong, or is the desired "
+            "behavior new?\n"
+            "  - Did this work before? Are you fixing or extending?\n"
+            "  - Does the spec say what should happen, or are we "
+            "changing what should happen?\n"
+            "  - Does the work require touching specs/contracts, or "
+            "just code?\n\n"
+            "Respond with: BUG  or  ENHANCEMENT"
+        )
+        return _make_action_block(
+            action_type="human_gate",
+            gate_id="gate_6_1_mode_classification",
+            reminder=socratic,
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_6_1_mode_classification "
+                "--project-root ."
+            ),
+        )
+    if source == "human_authorize" and mode in ("bug", "enhancement"):
+        # Mode is set; return control to the orchestrator with the mode
+        # tag. The orchestrator follows the Manual Bug-Fixing Protocol in
+        # CLAUDE.md; mode-aware sub-flows ship in cycle G2. There is no
+        # POST command -- the orchestrator drives completion via the
+        # existing DEBUG_SESSION_COMPLETE terminal status path. The
+        # action carries the mode in the reminder so the orchestrator
+        # can dispatch its sub-flow.
+        return _make_action_block(
+            action_type="invoke_break_glass",
+            payload={"mode": mode},
+            reminder=(
+                "Debug session authorized in mode: "
+                f"{mode}. Follow the Manual Bug-Fixing Protocol in "
+                "CLAUDE.md. Mode-aware sub-flows ship in cycle G2; for "
+                "now, consult state.debug_session[\"mode\"] for the "
+                "selected mode and apply the existing protocol."
+            ),
+            message=f"Break-glass mode: {mode}",
+        )
+
     phase = ds.get("phase", "triage")
 
     if phase == "triage":
@@ -1417,11 +1501,13 @@ def _route_debug(
         if last_status == "REGRESSION_TEST_COMPLETE":
             return _make_action_block(
                 action_type="human_gate",
-                gate_id="gate_6_1_regression_test",
+                # Bug S3-186 (cycle G1): renamed from
+                # gate_6_1_regression_test to free the gate_6_1 slot.
+                gate_id="gate_6_3_regression_test",
                 reminder="Review regression test.",
                 post=(
                     "python scripts/update_state.py "
-                    "--command gate_6_1_regression_test "
+                    "--command gate_6_3_regression_test "
                     "--project-root ."
                 ),
             )
@@ -2864,8 +2950,25 @@ def dispatch_gate_response(
                 new = _copy(state)
         return new
 
-    # Gate 6.1: Regression test
-    if gate_id == "gate_6_1_regression_test":
+    # Gate 6.1: Mode classification (Bug S3-186 -- cycle G1 -- Gate 6
+    # inversion). Set state.debug_session["mode"] from the response. Phase
+    # is NOT advanced -- the next routing pass observes mode is now set
+    # and emits the invoke_break_glass action_type.
+    if gate_id == "gate_6_1_mode_classification":
+        new = _copy(state)
+        if state.debug_session is None:
+            return new
+        new.debug_session = dict(new.debug_session)
+        if response == "BUG":
+            new.debug_session["mode"] = "bug"
+        else:  # ENHANCEMENT
+            new.debug_session["mode"] = "enhancement"
+        return new
+
+    # Gate 6.3: Regression test (Bug S3-186 -- cycle G1: renamed from
+    # gate_6_1_regression_test to free the gate_6_1 slot for mode
+    # classification. Behavior is unchanged; only the gate ID changed.)
+    if gate_id == "gate_6_3_regression_test":
         if response == "TEST CORRECT":
             if state.debug_session is not None:
                 new = update_debug_phase(state, "lessons_learned")

@@ -71,6 +71,14 @@ CONCEPTS = [
     # in blueprint_contracts Unit 4. Adding the path itself catches drift
     # symmetrically across the three docs.
     "scripts/primers/rust/",
+    # NEW IN S3-186 (cycle G1 of Gate 6 break-glass inversion sub-project).
+    # The new gate ID and action_type are the discriminating identifiers
+    # across spec normative text (sections 17, 18.1, 22.4, 12.18.1, 24.200),
+    # blueprint_prose (Unit 6 + Unit 14 narratives), and blueprint_contracts
+    # (Unit 6 enter_debug_session post-condition + Unit 14 GATE_VOCABULARY,
+    # _route_debug routing branches, dispatch_gate_response handlers).
+    "gate_6_1_mode_classification",
+    "invoke_break_glass",
 ]
 
 

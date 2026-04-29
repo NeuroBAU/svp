@@ -288,7 +288,7 @@ class TestResponseOptionsVsDispatchHandlers:
         ("gate_2_2_blueprint_post_review", "FRESH REVIEW"),
         ("gate_4_1_integration_failure", "ASSEMBLY FIX"),
         ("gate_5_3_unused_functions", "OVERRIDE CONTINUE"),
-        ("gate_6_1_regression_test", "TEST WRONG"),
+        ("gate_6_3_regression_test", "TEST WRONG"),
         ("gate_6_3_repair_exhausted", "RETRY REPAIR"),
         ("gate_6_4_non_reproducible", "RETRY TRIAGE"),
         ("gate_6_5_debug_commit", "COMMIT REJECTED"),

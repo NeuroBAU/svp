@@ -242,7 +242,7 @@ class TestGateResponseCallsDebugTransitions:
         ds = _make_debug_session()
         state = _make_state(debug_session=ds)
         mock_phase.return_value = _make_state(debug_session=_make_debug_session(phase="lessons_learned"))
-        dispatch_gate_response(state, "gate_6_1_regression_test", "TEST CORRECT", Path("/tmp"))
+        dispatch_gate_response(state, "gate_6_3_regression_test", "TEST CORRECT", Path("/tmp"))
         mock_phase.assert_called_once_with(state, "lessons_learned")
 
     @patch("routing.complete_debug_session")

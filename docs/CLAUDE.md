@@ -43,6 +43,8 @@ When invoking an agent, pass the contents of TASK_PROMPT_FILE as the task prompt
 
 ## Manual Bug-Fixing Protocol (Break-Glass Mode)
 
+**Action type `invoke_break_glass`**: routing may emit this action_type when the human authorizes a debug session and selects a mode at gate_6_1_mode_classification. Follow the Manual Bug-Fixing Protocol below; consult `state.debug_session["mode"]` ("bug" or "enhancement") for which sub-flow applies. (Mode-aware sub-flows ship in cycle G2.)
+
 When the SVP routing mechanism is too broken to function and the human asks you to fix bugs directly, follow this protocol EXACTLY.
 
 **RULE 0: NEVER directly fix a bug. ALWAYS enter plan mode first.**

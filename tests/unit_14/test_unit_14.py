@@ -3,8 +3,10 @@
 Synthetic data assumptions:
 - PipelineState is constructed via keyword arguments as defined in the Unit 5 stub.
   Default state has stage="3", sub_stage="stub_generation", current_unit=1, total_units=10.
-- GATE_VOCABULARY contains exactly 31 gate entries mapping gate IDs to lists of valid
-  response strings.
+- GATE_VOCABULARY contains exactly 34 gate entries mapping gate IDs to lists of valid
+  response strings (31 SVP 2.2 baseline + gate_0_4_toolchain_provisioned per
+  Bug S3-176 + gate_2_3_toolchain_verified per Bug S3-180 +
+  gate_6_1_mode_classification per Bug S3-186 cycle G1).
 - TEST_OUTPUT_PARSERS maps language keys ("python", "r", "plugin_markdown",
   "plugin_bash", "plugin_json") to callables that accept (stdout, stderr, exit_code, context)
   and return RunResult named tuples.
@@ -161,11 +163,16 @@ class TestGateVocabulary:
         """GATE_VOCABULARY must be a dict."""
         assert isinstance(GATE_VOCABULARY, dict)
 
-    def test_gate_vocabulary_has_33_gates(self):
-        """GATE_VOCABULARY must contain exactly 33 gate entries (31 baseline
+    def test_gate_vocabulary_has_34_gates(self):
+        """GATE_VOCABULARY must contain exactly 34 gate entries (31 baseline
         + gate_0_4_toolchain_provisioned added by Bug S3-176
-        + gate_2_3_toolchain_verified added by Bug S3-180)."""
-        assert len(GATE_VOCABULARY) == 33
+        + gate_2_3_toolchain_verified added by Bug S3-180
+        + gate_6_1_mode_classification added by Bug S3-186 (cycle G1).
+        Note: Bug S3-186 also renamed gate_6_1_regression_test to
+        gate_6_3_regression_test (vocabulary-only rename, no count change
+        from the rename itself; the +1 is solely from the new mode-
+        classification gate.)"""
+        assert len(GATE_VOCABULARY) == 34
 
     def test_all_gate_values_are_lists_of_strings(self):
         """Every gate entry must map to a list of string responses."""
@@ -342,10 +349,10 @@ class TestGateVocabulary:
             "ABANDON DEBUG",
         }
 
-    def test_gate_6_1_regression_test(self):
-        """gate_6_1_regression_test has TEST CORRECT and TEST WRONG."""
-        assert "gate_6_1_regression_test" in GATE_VOCABULARY
-        assert set(GATE_VOCABULARY["gate_6_1_regression_test"]) == {
+    def test_gate_6_3_regression_test(self):
+        """gate_6_3_regression_test has TEST CORRECT and TEST WRONG."""
+        assert "gate_6_3_regression_test" in GATE_VOCABULARY
+        assert set(GATE_VOCABULARY["gate_6_3_regression_test"]) == {
             "TEST CORRECT",
             "TEST WRONG",
         }
@@ -436,8 +443,10 @@ class TestGateVocabulary:
         }
 
     def test_all_expected_gate_ids_present(self):
-        """All 32 expected gate IDs are present in GATE_VOCABULARY (31
-        baseline + gate_0_4_toolchain_provisioned per Bug S3-176)."""
+        """All 34 expected gate IDs are present in GATE_VOCABULARY (31
+        baseline + gate_0_4_toolchain_provisioned per Bug S3-176 +
+        gate_2_3_toolchain_verified per Bug S3-180 +
+        gate_6_1_mode_classification per Bug S3-186 cycle G1)."""
         expected_gates = {
             "gate_0_1_hook_activation",
             "gate_0_2_context_approval",
@@ -461,7 +470,8 @@ class TestGateVocabulary:
             "gate_5_2_assembly_exhausted",
             "gate_5_3_unused_functions",
             "gate_6_0_debug_permission",
-            "gate_6_1_regression_test",
+            "gate_6_1_mode_classification",  # Bug S3-186 (cycle G1)
+            "gate_6_3_regression_test",  # Bug S3-186: renamed from gate_6_1_regression_test
             "gate_6_1a_divergence_warning",
             "gate_6_2_debug_classification",
             "gate_6_3_repair_exhausted",
@@ -3231,7 +3241,7 @@ class TestDispatchGateResponse:
             debug_session=_make_debug_session(authorized=True, phase="regression_test"),
         )
         result = dispatch_gate_response(
-            state, "gate_6_1_regression_test", "TEST CORRECT", Path("/tmp")
+            state, "gate_6_3_regression_test", "TEST CORRECT", Path("/tmp")
         )
         assert result.debug_session["phase"] == "lessons_learned"
 
@@ -3241,7 +3251,7 @@ class TestDispatchGateResponse:
             debug_session=_make_debug_session(authorized=True, phase="regression_test"),
         )
         result = dispatch_gate_response(
-            state, "gate_6_1_regression_test", "TEST WRONG", Path("/tmp")
+            state, "gate_6_3_regression_test", "TEST WRONG", Path("/tmp")
         )
         assert isinstance(result, PipelineState)
 
@@ -4139,7 +4149,8 @@ class TestStructuralInvariants:
             "gate_5_2_assembly_exhausted",
             "gate_5_3_unused_functions",
             "gate_6_0_debug_permission",
-            "gate_6_1_regression_test",
+            "gate_6_1_mode_classification",  # Bug S3-186 (cycle G1)
+            "gate_6_3_regression_test",  # Bug S3-186: renamed from gate_6_1_regression_test
             "gate_6_1a_divergence_warning",
             "gate_6_2_debug_classification",
             "gate_6_3_repair_exhausted",
@@ -4825,3 +4836,132 @@ class TestS3_180DepDiff:
         assert result.sub_stage == "blueprint_dialog"
         # Pending file removed.
         assert not (svp_dir / "dep_diff_pending.json").exists()
+
+
+# ===========================================================================
+# Bug S3-186 (cycle G1 of Gate 6 break-glass inversion sub-project): new
+# gate_6_1_mode_classification + new action_type invoke_break_glass + rename
+# gate_6_1_regression_test -> gate_6_3_regression_test. The /svp:bug
+# auto-dispatch path (source="bug_command") is preserved bit-for-bit.
+# ===========================================================================
+
+
+class TestS3_186Gate6Inversion:
+    """Bug S3-186: cycle G1 -- Gate 6 mode-classification gate +
+    invoke_break_glass action_type."""
+
+    # ----- GATE_VOCABULARY -----
+
+    def test_gate_vocabulary_includes_mode_classification(self):
+        """gate_6_1_mode_classification is present with [BUG, ENHANCEMENT]."""
+        assert "gate_6_1_mode_classification" in GATE_VOCABULARY
+        assert set(GATE_VOCABULARY["gate_6_1_mode_classification"]) == {
+            "BUG",
+            "ENHANCEMENT",
+        }
+
+    def test_gate_vocabulary_renames_regression_test_to_6_3(self):
+        """gate_6_1_regression_test is removed; gate_6_3_regression_test
+        carries the original [TEST CORRECT, TEST WRONG] valid responses."""
+        assert "gate_6_1_regression_test" not in GATE_VOCABULARY
+        assert "gate_6_3_regression_test" in GATE_VOCABULARY
+        assert set(GATE_VOCABULARY["gate_6_3_regression_test"]) == {
+            "TEST CORRECT",
+            "TEST WRONG",
+        }
+
+    # ----- Routing branches -----
+
+    def test_gate_6_0_authorize_emits_mode_classification_when_human_sourced(
+        self, tmp_path
+    ):
+        """When state.debug_session.authorized=True, mode=None,
+        source='human_authorize', _route_debug emits human_gate for
+        gate_6_1_mode_classification."""
+        ds = _make_debug_session(authorized=True, phase="triage")
+        ds["mode"] = None
+        ds["source"] = "human_authorize"
+        state = _make_state(stage="5", sub_stage="repo_complete", debug_session=ds)
+        _write_state_file(tmp_path, state)
+        # last_status.txt empty (just authorized)
+        (tmp_path / ".svp" / "last_status.txt").write_text("")
+        action = route(tmp_path)
+        assert action["action_type"] == "human_gate"
+        assert action["gate_id"] == "gate_6_1_mode_classification"
+        assert set(action["valid_responses"]) == {"BUG", "ENHANCEMENT"}
+
+    def test_gate_6_1_mode_classification_persists_bug_mode(self):
+        """dispatch_gate_response gate_6_1_mode_classification BUG sets
+        state.debug_session['mode'] = 'bug'. Phase is NOT advanced."""
+        ds = _make_debug_session(authorized=True, phase="triage")
+        ds["mode"] = None
+        ds["source"] = "human_authorize"
+        state = _make_state(debug_session=ds)
+        result = dispatch_gate_response(
+            state, "gate_6_1_mode_classification", "BUG", Path("/tmp")
+        )
+        assert result.debug_session["mode"] == "bug"
+        # Phase unchanged.
+        assert result.debug_session["phase"] == "triage"
+
+    def test_gate_6_1_mode_classification_persists_enhancement_mode(self):
+        """dispatch_gate_response gate_6_1_mode_classification
+        ENHANCEMENT sets state.debug_session['mode'] = 'enhancement'."""
+        ds = _make_debug_session(authorized=True, phase="triage")
+        ds["mode"] = None
+        ds["source"] = "human_authorize"
+        state = _make_state(debug_session=ds)
+        result = dispatch_gate_response(
+            state, "gate_6_1_mode_classification", "ENHANCEMENT", Path("/tmp")
+        )
+        assert result.debug_session["mode"] == "enhancement"
+        assert result.debug_session["phase"] == "triage"
+
+    def test_route_emits_invoke_break_glass_when_mode_set(self, tmp_path):
+        """When mode in {'bug', 'enhancement'} and source='human_authorize',
+        _route_debug emits action_type='invoke_break_glass' with
+        payload {'mode': <mode>}."""
+        ds = _make_debug_session(authorized=True, phase="triage")
+        ds["mode"] = "bug"
+        ds["source"] = "human_authorize"
+        state = _make_state(stage="5", sub_stage="repo_complete", debug_session=ds)
+        _write_state_file(tmp_path, state)
+        (tmp_path / ".svp" / "last_status.txt").write_text("")
+        action = route(tmp_path)
+        assert action["action_type"] == "invoke_break_glass"
+        assert action["payload"] == {"mode": "bug"}
+
+    def test_invoke_break_glass_payload_carries_mode(self, tmp_path):
+        """The invoke_break_glass action carries a 'payload' dict with
+        the mode key. Verifies payload structure for both modes."""
+        for mode in ("bug", "enhancement"):
+            ds = _make_debug_session(authorized=True, phase="triage")
+            ds["mode"] = mode
+            ds["source"] = "human_authorize"
+            state = _make_state(
+                stage="5", sub_stage="repo_complete", debug_session=ds
+            )
+            _write_state_file(tmp_path, state)
+            (tmp_path / ".svp" / "last_status.txt").write_text("")
+            action = route(tmp_path)
+            assert action["action_type"] == "invoke_break_glass"
+            assert "payload" in action
+            assert action["payload"]["mode"] == mode
+
+    def test_bug_command_path_skips_mode_classification(self, tmp_path):
+        """When state.debug_session.source='bug_command', _route_debug
+        does NOT emit gate_6_1_mode_classification; instead routes
+        through bug_triage_agent (existing /svp:bug path preserved
+        bit-for-bit)."""
+        ds = _make_debug_session(authorized=True, phase="triage")
+        ds["mode"] = None
+        ds["source"] = "bug_command"
+        state = _make_state(stage="5", sub_stage="repo_complete", debug_session=ds)
+        _write_state_file(tmp_path, state)
+        (tmp_path / ".svp" / "last_status.txt").write_text("")
+        action = route(tmp_path)
+        # NOT mode_classification.
+        assert action.get("gate_id") != "gate_6_1_mode_classification"
+        # Routed to bug_triage_agent (existing flow).
+        assert action["action_type"] == "invoke_agent"
+        assert action["agent_type"] == "bug_triage_agent"

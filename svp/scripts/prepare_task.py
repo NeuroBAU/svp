@@ -59,9 +59,13 @@ ALL_GATE_IDS: List[str] = [
     "gate_5_2_assembly_exhausted",
     "gate_5_3_unused_functions",
     "gate_6_0_debug_permission",
-    "gate_6_1_regression_test",
+    # Bug S3-186 (cycle G1, Gate 6 inversion):
+    # NEW gate_6_1_mode_classification + RENAME gate_6_1_regression_test
+    # to gate_6_3_regression_test.
+    "gate_6_1_mode_classification",
     "gate_6_1a_divergence_warning",
     "gate_6_2_debug_classification",
+    "gate_6_3_regression_test",
     "gate_6_3_repair_exhausted",
     "gate_6_4_non_reproducible",
     "gate_6_5_debug_commit",
@@ -171,7 +175,8 @@ _GATE_RESPONSE_OPTIONS: Dict[str, List[str]] = {
     ],
     "gate_5_3_unused_functions": ["FIX SPEC", "OVERRIDE CONTINUE"],
     "gate_6_0_debug_permission": ["AUTHORIZE DEBUG", "ABANDON DEBUG"],
-    "gate_6_1_regression_test": ["TEST CORRECT", "TEST WRONG"],
+    # Bug S3-186 (cycle G1, Gate 6 inversion).
+    "gate_6_1_mode_classification": ["BUG", "ENHANCEMENT"],
     "gate_6_1a_divergence_warning": [
         "PROCEED",
         "FIX DIVERGENCE",
@@ -183,6 +188,7 @@ _GATE_RESPONSE_OPTIONS: Dict[str, List[str]] = {
         "FIX SPEC",
         "FIX IN PLACE",
     ],
+    "gate_6_3_regression_test": ["TEST CORRECT", "TEST WRONG"],
     "gate_6_3_repair_exhausted": [
         "RETRY REPAIR",
         "RECLASSIFY BUG",
