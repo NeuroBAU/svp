@@ -134,6 +134,15 @@ CONCEPTS = [
     # 28 (C-28-H3a one-of clause). Drift across the three docs surfaces
     # here.
     "NEWS.md",
+    # NEW IN S3-194 (cycle H4 -- assembly map archetype boundary
+    # documentation). The literal phrase is the canonical name for the
+    # architectural contract that R archetype does NOT produce
+    # .svp/assembly_map.json while Python-self-build DOES, and Check 2
+    # silently passes when the map is absent. The phrase appears verbatim
+    # in spec Section 40.12 + Section 24.208, in blueprint_prose Unit 23 +
+    # Unit 28, and in blueprint_contracts Unit 23 (C-23-H4a) + Unit 28
+    # (C-28-H4a). Drift across the three docs surfaces here.
+    "assembly_map archetype boundary",
 ]
 
 

@@ -6729,6 +6729,20 @@ This is a meta-cycle: process improvement + accumulated documentation debt clean
 
 **Detection.** `tests/regressions/test_s3_193_validation_and_docs.py` (10 tests): 5 IMPROV-27 validation tests (`test_h3_r_archetype_accepts_NEWS_md_when_changelog_absent`, `test_h3_r_archetype_accepts_CHANGELOG_md_when_news_absent` regression guard, `test_h3_r_archetype_fails_when_both_changelog_and_news_absent`, `test_h3_r_archetype_passes_when_both_changelog_and_news_present` regression guard, `test_h3_python_archetype_still_requires_CHANGELOG_md` Python strict regression guard); 5 IMPROV-32 auto-ship tests (`test_h3_assemble_python_project_ships_docs_directory`, `test_h3_assemble_r_project_ships_docs_directory`, `test_h3_sync_debug_docs_uses_repo_dir_kwarg_when_provided`, `test_h3_sync_debug_docs_falls_back_to_state_when_no_kwarg` back-compat regression guard, `test_h3_integration_minimal_r_workspace_passes_full_validation_and_has_docs` end-to-end). Doc-consistency drift caught by `tests/regressions/test_s3_169_doc_consistency.py` via the new `"NEWS.md"` CONCEPTS entry -- the filename appears in spec Section 40.10 cross-ref + Section 40.11 + Section 24.207, in blueprint_prose Unit 23 + Unit 28, and in blueprint_contracts Unit 28 (C-28-H3a one-of clause).
 
+### 24.208 Cycle H4 -- Assembly Map archetype-boundary documentation (Post-delivery -- Bug S3-194, NEW IN 2.2)
+
+**Symptom.** IMPROV-28 reported that `.svp/assembly_map.json` schema is Python-self-build-shaped (values match `^src/unit_\d+/stub\.py$`), useless for normal A-D R archetype delivery. Phase 1 investigation revealed: this is by design (R archetype does NOT call generate_assembly_map; parity check silently passes when map absent), but the architectural boundary was not documented in spec/blueprint, creating a latent SVP 2.3 regression risk.
+
+**Root cause.** Section 40 normative sections did not pin the archetype boundary. blueprint_contracts Unit 23/28 did not pin the silent-pass contract for parity check.
+
+**Surface area.** NO code changes. specs/stakeholder_spec.md NEW Section 40.12 (architectural boundary); blueprint_prose Unit 23 + 28 (boundary clarification paragraphs); blueprint_contracts Unit 23 + 28 (formal contract clauses C-23-H4a + C-28-H4a). Plus 6 regression tests in test_s3_194_assembly_map_archetype.py pinning current behavior.
+
+**Resolution.** Documented the assembly_map archetype boundary normatively. R archetype does NOT generate assembly_map; Python self-build does. Parity check silently passes when map absent. New tests assert (a) R does not generate; (b) Python does generate; (c) parity check silently passes when absent; (d) parity check fires on stale entries; (e) R-archetype profile path through Check 2 is silent-pass; (f) value shape `^src/unit_\d+/stub\.py$` is preserved.
+
+**Pattern.** P78.
+
+**Detection.** `tests/regressions/test_s3_194_assembly_map_archetype.py` (6 tests pinning the boundary): `test_h4_r_archetype_does_not_generate_assembly_map`, `test_h4_python_archetype_does_generate_assembly_map`, `test_h4_validate_check2_silently_passes_when_no_assembly_map`, `test_h4_validate_check2_fires_when_assembly_map_has_stale_entries`, `test_h4_validate_check2_handles_r_archetype_correctly`, `test_h4_assembly_map_value_shape_is_python_self_build`. Doc-consistency drift caught by `tests/regressions/test_s3_169_doc_consistency.py` via the new `"assembly_map archetype boundary"` CONCEPTS entry -- the literal phrase appears in spec Section 40.12 + Section 24.208, in blueprint_prose Unit 23 + Unit 28, and in blueprint_contracts Unit 23 (C-23-H4a) + Unit 28 (C-28-H4a).
+
 ---
 
 ## 25. Test Data
@@ -8911,6 +8925,16 @@ The Stage-5 assembler dispatch MUST auto-ship the foundational documentation sur
 - The auto-ship MUST never abort assembly. Both assembler call sites guard the `sync_debug_docs` invocation with try/except so foundational doc shipment failures degrade silently.
 
 **Workspace surface.** The function copies `specs/stakeholder_spec.md` plus every file in `blueprint/` to the delivered repo's `docs/` directory. The `docs/` directory is created if absent.
+
+### 40.12 Assembly Map Archetype Boundary (NEW IN 2.2 -- Bug S3-194, cycle H4)
+
+The `.svp/assembly_map.json` artifact is generated EXCLUSIVELY by `assemble_python_project` (Unit 23). Its schema is `{"repo_to_workspace": {repo_path: workspace_stub_path}}` where every `workspace_stub_path` matches `^src/unit_\d+/stub\.py$` (Bug S3-111 invariant; one stub per unit).
+
+**A-D R archetype** (assemble_r_project, post-S3-191 / S3-192 / S3-193): does NOT call `generate_assembly_map` and does NOT produce `.svp/assembly_map.json`. R-archetype source files are tracked implicitly via `_copy_r_project_sources` (S3-191) and the H1 layered fallback architecture; round-trip verification is provided by `validate_delivered_repo_contents` Check 1 (required-files list, Section 24.207) without needing an assembly_map manifest. This is the **assembly_map archetype boundary**.
+
+**E/F Python self-build** (SVP rebuilds itself): DOES call `generate_assembly_map` and DOES produce `.svp/assembly_map.json` for parity verification of stub-to-delivered mapping.
+
+**`validate_delivered_repo_contents` Check 2** (assembly-map parity) MUST silently pass when `.svp/assembly_map.json` is absent. This is the architectural boundary that A-D R archetypes rely on. Modifications to Check 2 MUST preserve the silent-pass behavior; future cycles that add R-archetype assembly_map generation MUST keep the existing Python-self-build value shape `^src/unit_\d+/stub\.py$` for backward compatibility. The literal phrase **assembly_map archetype boundary** is the canonical name for this contract.
 
 ---
 
