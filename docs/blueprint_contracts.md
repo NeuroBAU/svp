@@ -1721,7 +1721,7 @@ None (stdlib only).
 ### Tier 2 — Signatures
 
 ```python
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from pathlib import Path
 
 def cmd_save(project_root: Path) -> str: ...
@@ -1732,7 +1732,10 @@ def cmd_status(project_root: Path) -> str: ...
 
 def cmd_clean(project_root: Path, action: str) -> str: ...
 
-def sync_debug_docs(project_root: Path) -> None: ...
+def sync_debug_docs(
+    project_root: Path,
+    repo_dir: Optional[Path] = None,
+) -> None: ...
 
 def sync_pass1_artifacts(project_root: Path) -> Dict[str, Any]: ...
 ```
@@ -1780,6 +1783,8 @@ None (stdlib only).
 **sync_debug_docs:**
 - Copies workspace spec/blueprint to delivered repo `docs/` directory.
 - Workspace is canonical; delivered repo is updated to match.
+
+- **C-16-H3a (sync_debug_docs optional repo_dir kwarg, NEW IN 2.2 -- Bug S3-193, cycle H3).** `sync_debug_docs` accepts an OPTIONAL `repo_dir` kwarg. When `repo_dir` is `None` (default), the function reads `delivered_repo_path` from `pipeline_state.json` via `load_state(project_root)` (the existing pre-S3-193 behavior). When `repo_dir` is supplied, the function uses it directly without consulting state -- useful when called from Stage-5 assembly before state is finalized. Existing callers that invoke `sync_debug_docs(project_root)` without the kwarg MUST continue to work bit-for-bit (back-compat regression-guarded). Detection: `tests/regressions/test_s3_193_validation_and_docs.py` (`test_h3_sync_debug_docs_uses_repo_dir_kwarg_when_provided`, `test_h3_sync_debug_docs_falls_back_to_state_when_no_kwarg`).
 
 **sync_pass1_artifacts (Bug S3-55 fix):**
 - `_sync_spec` derives spec paths from `ARTIFACT_FILENAMES["stakeholder_spec"]`. **(Bug S3-107a fix.)**
@@ -2281,6 +2286,10 @@ None (stdlib only).
 
 - **C-23-H2 integration (assemble_r_project wiring).** `assemble_r_project` MUST call `generate_r_delivery_docs(project_root, repo_dir, profile, toolchain)` AFTER `_copy_r_project_sources` and `copy_workspace_tests_to_repo` and BEFORE the H1 hardcoded DESCRIPTION/NAMESPACE/tests/testthat.R fallback writes. Toolchain MUST be loaded via `load_toolchain(project_root, language="r")` with a defensive try/except that falls back to an empty dict on failure. The Python assembler MUST NOT call `generate_r_delivery_docs` (regression-guarded). The layered fallback architecture is workspace > H2 generator > H1 hardcoded > nothing. Detection: `tests/regressions/test_s3_192_r_delivery_docs.py` (`test_h2_validate_passes_for_minimal_r_workspace_after_h2`, `test_h2_assemble_python_project_does_not_call_r_doc_generator`).
 
+**Foundational doc auto-ship (NEW IN 2.2 -- Bug S3-193, cycle H3):**
+
+- **C-23-H3a (assembler foundational doc auto-ship).** Both `assemble_python_project` AND `assemble_r_project` MUST call `sync_debug_docs(project_root, repo_dir=repo_dir)` before returning. The call MUST pass `repo_dir` explicitly because `state.delivered_repo_path` is not guaranteed to be set during assembly. The call MUST be guarded by try/except so foundational doc shipment never aborts assembly; failures degrade silently. The call MUST be placed at the END of each assembler body, just before `return repo_dir`. The mixed assembler inherits via the primary assembler. The plugin assembler is unchanged. Detection: `tests/regressions/test_s3_193_validation_and_docs.py` (`test_h3_assemble_python_project_ships_docs_directory`, `test_h3_assemble_r_project_ships_docs_directory`, `test_h3_integration_minimal_r_workspace_passes_full_validation_and_has_docs`).
+
 **GIT_REPO_AGENT_DEFINITION:** assembly mapping rules, commit order (conventional commits), delivery compliance awareness, README generation, quality config generation, bounded fix cycle (iteration_limit attempts). Mixed archetype assembly: when profile `archetype` is `"mixed"`, execute two-phase composition — Phase 1 using primary language assembler for root structure, Phase 2 creating `<secondary_language>/` subdirectory for secondary source files and `<secondary_language>/tests/` for secondary tests; generate quality configs for both languages; produce single `environment.yml` listing both languages' dependencies and bridge libraries. **(Bug S3-97 fix.)** **Delivered Repo Location (CHANGED IN 2.2 — Bug S3-112):** MUST contain a "## Delivered Repo Location" section that (a) states the canonical sibling convention `{project_root.parent}/{project_name}-repo`, (b) names the four assembler helpers (`assemble_python_project`, `assemble_r_project`, `assemble_plugin_project`, `assemble_mixed_project`) that the agent MUST call, (c) forbids `delivered/`/`delivered_repo/`/`output/` and any sub-directory of the project root as destinations, (d) forbids manual writes to `.svp/pipeline_state.json`, and (e) notes that `state.delivered_repo_path` is automatically set by the dispatch step. Status: `REPO_ASSEMBLY_COMPLETE`.
 
 **CHECKLIST_GENERATION_AGENT_DEFINITION:** produces two checklists (alignment_checker_checklist.md, blueprint_author_checklist.md) for Stage 2 agents. **Six universal categories (NEW IN 2.2):** the agent definition explicitly names the six structural categories from spec Section 44.11 — Schema Coherence (S), Function Reachability (F), Invariant Coherence (I), Dispatch Completeness (D), Branch Reachability (B), Contract Bidirectional Mapping (C) — and requires the generated `blueprint_author_checklist.md` to embed every seed item from these subsections, refined per the project profile's primary language. The refinement notes in Section 44.11 (e.g., Python → type imports, R → S3/S4 classes, Bash → N/A) tell the generator how to specialize each item. Status: `CHECKLISTS_COMPLETE`.
@@ -2657,10 +2666,12 @@ None (stdlib only).
 - Signature: `validate_delivered_repo_contents(project_root: Path) -> List[Dict[str, Any]]`.
 - Loads `state.delivered_repo_path` from `.svp/pipeline_state.json`. If unset or the directory does not exist, returns `[]` (silent skip).
 - Loads profile via `load_profile(project_root)`. Determines language from `profile["language"]["primary"]` (default "python").
-- **Check 1 (required root files):** For language `python`, requires `pyproject.toml`, `README.md`, `CHANGELOG.md`, `LICENSE`, `.gitignore`, `environment.yml`. For `r`, requires `DESCRIPTION`, `NAMESPACE`, plus the same five common files. For other languages, requires `README.md`, `LICENSE`, `.gitignore` only. Each missing file emits a finding naming the file, language, and Bug S3-113.
+- **Check 1 (required root files):** For language `python`, requires `pyproject.toml`, `README.md`, `CHANGELOG.md`, `LICENSE`, `.gitignore`, `environment.yml`. For `r`, requires `DESCRIPTION`, `NAMESPACE`, `README.md`, `LICENSE`, `.gitignore`, `environment.yml` (CHANGELOG.md is NOT in the strict R-archetype list per S3-193; see C-28-H3a below). For other languages, requires `README.md`, `LICENSE`, `.gitignore` only. Each missing file emits a finding naming the file, language, and Bug S3-113.
 - **Check 2 (assembly-map parity):** Loads `.svp/assembly_map.json` (post-S3-111 flat schema). For every key in `repo_to_workspace`, strips the `svp-repo/` prefix if present, resolves the remaining relative path against `delivered_repo_path`, and emits a finding if the resulting target file does not exist.
 - **Check 3 (Python pyproject.toml validity):** Only runs when `language == "python"`. Parses the delivered `pyproject.toml` with `tomllib` (falls back to `tomli`). Emits findings for: parse errors, missing `[build-system]` table, `build-backend` not equal to `"setuptools.build_meta"` (the last directly prevents regression of Bug S3-109 in the delivered artifact).
 - Each finding conforms to the same shape as the other compliance scanners: `{"file": str, "line": int, "severity": "error", "message": str}`. `compliance_scan_main` merges these findings with the language-specific scanners' output before rendering and exit.
+
+- **C-28-H3a (R-archetype changelog one-of, NEW IN 2.2 -- Bug S3-193, cycle H3).** `validate_delivered_repo_contents` MUST accept either `CHANGELOG.md` or `NEWS.md` for the R-archetype changelog requirement. R-package convention permits NEWS.md as the canonical changelog file. The R-archetype required-files list MUST include `DESCRIPTION`, `NAMESPACE`, `README.md`, `LICENSE`, `.gitignore`, `environment.yml` (strict-required); AND MUST require at least one of `CHANGELOG.md` or `NEWS.md` to exist (one-of, post-loop check). When neither exists, the function emits a single finding citing both filenames and Bug S3-193 (the message MUST contain the strings `'CHANGELOG.md'` AND `'NEWS.md'` AND `S3-193`). The Python archetype MUST continue to strictly require `CHANGELOG.md` (NEWS.md is NOT a Python alternative; regression-guarded). Detection: `tests/regressions/test_s3_193_validation_and_docs.py` (`test_h3_r_archetype_accepts_NEWS_md_when_changelog_absent`, `test_h3_r_archetype_accepts_CHANGELOG_md_when_news_absent`, `test_h3_r_archetype_fails_when_both_changelog_and_news_absent`, `test_h3_r_archetype_passes_when_both_changelog_and_news_present`, `test_h3_python_archetype_still_requires_CHANGELOG_md`).
 
 ---
 

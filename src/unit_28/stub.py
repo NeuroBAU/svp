@@ -451,11 +451,13 @@ def validate_delivered_repo_contents(project_root: Path) -> List[Dict[str, Any]]
             "environment.yml",
         ]
     elif language == "r":
+        # Bug S3-193 (IMPROV-27): "CHANGELOG.md" dropped from R strict-required
+        # list; R-package convention permits NEWS.md as alternative. The
+        # post-loop one-of check below requires either CHANGELOG.md or NEWS.md.
         required = [
             "DESCRIPTION",
             "NAMESPACE",
             "README.md",
-            "CHANGELOG.md",
             "LICENSE",
             ".gitignore",
             "environment.yml",
@@ -473,6 +475,26 @@ def validate_delivered_repo_contents(project_root: Path) -> List[Dict[str, Any]]
                     "message": (
                         f"delivered repo missing required file '{fname}' "
                         f"for language '{language}' (Bug S3-113)"
+                    ),
+                }
+            )
+
+    # Bug S3-193 (IMPROV-27): R-archetype changelog file accepts CHANGELOG.md
+    # OR NEWS.md (R-package convention permits NEWS.md). Post-loop one-of
+    # check fires only when neither file exists.
+    if language == "r":
+        has_changelog = (delivered / "CHANGELOG.md").exists()
+        has_news = (delivered / "NEWS.md").exists()
+        if not (has_changelog or has_news):
+            findings.append(
+                {
+                    "file": str(delivered),
+                    "line": 0,
+                    "severity": "error",
+                    "message": (
+                        "delivered repo missing required changelog file "
+                        "('CHANGELOG.md' or 'NEWS.md') for language 'r' "
+                        "(Bug S3-113 / S3-193)"
                     ),
                 }
             )

@@ -126,6 +126,14 @@ CONCEPTS = [
     # doc generation paragraph), and in blueprint_contracts Unit 23
     # (C-23-H2a MUST clause). Drift across the three docs surfaces here.
     "generate_r_delivery_docs",
+    # NEW IN S3-193 (cycle H3 -- validation list + foundational doc
+    # auto-ship). NEWS.md is the R-package convention alternative to
+    # CHANGELOG.md. The literal filename appears in spec Section 40.10
+    # cross-ref + Section 24.207 + new validation subsection, in
+    # blueprint_prose Unit 23 + Unit 28, and in blueprint_contracts Unit
+    # 28 (C-28-H3a one-of clause). Drift across the three docs surfaces
+    # here.
+    "NEWS.md",
 ]
 
 

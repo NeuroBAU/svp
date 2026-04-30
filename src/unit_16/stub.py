@@ -11,7 +11,7 @@ import subprocess
 import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from src.unit_1.stub import ARTIFACT_FILENAMES, derive_env_name
 from src.unit_3.stub import load_profile
@@ -205,15 +205,25 @@ def cmd_clean(project_root: Path, action: str) -> str:
         return "Environment removed. Workspace kept."
 
 
-def sync_debug_docs(project_root: Path) -> None:
-    """Copy workspace spec/blueprint to delivered repo docs/ directory."""
-    # Load state to get delivered_repo_path
-    state = load_state(project_root)
+def sync_debug_docs(
+    project_root: Path,
+    repo_dir: Optional[Path] = None,
+) -> None:
+    """Copy workspace spec/blueprint to delivered repo docs/ directory.
 
-    if state.delivered_repo_path is None:
-        return
+    When ``repo_dir`` is None (default), reads ``delivered_repo_path`` from
+    pipeline_state.json. When provided, uses ``repo_dir`` directly -- useful
+    when called from Stage-5 assembly before state is finalized
+    (Bug S3-193 / IMPROV-32).
+    """
+    # Bug S3-193 (IMPROV-32): accept optional repo_dir override.
+    if repo_dir is None:
+        state = load_state(project_root)
+        if state.delivered_repo_path is None:
+            return
+        repo_dir = state.delivered_repo_path
 
-    delivered_repo = Path(state.delivered_repo_path)
+    delivered_repo = Path(repo_dir)
     docs_dir = delivered_repo / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)
 

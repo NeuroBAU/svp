@@ -1394,13 +1394,23 @@ class TestCmdCleanDependencyIsolation:
         assert len(params) == 1
 
     def test_sync_debug_docs_signature_accepts_project_root(self):
-        """sync_debug_docs accepts exactly (project_root: Path)."""
+        """sync_debug_docs accepts (project_root: Path, repo_dir: Optional[Path] = None).
+
+        Bug S3-193 (cycle H3): sync_debug_docs gained an optional `repo_dir`
+        kwarg so Stage-5 assemblers can pass an explicit delivered-repo path
+        without consulting state. The kwarg defaults to None, in which case
+        the function reads `delivered_repo_path` from pipeline_state.json
+        (the existing pre-S3-193 behavior). See contract C-16-H3a.
+        """
         import inspect
 
         sig = inspect.signature(sync_debug_docs)
         params = list(sig.parameters.keys())
         assert "project_root" in params
-        assert len(params) == 1
+        assert "repo_dir" in params
+        assert len(params) == 2
+        # repo_dir must default to None (back-compat for existing callers).
+        assert sig.parameters["repo_dir"].default is None
 
     def test_cmd_save_returns_str(self):
         """cmd_save return annotation is str."""

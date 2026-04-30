@@ -1489,6 +1489,18 @@ def assemble_python_project(
             # Map exists but is unreadable; skip delivery rather than crash.
             pass
 
+    # Bug S3-193 (IMPROV-32): auto-ship foundational docs (specs, blueprint,
+    # references) to the delivered repo's docs/ directory. Pass repo_dir
+    # explicitly because state.delivered_repo_path may not yet be set during
+    # assembly. Defensive: sync_debug_docs is silent when source artifacts
+    # are absent.
+    try:
+        from sync_debug_docs import sync_debug_docs as _sync_debug_docs
+        _sync_debug_docs(project_root, repo_dir=repo_dir)
+    except Exception:
+        # Foundational doc shipment must never abort assembly.
+        pass
+
     return repo_dir
 
 
@@ -1582,6 +1594,18 @@ def assemble_r_project(
     write_delivered_claude_md(
         repo_dir, profile, project_name, project_root=project_root
     )
+
+    # Bug S3-193 (IMPROV-32): auto-ship foundational docs (specs, blueprint,
+    # references) to the delivered repo's docs/ directory. Pass repo_dir
+    # explicitly because state.delivered_repo_path may not yet be set during
+    # assembly. Defensive: sync_debug_docs is silent when source artifacts
+    # are absent.
+    try:
+        from sync_debug_docs import sync_debug_docs as _sync_debug_docs
+        _sync_debug_docs(project_root, repo_dir=repo_dir)
+    except Exception:
+        # Foundational doc shipment must never abort assembly.
+        pass
 
     return repo_dir
 
