@@ -334,6 +334,8 @@ Unit 9 owns the `SIGNATURE_PARSERS` dispatch table -- the first of six per-langu
 
 SVP 2.2 ships with two entries: Python (wraps `ast.parse()` to produce an AST) and R (regex-based parser for R function assignment syntax). The `parse_signatures` entry point reads a raw code block (already stripped of markdown fences by Unit 8) and dispatches to the language-specific parser.
 
+**Pseudocode preprocessing (cycle H7, S3-197).** Tier-2 signature blocks may contain bare-ellipsis pseudocode such as `{"key": "val", ...}` -- Python's grammar rejects these patterns with `SyntaxError`. Before invoking `ast.parse`, `_parse_python_signatures` regex-strips `,\\s*\\.\\.\\.` patterns from the source via `re.sub`. Valid Python (no such patterns) is unchanged. The preprocessing tolerates blueprint-style pseudocode without altering real code.
+
 This unit also provides `main()` as a CLI entry point for direct invocation during stub generation (used by the routing script). CLI arguments: `--blueprint` (path to `blueprint_contracts.md`), `--unit` (unit number), `--language` (language identifier).
 
 ---
@@ -343,6 +345,8 @@ This unit also provides `main()` as a CLI entry point for direct invocation duri
 Unit 10 owns the `STUB_GENERATORS` dispatch table -- the second per-language dispatch table. Each entry maps a dispatch key to a function with signature `(parsed_signatures: Any, language_config: Dict) -> str`. The stub generator produces importable stub modules from parsed signature ASTs.
 
 For Python: every function body raises `NotImplementedError()`, every class body contains declared methods (each raising `NotImplementedError`) and class-level attributes set to `None`. Module-level `assert` statements are stripped. The language-specific stub sentinel (from `LANGUAGE_REGISTRY[language]["stub_sentinel"]`) is prepended as the first non-import statement.
+
+**Stub preamble emission (cycle H7, S3-197).** Every Python stub MUST begin with `from __future__ import annotations` as the FIRST non-blank line, unconditionally, before the stub sentinel and before any other imports. Per Python PEP 236, `from __future__` imports must precede runtime statements (including assignments such as the stub sentinel). The unconditional preamble ensures annotations like `Any`, `OpenAI`, or `list[dict[str, Any]]` become strings -- so sub-units of shared modules with Tier-2-signature-only blueprints (with no upstream imports) do not NameError at conftest exec when their annotations refer to types not imported at runtime.
 
 For R: function bodies contain a single `stop("Not implemented")` call. The R-specific sentinel is prepended as a comment.
 

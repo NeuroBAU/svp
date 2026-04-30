@@ -20,8 +20,14 @@ def _parse_python_signatures(source: str, language_config: Dict[str, Any]) -> An
     """Parse Python source using ast.parse(). Returns ast.Module.
 
     Raises SyntaxError on invalid Python.
+
+    Bug R1 #9 / S3-197: Tier-2 signature blocks may contain bare ', ...' inside
+    dict literals as pseudocode (e.g., {"key": "val", ...}). Python's grammar
+    rejects this with SyntaxError. Pre-process to strip these patterns before
+    ast.parse. Valid Python is unchanged (no real code uses ',\\s*\\.\\.\\.').
     """
-    return ast.parse(source)
+    cleaned = re.sub(r",\s*\.\.\.", "", source)
+    return ast.parse(cleaned)
 
 
 def _parse_r_signatures(

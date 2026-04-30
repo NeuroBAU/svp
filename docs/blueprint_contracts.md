@@ -901,6 +901,8 @@ None (stdlib only).
 - Prints parsed result or errors to stdout/stderr.
 - Exit code 0 on success, 1 on parse failure.
 
+**C-9-H7a (signature parser pseudocode preprocessing)**: `_parse_python_signatures` MUST regex-strip `,\\s*\\.\\.\\.` patterns from `source` via `re.sub` BEFORE calling `ast.parse`. Valid Python (no `,\\s*\\.\\.\\.` patterns) MUST be unchanged. Detection: tests/regressions/test_s3_197_stub_generator_robustness.py (3 R1 #9 tests).
+
 ---
 
 ## Unit 10: Stub Generator Dispatch
@@ -968,6 +970,8 @@ None (stdlib only).
 - Output filename for the current unit is `stub{file_ext}`, not `unit_N_stub{file_ext}`. The unit number is encoded in the directory path, not the filename. Upstream stubs use `unit_N_stub{file_ext}` to distinguish dependencies. **(Bug S3-13, AMENDED by Bug S3-29.)**
 - Exit code 0 on success, 1 on failure.
 - Command: `PYTHONPATH=scripts python -m stub_generator --blueprint <path> --unit <N> --output-dir <dir> --upstream <deps>`.
+
+**C-10-H7a (stub preamble emission)**: `_generate_python_stub` MUST emit `from __future__ import annotations` as the FIRST non-blank line of every Python stub, unconditionally, BEFORE the `__SVP_STUB__ = True` sentinel and BEFORE any imports. This complies with PEP 236 (from __future__ must precede runtime statements) and ensures annotations are strings (no NameError at conftest exec for sub-units lacking upstream imports). Detection: tests/regressions/test_s3_197_stub_generator_robustness.py (5 R1 #7 tests).
 
 ---
 

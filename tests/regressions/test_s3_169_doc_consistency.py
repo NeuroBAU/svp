@@ -159,6 +159,17 @@ CONCEPTS = [
     # Unit 14 (C-14-H6b MUST clause). Drift across the three docs surfaces
     # here.
     "PYTHONIOENCODING",
+    # NEW IN S3-197 (cycle H7 -- stub generator robustness). The canonical
+    # preamble line for Bug R1 #7 in _generate_python_stub: every Python stub
+    # MUST emit `from __future__ import annotations` as the first non-blank
+    # line, before the stub sentinel, so annotations like Any/OpenAI become
+    # strings (no NameError at conftest exec for sub-units of shared modules
+    # with Tier-2-signature-only blueprints, no upstream imports). The
+    # literal string appears verbatim in spec Section 24.211 + the new stub
+    # preamble normative subsection, in blueprint_prose Unit 10 (preamble
+    # emission paragraph), and in blueprint_contracts Unit 10 (C-10-H7a
+    # MUST-EMIT clause). Drift across the three docs surfaces here.
+    "from __future__ import annotations",
 ]
 
 

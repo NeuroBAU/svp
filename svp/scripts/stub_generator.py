@@ -134,9 +134,17 @@ def _generate_python_stub(
         else:
             upstream_imports.append(imp_line)
 
-    # Build output: imports (with TYPE_CHECKING guard if needed), sentinel, body
-    if upstream_imports:
-        lines.append("from __future__ import annotations")
+    # Build output: from __future__ first (PEP 236), sentinel, then imports, body
+    # Bug R1 #7 / S3-197: from __future__ import annotations MUST be the first
+    # statement of the stub (per PEP 236). This ensures annotations like Any,
+    # OpenAI, etc. become strings -- sub-units of shared modules with Tier-2-
+    # signature-only blueprints (no upstream imports) no longer NameError at
+    # conftest exec.
+    lines.append("from __future__ import annotations")
+    lines.append("")
+    lines.append(sentinel)
+    if stdlib_imports or upstream_imports:
+        lines.append("")
     if stdlib_imports:
         lines.extend(stdlib_imports)
     if upstream_imports:
@@ -146,8 +154,6 @@ def _generate_python_stub(
             lines.append(f"    {imp_line}")
     if stdlib_imports or upstream_imports:
         lines.append("")
-    lines.append(sentinel)
-    lines.append("")
     if body_lines:
         lines.extend(body_lines)
 
