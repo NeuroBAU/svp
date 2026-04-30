@@ -82,16 +82,18 @@ class TestClaudeMdTemplates:
         assert "routing script" in CLAUDE_MD_TEMPLATE
 
     def test_tier1_has_universal_bug_protocol(self):
-        """After Bug S3-126, Tier 1 contains the universal Manual Bug-Fixing
-        Protocol applicable to ALL archetypes (A-F). Tier 1 must still NOT
-        contain the Tier 2 override marker."""
-        assert "Manual Bug-Fixing Protocol (Break-Glass Mode)" in CLAUDE_MD_TEMPLATE
+        """After Bug S3-126 / S3-187 / S3-199 (cycle I-2), Tier 1 contains the
+        Gate 6 Canonical Break-Glass Path applicable to ALL archetypes (A-F).
+        Tier 1 must still NOT contain the Tier 2 override marker."""
+        assert "## Gate 6 — Canonical Break-Glass Path" in CLAUDE_MD_TEMPLATE
         assert "SVP Self-Build Override" not in CLAUDE_MD_TEMPLATE
 
     def test_tier2_references_universal_protocol(self):
-        """After Bug S3-126, Tier 2 is an override addendum that references
-        the Tier 1 universal protocol rather than restating it."""
-        assert "Manual Bug-Fixing Protocol" in CLAUDE_MD_SVP_ADDENDUM
+        """After Bug S3-126 / S3-199, Tier 2 is an override addendum that
+        references the Tier 1 Gate 6 Canonical Break-Glass Path rather than
+        restating it. The addendum's Tier-2-unique marker is 'SVP Self-Build
+        Override'."""
+        assert "Gate 6 Canonical Break-Glass Path" in CLAUDE_MD_SVP_ADDENDUM
         assert "SVP Self-Build Override" in CLAUDE_MD_SVP_ADDENDUM
 
     def test_tier2_has_stubs_note(self):
@@ -146,13 +148,13 @@ class TestCreateNewProjectTestsScaffold:
         assert "test_project" in content
 
     def test_claude_md_tier1_only(self, project):
-        """After Bug S3-126, Tier 1 contains the universal Manual Bug-Fixing
-        Protocol. The E/F-only Tier 2 override addendum (marker: 'SVP
-        Self-Build Override') must still be absent from a fresh A-D project
-        until enrich_claude_md_for_svp_build runs."""
+        """After Bug S3-126 / S3-187 / S3-199, Tier 1 contains the Gate 6
+        Canonical Break-Glass Path. The E/F-only Tier 2 override addendum
+        (marker: 'SVP Self-Build Override') must still be absent from a fresh
+        A-D project until enrich_claude_md_for_svp_build runs."""
         content = (project / "CLAUDE.md").read_text()
         assert "Six-Step Action Cycle" in content
-        assert "Manual Bug-Fixing Protocol (Break-Glass Mode)" in content
+        assert "## Gate 6 — Canonical Break-Glass Path" in content
         assert "SVP Self-Build Override" not in content
 
 
@@ -199,13 +201,15 @@ class TestEnrichClaudeMdForSvpBuild:
     def test_appends_tier2(self, project):
         enrich_claude_md_for_svp_build(project)
         content = (project / "CLAUDE.md").read_text()
-        assert "Manual Bug-Fixing Protocol" in content
+        assert "## Gate 6 — Canonical Break-Glass Path" in content
         assert "Six-Step Action Cycle" in content  # Tier 1 still present
+        assert "## SVP Self-Build Override" in content  # Tier 2 appended
 
     def test_idempotent(self, project):
-        """After Bug S3-126, the idempotency marker is 'SVP Self-Build
-        Override' (unique to Tier 2), not 'Manual Bug-Fixing Protocol'
-        (which now appears in Tier 1 by default)."""
+        """After Bug S3-126 / S3-199, the idempotency marker is 'SVP Self-Build
+        Override' (unique to Tier 2). Earlier candidates like 'Manual Bug-Fixing
+        Protocol' or 'Gate 6 — Canonical Break-Glass Path' cannot serve as the
+        marker because both phrases appear in Tier 1 by default."""
         enrich_claude_md_for_svp_build(project)
         content_after_first = (project / "CLAUDE.md").read_text()
         enrich_claude_md_for_svp_build(project)
@@ -213,7 +217,7 @@ class TestEnrichClaudeMdForSvpBuild:
         assert content_after_first == content_after_second
         assert content_after_second.count("## SVP Self-Build Override") == 1
         assert (
-            content_after_second.count("## Manual Bug-Fixing Protocol (Break-Glass Mode)")
+            content_after_second.count("## Gate 6 — Canonical Break-Glass Path")
             == 1
         )
 
@@ -255,7 +259,9 @@ class TestAssembleSvpWorkspaceArtifacts:
         content = (repo / "CLAUDE.md").read_text()
         assert "my_svp" in content
         assert "Six-Step Action Cycle" in content
-        assert "Manual Bug-Fixing Protocol" in content
+        # After S3-199, Tier-1 carries the Gate 6 canonical break-glass path
+        # (forward-ported verbatim from Tier-2).
+        assert "## Gate 6 — Canonical Break-Glass Path" in content
 
     def test_copies_sync_workspace(self, tmp_path):
         ws = self._make_workspace(tmp_path)
@@ -320,17 +326,22 @@ class TestEFvsADSeparation:
     """Bug S3-99: E/F and A-D paths produce different artifacts."""
 
     def test_ad_project_clean(self, project):
-        """A-D project: Tier 1 CLAUDE.md (now includes universal Manual
-        Bug-Fixing Protocol per Bug S3-126), empty tests/, no
-        sync_workspace.sh, NO Tier 2 SVP self-build override addendum."""
+        """A-D project: Tier 1 CLAUDE.md (now carries Gate 6 Canonical
+        Break-Glass Path per Bug S3-126 / S3-187 / S3-199), empty tests/,
+        no sync_workspace.sh, NO Tier 2 SVP self-build override addendum.
+
+        Note: Tier-1 was forward-ported from Tier-2 by S3-199 / cycle I-2,
+        so Tier-1's Bug Mode CODE step legitimately mentions
+        `src/unit_*/stub.py` as generic stubs-as-source-of-truth guidance
+        (G4 / S3-189 deemed this generic). The Tier-2-specific
+        `sync_workspace.sh` marker MUST still be absent in A-D output."""
         content = (project / "CLAUDE.md").read_text()
-        # Tier 1 universal protocol IS present — that is the S3-126 fix.
-        assert "Manual Bug-Fixing Protocol (Break-Glass Mode)" in content
+        # Tier 1 Gate 6 canonical path IS present — that is the S3-199 fix.
+        assert "## Gate 6 — Canonical Break-Glass Path" in content
         # Tier 2 SVP self-build override is NOT present — A-D projects never
-        # see SVP internals (sync, stubs-as-source-of-truth, etc.).
+        # see SVP-self machinery markers.
         assert "SVP Self-Build Override" not in content
         assert "sync_workspace.sh" not in content
-        assert "src/unit_*/stub.py" not in content
         assert not list((project / "tests").rglob("test_bug*.py"))
 
     def test_ef_enrichment(self, project, plugin_root):
@@ -339,7 +350,8 @@ class TestEFvsADSeparation:
         copy_svp_regression_tests(project, plugin_root)
 
         content = (project / "CLAUDE.md").read_text()
-        assert "Manual Bug-Fixing Protocol" in content
+        assert "## Gate 6 — Canonical Break-Glass Path" in content
+        assert "## SVP Self-Build Override" in content
         assert (project / "tests" / "regressions" / "test_bug42_example.py").exists()
 
     def test_stage5_produces_repo_with_carryover(self, tmp_path):
@@ -361,7 +373,7 @@ class TestEFvsADSeparation:
         assemble_svp_workspace_artifacts(repo, ws, "svp_self")
 
         assert (repo / "CLAUDE.md").exists()
-        assert "Manual Bug-Fixing Protocol" in (repo / "CLAUDE.md").read_text()
+        assert "## Gate 6 — Canonical Break-Glass Path" in (repo / "CLAUDE.md").read_text()
         assert (repo / "sync_workspace.sh").exists()
         assert (repo / "examples" / "gol").is_dir()
         assert (repo / "docs" / "references" / "svp_2_1_lessons_learned.md").exists()

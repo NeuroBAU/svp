@@ -23,8 +23,13 @@ from src.unit_2.stub import LANGUAGE_REGISTRY
 # ---------------------------------------------------------------------------
 
 # Tier 1: Universal CLAUDE.md content for ALL SVP projects (A-D, E, F).
-# Includes the universal Manual Bug-Fixing Protocol (Break-Glass Mode) with
-# commit-to-git final step (Bug S3-126).
+# Carries the Gate 6 Canonical Break-Glass Path (Layer-Triage L1-L5 + Bug Mode
+# + Enhancement Mode + Choosing-entry-point), forward-ported verbatim from
+# CLAUDE_MD_DELIVERED_REPO_TEMPLATE so Tier-1 (Stage-0 scaffolding) and Tier-2
+# (Stage-5 delivery) carry character-identical break-glass content. Pattern
+# P83. (Bug S3-126 promoted the universal protocol; Bug S3-187 introduced the
+# Gate 6 canonical path; Bug S3-199 forward-ported Tier-1 to align with
+# Tier-2.)
 CLAUDE_MD_TEMPLATE: str = """\
 # SVP-Managed Project: {project_name}
 
@@ -76,67 +81,170 @@ by a deterministic preparation script and contains exactly the context the agent
 - If the human types during an autonomous sequence, acknowledge and defer.
 - You MUST NOT write to pipeline_state.json directly or batch multiple units.
 
-## Manual Bug-Fixing Protocol (Break-Glass Mode)
+## Gate 6 — Canonical Break-Glass Path
 
-When the SVP routing mechanism is too broken to function and the human asks \
-you to fix bugs directly, follow this protocol EXACTLY. This protocol is \
-universal — it applies to every archetype (A-F).
+When the human authorizes a debug session at `gate_6_0_debug_permission`, \
+SVP routes through `gate_6_1_mode_classification` (BUG | ENHANCEMENT). \
+Routing then emits action_type=`invoke_break_glass` with the mode tag. \
+Orchestrator (this Claude session) follows the corresponding sub-flow \
+below. Both modes share the existing Gate 6.0 authorization and \
+DEBUG_SESSION_COMPLETE terminal status.
 
-**RULE 0: NEVER directly fix a bug. ALWAYS enter plan mode first.**
+**RULE 0: NEVER directly fix a bug or amend a contract. ALWAYS enter \
+plan mode first.**
 
-### Workspace vs. Delivered Repo
+### DIAGNOSE — Layer-Triage L1-L5
 
-You operate inside this **workspace** directory. The **workspace is NOT a git \
-repository**. Git lives in a sibling directory: the delivered repo at \
-`{project_name}-repo/` (sibling of the workspace), whose absolute path is \
-persisted in `.svp/pipeline_state.json` as `delivered_repo_path`. When the \
-protocol tells you to commit, you navigate to the delivered repo (NOT the \
-workspace) and run git there.
+Systematically check each architectural layer to identify where the bug \
+actually lives. The symptom may appear in one layer while the root cause \
+lives in another. Rule out (or rule in) each layer in order.
 
-If `delivered_repo_path` is unset in pipeline state (pre-Stage-5), no delivered \
-repo exists yet; in that case skip the COMMIT TO GIT step and tell the human \
-the commit was deferred because the repo has not been assembled.
+**L1 — Reproduce the symptom**
+- Run the failing test / agent / command end-to-end. Capture exact failure \
+modes: stack traces, missing tokens, agent loops, wrong outputs.
+- Note non-determinism (flaky tests, retry-success, environment-sensitive \
+failures). If you cannot reliably reproduce, STOP and escalate to user.
+- Output: a concise reproducer (test name + expected vs observed).
 
-### Bug-Fixing Cycle (repeat for each bug)
+**L2 — Spec layer**
+- Read your spec's normative sections that describe the behavior at issue \
+(sections covering routing, status lines, state fields, setup, archetype \
+conventions — match by topic to symptom). Section names and numbers vary \
+by project.
+- If your spec has a changelog section (often named "Section 24", \
+"Changelog", or "History"), read its most recent related entries to \
+check if a prior cycle introduced the behavior in question.
+- Verdict: spec says X but you observed Y → continue to L3+. Spec is \
+silent / self-contradictory → spec-layer bug (rare; usually means \
+enhancement mode is the right flow, not bug mode).
 
-1. **DIAGNOSE** — Identify the root cause. Trace through spec → blueprint → \
-code to understand WHY the bug exists, not just what triggers it.
+**L3 — Blueprint layer**
+- Read `blueprint/blueprint_contracts.md` (formal Tier-2/3) for the \
+affected unit.
+- Read `blueprint/blueprint_prose.md` (narrative Tier-1) for the same unit.
+- Check Calls / Called-by / Package Dependencies sections for accuracy.
+- Verdict: contract says X but spec says Y → blueprint-layer bug. \
+Contract matches spec → continue to L4.
+
+**L4 — Code layer**
+- Find the relevant `src/unit_*/stub.py`.
+- Trace data flow, control flow, state transitions through the function \
+named in the contract. Check for missing branches, off-by-one, wrong \
+data structures, swallowed exceptions.
+- Verdict: most bugs live here. Code says X but contract says Y → \
+code-layer bug.
+
+**L5 — Test layer**
+- Does the test correctly assert on the contract? Or does it lie about \
+state / assert on wrong fixtures / pass for the wrong reason?
+- Is regression coverage adequate? If yes, why did existing regression \
+not catch this?
+- Verdict: test-layer bug often co-occurs with L4 (incorrect test masked \
+the L4 bug).
+
+After L1-L5: state the root cause in one sentence and the layer it lives \
+in. Do NOT proceed to PLAN until the root layer is named.
+
+### Bug Mode (`debug_session["mode"] == "bug"`)
+
+For changes that ALIGN code with already-specified behavior. Specs and \
+contracts already say what should happen; you are restoring intended \
+behavior. Use this when L1-L5 found the root cause in L2-L5.
+
+1. **DIAGNOSE** — Layer-Triage L1-L5 (see above). State root cause + layer.
 
 2. **PLAN** the fixes in:
-   - a. **SPEC** — Add a bug entry to Section 24 of the stakeholder spec; fix \
-any spec gaps the diagnosis revealed.
-   - b. **BLUEPRINT** — Amend contracts in the affected units.
-   - c. **CODE** — Identify the source files that must change.
+   - a. **SPEC** — port the change upstream to the stakeholder spec:
+     - If your spec has a changelog section (often named "Section 24", \
+"Changelog", or "History"), add a bug entry there. Use the rich \
+format: Symptom / Root cause / Surface area / Resolution / Pattern \
+(link to lessons-learned pattern number, if your project has one) / \
+Detection (name regression test functions).
+     - **MANDATORY**: Update every normative spec section whose described \
+behavior changes — match section by topic, not by number (sections \
+covering routing, statuses, state, setup, archetypes, etc.).
+     - **MANDATORY**: Update `blueprint/blueprint_prose.md` (Tier-1 \
+narrative) to mirror any new contract clauses in \
+`blueprint/blueprint_contracts.md` (Tier-2/3).
+   - b. **BLUEPRINT** — Amend contracts in affected units.
+   - c. **CODE** — Fix implementation in `src/unit_*/stub.py`. Stubs are \
+the single source of truth. Never edit `scripts/*.py` directly.
+   - d. **EXECUTE** — Apply the code changes.
+   - e. **EVALUATE** — Run tests, verify the fix works.
+   - f. **LESSONS LEARNED** — Append an entry to your project's \
+lessons-learned file at `references/lessons_learned.md`. Create the \
+file if it does not yet exist (one-line title + bullet of the new \
+pattern). Number patterns sequentially within your project (P1, P2, \
+...) starting fresh — your project's pattern catalog is independent \
+of SVP-self.
+   - g. **REGRESSION TESTS** — Author tests covering ALL aspects of the bug.
+   - h. **VERIFY** — Tests pass with 0 skipped.
+   - i. **DEPLOYED ARTIFACTS** — If the fix touches files that ship as \
+part of your project's distribution (CLI commands, packaged modules, \
+agent prompts, plugin entry-points — match to your project's \
+packaging), update the corresponding artifacts alongside source \
+changes. If your project has no separate deployment surface, skip \
+this step.
+   - j. **VERIFY + COMMIT** — pytest 0 fail / 0 skip; commit and (if your \
+project has a remote) push.
 
-3. **EXECUTE** — Apply the code changes.
+3. **EVALUATE** — All tests pass. Clean up stale test artifacts.
 
-4. **EVALUATE** — Run the relevant tests; verify the fix works in isolation.
+### Enhancement Mode (`debug_session["mode"] == "enhancement"`)
 
-5. **LESSONS LEARNED** — If `references/lessons_learned.md` (or a project-specific \
-equivalent named in the profile) exists, append an entry describing the root \
-cause, the fix, and the pattern. If no lessons-learned file exists for this \
-project, skip this step.
+For changes that ALTER intended behavior — the desired behavior is new \
+or different, not previously specified. Specs and/or contracts must be \
+amended. Use this when L1-L5 found the root cause is in L2 (spec is \
+silent / wants to change).
 
-6. **REGRESSION TESTS** — Author tests that cover ALL aspects of the bug: the \
-original failure, the underlying invariant that was violated, and any adjacent \
-behaviors that the fix touched. Place them under `tests/regressions/` using \
-the `test_bug_<id>_*.py` naming convention.
+Do NOT use bug mode for these; the framing is wrong.
 
-7. **VERIFY** — Run the full test suite. All tests pass, 0 skipped, 0 failed. \
-Clean up any stale test artifacts left by previous runs.
+1. **SPEC_AMENDMENT** — Author the upstream change first.
+   - If your spec has a changelog section (often named "Section 24", \
+"Changelog", or "History"), add an entry in rich format describing \
+the new behavior.
+   - Update normative sections — match by topic to the change (sections \
+covering routing, statuses, state, setup, archetypes, etc.). Section \
+names/numbers vary by project.
+   - This is MANDATORY first step: code must not get ahead of spec.
 
-8. **COMMIT TO GIT** — Commit the fix in the **delivered repo**, NOT the workspace.
-   - a. Read `delivered_repo_path` from `.svp/pipeline_state.json`. If unset, \
-skip this step (see "Workspace vs. Delivered Repo" above).
-   - b. `cd` into the delivered repo directory.
-   - c. Read `project_profile.json` (in the workspace or delivered repo, \
-whichever exists). Look up `vcs.commit_style`:
-     - `"conventional"` (default) or absent → use `fix: <bug-id> <short-desc>`.
-     - `"freeform"` → a short descriptive sentence.
-     - `"custom"` → render `vcs.commit_template`, substituting any placeholders \
-it defines (e.g., `{{bug_id}}`, `{{summary}}`).
-   - d. `git add` the files changed by the fix and `git commit -m "<message>"`. \
-Do not `git push`; pushing is the human's decision.
+2. **BLUEPRINT_AMENDMENT** — Mirror the spec change in blueprint.
+   - `blueprint/blueprint_prose.md` (Tier-1 narrative summary).
+   - `blueprint/blueprint_contracts.md` (Tier-2/3 formal contract clauses).
+   - Both must move in lockstep.
+
+3. **IMPLEMENTATION** — Edit `src/unit_*/stub.py` to satisfy the new \
+contracts. Stubs are the single source of truth.
+
+4. **TESTS** — Author regression tests asserting the newly-introduced \
+behavior. For enhancement, regression tests document the contract that \
+was just added.
+
+5. **VERIFY** — pytest 0 fail / 0 skip.
+
+6. **COMMIT** — commit and (if your project has a remote) push.
+
+### Choosing the entry-point
+
+**Run break-glass directly** (default for human-initiated work):
+- The bug spans multiple layers (e.g., spec + code).
+- You need to investigate before knowing the root layer.
+- The issue may turn out to be an enhancement.
+- Multiple units may be affected.
+
+**Call /svp:bug as a sub-tool** (narrow):
+- The bug is genuinely localized to a single unit.
+- The contract is well-specified and the violation is mechanical.
+- You expect the fix to be a small contract-bounded change.
+
+**Auto-dispatched /svp:bug** (routing-detected red runs):
+- Routing emits this when a single Stage-3 red run is genuinely \
+contract-bounded.
+- The orchestrator MAY abort /svp:bug and escalate to break-glass at any \
+time if scope turns out wider (G3 wires the abort path).
+
+If /svp:bug invocation reveals scope creep (multiple units affected, spec \
+questions arise, behavior intent unclear), ABORT and escalate to break-glass.
 """
 
 # Bug S3-147: delivered-repo CLAUDE.md template for A-D archetypes.
@@ -330,19 +438,20 @@ CLAUDE_MD_SVP_ADDENDUM: str = """\
 
 ## SVP Self-Build Override
 
-This project is an SVP self-build (archetype E or F). The universal Manual \
-Bug-Fixing Protocol in Tier 1 above applies, with the overrides and extra \
+This project is an SVP self-build (archetype E or F). The Tier 1 Gate 6 \
+Canonical Break-Glass Path above applies, with the overrides and extra \
 steps defined in this section. Do NOT treat this as a replacement for Tier 1 \
 — it only modifies specific steps.
 
 ### EXECUTE — stubs are the single source of truth
 
-When you reach the EXECUTE step of the Tier 1 cycle, apply code changes in \
-`src/unit_*/stub.py`, never in `scripts/*.py` directly. Scripts are derived \
-from stubs by `sync_workspace.sh` Step 0 (import rewriting: stubs → flat \
-modules). Editing scripts directly is overwritten by the next sync.
+When you reach the EXECUTE step of the Tier 1 Bug Mode cycle, apply code \
+changes in `src/unit_*/stub.py`, never in `scripts/*.py` directly. Scripts \
+are derived from stubs by `sync_workspace.sh` Step 0 (import rewriting: \
+stubs → flat modules). Editing scripts directly is overwritten by the \
+next sync.
 
-### DEPLOYED ARTIFACTS (new step, runs after VERIFY)
+### DEPLOYED ARTIFACTS (extra step, runs after VERIFY)
 
 If the fix touches Units that produce deployed plugin artifacts, manually \
 update the corresponding `.md` files in the workspace's `svp/` directory \
@@ -358,7 +467,7 @@ before sync:
 deployed `.md` file is what Claude Code loads at runtime — the Python source \
 is only an input to assembly and does not reach Claude Code directly.
 
-### SYNC (new step, runs after DEPLOYED ARTIFACTS)
+### SYNC (extra step, runs after DEPLOYED ARTIFACTS)
 
 Run `bash sync_workspace.sh` from the workspace directory. This handles:
 
@@ -377,11 +486,12 @@ directory AND the delivered repo directory. Do not skip either. Failures in \
 one but not the other indicate stale test files, path-resolution divergence, \
 or permission issues that must be resolved before commit.
 
-### COMMIT TO GIT (Tier 1 step, still terminal)
+### COMMIT (Tier 1 step, still terminal)
 
-The Tier 1 COMMIT TO GIT step is unchanged and remains the terminal action. \
-The SYNC step above has already propagated your workspace changes into the \
-delivered repo, so `git add` inside `delivered_repo_path` will see the fix.
+The Tier 1 VERIFY + COMMIT step remains the terminal action; the SYNC step \
+above has already propagated your workspace changes into the delivered repo, \
+so `git add` inside `delivered_repo_path` (read from `.svp/pipeline_state.json`) \
+will see the fix.
 
 Do NOT add a second commit in the workspace — the workspace has no git \
 repository, and the delivered repo is the single authoritative location for \
@@ -1114,14 +1224,15 @@ def enrich_claude_md_for_svp_build(project_root: Path) -> None:
     Called by the routing script after Stage 0 completes when
     is_svp_build is true. Appends Tier 2 override content (stubs-as-source-
     of-truth, deployed artifacts, sync, test-from-both) on top of the
-    universal Tier 1 CLAUDE.md (which already contains the universal Manual
-    Bug-Fixing Protocol per Bug S3-126).
+    universal Tier 1 CLAUDE.md (which carries the Gate 6 canonical
+    break-glass path per Bug S3-126 / S3-187 / S3-199).
 
     Idempotent: checks for the Tier-2-unique marker "SVP Self-Build Override"
-    before appending. The pre-S3-126 marker ("Manual Bug-Fixing Protocol")
-    cannot be used here because that string now appears in Tier 1 by default,
-    which would short-circuit every call and prevent Tier 2 from ever
-    appending.
+    before appending. Earlier candidate markers like "Manual Bug-Fixing
+    Protocol" (the pre-S3-187 Tier-1 header) or "Gate 6 — Canonical
+    Break-Glass Path" (the post-S3-199 Tier-1 header) cannot be used here
+    because both strings appear in Tier 1 by default, which would
+    short-circuit every call and prevent Tier 2 from ever appending.
     """
     claude_md = project_root / "CLAUDE.md"
     if not claude_md.exists():

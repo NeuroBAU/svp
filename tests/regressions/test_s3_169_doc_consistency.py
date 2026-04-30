@@ -170,6 +170,18 @@ CONCEPTS = [
     # emission paragraph), and in blueprint_contracts Unit 10 (C-10-H7a
     # MUST-EMIT clause). Drift across the three docs surfaces here.
     "from __future__ import annotations",
+    # NEW IN S3-199 (cycle I-2 -- CLAUDE_MD_TEMPLATE Tier-1 forward-port).
+    # The literal constant name is the canonical identifier for the Tier-1
+    # CLAUDE.md template (used for Stage-0 scaffolding of fresh A-D
+    # archetype workspaces). Audit B Candidate 5 found Tier-1 stuck on the
+    # OLD break-glass header while Tier-2 had been updated by G2 / S3-187;
+    # I-2 forward-ports Tier-1 verbatim from Tier-2 and adds an alignment
+    # regression test (Pattern P83). The literal string appears verbatim
+    # in spec Section 24.213 + the new alignment normative subsection, in
+    # blueprint_prose Unit 29 (alignment paragraph), and in
+    # blueprint_contracts Unit 29 (C-29-I2a MUST clause). Drift across the
+    # three docs surfaces here.
+    "CLAUDE_MD_TEMPLATE",
 ]
 
 

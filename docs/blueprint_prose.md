@@ -749,6 +749,8 @@ The `--plugin-path` argument (for `svp restore`) sets `SVP_PLUGIN_ROOT` in the s
 
 `parse_args` ensures `args.command` is never `None` after returning (bare `svp` defaults to resume mode internally).
 
+**(NEW IN 2.2 -- Bug S3-199, cycle I-2.)** The `CLAUDE_MD_TEMPLATE` constant (Tier-1, used to scaffold fresh A-D project workspaces at Stage 0) and the `CLAUDE_MD_DELIVERED_REPO_TEMPLATE` constant (Tier-2, embedded in the delivered child repo's CLAUDE.md at Stage 5) MUST share a character-identical Gate 6 canonical break-glass section (intro paragraph + RULE 0 + Layer-Triage L1-L5 + Bug Mode + Enhancement Mode + Choosing-entry-point). The OTHER sections of each template may differ. Tier-1 retains its workspace-orchestrator-specific intro + On Session Start + Six-Step Action Cycle + Verbatim Task Prompt Relay + REMINDER sections; Tier-2 retains its delivered-repo-scoped intro paragraph. Audit B Candidate 5 (post-H7) found Tier-1 stuck on the pre-G2 break-glass header while Tier-2 had been updated by G2 / S3-187; I-2 / S3-199 forward-ports Tier-1 verbatim from Tier-2 and adds an alignment regression test (Pattern P83). Going forward: any cycle that updates break-glass content MUST update both templates atomically.
+
 ---
 
 *End of Tier 1 descriptions. See `blueprint_contracts.md` for Tier 2 signatures and Tier 3 behavioral contracts.*

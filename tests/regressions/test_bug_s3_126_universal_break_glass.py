@@ -1,36 +1,34 @@
-"""Regression tests for Bug S3-126: universal Manual Bug-Fixing Protocol in Tier 1.
+"""Regression tests for Bug S3-126: universal break-glass protocol in Tier 1.
 
 Before S3-126, CLAUDE_MD_SVP_ADDENDUM (Tier 2, E/F only) carried the entire
-Manual Bug-Fixing Protocol (Break-Glass Mode), so A-D projects never received
-any break-glass guidance when their SVP routing broke down. Neither tier
-prescribed a COMMIT TO GIT step, so fixes never closed the loop in version
-control.
+break-glass protocol, so A-D projects never received any break-glass guidance
+when their SVP routing broke down.
 
-S3-126 promotes a universal break-glass protocol into CLAUDE_MD_TEMPLATE
-(Tier 1) with a COMMIT TO GIT step aware of:
+S3-126 promoted a universal break-glass protocol into CLAUDE_MD_TEMPLATE
+(Tier 1) so every archetype's CLAUDE.md ships with break-glass guidance from
+Stage 0. The original S3-126 cycle authored the Tier-1 protocol as a linear
+8-step "Manual Bug-Fixing Protocol (Break-Glass Mode)" cycle ending with
+COMMIT TO GIT.
 
-- the sibling delivered repo at `{project_name}-repo/`,
-- `delivered_repo_path` persisted in `.svp/pipeline_state.json`,
-- `project_profile.json::vcs.commit_style` / `vcs.commit_template`.
+S3-187 (cycle G2) introduced the Gate 6 Canonical Break-Glass Path
+(Layer-Triage L1-L5 + Bug Mode + Enhancement Mode + Choosing-entry-point) in
+CLAUDE_MD_DELIVERED_REPO_TEMPLATE (Tier 2 delivered template) and in the
+workspace CLAUDE.md, but missed CLAUDE_MD_TEMPLATE (Tier 1 used for fresh
+A-D scaffolding). S3-199 (cycle I-2) forward-ports Tier-1 to align with
+Tier-2 verbatim, so both templates now carry character-identical Gate 6
+canonical content (Pattern P83).
 
-CLAUDE_MD_SVP_ADDENDUM becomes an override addendum that layers SVP self-build
-overrides (stubs as source of truth, deployed artifacts, sync, test-from-both)
-on top of Tier 1 instead of restating the cycle. The idempotency marker used
-by enrich_claude_md_for_svp_build is changed from "Manual Bug-Fixing Protocol"
-(now present in Tier 1 by default) to "SVP Self-Build Override" (unique to
-Tier 2).
+These tests lock the post-S3-199 invariants:
 
-These tests lock the following invariants:
-
-1. Tier 1 alone (A-D create_new_project output) contains the universal
-   protocol with COMMIT TO GIT, sibling-repo awareness, and profile lookup.
-2. Tier 2 override addendum contains only the self-build overrides and
+1. Tier 1 alone (A-D create_new_project output) contains the Gate 6
+   canonical-path protocol with Layer-Triage, Bug Mode, Enhancement Mode,
+   and Choosing-entry-point guidance.
+2. Tier 2 override addendum contains only the SVP-self-build overrides and
    references its unique marker string.
-3. Tier 2 does NOT duplicate the Tier 1 COMMIT TO GIT step block.
-4. enrich_claude_md_for_svp_build is idempotent on the new marker: running
-   it twice on the same CLAUDE.md produces byte-equal content, and running
-   it on a plain Tier-1 CLAUDE.md correctly appends Tier 2 (the old
-   "Manual Bug-Fixing Protocol" marker would short-circuit).
+3. Tier 2 does NOT duplicate the Tier 1 break-glass protocol.
+4. enrich_claude_md_for_svp_build is idempotent on the "SVP Self-Build
+   Override" marker: running it twice on the same CLAUDE.md produces
+   byte-equal content.
 5. create_new_project writes CLAUDE.md with Tier 1 only; the Tier 2 marker
    is absent until enrich_claude_md_for_svp_build runs.
 """
@@ -51,84 +49,91 @@ from svp_launcher import (
 
 
 # ---------------------------------------------------------------------------
-# Tier 1: universal break-glass protocol content
+# Tier 1: Gate 6 canonical break-glass path content (post-S3-199 forward-port)
 # ---------------------------------------------------------------------------
 
 
 class TestTier1UniversalProtocol:
-    """Tier 1 CLAUDE.md contains the universal Manual Bug-Fixing Protocol."""
+    """Tier 1 CLAUDE.md contains the Gate 6 canonical break-glass path
+    (forward-ported from Tier-2 by S3-199 / cycle I-2)."""
 
     def _render(self, name: str = "sample-project") -> str:
         return CLAUDE_MD_TEMPLATE.format(project_name=name)
 
-    def test_protocol_heading_present(self) -> None:
+    def test_gate_6_header_present(self) -> None:
         rendered = self._render()
-        assert "## Manual Bug-Fixing Protocol (Break-Glass Mode)" in rendered
+        assert "## Gate 6 — Canonical Break-Glass Path" in rendered
+
+    def test_old_manual_bug_fixing_protocol_header_absent(self) -> None:
+        """The pre-S3-199 header MUST be absent after I-2 forward-port."""
+        rendered = self._render()
+        assert "## Manual Bug-Fixing Protocol (Break-Glass Mode)" not in rendered
 
     def test_rule_zero_present(self) -> None:
         rendered = self._render()
         assert "RULE 0" in rendered
         assert "NEVER directly fix a bug" in rendered
-        assert "enter plan mode first" in rendered
+        assert "plan mode first" in rendered
 
-    def test_commit_to_git_step_present(self) -> None:
+    def test_layer_triage_L1_L5_present(self) -> None:
+        """Forward-ported from Tier-2 by S3-199. Five layer markers MUST appear."""
         rendered = self._render()
-        assert "**COMMIT TO GIT**" in rendered
+        for marker in ("L1 — Reproduce", "L2 — Spec", "L3 — Blueprint",
+                       "L4 — Code", "L5 — Test"):
+            assert marker in rendered, f"missing layer marker {marker!r}"
 
-    def test_sibling_repo_path_substituted(self) -> None:
-        rendered = self._render(name="my-proj")
-        assert "my-proj-repo/" in rendered
-        # And the bare placeholder must not survive.
-        assert "{project_name}-repo/" not in rendered
-
-    def test_workspace_not_git_repo_warning(self) -> None:
+    def test_bug_mode_section_present(self) -> None:
         rendered = self._render()
-        assert "workspace is NOT a git repository" in rendered
-        assert "sibling" in rendered
+        assert "### Bug Mode" in rendered
 
-    def test_references_delivered_repo_path(self) -> None:
+    def test_enhancement_mode_section_present(self) -> None:
         rendered = self._render()
-        assert "delivered_repo_path" in rendered
-        assert ".svp/pipeline_state.json" in rendered
+        assert "### Enhancement Mode" in rendered
 
-    def test_references_profile_and_commit_style(self) -> None:
+    def test_choosing_entry_point_section_present(self) -> None:
         rendered = self._render()
-        assert "project_profile.json" in rendered
-        assert "vcs.commit_style" in rendered
-        assert "vcs.commit_template" in rendered
+        assert "### Choosing the entry-point" in rendered
 
-    def test_default_commit_message_format(self) -> None:
+    def test_invoke_break_glass_referenced(self) -> None:
+        """The action_type emitted by routing post-G1 (S3-186)."""
         rendered = self._render()
-        assert "fix: <bug-id> <short-desc>" in rendered
+        assert "invoke_break_glass" in rendered
 
-    def test_all_cycle_steps_present_in_order(self) -> None:
+    def test_debug_session_mode_referenced(self) -> None:
+        """The dispatch field set by gate_6_1_mode_classification (S3-186)."""
         rendered = self._render()
-        # Each step must appear, and they must appear in order.
-        ordered_steps = [
-            "**DIAGNOSE**",
-            "**PLAN**",
-            "**EXECUTE**",
-            "**EVALUATE**",
-            "**LESSONS LEARNED**",
-            "**REGRESSION TESTS**",
-            "**VERIFY**",
-            "**COMMIT TO GIT**",
-        ]
-        last_pos = -1
-        for step in ordered_steps:
-            pos = rendered.find(step)
-            assert pos >= 0, f"step {step!r} missing from Tier 1"
-            assert pos > last_pos, f"step {step!r} out of order in Tier 1"
-            last_pos = pos
+        assert 'debug_session["mode"]' in rendered
+
+    def test_bug_mode_steps_present(self) -> None:
+        """Bug mode 8-step cycle markers (post-G4 / S3-189 generic phrasing)."""
+        rendered = self._render()
+        for step in ("DIAGNOSE", "PLAN", "EXECUTE", "EVALUATE",
+                     "LESSONS LEARNED", "REGRESSION TESTS", "VERIFY", "COMMIT"):
+            assert step in rendered, f"missing bug-mode step {step!r}"
+
+    def test_enhancement_mode_steps_present(self) -> None:
+        """Enhancement mode mini-pipeline markers (post-G4 generic phrasing)."""
+        rendered = self._render()
+        for step in ("SPEC_AMENDMENT", "BLUEPRINT_AMENDMENT", "IMPLEMENTATION",
+                     "TESTS", "VERIFY", "COMMIT"):
+            assert step in rendered, f"missing enhancement-mode step {step!r}"
 
     def test_tier1_does_not_leak_self_build_override_marker(self) -> None:
         rendered = self._render()
         assert "SVP Self-Build Override" not in rendered
 
     def test_tier1_does_not_mention_stubs_or_sync_workspace(self) -> None:
-        # These are Tier 2 concerns; Tier 1 must remain archetype-agnostic.
+        """Tier 2 concerns MUST NOT leak into Tier 1.
+
+        Note (post-S3-199): Tier-1 was forward-ported verbatim from Tier-2,
+        which legitimately mentions `src/unit_*/stub.py` in the Bug Mode
+        CODE step (generic guidance: stubs as source of truth). This is
+        SVP-self-aware phrasing that ships in the delivered child template
+        too (S3-189 deemed it generic enough). The Tier-2-unique markers
+        sync_workspace.sh, svp/commands, svp/skills MUST still NOT appear
+        in Tier 1.
+        """
         rendered = self._render()
-        assert "src/unit_*/stub.py" not in rendered
         assert "sync_workspace.sh" not in rendered
         assert "svp/commands" not in rendered
         assert "svp/skills" not in rendered
@@ -161,21 +166,9 @@ class TestTier2OverrideAddendum:
     def test_verify_from_both_workspace_and_repo(self) -> None:
         assert "BOTH the workspace" in CLAUDE_MD_SVP_ADDENDUM
 
-    def test_does_not_restate_tier1_cycle(self) -> None:
-        # Tier 2 must not duplicate the full cycle — only layer overrides.
-        # Heuristic: a second "**DIAGNOSE**" step heading would be duplication.
-        assert "**DIAGNOSE**" not in CLAUDE_MD_SVP_ADDENDUM
-
-    def test_does_not_duplicate_commit_to_git_step_block(self) -> None:
-        # Tier 2 may mention "COMMIT TO GIT" (referring to Tier 1's step),
-        # but must NOT contain a second **COMMIT TO GIT** bullet that
-        # respecifies the profile lookup procedure.
-        assert CLAUDE_MD_SVP_ADDENDUM.count("**COMMIT TO GIT**") == 0
-        assert "vcs.commit_style" not in CLAUDE_MD_SVP_ADDENDUM
-
 
 # ---------------------------------------------------------------------------
-# enrich_claude_md_for_svp_build: idempotency on the new marker
+# enrich_claude_md_for_svp_build: idempotency on the SVP Self-Build marker
 # ---------------------------------------------------------------------------
 
 
@@ -187,9 +180,9 @@ class TestEnrichClaudeMdIdempotency:
         claude_md.write_text(
             CLAUDE_MD_TEMPLATE.format(project_name="svc"), encoding="utf-8"
         )
-        # Before: Tier 1 contains "Manual Bug-Fixing Protocol" but NOT the
-        # Tier 2 marker. The old short-circuit would have refused to append.
-        assert "Manual Bug-Fixing Protocol" in claude_md.read_text()
+        # Before: Tier 1 contains the Gate 6 canonical path but NOT the
+        # Tier 2 marker.
+        assert "## Gate 6 — Canonical Break-Glass Path" in claude_md.read_text()
         assert "SVP Self-Build Override" not in claude_md.read_text()
 
         enrich_claude_md_for_svp_build(tmp_path)
@@ -225,7 +218,7 @@ class TestEnrichClaudeMdIdempotency:
 
 
 class TestCreateNewProjectShipsTier1:
-    """Fresh A-D project gets Tier 1 CLAUDE.md with universal protocol."""
+    """Fresh A-D project gets Tier 1 CLAUDE.md with Gate 6 canonical path."""
 
     def _fake_plugin_root(self, tmp_path: Path) -> Path:
         root = tmp_path / "plugin"
@@ -247,12 +240,12 @@ class TestCreateNewProjectShipsTier1:
         assert claude_md.exists()
         content = claude_md.read_text(encoding="utf-8")
 
-        # Universal protocol is installed from Stage 0.
-        assert "Manual Bug-Fixing Protocol (Break-Glass Mode)" in content
-        assert "**COMMIT TO GIT**" in content
-        assert "demo-proj-repo/" in content
-        assert "delivered_repo_path" in content
-        assert "vcs.commit_style" in content
+        # Gate 6 canonical break-glass path is installed from Stage 0.
+        assert "## Gate 6 — Canonical Break-Glass Path" in content
+        assert "Layer-Triage L1-L5" in content
+        assert "### Bug Mode" in content
+        assert "### Enhancement Mode" in content
+        assert "demo-proj" in content  # project_name placeholder substituted
 
         # Tier 2 override is NOT present — this is a fresh create, not an
         # E/F self-build enrichment.
@@ -270,4 +263,4 @@ class TestCreateNewProjectShipsTier1:
 
         content = (project_root / "CLAUDE.md").read_text(encoding="utf-8")
         assert content.count("## SVP Self-Build Override") == 1
-        assert content.count("## Manual Bug-Fixing Protocol (Break-Glass Mode)") == 1
+        assert content.count("## Gate 6 — Canonical Break-Glass Path") == 1
