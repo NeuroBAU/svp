@@ -6793,6 +6793,20 @@ This is a meta-cycle: process improvement + accumulated documentation debt clean
 
 CYCLE H7 IS THE FINAL CYCLE OF THE CHILDREN-BUG-REPORT REMEDIATION SUB-PROJECT. All 13 NOT-FIXED items from the combined audit (Python child + R child) are now closed.
 
+### 24.212 Cycle I-1 -- Documentation hygiene: strike stale paragraph + anchor orphan deferrals (Post-delivery -- Bug S3-198, NEW IN 2.2)
+
+**Symptom.** Post-H7 audit (Audit A + Audit B, 2026-04-30) surfaced 1 stale spec paragraph at line 7242 directly contradicting the G3 correction at line 7244 (G3 added the corrected paragraph but did not strike the original); 4 orphan deferrals not tracked anywhere (R parser hardening; PHASE_TO_AGENT["oracle"] short-form deprecation; G2 enhancement-mode bounded-fix-cycle semantics; G3 hook DEBUG_SESSION_MODE recovery semantics); 2 closure-correctness orphans (H6 inert config cleanup roadmap; H5 COMPLIANCE_SCAN_FAILED token roadmap).
+
+**Root cause.** G3 / S3-188 added an oracle-protocol correction without striking the original wording; subsequent cycles (G2 / H5 / H6) added "deferred" or "future cleanup" mentions in inline lessons or Section 24 entries without anchoring them in the SVP 2.3 deferrals memo (`project_svp_2_3_deferrals.md`).
+
+**Surface area.** ZERO code changes. `specs/stakeholder_spec.md` (strike stale paragraph at line 7242 + this Section 24.212); `references/svp_2_1_lessons_learned.md` (Pattern P82 inline + catalog row + Future cycle anchor footnotes on P79 / P80 / P81); `project_svp_2_3_deferrals.md` (NEW Inline cleanup deferrals subsection with 6 rows: H6-INERT, H5-FAIL-TOKEN, H5-ORACLE-SHORTFORM, H6-R-HARDEN, G2-ENHANCEMENT-RETRY, G3-MODE-RECOVERY). Stubs untouched; scripts untouched; agents untouched; blueprint untouched.
+
+**Resolution.** Stale paragraph at line 7242 struck and replaced with a single-sentence cross-reference to Section 24.202 (which preserves the historical wording verbatim per Pattern P82 hygiene rule). Six inline cleanup deferrals anchored in the SVP 2.3 deferrals memo. Future cycle anchor footnote sentences added to P79, P80, P81 lessons-learned blocks. New Pattern P82 codifies the post-batch documentation hygiene discipline: every "OUT OF SCOPE" / "deferred" mention MUST be anchored either in the deferrals memo or in a Pattern P# inline footnote; stale spec paragraphs MUST be struck or cross-referenced when later cycles add corrections, never leaving contradictory normative text.
+
+**Pattern.** P82.
+
+**Detection.** `tests/regressions/test_s3_198_doc_hygiene.py` (6 tests: 1 stale-paragraph absence in normative spec; 3 lessons-learned footnote presence on P79 / P80 / P81; 2 baseline-text regression guards on P79 / P80). Pattern catalog sync enforced by existing `tests/regressions/test_s3_190_pattern_catalog_sync.py` (per Pattern P74 / S3-190).
+
 ---
 
 ## 25. Test Data
@@ -7239,7 +7253,7 @@ If the fix did not resolve the issue or did not propagate correctly, the oracle 
 
 After the fix is verified: the oracle produces a full report to the human (what was found, what was fixed, verification result), logs the outcome to the run ledger, and exits.
 
-**(NEW IN 2.2) Oracle as surrogate human during `/svp:bug`.** When the oracle invokes `/svp:bug` internally after Gate B approval: (1) the oracle provides the discovery data (root cause, affected units, proposed fix) as the initial bug description, (2) at Gate 6.0 (debug permission), the oracle auto-responds AUTHORIZE DEBUG, (3) at Gate 6.2 (classification), the oracle provides its classification based on dry-run analysis, (4) at subsequent debug gates, the oracle responds based on its fix plan approved at Gate B, (5) at Gate 6.1 (regression test review), the oracle evaluates the test against its spec knowledge and responds TEST CORRECT or TEST WRONG. The oracle does NOT surface these internal gates to the human — the human's approval was given at Gate B. The oracle is a fully autonomous surrogate human within the debug loop.
+**(REMOVED IN 2.2 — Bug S3-198, cycle I-1 / 2026-05-01)** Historical paragraph stating that the oracle auto-responds at Gates 6.0/6.1/6.2 has been struck to eliminate contradiction with the G3 correction immediately below. Routing has never implemented gate-surrogacy; the historical wording is preserved verbatim in Section 24.202 (S3-188 changelog narrative) for traceability. The corrected mechanism is described in the next paragraph.
 
 **(EXTENDED IN 2.2 — Bug S3-188, cycle G3 of Gate 6 inversion) Oracle Surrogate Human Protocol clarification.** Cycle G3 corrects the documentation of the Surrogate Human Protocol section in `ORACLE_AGENT_DEFINITION` to reflect the actual mechanism: when the oracle detects an issue during green-run that requires triage, repair, or diagnostic work, the oracle invokes the appropriate agent DIRECTLY as a Task subagent — `triage_agent` (or `bug_triage_agent`), `repair_agent`, `diagnostic_agent` — and parses the agent's terminal status line. The oracle does NOT respond to gates on the human's behalf. Gates ALWAYS go to the human, even during oracle sessions. Routing preserves `oracle_session_active` across debug sessions so that after `DEBUG_SESSION_COMPLETE` the oracle green-run resumes; the human, not the oracle, authorizes any debug session that arises during oracle work. Routing has never implemented gate-surrogacy — the prior "auto-respond at Gates 6.0/6.1/6.2" wording in `ORACLE_AGENT_DEFINITION` was documentation-only; G3 corrects the wording to match what was always true mechanically.
 
