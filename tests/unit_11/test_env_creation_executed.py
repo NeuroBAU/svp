@@ -112,20 +112,22 @@ def test_env_creation_skipped_when_env_already_exists(
     _seed_state(tmp_path)
 
     env_name = f"svp-{tmp_path.name}"
+    # Bug S3-200 / cycle I-3: post-fix, _env_exists drops text=True and
+    # decodes bytes on the parent, so mocks must return bytes.
     conda_list_output = (
-        "# conda environments:\n"
-        "#\n"
-        "base                  *  /x/conda\n"
-        f"{env_name}                    /x/conda/envs/{env_name}\n"
+        b"# conda environments:\n"
+        b"#\n"
+        b"base                  *  /x/conda\n"
+        + f"{env_name}                    /x/conda/envs/{env_name}\n".encode()
     )
 
     def side_effect(args, **kwargs):
         if args[:3] == ["conda", "env", "list"]:
             return subprocess.CompletedProcess(
-                args=args, returncode=0, stdout=conda_list_output, stderr=""
+                args=args, returncode=0, stdout=conda_list_output, stderr=b""
             )
         return subprocess.CompletedProcess(
-            args=args, returncode=0, stdout="", stderr=""
+            args=args, returncode=0, stdout=b"", stderr=b""
         )
 
     mock_infrastructure_subprocess.side_effect = side_effect

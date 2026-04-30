@@ -8,6 +8,7 @@ configuration or profile files.
 """
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -223,11 +224,21 @@ def verify_toolchain_ready(
     run_prefix = run_prefix_template.replace("{env_name}", env_name)
 
     def _default_runner(cmd: str) -> int:
+        # Bug S3-200 / cycle I-3: force UTF-8 decoding for cross-platform
+        # robustness (mirrors H6 / S3-196 fix in Unit 14 run_tests_main).
+        # PYTHONIOENCODING + PYTHONUTF8 env override coerces the child to emit
+        # UTF-8; text=True is dropped so stdout/stderr come back as bytes
+        # (output is unused at this site so no decode is needed). Defends
+        # against Windows cp1252 default decoding crashes when verify_commands
+        # children emit non-cp1252 bytes (em-dashes, smart quotes, glyphs).
+        env = os.environ.copy()
+        env.setdefault("PYTHONIOENCODING", "utf-8")
+        env.setdefault("PYTHONUTF8", "1")
         proc = subprocess.run(
             cmd.split(),
             check=False,
-            capture_output=True,
-            text=True,
+            capture_output=True,  # NOTE: text=True dropped (decode bytes manually if consumed)
+            env=env,
         )
         return proc.returncode
 

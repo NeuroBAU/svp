@@ -8,6 +8,7 @@ derivation, regression test adaptation, and build log creation.
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -499,16 +500,26 @@ def _env_exists(env_name: str, env_manager: str) -> bool:
     idempotent, so it is safe to always attempt creation.
     """
     if env_manager == "conda":
+        # Bug S3-200 / cycle I-3: force UTF-8 decoding for cross-platform
+        # robustness (mirrors H6 / S3-196 fix in Unit 14 run_tests_main).
+        # PYTHONIOENCODING + PYTHONUTF8 env override coerces the child to emit
+        # UTF-8; text=True dropped; bytes-decode with errors=replace on the
+        # parent. Defends against Windows cp1252 default decoding when
+        # `conda env list` output contains non-cp1252 bytes.
+        env = os.environ.copy()
+        env.setdefault("PYTHONIOENCODING", "utf-8")
+        env.setdefault("PYTHONUTF8", "1")
         try:
             result = subprocess.run(
                 ["conda", "env", "list"],
-                capture_output=True,
-                text=True,
+                capture_output=True,  # NOTE: text=True dropped (decode bytes manually below)
                 check=True,
+                env=env,
             )
         except (FileNotFoundError, subprocess.CalledProcessError):
             return False
-        for line in result.stdout.splitlines():
+        stdout = (result.stdout or b"").decode("utf-8", errors="replace")
+        for line in stdout.splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
@@ -980,10 +991,26 @@ def run_infrastructure_setup(
                 str(regression_map),
             ]
             try:
-                result = subprocess.run(adapt_cmd, capture_output=True, text=True)
+                # Bug S3-200 / cycle I-3: force UTF-8 decoding for
+                # cross-platform robustness (mirrors H6 / S3-196 fix in Unit
+                # 14 run_tests_main). The regression-adapt child invokes
+                # `python scripts/generate_assembly_map.py regression-adapt`
+                # whose stderr can contain em-dashes, smart quotes, and
+                # mojibake from upstream parser failures. PYTHONIOENCODING +
+                # PYTHONUTF8 env override + bytes-decode-with-replace defends
+                # against Windows cp1252 default decoding.
+                env = os.environ.copy()
+                env.setdefault("PYTHONIOENCODING", "utf-8")
+                env.setdefault("PYTHONUTF8", "1")
+                result = subprocess.run(
+                    adapt_cmd,
+                    capture_output=True,  # NOTE: text=True dropped (decode bytes manually below)
+                    env=env,
+                )
                 if result.returncode != 0:
+                    stderr = (result.stderr or b"").decode("utf-8", errors="replace")
                     raise RuntimeError(
-                        f"Error in step 8 (regression test adaptation): {result.stderr}"
+                        f"Error in step 8 (regression test adaptation): {stderr}"
                     )
             except FileNotFoundError:
                 pass  # Script not present
@@ -1058,12 +1085,21 @@ def _list_installed_conda_packages(env_name: str, runner=None) -> set:
     """
     if runner is None:
         runner = subprocess.run
+    # Bug S3-200 / cycle I-3: force UTF-8 decoding for cross-platform
+    # robustness (mirrors H6 / S3-196 fix in Unit 14 run_tests_main).
+    # PYTHONIOENCODING + PYTHONUTF8 env override; text=True dropped.
+    # json.loads accepts both bytes and str natively, so no decode branch
+    # is needed at this site. Defends against Windows cp1252 default
+    # decoding when conda list --json output contains non-cp1252 bytes.
+    env = os.environ.copy()
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    env.setdefault("PYTHONUTF8", "1")
     try:
         result = runner(
             ["conda", "list", "-n", env_name, "--json"],
-            capture_output=True,
-            text=True,
+            capture_output=True,  # NOTE: text=True dropped (json.loads handles bytes-or-str)
             check=False,
+            env=env,
         )
     except (FileNotFoundError, OSError):
         return set()
@@ -1178,13 +1214,30 @@ def install_dep_delta(
 
     if pkgs:
         cmd = ["conda", "install", "-n", env_name, "-y"] + pkgs
+        # Bug S3-200 / cycle I-3: force UTF-8 decoding for cross-platform
+        # robustness (mirrors H6 / S3-196 fix in Unit 14 run_tests_main).
+        # PYTHONIOENCODING + PYTHONUTF8 env override; text=True dropped;
+        # bytes-decode-with-replace on stderr with isinstance guard since
+        # injected test runners return strings.
+        env = os.environ.copy()
+        env.setdefault("PYTHONIOENCODING", "utf-8")
+        env.setdefault("PYTHONUTF8", "1")
         try:
-            result = runner(cmd, capture_output=True, text=True, check=False)
+            result = runner(
+                cmd,
+                capture_output=True,  # NOTE: text=True dropped (decode bytes manually below)
+                check=False,
+                env=env,
+            )
         except (FileNotFoundError, OSError) as exc:
             return (False, [f"conda install failed to launch: {exc}"])
         rc = getattr(result, "returncode", 1)
         if rc != 0:
-            stderr = getattr(result, "stderr", "") or ""
+            stderr_raw = getattr(result, "stderr", "") or b""
+            if isinstance(stderr_raw, bytes):
+                stderr = stderr_raw.decode("utf-8", errors="replace")
+            else:
+                stderr = stderr_raw
             return (False, [f"conda install exited {rc}: {stderr.strip()}"])
 
     # Verify the env is now functional.

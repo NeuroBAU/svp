@@ -7,6 +7,7 @@ aggregate result.
 """
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -38,12 +39,27 @@ def _get_run_prefix(toolchain_config: Dict[str, Any]) -> str:
 
 def _run_command(cmd: str) -> subprocess.CompletedProcess:
     """Run a shell command and return the CompletedProcess."""
-    return subprocess.run(
+    # Bug S3-200 / cycle I-3: force UTF-8 decoding for cross-platform
+    # robustness (mirrors H6 / S3-196 fix in Unit 14 run_tests_main).
+    # PYTHONIOENCODING + PYTHONUTF8 env override coerces the child to emit
+    # UTF-8; text=True dropped; bytes-decode-with-replace on the parent.
+    # Quality-gate runners invoke user-defined tools (linters, type checkers,
+    # formatters) whose stderr commonly contains em-dashes, smart quotes,
+    # ANSI color codes, and box-drawing glyphs. Defends against Windows
+    # cp1252 default decoding crashes. The proc attributes are mutated in
+    # place so callers continue to see strings (same shape as before).
+    env = os.environ.copy()
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    env.setdefault("PYTHONUTF8", "1")
+    proc = subprocess.run(
         cmd,
         shell=True,
-        capture_output=True,
-        text=True,
+        capture_output=True,  # NOTE: text=True dropped (decode bytes manually below)
+        env=env,
     )
+    proc.stdout = (proc.stdout or b"").decode("utf-8", errors="replace")
+    proc.stderr = (proc.stderr or b"").decode("utf-8", errors="replace")
+    return proc
 
 
 def _execute_gate_operations(

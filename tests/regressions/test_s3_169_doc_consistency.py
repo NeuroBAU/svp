@@ -182,6 +182,20 @@ CONCEPTS = [
     # blueprint_contracts Unit 29 (C-29-I2a MUST clause). Drift across the
     # three docs surfaces here.
     "CLAUDE_MD_TEMPLATE",
+    # NEW IN S3-200 (cycle I-3 / FINAL -- cp1252 subprocess sweep across
+    # Units 4, 11, 15). The two literal function names below are the
+    # discriminating identifiers for the I-3 audit-and-broaden cycle. The
+    # `verify_toolchain_ready` token (already pinned by S3-160 in the
+    # CONCEPTS list above) is now also enforced by the I-3 contract
+    # C-4-I3a; `_run_command` is newly pinned. Both names appear verbatim
+    # in spec Section 24.214 + Section 18.3 cp1252-sweep extension paragraph,
+    # in blueprint_prose Units 4 + 11 + 15 (subprocess UTF-8 hygiene
+    # paragraphs), and in blueprint_contracts Units 4 + 11 + 15 (C-4-I3a +
+    # C-11-I3a..d + C-15-I3a clauses). The literal env-variable name
+    # `PYTHONIOENCODING` already pinned by S3-196 / H6 continues to appear
+    # in the broadened §18.3 paragraph and in Section 24.214. Drift across
+    # the three docs surfaces here.
+    "_run_command",
 ]
 
 
