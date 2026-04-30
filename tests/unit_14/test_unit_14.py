@@ -10,10 +10,13 @@ Synthetic data assumptions:
 - TEST_OUTPUT_PARSERS maps language keys ("python", "r", "plugin_markdown",
   "plugin_bash", "plugin_json") to callables that accept (stdout, stderr, exit_code, context)
   and return RunResult named tuples.
-- PHASE_TO_AGENT maps 8 phase strings to agent type strings:
+- PHASE_TO_AGENT maps 10 phase strings to agent type strings (S3-195 / IMPROV-30 added
+  canonical-form entries for `oracle_agent` and `git_repo_agent` in cycle H5; the
+  original 8 entries are preserved):
   {"help": "help_agent", "hint": "hint_agent", "reference_indexing": "reference_indexing",
-   "redo": "redo_agent", "bug_triage": "bug_triage", "oracle": "oracle_agent",
-   "checklist_generation": "checklist_generation", "regression_adaptation": "regression_adaptation"}.
+   "redo": "redo_agent", "bug_triage": "bug_triage_agent", "oracle": "oracle_agent",
+   "oracle_agent": "oracle_agent", "checklist_generation": "checklist_generation",
+   "regression_adaptation": "regression_adaptation", "git_repo_agent": "git_repo_agent"}.
 - RunResult is a NamedTuple with fields: status, passed, failed, errors, output, collection_error.
 - route() reads pipeline_state.json and last_status.txt from project_root/.svp/.
 - dispatch_agent_status, dispatch_gate_response, dispatch_command_status all receive
@@ -741,9 +744,14 @@ class TestPhaseToAgent:
         """PHASE_TO_AGENT must be a dict."""
         assert isinstance(PHASE_TO_AGENT, dict)
 
-    def test_has_exactly_8_entries(self):
-        """PHASE_TO_AGENT must have exactly 8 phase mappings."""
-        assert len(PHASE_TO_AGENT) == 8
+    def test_has_exactly_10_entries(self):
+        """PHASE_TO_AGENT must have exactly 10 phase mappings.
+
+        S3-195 / IMPROV-30 (cycle H5) extended PHASE_TO_AGENT from the original
+        8 entries (S3-86 / S3-122 baseline) to 10 by adding canonical-form
+        entries `oracle_agent` and `git_repo_agent`.
+        """
+        assert len(PHASE_TO_AGENT) == 10
 
     def test_help_maps_to_help_agent(self):
         """Phase 'help' maps to 'help_agent'."""
@@ -778,7 +786,11 @@ class TestPhaseToAgent:
         assert PHASE_TO_AGENT["regression_adaptation"] == "regression_adaptation"
 
     def test_exact_key_set(self):
-        """PHASE_TO_AGENT keys match the expected set exactly."""
+        """PHASE_TO_AGENT keys match the expected set exactly.
+
+        S3-195 / IMPROV-30 (cycle H5) added `oracle_agent` and `git_repo_agent`
+        canonical-form entries; the original 8 entries are preserved.
+        """
         expected = {
             "help",
             "hint",
@@ -786,8 +798,10 @@ class TestPhaseToAgent:
             "redo",
             "bug_triage",
             "oracle",
+            "oracle_agent",  # H5 (S3-195 / IMPROV-30): canonical form
             "checklist_generation",
             "regression_adaptation",
+            "git_repo_agent",  # H5 (S3-195 / IMPROV-30)
         }
         assert set(PHASE_TO_AGENT.keys()) == expected
 
@@ -4086,8 +4100,15 @@ class TestStage3CompletionValidation:
 class TestStructuralInvariants:
     """Tests for cross-cutting structural invariants of Unit 14."""
 
-    def test_phase_to_agent_set_equality_with_group_b(self):
-        """PHASE_TO_AGENT keys must match Group B command --phase values from Unit 25."""
+    def test_phase_to_agent_includes_group_b_phase_keys(self):
+        """PHASE_TO_AGENT keys MUST include every Group B command --phase value.
+
+        S3-195 / IMPROV-30 (cycle H5) extended PHASE_TO_AGENT with two
+        canonical-form keys (`oracle_agent`, `git_repo_agent`) that are not
+        slash-command --phase values; they are accepted by `update_state.py
+        --phase <agent_name>` for parity with the agent_type vocabulary. The
+        Group B phase keys remain a strict subset of PHASE_TO_AGENT keys.
+        """
         group_b_phases = {
             "help",
             "hint",
@@ -4098,7 +4119,7 @@ class TestStructuralInvariants:
             "checklist_generation",
             "regression_adaptation",
         }
-        assert set(PHASE_TO_AGENT.keys()) == group_b_phases
+        assert group_b_phases.issubset(set(PHASE_TO_AGENT.keys()))
 
     def test_all_gate_ids_in_vocabulary_are_strings(self):
         """All gate IDs in GATE_VOCABULARY must be strings."""

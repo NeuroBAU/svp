@@ -3709,6 +3709,8 @@ The `pipeline_held` action type is emitted when the pipeline cannot proceed and 
 
 **Agent dispatch mechanisms.** Agents are dispatched by two mechanisms: (1) agent_type for unit-development agents that produce artifacts during Stage 3 (valid agent_type values: test_agent, implementation_agent, coverage_review_agent, diagnostic_agent). These receive typed hint context and ladder position. (2) phase for support and orthogonal agents invoked via slash commands or special routing (valid phase values: help, hint, reference_indexing, redo, bug_triage, oracle, checklist_generation, regression_adaptation). The prepare_task_prompt function dispatches on agent_type; slash-command action cycles dispatch on phase via PHASE_TO_AGENT mapping.
 
+**(NEW IN 2.2 -- Bug S3-195, cycle H5) PHASE_TO_AGENT canonical-form completeness.** PHASE_TO_AGENT MUST contain entries for the canonical (suffixed) agent forms `git_repo_agent` and `oracle_agent` so `update_state.py --phase git_repo_agent` and `update_state.py --phase oracle_agent` resolve to the deployed agent files of the same name. The pre-existing short-form entry `"oracle" -> "oracle_agent"` MUST be preserved for backward compatibility (callers may invoke `--phase oracle`). Both new entries are identity mappings (`"git_repo_agent" -> "git_repo_agent"`, `"oracle_agent" -> "oracle_agent"`). See Section 24.209.
+
 ### 18.1 Terminal Status Lines
 
 Every subagent produces a terminal status line as its final output. Written to `.svp/last_status.txt`. Dispatched by POST script using **prefix matching** (agents may append trailing context).
@@ -3809,6 +3811,8 @@ Written after `run_command` actions:
 - `infrastructure_setup_install_delta` — pre_stage_3 delta install. Reads the pending file, runs `conda install` for the union of partitions, then `verify_toolchain_ready`. On full success sets `state.toolchain_status = "READY"` and removes the pending file.
 
 In both cases: `COMMAND_FAILED` triggers `pipeline_held` with `TOOLCHAIN_DEP_DIFF_FAILED` / `TOOLCHAIN_DELTA_INSTALL_FAILED` from the routing handler; the operator writes `PIPELINE_RESUME` to `.svp/last_status.txt` to retry after fixing the underlying issue.
+
+**(NEW IN 2.2 -- Bug S3-195, cycle H5) compliance_scan_main domain-specific success token.** `compliance_scan_main` (Unit 28) MUST print `COMPLIANCE_SCAN_SUCCEEDED` as the LAST stdout line on the no-findings success path (when `not findings` evaluates True in non-JSON output mode). The human-readable line `No compliance violations found.` MUST be preserved on a prior stdout line. Routing's `dispatch_command_status` `compliance_scan` branch matches `'SUCCEEDED' in status_line` against either the producer's domain-specific token or the orchestrator's constructed `COMMAND_SUCCEEDED` from exit code. The strict-mode failure path (`args.strict and findings`) is unchanged and still relies on the orchestrator's exit-code-derived `COMMAND_FAILED: 1`. See Section 24.209.
 
 ### 18.4 Gate Status Strings (CHANGED IN 2.0, CHANGED IN 2.2)
 
@@ -6742,6 +6746,20 @@ This is a meta-cycle: process improvement + accumulated documentation debt clean
 **Pattern.** P78.
 
 **Detection.** `tests/regressions/test_s3_194_assembly_map_archetype.py` (6 tests pinning the boundary): `test_h4_r_archetype_does_not_generate_assembly_map`, `test_h4_python_archetype_does_generate_assembly_map`, `test_h4_validate_check2_silently_passes_when_no_assembly_map`, `test_h4_validate_check2_fires_when_assembly_map_has_stale_entries`, `test_h4_validate_check2_handles_r_archetype_correctly`, `test_h4_assembly_map_value_shape_is_python_self_build`. Doc-consistency drift caught by `tests/regressions/test_s3_169_doc_consistency.py` via the new `"assembly_map archetype boundary"` CONCEPTS entry -- the literal phrase appears in spec Section 40.12 + Section 24.208, in blueprint_prose Unit 23 + Unit 28, and in blueprint_contracts Unit 23 (C-23-H4a) + Unit 28 (C-28-H4a).
+
+### 24.209 Cycle H5 -- CLI completeness: PHASE_TO_AGENT entries + compliance_scan SUCCEEDED token (Post-delivery -- Bug S3-195, NEW IN 2.2)
+
+**Symptom.** Two CLI completeness gaps surfaced from the children-bug-report sub-project audit. (1) IMPROV-30 -- `update_state.py --phase git_repo_agent` (or `--phase oracle_agent`) failed with "Unknown phase" because `PHASE_TO_AGENT` (src/unit_14/stub.py:154-163) lacked these entries. The `dispatch_agent_status` downstream branches for both agents are correctly wired; only the phase-key lookup was missing. (2) IMPROV-31 -- `compliance_scan_main` (src/unit_28/stub.py:2609-2623) printed `"No compliance violations found."` on success without a `COMPLIANCE_SCAN_SUCCEEDED` token, leaving routing's `"SUCCEEDED" in status_line` substring match dependent on the orchestrator's constructed `COMMAND_SUCCEEDED` from exit code rather than on a domain-specific producer signal.
+
+**Root cause.** PHASE_TO_AGENT dict authored before `git_repo_agent` and `oracle_agent` canonical forms were standardized. compliance_scan_main printed only the human-readable line.
+
+**Surface area.** src/unit_14/stub.py (PHASE_TO_AGENT +2 entries); src/unit_28/stub.py (compliance_scan_main +1 print line on success path). Plus spec normative (Section 18 dispatch mechanisms note + Section 18.3 producer token note + this changelog entry) + blueprint_prose Unit 14 + Unit 28 + blueprint_contracts Unit 14 (C-14-H5a) + Unit 28 (C-28-H5a) per S3-169.
+
+**Resolution.** Added `"git_repo_agent" -> "git_repo_agent"` and `"oracle_agent" -> "oracle_agent"` entries to PHASE_TO_AGENT; the existing `"oracle" -> "oracle_agent"` short-form is retained for backward compatibility. compliance_scan_main now prints `COMPLIANCE_SCAN_SUCCEEDED` as the LAST stdout line on no-findings success path; the human-readable `No compliance violations found.` line is preserved BEFORE the token. Routing's substring match (`"SUCCEEDED" in status_line`) is unchanged. Failure path (strict mode + findings -> exit 1) is unchanged -- the orchestrator's `COMMAND_FAILED: 1` construction still drives routing.
+
+**Pattern.** P79.
+
+**Detection.** `tests/regressions/test_s3_195_cli_completeness.py` (6 tests covering both new PHASE_TO_AGENT entries, regression guard for the original 8 entries, SUCCEEDED token presence on success, dispatch_command_status acceptance of the new token, human-message preservation). Doc-consistency drift caught by `tests/regressions/test_s3_169_doc_consistency.py` via the new `"COMPLIANCE_SCAN_SUCCEEDED"` CONCEPTS entry -- the literal token appears in spec Section 18.3 + Section 24.209, in blueprint_prose Unit 14 + Unit 28, and in blueprint_contracts Unit 28 (C-28-H5a). The S3-122 PHASE_TO_AGENT chain-lock test still passes because both new agent values map to existing deployed agent files (`svp/agents/git_repo_agent.md`, `svp/agents/oracle_agent.md`).
 
 ---
 

@@ -158,8 +158,10 @@ PHASE_TO_AGENT: Dict[str, str] = {
     "redo": "redo_agent",
     "bug_triage": "bug_triage_agent",
     "oracle": "oracle_agent",
+    "oracle_agent": "oracle_agent",  # H5 (S3-195 / IMPROV-30): canonical form
     "checklist_generation": "checklist_generation",
     "regression_adaptation": "regression_adaptation",
+    "git_repo_agent": "git_repo_agent",  # H5 (S3-195 / IMPROV-30)
 }
 
 AGENT_STATUS_LINES: Dict[str, List[str]] = {

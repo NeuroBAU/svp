@@ -2612,6 +2612,7 @@ def compliance_scan_main(argv: list = None) -> None:
     else:
         if not findings:
             print("No compliance violations found.")
+            print("COMPLIANCE_SCAN_SUCCEEDED")  # Bug S3-195 / IMPROV-31
         else:
             for finding in findings:
                 print(

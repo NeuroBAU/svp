@@ -1270,10 +1270,13 @@ GATE_VOCABULARY: Dict[str, List[str]]
 TEST_OUTPUT_PARSERS: Dict[str, Callable[[str, str, int, Dict[str, Any]], "RunResult"]]
 
 PHASE_TO_AGENT: Dict[str, str]
-# Maps --phase values to agent types:
+# Maps --phase values to agent types (10 entries; CHANGED IN 2.2 -- Bug S3-195
+# cycle H5: added canonical-form entries `oracle_agent` and `git_repo_agent`,
+# preserving the original 8 entries including the short-form `"oracle"`):
 # {"help": "help_agent", "hint": "hint_agent", "reference_indexing": "reference_indexing",
-#  "redo": "redo_agent", "bug_triage": "bug_triage", "oracle": "oracle_agent",
-#  "checklist_generation": "checklist_generation", "regression_adaptation": "regression_adaptation"}
+#  "redo": "redo_agent", "bug_triage": "bug_triage_agent", "oracle": "oracle_agent",
+#  "oracle_agent": "oracle_agent", "checklist_generation": "checklist_generation",
+#  "regression_adaptation": "regression_adaptation", "git_repo_agent": "git_repo_agent"}
 
 def route(project_root: Path) -> Dict[str, Any]: ...
 
@@ -1649,6 +1652,8 @@ None (stdlib only).
 - Abort logging: all ABORT/HUMAN_ABORT paths record to run ledger before abandoning.
 
 - Script execution contract: routing.py ends with `if __name__ == "__main__": main()`. Adds `Path(__file__).parent` to `sys.path` for bare imports. **(Bug S3-66 fix.)**
+
+- **C-14-H5a (PHASE_TO_AGENT canonical-agent-name entries, NEW IN 2.2 -- Bug S3-195, cycle H5).** `PHASE_TO_AGENT` MUST contain entries for `"git_repo_agent"` (mapped to `"git_repo_agent"`) and `"oracle_agent"` (mapped to `"oracle_agent"`). The pre-existing `"oracle" -> "oracle_agent"` short-form entry MUST be preserved for backward compatibility. Both new entries are identity mappings: the canonical agent_type form is also valid as a `--phase` argument key for `update_state.py`. Detection: tests/regressions/test_s3_195_cli_completeness.py (`test_h5_phase_to_agent_includes_git_repo_agent`, `test_h5_phase_to_agent_includes_oracle_agent`, `test_h5_existing_phase_to_agent_entries_unchanged`).
 
 ---
 
@@ -2678,6 +2683,8 @@ None (stdlib only).
 - **C-28-H3a (R-archetype changelog one-of, NEW IN 2.2 -- Bug S3-193, cycle H3).** `validate_delivered_repo_contents` MUST accept either `CHANGELOG.md` or `NEWS.md` for the R-archetype changelog requirement. R-package convention permits NEWS.md as the canonical changelog file. The R-archetype required-files list MUST include `DESCRIPTION`, `NAMESPACE`, `README.md`, `LICENSE`, `.gitignore`, `environment.yml` (strict-required); AND MUST require at least one of `CHANGELOG.md` or `NEWS.md` to exist (one-of, post-loop check). When neither exists, the function emits a single finding citing both filenames and Bug S3-193 (the message MUST contain the strings `'CHANGELOG.md'` AND `'NEWS.md'` AND `S3-193`). The Python archetype MUST continue to strictly require `CHANGELOG.md` (NEWS.md is NOT a Python alternative; regression-guarded). Detection: `tests/regressions/test_s3_193_validation_and_docs.py` (`test_h3_r_archetype_accepts_NEWS_md_when_changelog_absent`, `test_h3_r_archetype_accepts_CHANGELOG_md_when_news_absent`, `test_h3_r_archetype_fails_when_both_changelog_and_news_absent`, `test_h3_r_archetype_passes_when_both_changelog_and_news_present`, `test_h3_python_archetype_still_requires_CHANGELOG_md`).
 
 - **C-28-H4a (assembly_map archetype boundary -- parity check silent-pass, NEW IN 2.2 -- Bug S3-194, cycle H4).** `validate_delivered_repo_contents` Check 2 (assembly-map parity) MUST silently pass when `.svp/assembly_map.json` is absent at the project root. When present, Check 2 MUST validate each declared `repo_to_workspace` key exists at the corresponding path under `delivered_repo_path` (stripping the `svp-repo/` prefix per the post-S3-111 schema; missing targets emit a finding referencing the path and `assembly_map.json`). This is the assembly_map archetype boundary parity contract -- it supports A-D R archetype delivery (R archetype does NOT produce an assembly_map; see C-23-H4a). Modifications to Check 2 MUST preserve the silent-pass behavior. Detection: `tests/regressions/test_s3_194_assembly_map_archetype.py` (`test_h4_validate_check2_silently_passes_when_no_assembly_map`, `test_h4_validate_check2_fires_when_assembly_map_has_stale_entries`, `test_h4_validate_check2_handles_r_archetype_correctly`).
+
+- **C-28-H5a (compliance_scan_main SUCCEEDED token, NEW IN 2.2 -- Bug S3-195, cycle H5).** `compliance_scan_main` MUST print `COMPLIANCE_SCAN_SUCCEEDED` as the last stdout line on the no-findings success path (when `not findings` evaluates True in non-JSON output mode). The human-readable `No compliance violations found.` line MUST be preserved on a prior stdout line. Routing's `dispatch_command_status` `compliance_scan` branch matches `"SUCCEEDED" in status_line` against either the producer-emitted token or the orchestrator-constructed `COMMAND_SUCCEEDED`. The strict-mode failure path (`args.strict and findings -> sys.exit(1)`) is unchanged. Detection: tests/regressions/test_s3_195_cli_completeness.py (`test_h5_compliance_scan_main_prints_SUCCEEDED_on_success`, `test_h5_compliance_scan_main_human_message_preserved`, `test_h5_dispatch_command_status_compliance_scan_accepts_SUCCEEDED_token`).
 
 ---
 

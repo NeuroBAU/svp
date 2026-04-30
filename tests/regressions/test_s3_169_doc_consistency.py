@@ -143,6 +143,14 @@ CONCEPTS = [
     # Unit 28, and in blueprint_contracts Unit 23 (C-23-H4a) + Unit 28
     # (C-28-H4a). Drift across the three docs surfaces here.
     "assembly_map archetype boundary",
+    # NEW IN S3-195 (cycle H5 -- CLI completeness). The literal token is the
+    # canonical producer-emitted success-line for compliance_scan_main on the
+    # no-findings success path. It appears verbatim in spec Section 18.3 +
+    # Section 24.209, in blueprint_prose Unit 14 (PHASE_TO_AGENT paragraph
+    # cross-reference) + Unit 28 (compliance_scan SUCCEEDED token paragraph),
+    # and in blueprint_contracts Unit 28 (C-28-H5a MUST clause). Drift across
+    # the three docs surfaces here.
+    "COMPLIANCE_SCAN_SUCCEEDED",
 ]
 
 
