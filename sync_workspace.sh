@@ -265,9 +265,14 @@ sync_one_way "$WORKSPACE/.svp/audit_known_false_positives.md" \
 echo ""
 
 # --- Step 4: Tests (workspace → repo, one-way) ---
+# Bug S3-201 / J-1: also include test fixtures (`.md` and other non-`.py`
+# data files under tests/fixtures/) so that fixture-based regression tests
+# stay reproducible from the repo. The find-pattern below matches `.py`
+# anywhere under tests/ AND any file under tests/fixtures/ regardless of
+# extension.
 echo "--- Step 4: Tests ---"
-(cd "$WORKSPACE" && find tests -name '*.py' -type f 2>/dev/null) | sort > /tmp/svp_ws_tests.txt
-(cd "$REPO" && find tests -name '*.py' -type f 2>/dev/null) | sort > /tmp/svp_repo_tests.txt
+(cd "$WORKSPACE" && { find tests -name '*.py' -type f 2>/dev/null || true; [ -d tests/fixtures ] && find tests/fixtures -type f 2>/dev/null || true; } | sort -u) > /tmp/svp_ws_tests.txt
+(cd "$REPO" && { find tests -name '*.py' -type f 2>/dev/null || true; [ -d tests/fixtures ] && find tests/fixtures -type f 2>/dev/null || true; } | sort -u) > /tmp/svp_repo_tests.txt
 
 # Files in both — one-way with warn
 comm -12 /tmp/svp_ws_tests.txt /tmp/svp_repo_tests.txt | while read -r tf; do

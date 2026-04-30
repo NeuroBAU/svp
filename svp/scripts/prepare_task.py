@@ -624,6 +624,20 @@ def _prepare_setup_agent(
     except FileNotFoundError:
         pass
 
+    # Bug S3-201 / J-1a: load setup_dialog ledger so the agent has prior-turn
+    # context after cross-session respawn. Spec §3.2 line 152 mandates this for
+    # every multi-turn agent. Latent bug surfaced during WGCNA migration when
+    # SendMessage was unavailable.
+    ledger_path = get_ledger_path(project_root, "setup")
+    entries = read_ledger(ledger_path)
+    if entries:
+        ledger_text = "\n".join(
+            f"- Turn {e.get('turn', '?')} [Area {e.get('area', '?')}] "
+            f"Q: {e.get('question', '')} | A: {e.get('answer', '')}"
+            for e in entries
+        )
+        sections.append(_format_section("Dialog History", ledger_text))
+
     return _assemble_sections(sections)
 
 

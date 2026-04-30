@@ -82,6 +82,13 @@ def _parse_blueprint_package_deps(blueprint_path: Path) -> set:
         paren = stripped.find("(")
         if paren > 0:
             stripped = stripped[:paren].strip()
+        # Bug S3-201 / J-1b: re-check sentinel after paren-strip. Inline-elaborated
+        # sentinels like "None (stdlib only — argparse, sys, pathlib)." don't match
+        # the pre-strip prefix check (no immediate `)` after "only"), then become
+        # bare "None" after strip and would otherwise be added as a package.
+        low_after_strip = stripped.lower()
+        if low_after_strip == "none" or low_after_strip == "none.":
+            continue
         # Drop a trailing period (declarations are sometimes terminated by ".").
         if stripped.endswith("."):
             stripped = stripped[:-1].strip()

@@ -196,6 +196,21 @@ CONCEPTS = [
     # in the broadened §18.3 paragraph and in Section 24.214. Drift across
     # the three docs surfaces here.
     "_run_command",
+    # NEW IN S3-201 (cycle J-1 -- post-closure WGCNA-discovered bug fixes).
+    # Two anchors lock the J-1 spec/blueprint/contracts cross-references.
+    # The literal filename `setup_dialog.jsonl` MUST appear in spec section
+    # 3.2 ledger-injection footnote, in blueprint_prose Unit 13 setup_agent
+    # ledger-injection paragraph, and in blueprint_contracts Unit 13 C-13-J1a
+    # clause. Drift across the three docs surfaces here.
+    "setup_dialog.jsonl",
+    # The literal em-dash-bearing prefix `None (stdlib only -- ` is the
+    # discriminating identifier for the elaborated-sentinel form that the
+    # J-1b fix recognizes. Em-dash (`--` rendered) anchor specifically.
+    # MUST appear in spec section 17 dep-extraction sentinel-tolerance
+    # closing sentence + Section 24.215, in blueprint_prose Unit 11
+    # sentinel-elaboration paragraph, and in blueprint_contracts Unit 11
+    # C-11-J1a clause. Drift across the three docs surfaces here.
+    "None (stdlib only -- ",
 ]
 
 
