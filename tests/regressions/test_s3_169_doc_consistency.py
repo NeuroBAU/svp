@@ -151,6 +151,14 @@ CONCEPTS = [
     # and in blueprint_contracts Unit 28 (C-28-H5a MUST clause). Drift across
     # the three docs surfaces here.
     "COMPLIANCE_SCAN_SUCCEEDED",
+    # NEW IN S3-196 (cycle H6 -- test-execution determinism). The literal
+    # env-variable name is the canonical UTF-8 hygiene marker for
+    # run_tests_main subprocess invocation (Bug R1 #8). It appears verbatim
+    # in spec Section 18.3 + Section 24.210, in blueprint_prose Unit 14
+    # (test-execution determinism paragraph), and in blueprint_contracts
+    # Unit 14 (C-14-H6b MUST clause). Drift across the three docs surfaces
+    # here.
+    "PYTHONIOENCODING",
 ]
 
 

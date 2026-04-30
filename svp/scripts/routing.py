@@ -7,6 +7,7 @@ and CLI entry points for the SVP 2.2 pipeline.
 import argparse
 import copy
 import json
+import os
 import re
 import subprocess
 import sys
@@ -330,12 +331,15 @@ def _parse_pytest_output(
 ) -> RunResult:
     """Parse pytest stdout for pass/fail/error counts."""
     try:
-        collection_error_indicators = context.get(
-            "collection_error_indicators",
-            LANGUAGE_REGISTRY.get("python", {}).get("collection_error_indicators", []),
-        )
-        has_collection_error = any(
-            indicator in output for indicator in collection_error_indicators
+        # Bug R1 #6 / S3-196: gate on pytest's authoritative collection-error signals.
+        # Bare-substring indicators (ImportError, ModuleNotFoundError, SyntaxError) overmatch
+        # when test code legitimately contains those strings. Pytest exit code 2 is the
+        # documented collection/configuration-error code; the "ERROR collecting" banner
+        # and "no tests ran" message are pytest's own authoritative signals.
+        has_collection_error = (
+            exit_code == 2
+            or "ERROR collecting" in output
+            or "no tests ran" in output
         )
 
         if has_collection_error:
@@ -3928,7 +3932,12 @@ def run_tests_main(argv: list = None) -> None:
     env_name = derive_env_name(project_root)
     run_prefix = toolchain.get("environment", {}).get("run_prefix", "")
     test_dir = lang_config.get("test_dir", "tests")
-    unit_test_target = f"{test_dir}/unit_{args.unit}"
+    # Bug R1 #10 / S3-196: integration sub_stage targets tests/integration/, not
+    # tests/unit_0/ (Stage 4 emits --unit 0 --sub-stage integration).
+    if args.sub_stage == "integration":
+        unit_test_target = f"{test_dir}/integration"
+    else:
+        unit_test_target = f"{test_dir}/unit_{args.unit}"
 
     test_cmd = resolve_command(
         test_cmd_template,
@@ -3938,15 +3947,26 @@ def run_tests_main(argv: list = None) -> None:
     )
 
     try:
+        # Bug R1 #8 / S3-196: force UTF-8 decoding for cross-platform robustness.
+        # On Windows, default subprocess decoding is cp1252 which crashes on non-cp1252
+        # bytes (U+FFFD, em-dashes, smart quotes, box-drawing glyphs). PYTHONIOENCODING
+        # + PYTHONUTF8 env override coerces the child to emit UTF-8; bytes-then-decode
+        # with errors="replace" on the parent side is a defense-in-depth fallback.
+        env = os.environ.copy()
+        env.setdefault("PYTHONIOENCODING", "utf-8")
+        env.setdefault("PYTHONUTF8", "1")
+
         result = subprocess.run(
             test_cmd,
             shell=True,
-            capture_output=True,
-            text=True,
+            capture_output=True,  # NOTE: text=True dropped (decode bytes manually)
             timeout=300,
             cwd=str(project_root),
+            env=env,
         )
-        output = result.stdout + result.stderr
+        stdout = (result.stdout or b"").decode("utf-8", errors="replace")
+        stderr = (result.stderr or b"").decode("utf-8", errors="replace")
+        output = stdout + stderr
         exit_code = result.returncode
     except subprocess.TimeoutExpired:
         print("TESTS_ERROR")

@@ -564,45 +564,29 @@ class TestTestOutputParsers:
         assert result.errors == 2
 
     def test_python_parser_collection_error_import(self):
-        """Python parser detects ImportError as collection error."""
+        """Python parser detects ImportError import-error scenarios as collection
+        errors via pytest's authoritative exit_code==2 signal (C-14-H6a / S3-196).
+        Bare-substring matching of error-class names is forbidden post-S3-196
+        because test code legitimately contains those strings."""
         parser = TEST_OUTPUT_PARSERS["python"]
-        ctx = {
-            "collection_error_indicators": [
-                "ERROR collecting",
-                "ImportError",
-                "ModuleNotFoundError",
-                "SyntaxError",
-            ]
-        }
-        result = parser("ImportError: No module named 'foo'", "", 1, ctx)
+        # Pytest exit code 2 is the documented collection-error code; C-14-H6a
+        # gates collection-error detection on exit_code==2 OR "ERROR collecting"
+        # banner OR "no tests ran" message. Output content alone is not enough.
+        result = parser("ImportError: No module named 'foo'", "", 2, {})
         assert result.collection_error is True
 
     def test_python_parser_collection_error_syntax(self):
-        """Python parser detects SyntaxError as collection error."""
+        """Python parser detects SyntaxError collection scenarios via
+        exit_code==2 (C-14-H6a / S3-196)."""
         parser = TEST_OUTPUT_PARSERS["python"]
-        ctx = {
-            "collection_error_indicators": [
-                "ERROR collecting",
-                "ImportError",
-                "ModuleNotFoundError",
-                "SyntaxError",
-            ]
-        }
-        result = parser("SyntaxError: invalid syntax", "", 1, ctx)
+        result = parser("SyntaxError: invalid syntax", "", 2, {})
         assert result.collection_error is True
 
     def test_python_parser_collection_error_module_not_found(self):
-        """Python parser detects ModuleNotFoundError as collection error."""
+        """Python parser detects ModuleNotFoundError collection scenarios via
+        exit_code==2 (C-14-H6a / S3-196)."""
         parser = TEST_OUTPUT_PARSERS["python"]
-        ctx = {
-            "collection_error_indicators": [
-                "ERROR collecting",
-                "ImportError",
-                "ModuleNotFoundError",
-                "SyntaxError",
-            ]
-        }
-        result = parser("ModuleNotFoundError: No module named 'bar'", "", 1, ctx)
+        result = parser("ModuleNotFoundError: No module named 'bar'", "", 2, {})
         assert result.collection_error is True
 
     def test_python_parser_collection_error_collecting(self):
