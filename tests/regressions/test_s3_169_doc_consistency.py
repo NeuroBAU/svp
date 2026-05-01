@@ -276,6 +276,20 @@ CONCEPTS = [
     # carries the K-4 P14-sibling inline block; the catalog row for P14
     # itself already exists, so no row addition.)
     "F841",
+    # NEW IN S3-207 (cycle K-5 -- cross-pattern P90 audit). Four anchors lock
+    # the K-5 cross-references for the test_agent + coverage_review_agent
+    # P90 escalations: two new gate IDs (`gate_3_4_test_generation_blocked`
+    # and `gate_3_5_coverage_ambiguous`) and the two new terminal status
+    # tokens (`TEST_GENERATION_BLOCKED` and `COVERAGE_AMBIGUOUS`). Each
+    # MUST appear in spec Section 24.221 + §3 hint-blueprint scope ext +
+    # §18.1 agent rows + §18.4 gate rows + §21 agent summary rows, in
+    # blueprint_prose Units 13/14/20, and in blueprint_contracts
+    # C-13-K5a + C-14-K5a/b/c/d/e + C-20-K5a/b. Drift across the docs
+    # surfaces here.
+    "gate_3_4_test_generation_blocked",
+    "gate_3_5_coverage_ambiguous",
+    "TEST_GENERATION_BLOCKED",
+    "COVERAGE_AMBIGUOUS",
 ]
 
 

@@ -54,6 +54,10 @@ ALL_GATE_IDS: List[str] = [
     # escalation gate. Presented when implementation_agent emits
     # TESTS_FLAWED: [details]. Four-way response with ABANDON UNIT escape.
     "gate_3_3_test_layer_review",
+    # Bug S3-207 / cycle K-5: P90 cross-pattern audit. Two more
+    # P90-shaped escalation gates for the other two Stage-3 agents.
+    "gate_3_4_test_generation_blocked",
+    "gate_3_5_coverage_ambiguous",
     "gate_3_completion_failure",
     "gate_4_1_integration_failure",
     "gate_4_1a",
@@ -177,6 +181,20 @@ _GATE_RESPONSE_OPTIONS: Dict[str, List[str]] = {
         "IMPLEMENTATION WRONG",
         "BLUEPRINT WRONG",
         "ABANDON UNIT",
+    ],
+    # Bug S3-207 / cycle K-5: test_agent TEST_GENERATION_BLOCKED escalation.
+    "gate_3_4_test_generation_blocked": [
+        "RETRY STUB",
+        "FIX BLUEPRINT",
+        "FIX SPEC",
+        "ABANDON UNIT",
+    ],
+    # Bug S3-207 / cycle K-5: coverage_review_agent COVERAGE_AMBIGUOUS escalation.
+    "gate_3_5_coverage_ambiguous": [
+        "RETRY REVIEW",
+        "FIX BLUEPRINT",
+        "FIX SPEC",
+        "OVERRIDE",
     ],
     "gate_5_1_repo_test": ["TESTS PASSED", "TESTS FAILED"],
     "gate_5_2_assembly_exhausted": [

@@ -905,15 +905,17 @@ class TestPrepareTaskPromptDispatches:
 class TestGateVocabularyCoversAllGates:
     """Integration: GATE_VOCABULARY (Unit 14) covers all gates from Unit 13."""
 
-    def test_gate_vocabulary_has_35_gates(self):
-        """GATE_VOCABULARY contains exactly 35 gate entries (31 baseline +
+    def test_gate_vocabulary_has_37_gates(self):
+        """GATE_VOCABULARY contains exactly 37 gate entries (31 baseline +
         gate_0_4_toolchain_provisioned added by Bug S3-176 +
         gate_2_3_toolchain_verified added by Bug S3-180 +
         gate_6_1_mode_classification added by Bug S3-186 cycle G1 +
-        gate_3_3_test_layer_review added by Bug S3-205 cycle K-3).
+        gate_3_3_test_layer_review added by Bug S3-205 cycle K-3 +
+        gate_3_4_test_generation_blocked + gate_3_5_coverage_ambiguous
+        added by Bug S3-207 cycle K-5).
         The S3-186 rename gate_6_1_regression_test -> gate_6_3_regression_test
         does not change the count."""
-        assert len(GATE_VOCABULARY) == 35
+        assert len(GATE_VOCABULARY) == 37
 
     def test_all_gate_ids_have_vocabulary_entries(self):
         """Every gate in ALL_GATE_IDS has a GATE_VOCABULARY entry."""
@@ -949,13 +951,15 @@ class TestGateVocabularyCoversAllGates:
         for gate_id, responses in GATE_VOCABULARY.items():
             assert len(responses) > 0, f"Gate '{gate_id}' has no valid responses"
 
-    def test_all_gate_ids_list_has_35_entries(self):
-        """ALL_GATE_IDS contains exactly 35 entries (31 baseline +
+    def test_all_gate_ids_list_has_37_entries(self):
+        """ALL_GATE_IDS contains exactly 37 entries (31 baseline +
         gate_0_4_toolchain_provisioned added by Bug S3-176 +
         gate_2_3_toolchain_verified added by Bug S3-180 +
         gate_6_1_mode_classification added by Bug S3-186 cycle G1 +
-        gate_3_3_test_layer_review added by Bug S3-205 cycle K-3)."""
-        assert len(ALL_GATE_IDS) == 35
+        gate_3_3_test_layer_review added by Bug S3-205 cycle K-3 +
+        gate_3_4_test_generation_blocked + gate_3_5_coverage_ambiguous
+        added by Bug S3-207 cycle K-5)."""
+        assert len(ALL_GATE_IDS) == 37
 
 
 # ===================================================================

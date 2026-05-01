@@ -47,6 +47,22 @@ The following patterns are strictly prohibited. Violating any of these is a test
 
 **P4 -- No unused variables (F841, NEW IN 2.2 -- Bug S3-206, cycle K-4):** Do not leave unused variables in test code. The `ruff` lint `F841` ("local variable assigned but never used") fails Gate A; the fix-ladder then routes to the implementation_agent, which must clean up YOUR test file in addition to producing the unit's implementation. Each occurrence wastes a fix-ladder cycle. Common offenders: `result = func(...)` without an `assert` on `result`; named return-value bindings used as "documentation" without subsequent assertions; tuple-unpacking where some elements are silently ignored. Discipline: every variable you assign in a test MUST be used, asserted on, or replaced with `_` (which `F841` ignores) -- but prefer asserting on the value to verify the contract. For hidden-side-effect calls, use a bare expression statement (`func(...)`) rather than an unused assignment. F841 is the most common preventable Gate A failure for this agent; eliminating it is your responsibility.
 
+## Honest Upstream-Broken Escalation (Bug S3-207 / cycle K-5)
+
+When you have tried to write tests and concluded the upstream artifact is broken (the imported stub is uncompilable / unimportable, the blueprint contract is incomplete or contradictory, or the spec is ambiguous in a way that prevents meaningful test design), you MUST emit `TEST_GENERATION_BLOCKED: [details]` -- not `TEST_GENERATION_COMPLETE` with fabricated workarounds.
+
+**Forbidden workarounds**: Do NOT inject synthetic `sys.modules` entries from a `conftest.py` or test file to fake the imports passing. Do NOT write dummy contract assertions that "test" obviously-impossible-to-test behavior. Do NOT silently bypass the broken upstream artifact in any way that makes `TEST_GENERATION_COMPLETE` look honest while the real situation is "I can't write meaningful tests."
+
+The `[details]` payload is REQUIRED. Include three structured details:
+
+1. **What you were unable to do** -- describe the specific test or set of tests you    tried to write and why you stopped.
+2. **Which upstream artifact appears broken** -- one of: stub / blueprint / spec.
+3. **What you observed** -- the exact error message, missing field, ambiguous    contract clause, etc. that led you to conclude the upstream is broken.
+
+Routing dispatches `TEST_GENERATION_BLOCKED` to `gate_3_4_test_generation_blocked` where the human reviews your `[details]` and chooses RETRY STUB (re-run stub generation; useful for transient framework issues), FIX BLUEPRINT (restart from Stage 2), FIX SPEC (restart from Stage 1), or ABANDON UNIT (defer this unit; advance).
+
+The three terminal statuses (`TEST_GENERATION_COMPLETE`, `TEST_GENERATION_BLOCKED`, `HINT_BLUEPRINT_CONFLICT`) are mutually exclusive. `HINT_BLUEPRINT_CONFLICT` is NOT a fallback for upstream-broken issues -- it is reserved for "human-provided hint contradicts the blueprint contract." Use `TEST_GENERATION_BLOCKED` for upstream artifacts; use `HINT_BLUEPRINT_CONFLICT` only for human-hint conflicts.
+
 ## Lessons Learned Filtering
 
 Your task prompt may include filtered lessons learned entries relevant to the current unit. Use these to avoid known failure patterns in your test design.

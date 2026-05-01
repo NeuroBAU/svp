@@ -104,6 +104,20 @@ GATE_VOCABULARY: Dict[str, List[str]] = {
         "BLUEPRINT WRONG",
         "ABANDON UNIT",
     ],
+    # Bug S3-207 / cycle K-5: test_agent TEST_GENERATION_BLOCKED escalation.
+    "gate_3_4_test_generation_blocked": [
+        "RETRY STUB",
+        "FIX BLUEPRINT",
+        "FIX SPEC",
+        "ABANDON UNIT",
+    ],
+    # Bug S3-207 / cycle K-5: coverage_review_agent COVERAGE_AMBIGUOUS escalation.
+    "gate_3_5_coverage_ambiguous": [
+        "RETRY REVIEW",
+        "FIX BLUEPRINT",
+        "FIX SPEC",
+        "OVERRIDE",
+    ],
     "gate_3_completion_failure": [
         "INVESTIGATE",
         "FORCE ADVANCE",
@@ -209,6 +223,9 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
     "test_agent": [
         "TEST_GENERATION_COMPLETE",
         "REGRESSION_TEST_COMPLETE",
+        # Bug S3-207 / cycle K-5: P90 cross-pattern audit. Honest
+        # upstream-broken escalation for test_agent.
+        "TEST_GENERATION_BLOCKED",
         "HINT_BLUEPRINT_CONFLICT",
     ],
     "implementation_agent": [
@@ -220,6 +237,9 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
     "coverage_review_agent": [
         "COVERAGE_COMPLETE: no gaps",
         "COVERAGE_COMPLETE: tests added",
+        # Bug S3-207 / cycle K-5: P90 cross-pattern audit. Honest
+        # upstream-rooted-ambiguity escalation for coverage_review_agent.
+        "COVERAGE_AMBIGUOUS",
         "HINT_BLUEPRINT_CONFLICT",
     ],
     "diagnostic_agent": [
@@ -2270,6 +2290,25 @@ def _route_stage_3(
             state = advance_sub_stage(state, "quality_gate_a")
             save_state(project_root, state)
             return route(project_root)
+        # Bug S3-207 / cycle K-5: P90 cross-pattern audit. test_agent
+        # honest upstream-broken escalation -- present
+        # gate_3_4_test_generation_blocked for human review with the
+        # agent's structured details surfaced in the gate prompt.
+        if last_status.startswith("TEST_GENERATION_BLOCKED"):
+            return _make_action_block(
+                action_type="human_gate",
+                gate_id="gate_3_4_test_generation_blocked",
+                reminder=(
+                    f"Test agent flagged upstream-broken for unit "
+                    f"{state.current_unit}. Review the agent's "
+                    f"structured details and decide."
+                ),
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_3_4_test_generation_blocked "
+                    "--project-root ."
+                ),
+            )
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="test_agent",
@@ -2384,6 +2423,25 @@ def _route_stage_3(
             state = advance_sub_stage(state, "unit_completion")
             save_state(project_root, state)
             return route(project_root)
+        # Bug S3-207 / cycle K-5: P90 cross-pattern audit.
+        # coverage_review_agent honest contract-ambiguity escalation --
+        # present gate_3_5_coverage_ambiguous for human review with the
+        # agent's structured details surfaced in the gate prompt.
+        if last_status.startswith("COVERAGE_AMBIGUOUS"):
+            return _make_action_block(
+                action_type="human_gate",
+                gate_id="gate_3_5_coverage_ambiguous",
+                reminder=(
+                    f"Coverage review agent flagged upstream-rooted "
+                    f"ambiguity for unit {state.current_unit}. Review the "
+                    f"agent's structured details and decide."
+                ),
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_3_5_coverage_ambiguous "
+                    "--project-root ."
+                ),
+            )
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="coverage_review_agent",
@@ -2876,6 +2934,53 @@ def dispatch_gate_response(
             new = restart_from_stage(state, "2")
         else:  # FIX SPEC
             new = advance_stage(state, "1")
+        return new
+
+    # Bug S3-207 / cycle K-5: Gate 3.4 test-generation-blocked.
+    # Presented when test_agent emits TEST_GENERATION_BLOCKED: [details].
+    # Four response options for the human's review decision.
+    if gate_id == "gate_3_4_test_generation_blocked":
+        _clear_last_status(project_root)
+        if response == "RETRY STUB":
+            # Re-run the deterministic stub_generator (sub_stage rewinds).
+            new = _copy(state)
+            new.sub_stage = "stub_generation"
+        elif response == "FIX BLUEPRINT":
+            new = restart_from_stage(state, "2")
+        elif response == "FIX SPEC":
+            new = restart_from_stage(state, "1")
+        else:  # ABANDON UNIT
+            new = _copy(state)
+            unit_to_defer = new.current_unit
+            if unit_to_defer is not None:
+                new.deferred_broken_units = list(new.deferred_broken_units) + [
+                    unit_to_defer
+                ]
+            if unit_to_defer is not None and unit_to_defer < new.total_units:
+                new.current_unit = unit_to_defer + 1
+                new.sub_stage = "test_generation"
+            else:
+                new.current_unit = None
+                new.sub_stage = None
+        return new
+
+    # Bug S3-207 / cycle K-5: Gate 3.5 coverage-ambiguous.
+    # Presented when coverage_review_agent emits COVERAGE_AMBIGUOUS: [details].
+    # Four response options for the human's review decision.
+    if gate_id == "gate_3_5_coverage_ambiguous":
+        _clear_last_status(project_root)
+        if response == "RETRY REVIEW":
+            # Re-invoke coverage_review_agent; sub_stage stays.
+            new = _copy(state)
+        elif response == "FIX BLUEPRINT":
+            new = restart_from_stage(state, "2")
+        elif response == "FIX SPEC":
+            new = restart_from_stage(state, "1")
+        else:  # OVERRIDE
+            # The unit's tests already pass at coverage_review; accept the
+            # unmet coverage concern and advance to unit_completion.
+            new = _copy(state)
+            new.sub_stage = "unit_completion"
         return new
 
     # Bug S3-205 / cycle K-3: Gate 3.3 test-layer review.
@@ -3438,6 +3543,13 @@ def dispatch_agent_status(
     if agent_type == "test_agent":
         if status_line in ("TEST_GENERATION_COMPLETE", "REGRESSION_TEST_COMPLETE"):
             return _copy(state)
+        # Bug S3-207 / cycle K-5: P90 cross-pattern audit. The test_agent
+        # has tried to write tests and concluded the upstream artifact is
+        # broken (uncompilable stub, incomplete blueprint, ambiguous spec).
+        # No counter; routing on the next pass presents
+        # gate_3_4_test_generation_blocked.
+        if status_line.startswith("TEST_GENERATION_BLOCKED"):
+            return _copy(state)
         if status_line.startswith("HINT_BLUEPRINT_CONFLICT"):
             return _copy(state)
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
@@ -3466,6 +3578,12 @@ def dispatch_agent_status(
             "COVERAGE_COMPLETE: no gaps",
             "COVERAGE_COMPLETE: tests added",
         ):
+            return _copy(state)
+        # Bug S3-207 / cycle K-5: P90 cross-pattern audit. The
+        # coverage_review_agent found a gap rooted in a contract ambiguity
+        # rather than a missing test. No counter; routing on the next
+        # pass presents gate_3_5_coverage_ambiguous.
+        if status_line.startswith("COVERAGE_AMBIGUOUS"):
             return _copy(state)
         if status_line.startswith("HINT_BLUEPRINT_CONFLICT"):
             return _copy(state)
