@@ -63,6 +63,132 @@ def _get_import_top_level_module(import_line: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Bug S3-204 / cycle K-2: selective TYPE_CHECKING wrap helpers.
+# ---------------------------------------------------------------------------
+
+def _imported_names(import_line: str) -> set:
+    """Extract the names bound by a single import line.
+
+    Bug S3-204 / cycle K-2 / C-10-K2a. The names returned are the runtime
+    bindings the import would create -- the symbols a downstream `from foo
+    import bar` or `import baz` would attach to the module namespace.
+
+    - `from m import a, b, c`     -> {"a", "b", "c"}
+    - `from m import a as alias`  -> {"alias"}
+    - `import foo`                -> {"foo"}
+    - `import foo.bar`            -> {"foo"}      (leftmost; `foo.bar.x`
+                                                   accesses go through `foo`)
+    - `import foo.bar as baz`     -> {"baz"}
+    - `import a, b`               -> {"a", "b"}
+    """
+    try:
+        parsed = ast.parse(import_line.strip())
+    except SyntaxError:
+        return set()
+    names: set = set()
+    for node in parsed.body:
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                names.add(alias.asname or alias.name)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname:
+                    names.add(alias.asname)
+                else:
+                    names.add(alias.name.split(".")[0])
+    return names
+
+
+def _collect_runtime_referenced_names(body_nodes) -> set:
+    """Collect names referenced at module-load time in a stub body.
+
+    Bug S3-204 / cycle K-2 / C-10-K2a. Python evaluates class base classes,
+    decorators, and default argument values when the module loads -- so
+    upstream imports providing those names MUST emit at runtime, not under
+    TYPE_CHECKING. Function/method bodies are `raise NotImplementedError()`
+    in stubs, so anything they reference is runtime-deferred and NOT counted
+    here.
+
+    Visits:
+      - ClassDef.bases, ClassDef.keywords[*].value (metaclass + class kwargs)
+      - ClassDef.decorator_list, FunctionDef.decorator_list,
+        AsyncFunctionDef.decorator_list
+      - arguments.defaults, arguments.kw_defaults (for top-level functions
+        and methods nested in classes -- evaluated at function-definition
+        time, which happens at module load)
+      - Assign.value, AnnAssign.value (module-level assignments; annotations
+        themselves are stringified by `from __future__ import annotations`,
+        so they are NOT counted)
+
+    Recurses into nested ClassDef so nested-class bases get the same
+    treatment. Does NOT recurse into FunctionDef / AsyncFunctionDef bodies
+    (those are runtime-deferred in stubs).
+    """
+    runtime_names: set = set()
+
+    def _add_names_from_expr(expr_node) -> None:
+        if expr_node is None:
+            return
+        for n in ast.walk(expr_node):
+            if isinstance(n, ast.Name):
+                runtime_names.add(n.id)
+            elif isinstance(n, ast.Attribute):
+                # Walk to the leftmost Name of the attribute chain.
+                cursor = n
+                while isinstance(cursor, ast.Attribute):
+                    cursor = cursor.value
+                if isinstance(cursor, ast.Name):
+                    runtime_names.add(cursor.id)
+
+    def _visit_function_load_time(func_node) -> None:
+        # Default arg values are evaluated at function-definition time.
+        for default in func_node.args.defaults:
+            _add_names_from_expr(default)
+        for default in func_node.args.kw_defaults:
+            _add_names_from_expr(default)
+        # Decorators evaluate at module load.
+        for dec in func_node.decorator_list:
+            _add_names_from_expr(dec)
+        # Body is runtime-deferred; do NOT recurse.
+
+    def _visit_class_load_time(cls_node) -> None:
+        for base in cls_node.bases:
+            _add_names_from_expr(base)
+        for kw in cls_node.keywords:
+            _add_names_from_expr(kw.value)
+        for dec in cls_node.decorator_list:
+            _add_names_from_expr(dec)
+        # Recurse into class body to handle nested ClassDef and method
+        # default args / decorators (evaluated at class-creation time, which
+        # happens at module load).
+        for child in cls_node.body:
+            if isinstance(child, ast.ClassDef):
+                _visit_class_load_time(child)
+            elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                _visit_function_load_time(child)
+            elif isinstance(child, ast.AnnAssign):
+                # Class-body AnnAssign: annotation is stringified, but value
+                # is evaluated when the class body executes (at module load).
+                _add_names_from_expr(child.value)
+            elif isinstance(child, ast.Assign):
+                _add_names_from_expr(child.value)
+
+    for node in body_nodes:
+        if isinstance(node, ast.ClassDef):
+            _visit_class_load_time(node)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            _visit_function_load_time(node)
+        elif isinstance(node, ast.AnnAssign):
+            # Module-level annotated assignment: annotation is stringified
+            # by `from __future__ import annotations`; value is evaluated.
+            _add_names_from_expr(node.value)
+        elif isinstance(node, ast.Assign):
+            _add_names_from_expr(node.value)
+
+    return runtime_names
+
+
+# ---------------------------------------------------------------------------
 # Keys that bypass signature parsing (plugin + component)
 # ---------------------------------------------------------------------------
 
@@ -131,15 +257,25 @@ def _generate_python_stub(
             body_lines.append(ast.unparse(node))
 
     # Bug S3-47: Separate stdlib imports from non-stdlib (upstream) imports
-    # and wrap non-stdlib imports in TYPE_CHECKING guard
+    # and wrap non-stdlib imports in TYPE_CHECKING guard.
+    # Bug S3-204 / cycle K-2: SELECTIVELY wrap upstream imports -- imports
+    # providing names referenced at module-load time (class bases, decorators,
+    # default arg values, module-level expressions outside annotations) emit
+    # OUTSIDE TYPE_CHECKING so the stub can `exec()` cleanly. C-10-K2a.
     stdlib_imports: List[str] = []
-    upstream_imports: List[str] = []
+    upstream_runtime_imports: List[str] = []
+    upstream_typing_imports: List[str] = []
+    runtime_names = _collect_runtime_referenced_names(parsed_signatures.body)
     for imp_line in import_lines:
         mod = _get_import_top_level_module(imp_line)
         if mod in _STDLIB_MODULES:
             stdlib_imports.append(imp_line)
         else:
-            upstream_imports.append(imp_line)
+            bound = _imported_names(imp_line)
+            if bound & runtime_names:
+                upstream_runtime_imports.append(imp_line)
+            else:
+                upstream_typing_imports.append(imp_line)
 
     # Build output: from __future__ first (PEP 236), sentinel, then imports, body
     # Bug R1 #7 / S3-197: from __future__ import annotations MUST be the first
@@ -150,16 +286,21 @@ def _generate_python_stub(
     lines.append("from __future__ import annotations")
     lines.append("")
     lines.append(sentinel)
-    if stdlib_imports or upstream_imports:
+    has_any_imports = bool(
+        stdlib_imports or upstream_runtime_imports or upstream_typing_imports
+    )
+    if has_any_imports:
         lines.append("")
     if stdlib_imports:
         lines.extend(stdlib_imports)
-    if upstream_imports:
+    if upstream_runtime_imports:
+        lines.extend(upstream_runtime_imports)
+    if upstream_typing_imports:
         lines.append("from typing import TYPE_CHECKING")
         lines.append("if TYPE_CHECKING:")
-        for imp_line in upstream_imports:
+        for imp_line in upstream_typing_imports:
             lines.append(f"    {imp_line}")
-    if stdlib_imports or upstream_imports:
+    if has_any_imports:
         lines.append("")
     if body_lines:
         lines.extend(body_lines)

@@ -243,6 +243,16 @@ CONCEPTS = [
     # (P88 catalog row + inline block). Drift across the four docs surfaces
     # here.
     "P88",
+    # NEW IN S3-204 (cycle K-2 -- stub generator selective TYPE_CHECKING wrap).
+    # The pattern identifier P89 is the discriminating anchor for the K-2
+    # selective-wrap invariant. MUST appear in spec Section 24.218 + section
+    # 3 (S3-47 paragraph amended) + section 40.2 Unit 10 closing
+    # selective-wrap clause, in blueprint_prose Unit 10 (selective
+    # TYPE_CHECKING wrap paragraph), in blueprint_contracts Unit 10
+    # (C-10-K2a + C-10-K2b clauses), and in
+    # references/svp_2_1_lessons_learned.md (P89 catalog row + inline block).
+    # Drift across the docs surfaces here.
+    "P89",
 ]
 
 
