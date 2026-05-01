@@ -338,14 +338,17 @@ def test_i3_unit_11_list_installed_conda_packages_sets_utf8_env_no_text_true():
 def test_i3_unit_11_conda_install_sets_utf8_env_no_text_true(
     tmp_path, monkeypatch
 ):
-    """C-11-I3d: the conda install runner inside install_dep_delta MUST
-    pass env override + MUST NOT use text=True. Verified by injecting a
-    spy runner directly."""
+    """C-11-I3d: the install runner inside install_dep_delta MUST pass
+    env override + MUST NOT use text=True. Verified by injecting a spy
+    runner directly. S3-202 / J-2a updated the cmd shape from the
+    pre-J-2a hardcoded ["conda", "install", ...] to the toolchain-driven
+    helper output (canonical Python toolchain default: ["conda", "run",
+    ..., "pip", "install", ...]). The I-3 hygiene assertions (env override
+    + no-text-true + capture_output) are preserved verbatim."""
     import infrastructure_setup as infra_mod
     from infrastructure_setup import install_dep_delta
 
-    # Seed the pending file with non-empty pkgs so the conda install branch
-    # fires.
+    # Seed the pending file with non-empty pkgs so the install branch fires.
     svp_dir = tmp_path / ".svp"
     svp_dir.mkdir()
     (svp_dir / "dep_diff_pending.json").write_text(
@@ -384,8 +387,20 @@ def test_i3_unit_11_conda_install_sets_utf8_env_no_text_true(
         "runner call MUST NOT use text=True"
     )
     assert captured["capture_output"] is True
-    # Sanity: cmd is the conda install invocation.
-    assert captured["cmd"][0:5] == ["conda", "install", "-n", "svp-test", "-y"]
+    # S3-202 / J-2a: cmd is now produced by _build_install_command. With
+    # no toolchain.json seeded in tmp_path, load_toolchain raises
+    # FileNotFoundError -> install_dep_delta falls back to toolchain={} ->
+    # _build_install_command falls back to "conda run -n {env_name} pip
+    # install {packages}". The captured cmd starts with the conda-run-pip-
+    # install shape, NOT the pre-J-2a hardcoded "conda install" shape.
+    assert captured["cmd"][0:6] == [
+        "conda",
+        "run",
+        "-n",
+        "svp-test",
+        "pip",
+        "install",
+    ], f"expected conda-run-pip-install shape post-J-2a; got {captured['cmd'][0:6]}"
 
 
 # ---------------------------------------------------------------------------

@@ -154,11 +154,16 @@ def cmd_clean(project_root: Path, action: str) -> str:
     env_name = derive_env_name(project_root)
     try:
         toolchain = load_toolchain(project_root)
-        # Look for env_remove command in toolchain commands section
-        remove_template = toolchain.get("commands", {}).get("env_remove", "")
-        # Also check environment.remove for backward compatibility
-        if not remove_template:
-            remove_template = toolchain.get("environment", {}).get("remove", "")
+        # Bug S3-202 / cycle J-2d: read the canonical schema key
+        # `environment.cleanup_command` (per
+        # references/toolchain_manifest_schema.md and the default
+        # Python/R toolchain JSONs). Previously tried `commands.env_remove`
+        # (dead namespace -- no `commands` key at toolchain top-level in any
+        # canonical JSON) then `environment.remove` (wrong key); both reads
+        # always missed and execution always fell through to the hardcoded
+        # `conda env remove` fallback inside the FileNotFoundError handler
+        # below, masking the schema mismatch.
+        remove_template = toolchain.get("environment", {}).get("cleanup_command", "")
         if remove_template:
             run_prefix = toolchain.get("run_prefix", "")
             remove_cmd = resolve_command(

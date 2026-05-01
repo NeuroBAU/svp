@@ -211,6 +211,29 @@ CONCEPTS = [
     # sentinel-elaboration paragraph, and in blueprint_contracts Unit 11
     # C-11-J1a clause. Drift across the three docs surfaces here.
     "None (stdlib only -- ",
+    # NEW IN S3-202 (cycle J-2 -- env-section template helper alignment).
+    # Three anchors lock the J-2 spec/blueprint/contracts cross-references.
+    # The literal helper name `_build_install_command` is the
+    # discriminating identifier for the install-path single-source-of-truth
+    # contract. MUST appear in spec Section 24.216 + section 17
+    # dep-extraction closing sentence, in blueprint_prose Unit 11
+    # env-section template helper alignment paragraph, and in
+    # blueprint_contracts Unit 11 C-11-J2a clause. Drift across the three
+    # docs surfaces here.
+    "_build_install_command",
+    # The literal helper name `_build_env_create_command` is the
+    # discriminating identifier for the J-2c create-command alignment fix.
+    # MUST appear in spec Section 24.216 + section 17 closing sentence, in
+    # blueprint_prose Unit 11 paragraph, and in blueprint_contracts Unit 11
+    # C-11-J2c clause. Drift across the three docs surfaces here.
+    "_build_env_create_command",
+    # The canonical schema key `cleanup_command` is the discriminating
+    # identifier for the J-2d cmd_clean canonical-key alignment fix. MUST
+    # appear in spec Section 24.216 + section 17 closing sentence, in
+    # blueprint_prose Unit 11 (env-section template helpers paragraph) and
+    # Unit 16 (cmd_clean env-remove paragraph), and in blueprint_contracts
+    # Unit 16 C-16-J2d clause. Drift across the three docs surfaces here.
+    "cleanup_command",
 ]
 
 

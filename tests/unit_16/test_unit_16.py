@@ -24,8 +24,9 @@ Synthetic data assumptions:
 - PipelineState objects are synthetic MagicMock instances with fields
   matching the Unit 5 schema (stage, sub_stage, current_unit, total_units,
   verified_units, pass_history, delivered_repo_path, primary_language, etc.).
-- Toolchain dicts are synthetic with a "commands" section containing
-  "env_remove" and "env_create" templates and a "run_prefix" field.
+- Toolchain dicts are synthetic with an "environment" section containing
+  the canonical schema keys (S3-202 / J-2d): "create_command",
+  "install_command", "cleanup_command", and "run_prefix".
 - Profile dicts are synthetic with "pipeline" and "quality" sections.
 - Build log is a synthetic JSONL file with one entry per line.
 - ARTIFACT_FILENAMES is mocked to return known relative paths.
@@ -134,13 +135,17 @@ def _make_mock_profile() -> Dict[str, Any]:
 
 
 def _make_mock_toolchain() -> Dict[str, Any]:
-    """Create a synthetic toolchain dict with env management commands."""
+    """Create a synthetic toolchain dict with canonical env-section schema
+    keys (S3-202 / J-2d -- environment.cleanup_command is the canonical
+    key for cmd_clean's env-remove subprocess; the previous dead
+    commands.env_remove namespace is removed)."""
     return {
-        "run_prefix": "conda run -n {env_name}",
-        "commands": {
-            "env_create": "conda create -n {env_name} python={python_version} -y",
-            "env_remove": "conda env remove -n {env_name} -y",
-            "install": "conda install --file requirements.txt -y",
+        "environment": {
+            "tool": "conda",
+            "run_prefix": "conda run -n {env_name}",
+            "create_command": "conda create -n {env_name} python={python_version} -y",
+            "install_command": "conda run -n {env_name} pip install {packages}",
+            "cleanup_command": "conda env remove -n {env_name} -y",
         },
         "quality": {
             "gate_a": [

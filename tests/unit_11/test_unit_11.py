@@ -2577,10 +2577,11 @@ import os
     def test_install_dep_delta_runs_conda_install_and_verify(
         self, project_root, blueprint_dir, monkeypatch
     ):
-        """install_dep_delta() reads .svp/dep_diff_pending.json, runs
-        conda install for the union of partitions, runs
-        verify_toolchain_ready, sets state.toolchain_status=READY on
-        success, and removes the pending file."""
+        """install_dep_delta() reads .svp/dep_diff_pending.json, builds the
+        install command via _build_install_command (S3-202 / J-2a), runs
+        it, then runs verify_toolchain_ready, sets
+        state.toolchain_status=READY on success, and removes the pending
+        file."""
         from pipeline_state import PipelineState, save_state
 
         # Seed pending file.
@@ -2594,8 +2595,12 @@ import os
         )
         # Seed pipeline state.
         save_state(project_root, PipelineState(stage="pre_stage_3"))
+        # Seed profile + toolchain so install_dep_delta can load them
+        # (S3-202 / J-2a uses _build_install_command which reads the
+        # toolchain JSON's environment.install_command template).
+        self._seed_profile_and_toolchain(project_root, monkeypatch)
 
-        # Capture conda install calls.
+        # Capture install command calls.
         invocations = []
 
         def fake_runner(cmd, **kwargs):
@@ -2614,11 +2619,30 @@ import os
         )
         assert ok is True
         assert errors == []
-        # conda install command was issued.
-        assert any(
-            cmd[0:5] == ["conda", "install", "-n", "svp-test", "-y"]
-            for cmd in invocations
-        )
+        # S3-202 / J-2a: install command built via _build_install_command;
+        # the test's monkeypatched toolchain has no environment.install_command
+        # so the helper falls back to "conda run -n {env_name} pip install
+        # {packages}". The captured cmd starts with the conda-run-pip-install
+        # shape -- NOT the pre-J-2a hardcoded ["conda", "install", "-n",
+        # env, "-y"] shape.
+        assert invocations, "install runner MUST be called when pkgs non-empty"
+        first_cmd = invocations[0]
+        assert first_cmd[0:6] == [
+            "conda",
+            "run",
+            "-n",
+            "svp-test",
+            "pip",
+            "install",
+        ], f"expected conda-run-pip-install shape post-J-2a; got {first_cmd[0:6]}"
+        # Pre-fix shape MUST NOT appear.
+        assert first_cmd[0:5] != [
+            "conda",
+            "install",
+            "-n",
+            "svp-test",
+            "-y",
+        ], "S3-202 / J-2a forbids the hardcoded conda install shape"
         # Both partitions were unioned into the install args.
         all_args = [arg for cmd in invocations for arg in cmd]
         assert "pytest" in all_args
@@ -2634,14 +2658,19 @@ import os
     def test_install_dep_delta_returns_false_on_conda_install_failure(
         self, project_root, blueprint_dir, monkeypatch
     ):
-        """install_dep_delta() returns (False, [errors]) when conda install
-        exits non-zero. The pending file is preserved so the operator can
-        retry."""
+        """install_dep_delta() returns (False, [errors]) when the install
+        command exits non-zero. The pending file is preserved so the
+        operator can retry. S3-202 / J-2a: error f-string label updated
+        from "conda install exited" to "install command exited" since
+        the cmd is now toolchain-driven (could be conda, mamba, etc.)."""
         (project_root / ".svp").mkdir(exist_ok=True)
         pending = {"delta_baseline": [], "delta_blueprint_only": ["numpy"]}
         (project_root / ".svp" / "dep_diff_pending.json").write_text(
             json.dumps(pending)
         )
+        # Seed profile + toolchain so install_dep_delta can build the cmd
+        # (S3-202 / J-2a).
+        self._seed_profile_and_toolchain(project_root, monkeypatch)
 
         def fake_runner(cmd, **kwargs):
             return _FakeProc(
@@ -2653,6 +2682,8 @@ import os
         )
         assert ok is False
         assert errors  # non-empty
-        assert any("conda install" in e or "exited" in e for e in errors)
+        # S3-202 / J-2a: the error message MUST use the new
+        # "install command exited" label.
+        assert any("install command exited" in e for e in errors), errors
         # Pending file preserved on failure.
         assert (project_root / ".svp" / "dep_diff_pending.json").exists()

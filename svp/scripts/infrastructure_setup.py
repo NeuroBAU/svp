@@ -562,8 +562,14 @@ def _build_env_create_command(
     }
 
     if archetype == "mixed":
+        # Bug S3-202 / cycle J-2c: read the canonical schema key
+        # `create_command` (per references/toolchain_manifest_schema.md and
+        # the default Python/R toolchain JSONs). Previously read `create`,
+        # which never matched any toolchain JSON and silently fell back --
+        # ignoring archetype-specific create_command overrides (e.g. R
+        # archetypes shipping `-c conda-forge` channel selection).
         create_template = toolchain.get("environment", {}).get(
-            "create",
+            "create_command",
             "conda create -n {env_name} python={python_version} -y",
         )
         python_version = toolchain.get("language", {}).get(
@@ -588,8 +594,10 @@ def _build_env_create_command(
                         result["bridge_packages"].append(conda_pkg)
 
     elif primary_language == "python" and env_manager == "conda":
+        # Bug S3-202 / cycle J-2c: same canonical-schema-key fix as the
+        # mixed-archetype branch above. Read `create_command`, not `create`.
         create_template = toolchain.get("environment", {}).get(
-            "create",
+            "create_command",
             "conda create -n {env_name} python={python_version} -y",
         )
         python_version = toolchain.get("language", {}).get(
@@ -628,8 +636,14 @@ def _build_install_command(
     """Build an install command string without executing."""
     if not packages:
         return ""
+    # Bug S3-202 / cycle J-2b: read the canonical schema key
+    # `install_command` (per references/toolchain_manifest_schema.md and the
+    # default Python/R toolchain JSONs). Previously read `install`, which
+    # never matched any toolchain JSON and silently fell back to the default
+    # template -- masking schema-inconsistent toolchains and ignoring
+    # archetype-specific install_command overrides.
     install_template = toolchain.get("environment", {}).get(
-        "install",
+        "install_command",
         "conda run -n {env_name} pip install {packages}",
     )
     return install_template.replace("{env_name}", env_name).replace(
@@ -1191,15 +1205,17 @@ def install_dep_delta(
 ) -> "tuple":
     """Bug S3-180: install delta packages from ``.svp/dep_diff_pending.json``.
 
-    Reads the pending file, runs ``conda install -n <env_name> -y <pkgs>``
-    (union of both partitions), then runs ``verify_toolchain_ready`` (Unit 4).
-    On full success: sets ``state.toolchain_status = "READY"``, removes the
-    pending file, returns ``(True, [])``. On any failure: returns
-    ``(False, [error_messages])``; the pending file is preserved so the
-    operator can inspect/retry.
+    Reads the pending file, constructs the install command via
+    ``_build_install_command(env_name, pkgs, toolchain)`` (toolchain-driven;
+    default Python toolchain uses ``conda run -n {env_name} pip install``),
+    runs it through the injected ``runner``, then runs
+    ``verify_toolchain_ready`` (Unit 4). On full success: sets
+    ``state.toolchain_status = "READY"``, removes the pending file, returns
+    ``(True, [])``. On any failure: returns ``(False, [error_messages])``;
+    the pending file is preserved so the operator can inspect/retry.
 
-    The ``runner`` parameter is the conda-install subprocess runner (mockable
-    for tests). When not provided, defaults to ``subprocess.run``.
+    The ``runner`` parameter is the install-command subprocess runner
+    (mockable for tests). When not provided, defaults to ``subprocess.run``.
     """
     if runner is None:
         runner = subprocess.run
@@ -1220,7 +1236,25 @@ def install_dep_delta(
     ]
 
     if pkgs:
-        cmd = ["conda", "install", "-n", env_name, "-y"] + pkgs
+        # Bug S3-202 / cycle J-2a: use the toolchain's install_command
+        # template via the existing _build_install_command helper. Mirrors
+        # run_infrastructure_setup line 781. Previously hardcoded conda
+        # install -n env -y pkgs, which ignored the toolchain JSON
+        # install_command template and tripped on any pip-only / conda-forge
+        # / bioconda package (gseapy, PyWGCNA in WGCNA on 2026-05-01).
+        try:
+            profile = load_profile(project_root)
+            primary_lang = profile.get("language", {}).get("primary", "python")
+        except (FileNotFoundError, KeyError):
+            primary_lang = "python"
+        try:
+            toolchain = load_toolchain(project_root, language=primary_lang)
+        except (FileNotFoundError, KeyError):
+            toolchain = {}
+        install_cmd_str = _build_install_command(env_name, pkgs, toolchain)
+        if not install_cmd_str:
+            return (False, ["_build_install_command returned empty"])
+        cmd = install_cmd_str.split()
         # Bug S3-200 / cycle I-3: force UTF-8 decoding for cross-platform
         # robustness (mirrors H6 / S3-196 fix in Unit 14 run_tests_main).
         # PYTHONIOENCODING + PYTHONUTF8 env override; text=True dropped;
@@ -1237,7 +1271,7 @@ def install_dep_delta(
                 env=env,
             )
         except (FileNotFoundError, OSError) as exc:
-            return (False, [f"conda install failed to launch: {exc}"])
+            return (False, [f"install command failed to launch: {exc}"])
         rc = getattr(result, "returncode", 1)
         if rc != 0:
             stderr_raw = getattr(result, "stderr", "") or b""
@@ -1245,7 +1279,7 @@ def install_dep_delta(
                 stderr = stderr_raw.decode("utf-8", errors="replace")
             else:
                 stderr = stderr_raw
-            return (False, [f"conda install exited {rc}: {stderr.strip()}"])
+            return (False, [f"install command exited {rc}: {stderr.strip()}"])
 
     # Verify the env is now functional.
     ok, errors = verify_toolchain_ready(project_root, env_name)
