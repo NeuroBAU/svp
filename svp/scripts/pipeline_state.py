@@ -132,6 +132,13 @@ class PipelineState:
     # baseline (state.requires_statistical_analysis=False), routing flow is
     # byte-identical to pre-S3-168 behavior.
     statistical_review_done: bool = False
+    # Bug S3-205 / cycle K-3: counts how many times implementation_agent has
+    # emitted TESTS_FLAWED for the current_unit, triggering
+    # gate_3_3_test_layer_review. Advisory only (no autonomous limit; the
+    # human owns escalation at the gate via ABANDON UNIT). Reset to 0 when
+    # current_unit advances. Distinct from red_run_retries (which counts
+    # test-execution failures, not agent-declared test-layer suspicions).
+    test_layer_review_count: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +163,7 @@ _SVP22_FIELD_DEFAULTS: Dict[str, Any] = {
     "toolchain_status": "NOT_READY",
     "requires_statistical_analysis": False,
     "statistical_review_done": False,
+    "test_layer_review_count": 0,
 }
 
 
@@ -233,6 +241,7 @@ def load_state(project_root: Path) -> PipelineState:
             "requires_statistical_analysis", False
         ),
         statistical_review_done=data.get("statistical_review_done", False),
+        test_layer_review_count=data.get("test_layer_review_count", 0),
     )
 
     return state

@@ -120,6 +120,9 @@ def complete_unit(state: PipelineState) -> PipelineState:
     # Reset per-unit state
     new.fix_ladder_position = None
     new.red_run_retries = 0
+    # Bug S3-205 / cycle K-3: test_layer_review_count is per-unit; reset when
+    # current_unit advances so the next unit's count starts fresh.
+    new.test_layer_review_count = 0
 
     # Advance to next unit or mark done
     next_unit = new.current_unit + 1

@@ -337,6 +337,10 @@ class TestResponseOptionsVsDispatchHandlers:
             return _make_state(stage="3", sub_stage="gate_3_1")
         elif gate_id == "gate_3_2_diagnostic_decision":
             return _make_state(stage="3", sub_stage="gate_3_2")
+        elif gate_id == "gate_3_3_test_layer_review":
+            # Bug S3-205 / cycle K-3: implementation_agent emits TESTS_FLAWED
+            # while sub_stage="implementation"; routing presents this gate.
+            return _make_state(stage="3", sub_stage="implementation", current_unit=1)
         elif gate_id.startswith("gate_4"):
             return _make_state(stage="4", sub_stage=None, current_unit=None)
         elif gate_id.startswith("gate_5"):

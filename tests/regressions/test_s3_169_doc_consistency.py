@@ -253,6 +253,20 @@ CONCEPTS = [
     # references/svp_2_1_lessons_learned.md (P89 catalog row + inline block).
     # Drift across the docs surfaces here.
     "P89",
+    # NEW IN S3-205 (cycle K-3 -- implementation_agent honest test-layer
+    # escalation). Three discriminating anchors lock the K-3 routing-fix
+    # cross-references. (1) `gate_3_3_test_layer_review` -- the new gate ID,
+    # appears in spec §18.4 + §3 hint-blueprint paragraph + §18.1
+    # implementation_agent row + Section 24.219, in blueprint_prose Unit 13
+    # (ALL_GATE_IDS update) + Unit 14 (GATE_VOCABULARY + dispatch + routing
+    # branch), in blueprint_contracts C-13-K3a + C-14-K3a/b/c/d, and in
+    # references/svp_2_1_lessons_learned.md P90 inline block. (2) The
+    # terminal status `TESTS_FLAWED` -- appears across the same set; central
+    # to the agent contract. (3) The pattern identifier `P90` -- catalog row
+    # plus inline block in lessons_learned and cited in spec §24.219.
+    "gate_3_3_test_layer_review",
+    "TESTS_FLAWED",
+    "P90",
 ]
 
 

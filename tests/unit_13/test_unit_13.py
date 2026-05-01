@@ -108,7 +108,7 @@ MINIMAL_TOOLCHAIN = {
     "pytest": "7.4",
 }
 
-EXPECTED_GATE_COUNT = 34  # Bug S3-176: + gate_0_4_toolchain_provisioned; Bug S3-180: + gate_2_3_toolchain_verified; Bug S3-186 (cycle G1): + gate_6_1_mode_classification (the gate_6_1_regression_test -> gate_6_3_regression_test is rename, not net add)
+EXPECTED_GATE_COUNT = 35  # Bug S3-176: + gate_0_4_toolchain_provisioned; Bug S3-180: + gate_2_3_toolchain_verified; Bug S3-186 (cycle G1): + gate_6_1_mode_classification (the gate_6_1_regression_test -> gate_6_3_regression_test is rename, not net add); Bug S3-205 (cycle K-3): + gate_3_3_test_layer_review.
 EXPECTED_AGENT_COUNT = 22  # Bug S3-168: +1 for statistical_correctness_reviewer
 
 EXPECTED_GATE_IDS = [
@@ -125,6 +125,7 @@ EXPECTED_GATE_IDS = [
     "gate_2_3_toolchain_verified",  # Bug S3-180
     "gate_3_1_test_validation",
     "gate_3_2_diagnostic_decision",
+    "gate_3_3_test_layer_review",  # Bug S3-205, cycle K-3
     "gate_3_completion_failure",
     "gate_4_1_integration_failure",
     "gate_4_1a",

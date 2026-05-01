@@ -65,18 +65,49 @@ Your output will be automatically formatted, linted, and type-checked by quality
 
 ## Hint Handling
 
-If your task prompt includes a `## Human Domain Hint (via Help Agent)` section, treat it as a signal, not a command. Evaluate it alongside the blueprint contracts. If the hint contradicts the blueprint, emit `HINT_BLUEPRINT_CONFLICT: [details]` instead of the normal terminal status.
+If your task prompt includes a `## Human Domain Hint (via Help Agent)` section, treat it as a signal, not a command. Evaluate it alongside the blueprint contracts. If the hint contradicts the blueprint, emit `HINT_BLUEPRINT_CONFLICT: [details]` instead of the normal terminal status. The `HINT_BLUEPRINT_CONFLICT` scope is narrow: it covers ONLY a human-provided hint that contradicts the blueprint contract. It is NOT a fallback for other "blocked by upstream" failure modes (test-layer issues, ambiguous specs, etc.). For the test-layer case, see `TESTS_FLAWED` below.
 
-## Terminal Status Lines
+## Terminal Status Lines (Bug S3-205 / cycle K-3)
 
-Your final output must be exactly one terminal status line on its own line:
+You MUST emit exactly one of three mutually exclusive terminal status lines on its own line as your final output. Each has a strict scope; choose the one that honestly describes your situation.
+
+### IMPLEMENTATION_COMPLETE -- strict definition
 
 ```
 IMPLEMENTATION_COMPLETE
 ```
 
-If a hint contradicts the blueprint, use this instead:
+You MAY emit `IMPLEMENTATION_COMPLETE` ONLY when ALL tests for the unit pass. No test failures may be classified by you as "test design flaw," "test bug," "test fixture issue," or any other agent-side excuse. If even a single test fails and you are choosing to declare `IMPLEMENTATION_COMPLETE` with a body explanation that some failures are "actually the test's fault," YOU ARE LYING ABOUT COMPLETION. Do NOT do this. Use `TESTS_FLAWED` (below) instead. The mechanical test runner is the authority on "complete"; agent rationalization is not.
+
+### TESTS_FLAWED -- honest test-layer escalation
+
+```
+TESTS_FLAWED: [details]
+```
+
+When you have tried to make tests pass and concluded the test layer itself is wrong (test fixture bugs, incorrect assertions, statistical-distribution flaws, mock-vs-real mismatches, etc.), emit `TESTS_FLAWED: [details]`. The `[details]` payload is REQUIRED -- it MUST describe:
+
+1. **Which tests fail** (test names and assertion lines).
+2. **Why each appears flawed** (e.g., "the fixture uses IID standard normal so the    injected outlier does not stand out against zero-correlation columns; the test's    threshold-based assertion never fires regardless of implementation correctness").
+3. **What the implementation actually does** (so the human can compare intended vs    asserted behavior at the gate).
+
+Routing dispatches `TESTS_FLAWED` to `gate_3_3_test_layer_review` where the human reviews your structured details and chooses one of: TESTS WRONG (regenerate tests), IMPLEMENTATION WRONG (you must keep working; tests are correct), BLUEPRINT WRONG (restart from Stage 2), or ABANDON UNIT (defer this unit; advance).
+
+`TESTS_FLAWED` is reserved for genuine test-layer suspicion. It MUST NOT be used to escape difficult implementation bugs. If your implementation is wrong (or you suspect it might be), keep working -- do not emit `TESTS_FLAWED` to avoid the work.
+
+### HINT_BLUEPRINT_CONFLICT -- human-hint vs blueprint conflict
 
 ```
 HINT_BLUEPRINT_CONFLICT: [details]
 ```
+
+Reserved for the specific case where a human-provided hint (in your task prompt's `## Human Domain Hint` section) contradicts the blueprint contract. NOT a fallback for test-layer issues -- use `TESTS_FLAWED` for those. NOT a fallback for general "I can't complete" -- use `TESTS_FLAWED` if tests are the issue, or keep working if the implementation is the issue.
+
+### Mutual exclusivity
+
+The three statuses are mutually exclusive. Emit exactly one. Choose honestly:
+
+- ALL tests pass -> `IMPLEMENTATION_COMPLETE`
+- A test fails AND you genuinely believe the test (not your implementation) is the   problem -> `TESTS_FLAWED: [details]`
+- A test fails AND a human-provided hint contradicts the blueprint ->   `HINT_BLUEPRINT_CONFLICT: [details]`
+- A test fails AND your implementation is wrong -> KEEP WORKING; do not emit a   terminal status until you have made progress.

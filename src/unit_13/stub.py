@@ -50,6 +50,10 @@ ALL_GATE_IDS: List[str] = [
     "gate_2_3_toolchain_verified",
     "gate_3_1_test_validation",
     "gate_3_2_diagnostic_decision",
+    # Bug S3-205 / cycle K-3: implementation_agent honest test-layer
+    # escalation gate. Presented when implementation_agent emits
+    # TESTS_FLAWED: [details]. Four-way response with ABANDON UNIT escape.
+    "gate_3_3_test_layer_review",
     "gate_3_completion_failure",
     "gate_4_1_integration_failure",
     "gate_4_1a",
@@ -166,6 +170,13 @@ _GATE_RESPONSE_OPTIONS: Dict[str, List[str]] = {
         "ACCEPT ADAPTATIONS",
         "MODIFY TEST",
         "REMOVE TEST",
+    ],
+    # Bug S3-205 / cycle K-3: implementation_agent TESTS_FLAWED escalation.
+    "gate_3_3_test_layer_review": [
+        "TESTS WRONG",
+        "IMPLEMENTATION WRONG",
+        "BLUEPRINT WRONG",
+        "ABANDON UNIT",
     ],
     "gate_5_1_repo_test": ["TESTS PASSED", "TESTS FAILED"],
     "gate_5_2_assembly_exhausted": [

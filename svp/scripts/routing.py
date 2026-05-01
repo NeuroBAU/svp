@@ -96,6 +96,14 @@ GATE_VOCABULARY: Dict[str, List[str]] = {
         "FIX BLUEPRINT",
         "FIX SPEC",
     ],
+    # Bug S3-205 / cycle K-3: implementation_agent honest test-layer escalation.
+    # Presented when implementation_agent emits TESTS_FLAWED: [details].
+    "gate_3_3_test_layer_review": [
+        "TESTS WRONG",
+        "IMPLEMENTATION WRONG",
+        "BLUEPRINT WRONG",
+        "ABANDON UNIT",
+    ],
     "gate_3_completion_failure": [
         "INVESTIGATE",
         "FORCE ADVANCE",
@@ -205,6 +213,8 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
     ],
     "implementation_agent": [
         "IMPLEMENTATION_COMPLETE",
+        # Bug S3-205 / cycle K-3: honest test-layer escalation.
+        "TESTS_FLAWED",
         "HINT_BLUEPRINT_CONFLICT",
     ],
     "coverage_review_agent": [
@@ -2290,6 +2300,27 @@ def _route_stage_3(
             state = advance_sub_stage(state, "quality_gate_b")
             save_state(project_root, state)
             return route(project_root)
+        # Bug S3-205 / cycle K-3: honest test-layer escalation. When the
+        # implementation_agent emits TESTS_FLAWED: [details], present
+        # gate_3_3_test_layer_review for human review. The gate prompt
+        # surfaces test_layer_review_count for context.
+        if last_status.startswith("TESTS_FLAWED"):
+            return _make_action_block(
+                action_type="human_gate",
+                gate_id="gate_3_3_test_layer_review",
+                reminder=(
+                    f"Implementation agent flagged test-layer suspicion for "
+                    f"unit {state.current_unit} "
+                    f"(test_layer_review_count="
+                    f"{getattr(state, 'test_layer_review_count', 0)}). "
+                    f"Review the agent's structured details and decide."
+                ),
+                post=(
+                    "python scripts/update_state.py "
+                    "--command gate_3_3_test_layer_review "
+                    "--project-root ."
+                ),
+            )
         fl = state.fix_ladder_position
         if fl == "diagnostic":
             if last_status == "DIAGNOSIS_COMPLETE":
@@ -2847,6 +2878,40 @@ def dispatch_gate_response(
             new = advance_stage(state, "1")
         return new
 
+    # Bug S3-205 / cycle K-3: Gate 3.3 test-layer review.
+    # Presented when implementation_agent emits TESTS_FLAWED: [details].
+    # Four response options for the human's review decision.
+    if gate_id == "gate_3_3_test_layer_review":
+        _clear_last_status(project_root)
+        if response == "TESTS WRONG":
+            # Trust the agent: regenerate tests for this unit.
+            new = _copy(state)
+            new.sub_stage = "test_generation"
+        elif response == "IMPLEMENTATION WRONG":
+            # Push back: tests are correct, agent must keep working.
+            new = _copy(state)
+            # sub_stage stays "implementation"; routing re-invokes the agent.
+        elif response == "BLUEPRINT WRONG":
+            # The underlying blueprint is wrong; restart from Stage 2.
+            new = restart_from_stage(state, "2")
+        else:  # ABANDON UNIT
+            # Defer this unit; advance to next unit.
+            new = _copy(state)
+            unit_to_defer = new.current_unit
+            if unit_to_defer is not None:
+                new.deferred_broken_units = list(new.deferred_broken_units) + [
+                    unit_to_defer
+                ]
+            new.test_layer_review_count = 0
+            # Advance to next unit (or end of pipeline if last).
+            if unit_to_defer is not None and unit_to_defer < new.total_units:
+                new.current_unit = unit_to_defer + 1
+                new.sub_stage = "test_generation"
+            else:
+                new.current_unit = None
+                new.sub_stage = None
+        return new
+
     # Gate 3 completion failure
     if gate_id == "gate_3_completion_failure":
         if response == "INVESTIGATE":
@@ -3381,6 +3446,16 @@ def dispatch_agent_status(
     if agent_type == "implementation_agent":
         if status_line == "IMPLEMENTATION_COMPLETE":
             return _copy(state)
+        # Bug S3-205 / cycle K-3: honest test-layer escalation. The agent has
+        # tried to make tests pass and concluded the test layer itself is
+        # wrong. Increment test_layer_review_count for visibility at the gate;
+        # routing on the next pass presents gate_3_3_test_layer_review.
+        if status_line.startswith("TESTS_FLAWED"):
+            new = _copy(state)
+            new.test_layer_review_count = (
+                getattr(new, "test_layer_review_count", 0) + 1
+            )
+            return new
         if status_line.startswith("HINT_BLUEPRINT_CONFLICT"):
             return _copy(state)
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
