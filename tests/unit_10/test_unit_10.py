@@ -127,6 +127,29 @@ PYTHON_TIER2_SOURCE = textwrap.dedent("""\
             ...
 """)
 
+# Bug S3-203 / cycle K-1: fixture beginning with `from __future__ import
+# annotations` -- the canonical Python idiom adopted by every SVP unit. Used
+# to verify the stub generator dedups against the always-prepended copy
+# (C-10-K1a / Pattern P88) without producing a SyntaxError at compile-time.
+PYTHON_TIER2_SOURCE_WITH_FUTURE = textwrap.dedent("""\
+    from __future__ import annotations
+    from typing import Any, Dict, List
+    from pathlib import Path
+
+    def process_data(input_path: Path, config: Dict[str, Any]) -> List[str]:
+        ...
+
+    class DataProcessor:
+        name: str
+        value: int
+
+        def run(self, data: Any) -> None:
+            ...
+
+        def reset(self) -> None:
+            ...
+""")
+
 PYTHON_SIMPLE_FUNC = "def foo(x: int) -> str:\n    ...\n"
 
 PYTHON_WITH_ASSERT = textwrap.dedent("""\
@@ -645,6 +668,21 @@ class TestGenerateStub:
         result = generate_stub(parsed, "python", PYTHON_LANGUAGE_CONFIG)
         # Compiling should not raise
         compile(result, "<stub>", "exec")
+
+    def test_generate_stub_python_result_is_importable_with_leading_future(self):
+        """Bug S3-203 / cycle K-1: fixture begins with `from __future__ import
+        annotations` (the canonical SVP/Python idiom). Pre-fix, the generator
+        emitted two copies of that line and the stub failed to compile() with
+        PEP 236's `from __future__ imports must occur at the beginning of the
+        file`. Post-fix (C-10-K1a), the source-side copy is filtered out at the
+        per-node collection site so the always-prepended copy is the only one
+        emitted."""
+        parsed = make_python_ast(PYTHON_TIER2_SOURCE_WITH_FUTURE)
+        result = generate_stub(parsed, "python", PYTHON_LANGUAGE_CONFIG)
+        # Compile is mandatory: ast.parse() does NOT enforce PEP 236.
+        compile(result, "<stub>", "exec")
+        # Exactly one copy of the line in the output.
+        assert result.count("from __future__ import annotations") == 1
 
     def test_generate_stub_python_with_asserts_stripped(self):
         """Module-level asserts in Python source are stripped in the stub."""
@@ -1335,6 +1373,15 @@ class TestGenerateStubDispatchCorrectness:
         result = generate_stub(parsed, "python", PYTHON_LANGUAGE_CONFIG)
         # Compile to verify importability
         compile(result, "<test_stub>", "exec")
+
+    def test_python_full_language_stub_is_importable_with_leading_future(self):
+        """Bug S3-203 / cycle K-1 companion: full-language stub generation also
+        compiles cleanly when the source signature begins with the canonical
+        `from __future__ import annotations`. C-10-K1a / Pattern P88."""
+        parsed = make_python_ast(PYTHON_TIER2_SOURCE_WITH_FUTURE)
+        result = generate_stub(parsed, "python", PYTHON_LANGUAGE_CONFIG)
+        compile(result, "<test_stub>", "exec")
+        assert result.count("from __future__ import annotations") == 1
 
     def test_plugin_and_component_no_sentinel_required(self):
         """Plugin and component stubs do not require full-language sentinels.

@@ -101,6 +101,13 @@ def _generate_python_stub(
 
     for node in parsed_signatures.body:
         if isinstance(node, (ast.Import, ast.ImportFrom)):
+            # Bug S3-203 / cycle K-1: skip `from __future__ ...` -- the
+            # generator unconditionally prepends `from __future__ import
+            # annotations` below (PEP 236, S3-197 / C-10-H7a). Re-emitting
+            # the source-side copy after the sentinel violates PEP 236 and
+            # produces SyntaxError at compile-time. C-10-K1a.
+            if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+                continue
             import_lines.append(ast.unparse(node))
         elif isinstance(node, ast.Assert):
             # Strip module-level asserts

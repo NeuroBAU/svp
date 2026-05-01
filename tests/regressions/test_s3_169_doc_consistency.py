@@ -234,6 +234,15 @@ CONCEPTS = [
     # Unit 16 (cmd_clean env-remove paragraph), and in blueprint_contracts
     # Unit 16 C-16-J2d clause. Drift across the three docs surfaces here.
     "cleanup_command",
+    # NEW IN S3-203 (cycle K-1 -- stub generator __future__ dedup).
+    # The pattern identifier P88 is the discriminating anchor for the K-1
+    # always-prepend-dedup invariant. MUST appear in spec Section 24.217 +
+    # section 40.2 Unit 10 closing dedup sentence, in blueprint_prose Unit 10
+    # (stub preamble dedup paragraph), in blueprint_contracts Unit 10
+    # (C-10-K1a clause), and in references/svp_2_1_lessons_learned.md
+    # (P88 catalog row + inline block). Drift across the four docs surfaces
+    # here.
+    "P88",
 ]
 
 
