@@ -267,6 +267,15 @@ CONCEPTS = [
     "gate_3_3_test_layer_review",
     "TESTS_FLAWED",
     "P90",
+    # NEW IN S3-206 (cycle K-4 -- test_agent F841 unused-variable
+    # prohibition). The ruff lint code F841 is the discriminating anchor
+    # for the K-4 P14-sibling prohibition. MUST appear in spec Section
+    # 24.220 + §21 test_agent contract column, in blueprint_prose Unit 20
+    # (test_agent F841 paragraph), and in blueprint_contracts C-20-K4a
+    # clause. Drift across the docs surfaces here. (lessons_learned
+    # carries the K-4 P14-sibling inline block; the catalog row for P14
+    # itself already exists, so no row addition.)
+    "F841",
 ]
 
 

@@ -960,6 +960,19 @@ Never use `from src.unit_N.stub import ...` -- stub paths are workspace-internal
 do not exist in the delivered repo. The flat module names match the deployed scripts \
 and are resolved via `pyproject.toml pythonpath = ["scripts"]`.
 
+**P4 -- No unused variables (F841, NEW IN 2.2 -- Bug S3-206, cycle K-4):** \
+Do not leave unused variables in test code. The `ruff` lint `F841` ("local variable \
+assigned but never used") fails Gate A; the fix-ladder then routes to the \
+implementation_agent, which must clean up YOUR test file in addition to producing the \
+unit's implementation. Each occurrence wastes a fix-ladder cycle. Common offenders: \
+`result = func(...)` without an `assert` on `result`; named return-value bindings used \
+as "documentation" without subsequent assertions; tuple-unpacking where some elements \
+are silently ignored. Discipline: every variable you assign in a test MUST be used, \
+asserted on, or replaced with `_` (which `F841` ignores) -- but prefer asserting on \
+the value to verify the contract. For hidden-side-effect calls, use a bare expression \
+statement (`func(...)`) rather than an unused assignment. F841 is the most common \
+preventable Gate A failure for this agent; eliminating it is your responsibility.
+
 ## Lessons Learned Filtering
 
 Your task prompt may include filtered lessons learned entries relevant to the current unit. \
