@@ -118,6 +118,13 @@ GATE_VOCABULARY: Dict[str, List[str]] = {
         "FIX SPEC",
         "OVERRIDE",
     ],
+    # Bug S3-208 / cycle K-6: integration_test_author INTEGRATION_TESTS_BLOCKED escalation.
+    "gate_4_4_integration_tests_blocked": [
+        "FIX UNIT",
+        "FIX BLUEPRINT",
+        "FIX SPEC",
+        "OVERRIDE",
+    ],
     "gate_3_completion_failure": [
         "INVESTIGATE",
         "FORCE ADVANCE",
@@ -248,6 +255,10 @@ AGENT_STATUS_LINES: Dict[str, List[str]] = {
     ],
     "integration_test_author": [
         "INTEGRATION_TESTS_COMPLETE",
+        # Bug S3-208 / cycle K-6: P90 Stage-4 audit. Honest upstream-defect
+        # escalation. integration_test_author does NOT receive human hints;
+        # HINT_BLUEPRINT_CONFLICT remains intentionally absent.
+        "INTEGRATION_TESTS_BLOCKED",
     ],
     "regression_adaptation": [
         "ADAPTATION_COMPLETE",
@@ -2569,6 +2580,25 @@ def _route_stage_4(
             reminder="Run integration tests.",
         )
 
+    # Bug S3-208 / cycle K-6: P90 Stage-4 audit. integration_test_author
+    # honest upstream-defect escalation -- present
+    # gate_4_4_integration_tests_blocked for human review with the agent's
+    # structured details surfaced in the gate prompt.
+    if last_status.startswith("INTEGRATION_TESTS_BLOCKED"):
+        return _make_action_block(
+            action_type="human_gate",
+            gate_id="gate_4_4_integration_tests_blocked",
+            reminder=(
+                "Integration test author flagged upstream-defect. Review "
+                "the agent's structured details and decide."
+            ),
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_4_4_integration_tests_blocked "
+                "--project-root ."
+            ),
+        )
+
     return _make_action_block(
         action_type="invoke_agent",
         agent_type="integration_test_author",
@@ -2981,6 +3011,28 @@ def dispatch_gate_response(
             # unmet coverage concern and advance to unit_completion.
             new = _copy(state)
             new.sub_stage = "unit_completion"
+        return new
+
+    # Bug S3-208 / cycle K-6: Gate 4.4 integration-tests-blocked.
+    # Presented when integration_test_author emits INTEGRATION_TESTS_BLOCKED: [details].
+    # Four response options for the human's review decision.
+    if gate_id == "gate_4_4_integration_tests_blocked":
+        _clear_last_status(project_root)
+        if response == "FIX UNIT":
+            # Enter break-glass for the affected unit (mirrors
+            # gate_3_completion_failure INVESTIGATE). The human + bug_triage
+            # use the agent's [details] payload to identify the unit.
+            new = enter_debug_session(state, 0)
+        elif response == "FIX BLUEPRINT":
+            new = restart_from_stage(state, "2")
+        elif response == "FIX SPEC":
+            new = restart_from_stage(state, "1")
+        else:  # OVERRIDE
+            # Acknowledge failures and advance past integration to Stage 5
+            # (less drastic than aborting; mirrors gate_3_5 OVERRIDE in spirit).
+            new = _copy(state)
+            new.stage = "5"
+            new.sub_stage = None
         return new
 
     # Bug S3-205 / cycle K-3: Gate 3.3 test-layer review.
@@ -3600,6 +3652,12 @@ def dispatch_agent_status(
     # integration_test_author
     if agent_type == "integration_test_author":
         if status_line == "INTEGRATION_TESTS_COMPLETE":
+            return _copy(state)
+        # Bug S3-208 / cycle K-6: P90 Stage-4 audit. The agent has authored
+        # integration tests and concluded the failures reveal a real upstream
+        # defect (cross-unit contract mismatch / impl bug). No counter;
+        # routing on the next pass presents gate_4_4_integration_tests_blocked.
+        if status_line.startswith("INTEGRATION_TESTS_BLOCKED"):
             return _copy(state)
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 

@@ -167,16 +167,17 @@ class TestGateVocabulary:
         assert isinstance(GATE_VOCABULARY, dict)
 
     def test_gate_vocabulary_has_34_gates(self):
-        """GATE_VOCABULARY must contain exactly 37 gate entries (31 baseline
+        """GATE_VOCABULARY must contain exactly 38 gate entries (31 baseline
         + gate_0_4_toolchain_provisioned added by Bug S3-176
         + gate_2_3_toolchain_verified added by Bug S3-180
         + gate_6_1_mode_classification added by Bug S3-186 (cycle G1)
         + gate_3_3_test_layer_review added by Bug S3-205 (cycle K-3)
         + gate_3_4_test_generation_blocked + gate_3_5_coverage_ambiguous
-        added by Bug S3-207 (cycle K-5).
+        added by Bug S3-207 (cycle K-5)
+        + gate_4_4_integration_tests_blocked added by Bug S3-208 (cycle K-6).
         Note: Bug S3-186 also renamed gate_6_1_regression_test to
         gate_6_3_regression_test (vocabulary-only rename, no count change)."""
-        assert len(GATE_VOCABULARY) == 37
+        assert len(GATE_VOCABULARY) == 38
 
     def test_all_gate_values_are_lists_of_strings(self):
         """Every gate entry must map to a list of string responses."""
@@ -447,13 +448,14 @@ class TestGateVocabulary:
         }
 
     def test_all_expected_gate_ids_present(self):
-        """All 37 expected gate IDs are present in GATE_VOCABULARY (31
+        """All 38 expected gate IDs are present in GATE_VOCABULARY (31
         baseline + gate_0_4_toolchain_provisioned per Bug S3-176 +
         gate_2_3_toolchain_verified per Bug S3-180 +
         gate_6_1_mode_classification per Bug S3-186 cycle G1 +
         gate_3_3_test_layer_review per Bug S3-205 cycle K-3 +
         gate_3_4_test_generation_blocked + gate_3_5_coverage_ambiguous
-        per Bug S3-207 cycle K-5)."""
+        per Bug S3-207 cycle K-5 +
+        gate_4_4_integration_tests_blocked per Bug S3-208 cycle K-6)."""
         expected_gates = {
             "gate_0_1_hook_activation",
             "gate_0_2_context_approval",
@@ -469,6 +471,7 @@ class TestGateVocabulary:
             "gate_3_3_test_layer_review",  # Bug S3-205, cycle K-3
             "gate_3_4_test_generation_blocked",  # Bug S3-207, cycle K-5
             "gate_3_5_coverage_ambiguous",  # Bug S3-207, cycle K-5
+            "gate_4_4_integration_tests_blocked",  # Bug S3-208, cycle K-6
             "gate_3_1_test_validation",
             "gate_3_2_diagnostic_decision",
             "gate_3_completion_failure",

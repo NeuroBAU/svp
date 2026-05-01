@@ -349,6 +349,11 @@ class TestResponseOptionsVsDispatchHandlers:
             # Bug S3-207 / cycle K-5: coverage_review_agent emits COVERAGE_AMBIGUOUS
             # while sub_stage="coverage_review"; routing presents this gate.
             return _make_state(stage="3", sub_stage="coverage_review", current_unit=1)
+        elif gate_id == "gate_4_4_integration_tests_blocked":
+            # Bug S3-208 / cycle K-6: integration_test_author emits
+            # INTEGRATION_TESTS_BLOCKED while sub_stage="integration"; routing
+            # presents this gate.
+            return _make_state(stage="4", sub_stage="integration", current_unit=None)
         elif gate_id.startswith("gate_4"):
             return _make_state(stage="4", sub_stage=None, current_unit=None)
         elif gate_id.startswith("gate_5"):

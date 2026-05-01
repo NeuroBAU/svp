@@ -905,17 +905,18 @@ class TestPrepareTaskPromptDispatches:
 class TestGateVocabularyCoversAllGates:
     """Integration: GATE_VOCABULARY (Unit 14) covers all gates from Unit 13."""
 
-    def test_gate_vocabulary_has_37_gates(self):
-        """GATE_VOCABULARY contains exactly 37 gate entries (31 baseline +
+    def test_gate_vocabulary_has_38_gates(self):
+        """GATE_VOCABULARY contains exactly 38 gate entries (31 baseline +
         gate_0_4_toolchain_provisioned added by Bug S3-176 +
         gate_2_3_toolchain_verified added by Bug S3-180 +
         gate_6_1_mode_classification added by Bug S3-186 cycle G1 +
         gate_3_3_test_layer_review added by Bug S3-205 cycle K-3 +
         gate_3_4_test_generation_blocked + gate_3_5_coverage_ambiguous
-        added by Bug S3-207 cycle K-5).
+        added by Bug S3-207 cycle K-5 +
+        gate_4_4_integration_tests_blocked added by Bug S3-208 cycle K-6).
         The S3-186 rename gate_6_1_regression_test -> gate_6_3_regression_test
         does not change the count."""
-        assert len(GATE_VOCABULARY) == 37
+        assert len(GATE_VOCABULARY) == 38
 
     def test_all_gate_ids_have_vocabulary_entries(self):
         """Every gate in ALL_GATE_IDS has a GATE_VOCABULARY entry."""
@@ -951,15 +952,16 @@ class TestGateVocabularyCoversAllGates:
         for gate_id, responses in GATE_VOCABULARY.items():
             assert len(responses) > 0, f"Gate '{gate_id}' has no valid responses"
 
-    def test_all_gate_ids_list_has_37_entries(self):
-        """ALL_GATE_IDS contains exactly 37 entries (31 baseline +
+    def test_all_gate_ids_list_has_38_entries(self):
+        """ALL_GATE_IDS contains exactly 38 entries (31 baseline +
         gate_0_4_toolchain_provisioned added by Bug S3-176 +
         gate_2_3_toolchain_verified added by Bug S3-180 +
         gate_6_1_mode_classification added by Bug S3-186 cycle G1 +
         gate_3_3_test_layer_review added by Bug S3-205 cycle K-3 +
         gate_3_4_test_generation_blocked + gate_3_5_coverage_ambiguous
-        added by Bug S3-207 cycle K-5)."""
-        assert len(ALL_GATE_IDS) == 37
+        added by Bug S3-207 cycle K-5 +
+        gate_4_4_integration_tests_blocked added by Bug S3-208 cycle K-6)."""
+        assert len(ALL_GATE_IDS) == 38
 
 
 # ===================================================================

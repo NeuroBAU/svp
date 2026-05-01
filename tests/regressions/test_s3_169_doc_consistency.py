@@ -290,6 +290,17 @@ CONCEPTS = [
     "gate_3_5_coverage_ambiguous",
     "TEST_GENERATION_BLOCKED",
     "COVERAGE_AMBIGUOUS",
+    # NEW IN S3-208 (cycle K-6 -- P90 Stage-4 audit). Two anchors lock the
+    # K-6 cross-references for the integration_test_author P90 escalation:
+    # the new gate ID (`gate_4_4_integration_tests_blocked`) and the new
+    # terminal status token (`INTEGRATION_TESTS_BLOCKED`). Each MUST appear
+    # in spec Section 24.222 + §3 hint-blueprint scope ext + §18.1
+    # Integration Test Author row + §18.4 gate row + §21 agent summary,
+    # in blueprint_prose Units 13/14/20, and in blueprint_contracts
+    # C-13-K6a + C-14-K6a/b/c/d + C-20-K6a. Drift across the docs surfaces
+    # here.
+    "gate_4_4_integration_tests_blocked",
+    "INTEGRATION_TESTS_BLOCKED",
 ]
 
 

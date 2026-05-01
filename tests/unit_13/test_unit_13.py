@@ -108,7 +108,7 @@ MINIMAL_TOOLCHAIN = {
     "pytest": "7.4",
 }
 
-EXPECTED_GATE_COUNT = 37  # Bug S3-176: + gate_0_4_toolchain_provisioned; Bug S3-180: + gate_2_3_toolchain_verified; Bug S3-186 (cycle G1): + gate_6_1_mode_classification (the gate_6_1_regression_test -> gate_6_3_regression_test is rename, not net add); Bug S3-205 (cycle K-3): + gate_3_3_test_layer_review; Bug S3-207 (cycle K-5): + gate_3_4_test_generation_blocked + gate_3_5_coverage_ambiguous.
+EXPECTED_GATE_COUNT = 38  # Bug S3-176: + gate_0_4_toolchain_provisioned; Bug S3-180: + gate_2_3_toolchain_verified; Bug S3-186 (cycle G1): + gate_6_1_mode_classification (the gate_6_1_regression_test -> gate_6_3_regression_test is rename, not net add); Bug S3-205 (cycle K-3): + gate_3_3_test_layer_review; Bug S3-207 (cycle K-5): + gate_3_4_test_generation_blocked + gate_3_5_coverage_ambiguous; Bug S3-208 (cycle K-6): + gate_4_4_integration_tests_blocked.
 EXPECTED_AGENT_COUNT = 22  # Bug S3-168: +1 for statistical_correctness_reviewer
 
 EXPECTED_GATE_IDS = [
@@ -128,6 +128,7 @@ EXPECTED_GATE_IDS = [
     "gate_3_3_test_layer_review",  # Bug S3-205, cycle K-3
     "gate_3_4_test_generation_blocked",  # Bug S3-207, cycle K-5
     "gate_3_5_coverage_ambiguous",  # Bug S3-207, cycle K-5
+    "gate_4_4_integration_tests_blocked",  # Bug S3-208, cycle K-6
     "gate_3_completion_failure",
     "gate_4_1_integration_failure",
     "gate_4_1a",

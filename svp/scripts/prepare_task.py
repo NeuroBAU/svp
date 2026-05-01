@@ -63,6 +63,10 @@ ALL_GATE_IDS: List[str] = [
     "gate_4_1a",
     "gate_4_2_assembly_exhausted",
     "gate_4_3_adaptation_review",
+    # Bug S3-208 / cycle K-6: integration_test_author honest upstream-defect
+    # escalation gate. Presented when integration_test_author emits
+    # INTEGRATION_TESTS_BLOCKED: [details]. Four-way response with OVERRIDE.
+    "gate_4_4_integration_tests_blocked",
     "gate_5_1_repo_test",
     "gate_5_2_assembly_exhausted",
     "gate_5_3_unused_functions",
@@ -192,6 +196,13 @@ _GATE_RESPONSE_OPTIONS: Dict[str, List[str]] = {
     # Bug S3-207 / cycle K-5: coverage_review_agent COVERAGE_AMBIGUOUS escalation.
     "gate_3_5_coverage_ambiguous": [
         "RETRY REVIEW",
+        "FIX BLUEPRINT",
+        "FIX SPEC",
+        "OVERRIDE",
+    ],
+    # Bug S3-208 / cycle K-6: integration_test_author INTEGRATION_TESTS_BLOCKED escalation.
+    "gate_4_4_integration_tests_blocked": [
+        "FIX UNIT",
         "FIX BLUEPRINT",
         "FIX SPEC",
         "OVERRIDE",
