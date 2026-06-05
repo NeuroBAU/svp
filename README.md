@@ -47,7 +47,7 @@ You do not need:
 - A valid Anthropic API key configured
 - [Conda](https://docs.conda.io/en/latest/miniconda.html) (Miniconda or Anaconda) installed and on your PATH
 - [Git](https://git-scm.com/) installed and configured
-- Python 3.10+
+- Python 3.11+ (the launcher's preflight requires 3.11 or newer)
 
 ### Install the Plugin
 
@@ -87,7 +87,61 @@ The migration is **opt-in**. If you prefer to keep user-scope enablement (SVP al
 
 The `ensure_project_settings()` helper is **idempotent**, **non-destructive** (preserves unrelated settings.json keys), and **self-healing** (rewrites the marketplace path if you move the SVP repo on disk). Re-running the launcher in a migrated directory is always safe.
 
+### Native Windows (PowerShell + Conda)
+
+On native Windows (PowerShell + Anaconda/Miniconda, **not** WSL2), use the bundled installer instead of the macOS/Linux steps above. It registers the marketplace, installs the launcher into your active Conda environment, and verifies the result in one step. If you are on WSL2, follow the macOS/Linux instructions instead.
+
+#### Option 1 — Automated installer (recommended)
+
+From the repository root, in PowerShell:
+
+```powershell
+git clone https://github.com/NeuroBAU/svp.git
+cd svp
+.\install_windows.ps1
+```
+
+The installer checks prerequisites (Python ≥ 3.11, conda, git, claude), registers this repo as a Claude Code marketplace, runs `pip install -e .` into the **currently active** Conda environment, and confirms `svp --help` works. It does **not** edit your PATH, your PowerShell profile, or `~/.claude/settings.json` — the launcher handles project-scoped plugin activation automatically on your first `svp new`.
+
+To install into a dedicated environment instead of the active one:
+
+```powershell
+.\install_windows.ps1 -NewEnv      # creates a conda env named 'svp' (Python 3.11)
+conda activate svp                 # activate it in new shells before running svp
+```
+
+After either form, `svp.exe` lands in your Conda environment's `Scripts\` directory, which is already on PATH — no `--prefix` and no PATH edit. **Do not** use `pip install -e . --prefix ~/.local` on Windows: that places `svp.exe` under `~/.local\Scripts\` (not on PATH), and the macOS/Linux PATH instructions below do not apply.
+
+#### Option 2 — No-pip fallback (PowerShell profile function)
+
+If `pip install` fails on your machine (some Windows + Conda setups have broken or read-only entry-point script generation), you can activate `svp` **without pip** using the bundled `setup_svp_user.ps1`. It installs a small PowerShell function that calls the launcher directly — functionally equivalent to the pip-generated `svp.exe`:
+
+```powershell
+cd svp                  # the cloned repo root
+.\setup_svp_user.ps1    # add -RegisterMarketplace to also register the marketplace
+```
+
+The script validates the shared toolchain, sets the `SVP_PLUGIN_ROOT` environment variable, and appends a `svp` function to your PowerShell `$PROFILE` of the form:
+
+```powershell
+function svp { & "C:\ProgramData\miniconda3\python.exe" "<repo>\svp\scripts\svp_launcher.py" @args }
+```
+
+Open a **new** PowerShell window (so the profile and environment variable load) and verify with `Get-Command svp` — it should report `CommandType: Function` — then run `svp new my-project`.
+
+#### Multi-user machines
+
+`svp` activation is **per Windows user**: both the pip entry point and the profile function live in a single account. To enable SVP for another user (e.g., a shared lab workstation), have that user — while logged into their **own** account — do the following:
+
+1. Obtain a copy of the repo their account can read. Windows locks cross-user access to `C:\Users\<other>\...`, so each user should clone into their own profile (e.g., `git clone https://github.com/NeuroBAU/svp.git C:\Users\<them>\Documents\projects\svp`) or use a shared, world-readable location.
+2. Run `.\setup_svp_user.ps1` from inside that copy (or `pip install -e .` if pip works for them).
+3. Open a new PowerShell window and run `svp new test-project` to confirm.
+
+Machine-wide tools (the Conda base interpreter, `claude`, `git`) are reused across users; only the `svp` command binding and the per-user `~/.claude` plugin cache are account-specific.
+
 ### Install the Launcher
+
+> **macOS / Linux / WSL2.** For native Windows, use the [Native Windows](#native-windows-powershell--conda) section above instead — the steps below do not apply.
 
 ```bash
 pip install -e . --prefix ~/.local
@@ -123,7 +177,7 @@ source ~/.bashrc
 
 **Windows (WSL2):**
 
-Inside WSL2, follow the Linux/bash instructions above. For native Windows with Anaconda, scripts are typically installed to the Anaconda `Scripts` directory (e.g., `C:\Users\<you>\anaconda3\Scripts\svp.exe`), which is usually on PATH after Anaconda installation. To add a custom directory to PATH on native Windows, open **Settings > System > About > Advanced system settings > Environment Variables** and edit the `Path` variable under "User variables."
+Inside WSL2, follow the Linux/bash instructions above. For **native** Windows (PowerShell + Anaconda/Miniconda), do not use these `~/.local` PATH steps — see the [Native Windows (PowerShell + Conda)](#native-windows-powershell--conda) section above, which uses the bundled `install_windows.ps1` / `setup_svp_user.ps1` scripts. After a Windows `pip install -e .`, `svp.exe` lands in your Conda environment's `Scripts\` directory, which is already on PATH.
 
 #### Verify the installation
 
