@@ -8,6 +8,7 @@ hook, and skill definitions into the delivered repo's svp/ subdirectory.
 """
 
 import json
+import sys
 import tempfile
 from pathlib import Path
 
@@ -58,7 +59,7 @@ class TestS3_51_PluginManifestDirectories:
     def test_marketplace_json_valid(self, assembled_repo):
         """marketplace.json has valid non-empty required fields."""
         mp = assembled_repo / ".claude-plugin" / "marketplace.json"
-        data = json.loads(mp.read_text())
+        data = json.loads(mp.read_text(encoding="utf-8"))
         assert data["name"] == "svp"
         assert "owner" in data
         assert "plugins" in data
@@ -76,7 +77,7 @@ class TestS3_51_PluginManifestDirectories:
     def test_plugin_json_valid(self, assembled_repo):
         """plugin.json has valid non-empty required fields."""
         pj = assembled_repo / "svp" / ".claude-plugin" / "plugin.json"
-        data = json.loads(pj.read_text())
+        data = json.loads(pj.read_text(encoding="utf-8"))
         assert data["name"] == "svp"
         assert data["description"] != ""
         assert data["version"] == "2.2.0"
@@ -146,7 +147,7 @@ class TestS3_52_PluginComponentDirectories:
         """svp/hooks/hooks.json is created and valid JSON."""
         hj = assembled_repo / "svp" / "hooks" / "hooks.json"
         assert hj.is_file()
-        data = json.loads(hj.read_text())
+        data = json.loads(hj.read_text(encoding="utf-8"))
         assert isinstance(data, dict)
 
     def test_hook_scripts_present(self, assembled_repo):
@@ -161,6 +162,11 @@ class TestS3_52_PluginComponentDirectories:
         for name in expected:
             assert (hooks_dir / name).is_file(), f"Missing hook script: {name}"
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="POSIX executable bit is not representable on Windows NTFS; "
+        "the .sh hooks only run under a POSIX shell",
+    )
     def test_hook_scripts_executable(self, assembled_repo):
         """Hook bash scripts have executable permissions."""
         import stat

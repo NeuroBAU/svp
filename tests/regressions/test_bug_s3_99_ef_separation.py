@@ -39,20 +39,20 @@ def plugin_root(tmp_path):
     # Minimal scripts directory
     scripts = root / "scripts"
     scripts.mkdir()
-    (scripts / "__init__.py").write_text("")
-    (scripts / "routing.py").write_text("# routing stub")
+    (scripts / "__init__.py").write_text("", encoding="utf-8")
+    (scripts / "routing.py").write_text("# routing stub", encoding="utf-8")
 
     # SVP regression tests
     tests = root / "tests"
     tests.mkdir()
-    (tests / "__init__.py").write_text("")
+    (tests / "__init__.py").write_text("", encoding="utf-8")
     regs = tests / "regressions"
     regs.mkdir()
-    (regs / "__init__.py").write_text("")
-    (regs / "test_bug42_example.py").write_text("def test_x(): pass")
+    (regs / "__init__.py").write_text("", encoding="utf-8")
+    (regs / "test_bug42_example.py").write_text("def test_x(): pass", encoding="utf-8")
     unit5 = tests / "unit_5"
     unit5.mkdir()
-    (unit5 / "test_unit_5.py").write_text("def test_y(): pass")
+    (unit5 / "test_unit_5.py").write_text("def test_y(): pass", encoding="utf-8")
 
     return root
 
@@ -144,7 +144,7 @@ class TestCreateNewProjectTestsScaffold:
         )
 
     def test_claude_md_has_project_name(self, project):
-        content = (project / "CLAUDE.md").read_text()
+        content = (project / "CLAUDE.md").read_text(encoding="utf-8")
         assert "test_project" in content
 
     def test_claude_md_tier1_only(self, project):
@@ -152,7 +152,7 @@ class TestCreateNewProjectTestsScaffold:
         Canonical Break-Glass Path. The E/F-only Tier 2 override addendum
         (marker: 'SVP Self-Build Override') must still be absent from a fresh
         A-D project until enrich_claude_md_for_svp_build runs."""
-        content = (project / "CLAUDE.md").read_text()
+        content = (project / "CLAUDE.md").read_text(encoding="utf-8")
         assert "Six-Step Action Cycle" in content
         assert "## Gate 6 — Canonical Break-Glass Path" in content
         assert "SVP Self-Build Override" not in content
@@ -200,7 +200,7 @@ class TestEnrichClaudeMdForSvpBuild:
 
     def test_appends_tier2(self, project):
         enrich_claude_md_for_svp_build(project)
-        content = (project / "CLAUDE.md").read_text()
+        content = (project / "CLAUDE.md").read_text(encoding="utf-8")
         assert "## Gate 6 — Canonical Break-Glass Path" in content
         assert "Six-Step Action Cycle" in content  # Tier 1 still present
         assert "## SVP Self-Build Override" in content  # Tier 2 appended
@@ -211,9 +211,9 @@ class TestEnrichClaudeMdForSvpBuild:
         Protocol' or 'Gate 6 — Canonical Break-Glass Path' cannot serve as the
         marker because both phrases appear in Tier 1 by default."""
         enrich_claude_md_for_svp_build(project)
-        content_after_first = (project / "CLAUDE.md").read_text()
+        content_after_first = (project / "CLAUDE.md").read_text(encoding="utf-8")
         enrich_claude_md_for_svp_build(project)
-        content_after_second = (project / "CLAUDE.md").read_text()
+        content_after_second = (project / "CLAUDE.md").read_text(encoding="utf-8")
         assert content_after_first == content_after_second
         assert content_after_second.count("## SVP Self-Build Override") == 1
         assert (
@@ -238,16 +238,16 @@ class TestAssembleSvpWorkspaceArtifacts:
     def _make_workspace(self, tmp_path):
         ws = tmp_path / "workspace"
         ws.mkdir()
-        (ws / "sync_workspace.sh").write_text("#!/bin/bash\necho sync")
-        (ws / "project_context.md").write_text("# Project context")
-        (ws / "ruff.toml").write_text("[tool.ruff]\nline-length = 88\n")
+        (ws / "sync_workspace.sh").write_text("#!/bin/bash\necho sync", encoding="utf-8")
+        (ws / "project_context.md").write_text("# Project context", encoding="utf-8")
+        (ws / "ruff.toml").write_text("[tool.ruff]\nline-length = 88\n", encoding="utf-8")
         examples = ws / "examples"
         examples.mkdir()
         (examples / "game-of-life").mkdir()
-        (examples / "game-of-life" / "spec.md").write_text("# GoL spec")
+        (examples / "game-of-life" / "spec.md").write_text("# GoL spec", encoding="utf-8")
         refs = ws / "references"
         refs.mkdir()
-        (refs / "svp_2_1_lessons_learned.md").write_text("# Lessons learned")
+        (refs / "svp_2_1_lessons_learned.md").write_text("# Lessons learned", encoding="utf-8")
         return ws
 
     def test_writes_claude_md(self, tmp_path):
@@ -256,7 +256,7 @@ class TestAssembleSvpWorkspaceArtifacts:
         repo.mkdir()
         assemble_svp_workspace_artifacts(repo, ws, "my_svp")
         assert (repo / "CLAUDE.md").exists()
-        content = (repo / "CLAUDE.md").read_text()
+        content = (repo / "CLAUDE.md").read_text(encoding="utf-8")
         assert "my_svp" in content
         assert "Six-Step Action Cycle" in content
         # After S3-199, Tier-1 carries the Gate 6 canonical break-glass path
@@ -335,7 +335,7 @@ class TestEFvsADSeparation:
         `src/unit_*/stub.py` as generic stubs-as-source-of-truth guidance
         (G4 / S3-189 deemed this generic). The Tier-2-specific
         `sync_workspace.sh` marker MUST still be absent in A-D output."""
-        content = (project / "CLAUDE.md").read_text()
+        content = (project / "CLAUDE.md").read_text(encoding="utf-8")
         # Tier 1 Gate 6 canonical path IS present — that is the S3-199 fix.
         assert "## Gate 6 — Canonical Break-Glass Path" in content
         # Tier 2 SVP self-build override is NOT present — A-D projects never
@@ -349,7 +349,7 @@ class TestEFvsADSeparation:
         enrich_claude_md_for_svp_build(project)
         copy_svp_regression_tests(project, plugin_root)
 
-        content = (project / "CLAUDE.md").read_text()
+        content = (project / "CLAUDE.md").read_text(encoding="utf-8")
         assert "## Gate 6 — Canonical Break-Glass Path" in content
         assert "## SVP Self-Build Override" in content
         assert (project / "tests" / "regressions" / "test_bug42_example.py").exists()
@@ -358,14 +358,14 @@ class TestEFvsADSeparation:
         """Stage 5 for E/F: repo has all carry-over artifacts."""
         ws = tmp_path / "workspace"
         ws.mkdir()
-        (ws / "sync_workspace.sh").write_text("#!/bin/bash")
-        (ws / "project_context.md").write_text("# Context")
-        (ws / "ruff.toml").write_text("[tool.ruff]")
+        (ws / "sync_workspace.sh").write_text("#!/bin/bash", encoding="utf-8")
+        (ws / "project_context.md").write_text("# Context", encoding="utf-8")
+        (ws / "ruff.toml").write_text("[tool.ruff]", encoding="utf-8")
         (ws / "examples").mkdir()
         (ws / "examples" / "gol").mkdir()
         refs = ws / "references"
         refs.mkdir()
-        (refs / "svp_2_1_lessons_learned.md").write_text("# Lessons")
+        (refs / "svp_2_1_lessons_learned.md").write_text("# Lessons", encoding="utf-8")
 
         repo = tmp_path / "repo"
         repo.mkdir()
@@ -373,7 +373,7 @@ class TestEFvsADSeparation:
         assemble_svp_workspace_artifacts(repo, ws, "svp_self")
 
         assert (repo / "CLAUDE.md").exists()
-        assert "## Gate 6 — Canonical Break-Glass Path" in (repo / "CLAUDE.md").read_text()
+        assert "## Gate 6 — Canonical Break-Glass Path" in (repo / "CLAUDE.md").read_text(encoding="utf-8")
         assert (repo / "sync_workspace.sh").exists()
         assert (repo / "examples" / "gol").is_dir()
         assert (repo / "docs" / "references" / "svp_2_1_lessons_learned.md").exists()

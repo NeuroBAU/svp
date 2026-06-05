@@ -15,7 +15,7 @@ _SYNC_CONFIG = _ROOT / ".svp" / "sync_config.json"
 def _load_sync_config():
     """Load sync config, return dict or None."""
     if _SYNC_CONFIG.exists():
-        return json.loads(_SYNC_CONFIG.read_text())
+        return json.loads(_SYNC_CONFIG.read_text(encoding="utf-8"))
     return None
 
 
@@ -47,7 +47,7 @@ class TestSyncConfig:
         """S3-103: sync_config.json must be valid JSON."""
         if not _SYNC_CONFIG.exists():
             return  # covered by test above
-        config = json.loads(_SYNC_CONFIG.read_text())
+        config = json.loads(_SYNC_CONFIG.read_text(encoding="utf-8"))
         assert isinstance(config, dict), "sync_config.json must be a JSON object"
 
     def test_sync_config_has_repo_path(self):
@@ -119,7 +119,7 @@ class TestCrossRepoConsistency:
         ws_spec = _ROOT / "specs" / "stakeholder_spec.md"
         repo_spec = repo / "docs" / "stakeholder_spec.md"
         if ws_spec.exists() and repo_spec.exists():
-            assert ws_spec.read_text() == repo_spec.read_text(), "Spec out of sync"
+            assert ws_spec.read_text(encoding="utf-8") == repo_spec.read_text(encoding="utf-8"), "Spec out of sync"
 
     def test_blueprint_contracts_matches(self):
         """S3-103: workspace blueprint contracts matches repo docs/."""
@@ -127,7 +127,7 @@ class TestCrossRepoConsistency:
         ws = _ROOT / "blueprint" / "blueprint_contracts.md"
         repo_f = repo / "docs" / "blueprint_contracts.md"
         if ws.exists() and repo_f.exists():
-            assert ws.read_text() == repo_f.read_text(), "Blueprint contracts out of sync"
+            assert ws.read_text(encoding="utf-8") == repo_f.read_text(encoding="utf-8"), "Blueprint contracts out of sync"
 
     def test_lessons_learned_matches(self):
         """S3-103: workspace lessons learned matches repo docs/references/."""
@@ -135,7 +135,7 @@ class TestCrossRepoConsistency:
         ws = _ROOT / "references" / "svp_2_1_lessons_learned.md"
         repo_f = repo / "docs" / "references" / "svp_2_1_lessons_learned.md"
         if ws.exists() and repo_f.exists():
-            assert ws.read_text() == repo_f.read_text(), "Lessons learned out of sync"
+            assert ws.read_text(encoding="utf-8") == repo_f.read_text(encoding="utf-8"), "Lessons learned out of sync"
 
     def test_claude_md_matches(self):
         """S3-103: workspace CLAUDE.md matches repo docs/CLAUDE.md."""
@@ -143,7 +143,7 @@ class TestCrossRepoConsistency:
         ws = _ROOT / "CLAUDE.md"
         repo_f = repo / "docs" / "CLAUDE.md"
         if ws.exists() and repo_f.exists():
-            assert ws.read_text() == repo_f.read_text(), "CLAUDE.md out of sync"
+            assert ws.read_text(encoding="utf-8") == repo_f.read_text(encoding="utf-8"), "CLAUDE.md out of sync"
 
     def test_project_context_matches(self):
         """S3-103: workspace project_context.md matches repo docs/project_context.md."""
@@ -151,7 +151,7 @@ class TestCrossRepoConsistency:
         ws = _ROOT / "project_context.md"
         repo_f = repo / "docs" / "project_context.md"
         if ws.exists() and repo_f.exists():
-            assert ws.read_text() == repo_f.read_text(), "project_context.md out of sync"
+            assert ws.read_text(encoding="utf-8") == repo_f.read_text(encoding="utf-8"), "project_context.md out of sync"
 
     def test_profile_matches(self):
         """S3-103: workspace project_profile.json matches repo docs/."""
@@ -159,7 +159,7 @@ class TestCrossRepoConsistency:
         ws = _ROOT / "project_profile.json"
         repo_f = repo / "docs" / "project_profile.json"
         if ws.exists() and repo_f.exists():
-            assert ws.read_text() == repo_f.read_text(), "project_profile.json out of sync"
+            assert ws.read_text(encoding="utf-8") == repo_f.read_text(encoding="utf-8"), "project_profile.json out of sync"
 
 
 # --- Test Import Standardization Tests ---
@@ -175,7 +175,7 @@ class TestFlatImports:
         for py_file in test_dir.rglob("*.py"):
             if "__pycache__" in str(py_file):
                 continue
-            content = py_file.read_text()
+            content = py_file.read_text(encoding="utf-8")
             for i, line in enumerate(content.splitlines(), 1):
                 # Skip comments, docstrings, and string literals
                 stripped = line.strip()

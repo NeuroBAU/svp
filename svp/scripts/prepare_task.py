@@ -2183,6 +2183,11 @@ def main(argv: list = None) -> None:
         --revision-mode: flag for revision invocation (optional)
         --quality-report: path to quality gate report (optional)
     """
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
     parser = argparse.ArgumentParser(
         description="Prepare task or gate prompts for SVP pipeline agents."
     )

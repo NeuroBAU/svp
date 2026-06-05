@@ -106,7 +106,7 @@ def test_i3_unit_4_verify_toolchain_runner_sets_utf8_env_no_text_true(
                 "quality": {},
             }
         )
-    )
+    , encoding="utf-8")
 
     captured: dict = {}
 
@@ -200,13 +200,13 @@ def test_i3_unit_11_regression_adapt_sets_utf8_env_no_text_true(
 
     # Seed the regression_test_import_map.json + tests/regressions/ +
     # scripts/generate_assembly_map.py so the Step-8 branch fires.
-    (tmp_path / "regression_test_import_map.json").write_text("{}")
+    (tmp_path / "regression_test_import_map.json").write_text("{}", encoding="utf-8")
     regressions_dir = tmp_path / "tests" / "regressions"
     regressions_dir.mkdir(parents=True)
     scripts_dir = tmp_path / "scripts"
     scripts_dir.mkdir()
     adapt_script = scripts_dir / "generate_assembly_map.py"
-    adapt_script.write_text("# placeholder for I-3 regression test")
+    adapt_script.write_text("# placeholder for I-3 regression test", encoding="utf-8")
 
     captured: list = []
 
@@ -234,12 +234,12 @@ def test_i3_unit_11_regression_adapt_sets_utf8_env_no_text_true(
         "```python\n"
         "def f(): ...\n"
         "```\n"
-    )
-    (blueprint_dir / "blueprint_prose.md").write_text("")
+    , encoding="utf-8")
+    (blueprint_dir / "blueprint_prose.md").write_text("", encoding="utf-8")
     (tmp_path / ".svp").mkdir()
     (tmp_path / ".svp" / "pipeline_state.json").write_text(
         json.dumps({"total_units": 0})
-    )
+    , encoding="utf-8")
 
     profile = {"language": {"primary": "python"}, "archetype": "python_project"}
     toolchain = {
@@ -353,11 +353,11 @@ def test_i3_unit_11_conda_install_sets_utf8_env_no_text_true(
     svp_dir.mkdir()
     (svp_dir / "dep_diff_pending.json").write_text(
         json.dumps({"delta_baseline": ["pytest"], "delta_blueprint_only": ["numpy"]})
-    )
+    , encoding="utf-8")
     # Seed minimal pipeline state so the post-success state save works.
     (svp_dir / "pipeline_state.json").write_text(
         json.dumps({"stage": "pre_stage_3", "toolchain_status": "NOT_READY"})
-    )
+    , encoding="utf-8")
 
     # Stub verify_toolchain_ready so it does not actually invoke conda.
     monkeypatch.setattr(

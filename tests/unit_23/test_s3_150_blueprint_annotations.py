@@ -52,7 +52,7 @@ def test_generate_assembly_map_raises_actionable_error_without_preamble(tmp_path
     # Minimal prose file with NO Preamble section
     (bp_dir / "blueprint_prose.md").write_text(
         "# Blueprint\n\n## Unit 1: Engine\nSome description.\n"
-    )
+    , encoding="utf-8")
 
     with pytest.raises(ValueError) as exc:
         generate_assembly_map(bp_dir, tmp_path)
@@ -95,7 +95,7 @@ def test_generate_assembly_map_succeeds_with_preamble_section(tmp_path):
         "        +-- test_patterns.py         <- Unit 2\n"
         "```\n\n"
         "## Unit 1: Engine\n"
-    )
+    , encoding="utf-8")
     # .svp dir for the side-effect write
     (tmp_path / ".svp").mkdir()
 

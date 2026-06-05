@@ -601,7 +601,9 @@ def _check(label: str, passed: bool, detail: str = "", verbose: bool = True) -> 
 
 
 def preflight_check(
-    project_root: Optional[Path] = None, verbose: bool = True,
+    project_root: Optional[Path] = None,
+    verbose: bool = True,
+    declared_languages: Optional[List[str]] = None,
 ) -> List[str]:
     """Validate that required tools and runtimes are available.
 
@@ -613,7 +615,17 @@ def preflight_check(
       5. Python >= 3.11
       6. pytest importable
       7. git installed
-      8. Language runtime checks from LANGUAGE_REGISTRY
+      8. Language runtime checks (see below)
+
+    ``declared_languages`` controls the language-runtime pre-flight (step 8).
+    Per the spec, that check runs "for each declared language". When a
+    project's languages are known (e.g. from its spec/profile), pass them
+    here and a missing runtime is a hard pre-flight error. When it is None
+    (the launcher's ``svp new`` entry point, where the profile is not chosen
+    until later inside the SVP session) no language is declared yet, so a
+    missing runtime for a not-yet-declared language is reported as an advisory
+    rather than a blocking error. Python is the baseline runtime and is always
+    a hard requirement via step 5 regardless of this argument.
 
     When verbose=True, prints each check result to stdout.
     Returns a list of error messages (empty if all pass).
@@ -690,23 +702,47 @@ def preflight_check(
     if err:
         errors.append(err)
 
-    # 8. Language runtime pre-flight from LANGUAGE_REGISTRY
-    for lang_key, entry in LANGUAGE_REGISTRY.items():
-        if entry.get("is_component_only", False):
+    # 8. Language runtime pre-flight.
+    # Spec: "for each declared language, runs version_check_command". When the
+    # caller declares languages, check exactly those and treat a missing
+    # runtime as a hard error. When nothing is declared (the launcher's
+    # `svp new` path), the project's language is not chosen until later inside
+    # the SVP session, so missing runtimes for not-yet-declared languages are
+    # advisory only and must not block startup (Python is still required via
+    # step 5 above).
+    advisory_only = not declared_languages
+    languages_to_check = (
+        list(declared_languages) if declared_languages else list(LANGUAGE_REGISTRY)
+    )
+    for lang_key in languages_to_check:
+        entry = LANGUAGE_REGISTRY.get(lang_key)
+        if entry is None or entry.get("is_component_only", False):
             continue
         version_cmd = entry.get("version_check_command")
-        if version_cmd:
-            lang_ok = True
-            try:
-                subprocess.run(
-                    version_cmd.split(),
-                    capture_output=True,
-                    timeout=10,
+        if not version_cmd:
+            continue
+        lang_ok = True
+        try:
+            subprocess.run(
+                version_cmd.split(),
+                capture_output=True,
+                timeout=10,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            lang_ok = False
+        display = entry.get("display_name", lang_key)
+        if lang_ok:
+            if verbose:
+                print(f"  ✓ {display} runtime")
+        elif advisory_only:
+            # Not-yet-declared language: inform, do not fail.
+            if verbose:
+                print(
+                    f"  - {display} runtime (not detected; install before "
+                    f"generating {display} code)"
                 )
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                lang_ok = False
-            display = entry.get("display_name", lang_key)
-            err = _check(f"{display} runtime", lang_ok,
+        else:
+            err = _check(f"{display} runtime", False,
                          f"'{version_cmd}' not available", verbose)
             if err:
                 errors.append(err)
@@ -754,7 +790,7 @@ def check_user_scope_svp_leak() -> Optional[str]:
     if not user_settings.is_file():
         return None
     try:
-        data = json.loads(user_settings.read_text())
+        data = json.loads(user_settings.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return None
     if not isinstance(data, dict):
@@ -821,8 +857,23 @@ def _find_plugin_root() -> Path:
                     if subdir.is_dir() and _validate_plugin_dir(subdir):
                         candidates.append(subdir)
         else:
-            if _validate_plugin_dir(location):
+            if _validate_plugin_dir(location) and location not in candidates:
                 candidates.append(location)
+
+    # 2a. Launcher-relative fallback (source-checkout / profile-function
+    # installs). The launcher lives at ``<plugin_root>/scripts/svp_launcher.py``,
+    # so its own on-disk location identifies the plugin root even when
+    # ``SVP_PLUGIN_ROOT`` is unset and the plugin was never copied into a
+    # standard install location. This mirrors the ``__file__`` walk-up that
+    # _find_marketplace_root() already relies on, and makes ``svp new`` work
+    # from a fresh shell where the User-scope env var has not yet loaded.
+    # Consulted ONLY when no env var and no standard-location candidate was
+    # found, so explicitly installed/configured locations always win and the
+    # S3-127 source-repo-over-cache precedence below is preserved.
+    if not candidates:
+        launcher_candidate = Path(__file__).resolve().parent.parent
+        if _validate_plugin_dir(launcher_candidate):
+            candidates.append(launcher_candidate)
 
     # 3. First pass: prefer candidates whose parent is a valid marketplace.
     # Bug S3-127: a candidate whose parent has no marketplace.json is
@@ -848,7 +899,7 @@ def _validate_plugin_dir(path: Path) -> bool:
     if not plugin_json.is_file():
         return False
     try:
-        with open(plugin_json, "r") as f:
+        with open(plugin_json, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data.get("name") == "svp"
     except (json.JSONDecodeError, OSError):
@@ -875,7 +926,7 @@ def _is_valid_marketplace_dir(path: Path) -> bool:
     if not marketplace_json.is_file():
         return False
     try:
-        with open(marketplace_json, "r") as f:
+        with open(marketplace_json, "r", encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         return False
@@ -1031,7 +1082,7 @@ def ensure_project_settings(project_root: Path, plugin_root: Path) -> None:
 
     if settings_path.exists():
         try:
-            data = json.loads(settings_path.read_text())
+            data = json.loads(settings_path.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
                 data = {}
         except json.JSONDecodeError:
@@ -1060,7 +1111,7 @@ def ensure_project_settings(project_root: Path, plugin_root: Path) -> None:
     # Atomic write: write to .tmp then rename. Prevents corruption on
     # interrupted writes (Ctrl-C, kernel panic, power loss).
     tmp = settings_path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(data, indent=2))
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
     tmp.replace(settings_path)
 
 
@@ -1123,10 +1174,10 @@ def create_new_project(
     # For A-D projects, the test agent populates tests/ during Stage 3.
     tests_dst = project_root / "tests"
     tests_dst.mkdir(exist_ok=True)
-    (tests_dst / "__init__.py").write_text("")
+    (tests_dst / "__init__.py").write_text("", encoding="utf-8")
     regressions_dst = tests_dst / "regressions"
     regressions_dst.mkdir(exist_ok=True)
-    (regressions_dst / "__init__.py").write_text("")
+    (regressions_dst / "__init__.py").write_text("", encoding="utf-8")
 
     # Copy hook configuration with path rewriting
     hooks_src = plugin_root / ".claude-plugin"
@@ -1536,8 +1587,21 @@ def launch_session(
 # ---------------------------------------------------------------------------
 
 
+def _ensure_utf8_streams() -> None:
+    """Best-effort: force stdout/stderr to UTF-8 so non-ASCII output (✓, →, —)
+    does not crash on a Windows cp1252 console. PEP 528 only guarantees UTF-8
+    for the real console; redirected pipes still default to the locale codec.
+    """
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv: list = None) -> None:
     """Main entry point: parse args, run preflight, dispatch."""
+    _ensure_utf8_streams()
     args = parse_args(argv)
 
     # Run preflight checks

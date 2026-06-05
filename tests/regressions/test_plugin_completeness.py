@@ -20,8 +20,18 @@ if (_PROJECT_ROOT / "scripts").is_dir():
     WORKSPACE = _PROJECT_ROOT
 elif (_PARENT / "svp2.2-pass2" / "scripts").is_dir():
     WORKSPACE = _PARENT / "svp2.2-pass2"
+elif (_PROJECT_ROOT / "svp" / "scripts").is_dir():
+    # Source-repo layout: the plugin (and its scripts/) live under <repo>/svp/.
+    WORKSPACE = _PROJECT_ROOT / "svp"
 else:
     WORKSPACE = _PROJECT_ROOT  # fallback
+
+# Assembled-workspace artifacts (CLAUDE.md, .svp/, specs/) only exist in a live
+# SVP pipeline working directory, not in a source checkout. Tests that assert on
+# those artifacts skip when running from a source repo (correct on every OS).
+_IS_ASSEMBLED_WORKSPACE = (WORKSPACE / "CLAUDE.md").is_file() and (
+    WORKSPACE / ".svp"
+).is_dir()
 
 # Pass 1 repo was retired on 2026-04-13. REPOS is a list for historical
 # compatibility with parametrized tests; it now contains only Pass 2.
@@ -54,9 +64,13 @@ class TestEntryPointScripts:
 class TestRoutingProducesOutput:
     """Routing script must produce JSON when invoked."""
 
-    def test_routing_produces_json(self):
+    def test_routing_produces_json(self, tmp_path):
+        # Route against a throwaway project-root so routing.py writes its
+        # .svp/ state into tmp_path rather than polluting the source tree
+        # (running with --project-root "." would create <WORKSPACE>/.svp/).
         result = subprocess.run(
-            [sys.executable, "scripts/routing.py", "--project-root", "."],
+            [sys.executable, str(WORKSPACE / "scripts" / "routing.py"),
+             "--project-root", str(tmp_path)],
             capture_output=True, text=True, cwd=str(WORKSPACE)
         )
         assert result.stdout.strip(), "routing.py produced no output"
@@ -513,6 +527,11 @@ class TestCommandScriptsAcceptProjectRoot:
     # cmd_save.py is a re-export wrapper (Bug S3-98), not a CLI entry point
     CMD_SCRIPTS = ["cmd_quit.py", "cmd_status.py", "cmd_clean.py"]
 
+    @pytest.mark.skipif(
+        not _IS_ASSEMBLED_WORKSPACE,
+        reason="cmd scripts require an assembled SVP workspace (.svp/pipeline_state.json); "
+        "not present in a source checkout",
+    )
     @pytest.mark.parametrize("script", CMD_SCRIPTS)
     def test_accepts_project_root_flag(self, script):
         """Script must accept --project-root without error."""
@@ -532,6 +551,11 @@ class TestCommandScriptsAcceptProjectRoot:
         assert "--project-root" in content, f"{script} missing --project-root argument"
 
 
+@pytest.mark.skipif(
+    not _IS_ASSEMBLED_WORKSPACE,
+    reason="workspace-readiness artifacts (CLAUDE.md, .svp/, specs/) only exist in "
+    "an assembled SVP pipeline directory, not a source checkout",
+)
 class TestWorkspaceReadiness:
     """Working directory must have all files for orchestrator."""
 

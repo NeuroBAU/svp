@@ -503,7 +503,7 @@ def validate_delivered_repo_contents(project_root: Path) -> List[Dict[str, Any]]
     map_path = project_root / ".svp" / "assembly_map.json"
     if map_path.is_file():
         try:
-            data = json.loads(map_path.read_text())
+            data = json.loads(map_path.read_text(encoding="utf-8"))
             r2w = data.get("repo_to_workspace", {})
         except Exception:
             r2w = {}
@@ -537,7 +537,7 @@ def validate_delivered_repo_contents(project_root: Path) -> List[Dict[str, Any]]
                     import tomllib
                 except ImportError:
                     import tomli as tomllib  # type: ignore
-                pp_data = tomllib.loads(pyproject.read_text())
+                pp_data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
             except Exception as e:
                 findings.append(
                     {

@@ -151,8 +151,8 @@ def test_both_r_manifests_are_valid_json():
     tdd = _toolchain_defaults_dir()
     conda_path = tdd / "r_conda_testthat.json"
     renv_path = tdd / "r_renv_testthat.json"
-    json.loads(conda_path.read_text())
-    json.loads(renv_path.read_text())
+    json.loads(conda_path.read_text(encoding="utf-8"))
+    json.loads(renv_path.read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -169,14 +169,14 @@ def _write_minimal_blueprint(blueprint_dir: Path) -> None:
         "import json\n"
         "def f(): ...\n"
         "```\n"
-    )
-    (blueprint_dir / "blueprint_prose.md").write_text("")
+    , encoding="utf-8")
+    (blueprint_dir / "blueprint_prose.md").write_text("", encoding="utf-8")
 
 
 def _seed_state(project_root: Path) -> None:
     svp = project_root / ".svp"
     svp.mkdir(parents=True, exist_ok=True)
-    (svp / "pipeline_state.json").write_text(json.dumps({"total_units": 0}))
+    (svp / "pipeline_state.json").write_text(json.dumps({"total_units": 0}), encoding="utf-8")
 
 
 def _r_profile() -> dict:
@@ -273,7 +273,7 @@ def test_infrastructure_setup_helper_svp_r_contains_namespace_walk(
     assert helper.exists(), (
         f"helper-svp.R must be generated for R archetype at {helper}"
     )
-    content = helper.read_text()
+    content = helper.read_text(encoding="utf-8")
     # Required namespace-walk tokens.
     assert "asNamespace" in content, (
         f"helper-svp.R must call asNamespace(pkg); got:\n{content}"
@@ -340,7 +340,7 @@ def test_infrastructure_setup_helper_svp_r_idempotent(
     helper_dir.mkdir(parents=True, exist_ok=True)
     helper = helper_dir / "helper-svp.R"
     custom_content = "# custom user-edited helper -- must not be clobbered\n"
-    helper.write_text(custom_content)
+    helper.write_text(custom_content, encoding="utf-8")
 
     run_infrastructure_setup(
         project_root=tmp_path,
@@ -350,6 +350,6 @@ def test_infrastructure_setup_helper_svp_r_idempotent(
         blueprint_dir=blueprint_dir,
     )
 
-    assert helper.read_text() == custom_content, (
+    assert helper.read_text(encoding="utf-8") == custom_content, (
         "Step 5 must NOT overwrite a pre-existing helper-svp.R"
     )

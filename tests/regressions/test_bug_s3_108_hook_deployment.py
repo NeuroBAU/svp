@@ -7,7 +7,10 @@ restore_project() both deploy hook scripts correctly.
 """
 
 import json
+import sys
 from pathlib import Path
+
+import pytest
 
 from svp_launcher import create_new_project, restore_project
 
@@ -24,17 +27,17 @@ def _setup_plugin_with_hooks(plugin_root: Path) -> None:
     """Create minimal plugin structure with hook scripts."""
     scripts_dir = plugin_root / "scripts"
     scripts_dir.mkdir(exist_ok=True)
-    (scripts_dir / "routing.py").write_text("# routing\n")
+    (scripts_dir / "routing.py").write_text("# routing\n", encoding="utf-8")
     toolchain_dir = plugin_root / "toolchains"
     toolchain_dir.mkdir(exist_ok=True)
-    (toolchain_dir / "python_conda_pytest.json").write_text("{}\n")
+    (toolchain_dir / "python_conda_pytest.json").write_text("{}\n", encoding="utf-8")
     ruff_file = plugin_root / "ruff.toml"
-    ruff_file.write_text("line-length = 88\n")
+    ruff_file.write_text("line-length = 88\n", encoding="utf-8")
     plugin_json_dir = plugin_root / ".claude-plugin"
     plugin_json_dir.mkdir(exist_ok=True)
     (plugin_json_dir / "plugin.json").write_text(
         json.dumps({"name": "svp", "version": "2.2.0"})
-    )
+    , encoding="utf-8")
     # Create hook scripts in plugin_root/hooks/ (NOT svp/hooks/).
     # Bug S3-145: the real plugin cache layout places hooks at plugin_root
     # /hooks/. The original S3-108 fixture used plugin_root/svp/hooks/ which
@@ -43,7 +46,7 @@ def _setup_plugin_with_hooks(plugin_root: Path) -> None:
     hooks_dir.mkdir(parents=True, exist_ok=True)
     for script_name in HOOK_SCRIPTS:
         script = hooks_dir / script_name
-        script.write_text(f"#!/usr/bin/env bash\n# {script_name}\nexit 0\n")
+        script.write_text(f"#!/usr/bin/env bash\n# {script_name}\nexit 0\n", encoding="utf-8")
         script.chmod(0o755)
 
 
@@ -53,12 +56,12 @@ def _setup_repo_with_hooks(repo_root: Path) -> None:
     hooks_dir.mkdir(parents=True, exist_ok=True)
     for script_name in HOOK_SCRIPTS:
         script = hooks_dir / script_name
-        script.write_text(f"#!/usr/bin/env bash\n# {script_name}\nexit 0\n")
+        script.write_text(f"#!/usr/bin/env bash\n# {script_name}\nexit 0\n", encoding="utf-8")
         script.chmod(0o755)
     # Create svp/scripts/ (required by restore --repo auto-discover)
     scripts_dir = repo_root / "svp" / "scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
-    (scripts_dir / "routing.py").write_text("# routing\n")
+    (scripts_dir / "routing.py").write_text("# routing\n", encoding="utf-8")
 
 
 class TestCreateNewProjectDeploysHooks:
@@ -81,6 +84,11 @@ class TestCreateNewProjectDeploysHooks:
             script = scripts_dir / script_name
             assert script.is_file(), f".claude/scripts/{script_name} must exist"
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="POSIX executable bit is not representable on Windows NTFS; "
+        "the .sh hooks only run under a POSIX shell",
+    )
     def test_hook_scripts_are_executable(self, tmp_path, monkeypatch):
         plugin_root = tmp_path / "plugin"
         plugin_root.mkdir()
@@ -107,11 +115,11 @@ class TestRestoreProjectDeploysHooks:
         # Create required docs for auto-discover
         docs = repo_root / "docs"
         docs.mkdir()
-        (docs / "stakeholder_spec.md").write_text("# Spec\n")
-        (docs / "blueprint_prose.md").write_text("# Prose\n")
-        (docs / "blueprint_contracts.md").write_text("# Contracts\n")
-        (docs / "project_context.md").write_text("# Context\n")
-        (docs / "project_profile.json").write_text("{}\n")
+        (docs / "stakeholder_spec.md").write_text("# Spec\n", encoding="utf-8")
+        (docs / "blueprint_prose.md").write_text("# Prose\n", encoding="utf-8")
+        (docs / "blueprint_contracts.md").write_text("# Contracts\n", encoding="utf-8")
+        (docs / "project_context.md").write_text("# Context\n", encoding="utf-8")
+        (docs / "project_profile.json").write_text("{}\n", encoding="utf-8")
 
         # restore_project, like create_new_project, creates the project at
         # Path.cwd() / project_name — chdir into tmp_path so the leaked

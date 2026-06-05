@@ -115,7 +115,7 @@ import json
 ---
 """
     contracts_file = blueprint_dir / "blueprint_contracts.md"
-    contracts_file.write_text(content)
+    contracts_file.write_text(content, encoding="utf-8")
     return contracts_file
 
 
@@ -130,7 +130,7 @@ def five_unit_blueprint_contracts(blueprint_dir):
             "\n### Tier 3 -- Behavioral Contracts\n\nContracts here.\n\n---\n\n"
         )
     contracts_file = blueprint_dir / "blueprint_contracts.md"
-    contracts_file.write_text("\n".join(lines))
+    contracts_file.write_text("\n".join(lines), encoding="utf-8")
     return contracts_file
 
 
@@ -676,7 +676,7 @@ Contracts.
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts_content)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts_content, encoding="utf-8")
         result = run_infrastructure_setup(
             project_root,
             python_profile,
@@ -726,7 +726,7 @@ Contracts.
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts_content)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts_content, encoding="utf-8")
         result = run_infrastructure_setup(
             project_root,
             python_profile,
@@ -834,7 +834,7 @@ Contracts.
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         run_infrastructure_setup(
             project_root,
             python_profile,
@@ -883,7 +883,7 @@ Contracts.
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         run_infrastructure_setup(
             project_root,
             python_profile,
@@ -922,7 +922,7 @@ Contracts.
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         run_infrastructure_setup(
             project_root,
             r_profile,
@@ -956,7 +956,7 @@ Contracts.
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         run_infrastructure_setup(
             project_root,
             r_profile,
@@ -1028,7 +1028,7 @@ import os
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         result = run_infrastructure_setup(
             project_root,
             python_profile,
@@ -1076,7 +1076,7 @@ import os
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         with pytest.raises(Exception):
             run_infrastructure_setup(
                 project_root,
@@ -1138,7 +1138,7 @@ import os
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         with pytest.raises(Exception):
             run_infrastructure_setup(
                 project_root,
@@ -1172,7 +1172,7 @@ import os
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         with pytest.raises(Exception):
             run_infrastructure_setup(
                 project_root,
@@ -1204,7 +1204,7 @@ class TestTotalUnitsDerivation:
         """total_units is derived from counting '## Unit N:' headings in blueprint."""
         # Provide pipeline_state.json for state updates
         state_file = project_root / ".svp" / "pipeline_state.json"
-        state_file.write_text(json.dumps({"stage": "setup"}))
+        state_file.write_text(json.dumps({"stage": "setup"}), encoding="utf-8")
         run_infrastructure_setup(
             project_root,
             python_profile,
@@ -1214,7 +1214,7 @@ class TestTotalUnitsDerivation:
         )
         # Verify total_units was set in pipeline state
         if state_file.exists():
-            state = json.loads(state_file.read_text())
+            state = json.loads(state_file.read_text(encoding="utf-8"))
             if "total_units" in state:
                 assert state["total_units"] == 5
 
@@ -1229,7 +1229,7 @@ class TestTotalUnitsDerivation:
     ):
         """total_units is written to pipeline state after counting."""
         state_file = project_root / ".svp" / "pipeline_state.json"
-        state_file.write_text(json.dumps({"stage": "setup"}))
+        state_file.write_text(json.dumps({"stage": "setup"}), encoding="utf-8")
         run_infrastructure_setup(
             project_root,
             python_profile,
@@ -1238,7 +1238,7 @@ class TestTotalUnitsDerivation:
             blueprint_dir,
         )
         if state_file.exists():
-            state = json.loads(state_file.read_text())
+            state = json.loads(state_file.read_text(encoding="utf-8"))
             if "total_units" in state:
                 # The minimal blueprint has 3 units
                 assert state["total_units"] == 3
@@ -1287,9 +1287,9 @@ Contracts.
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         state_file = project_root / ".svp" / "pipeline_state.json"
-        state_file.write_text(json.dumps({"stage": "setup"}))
+        state_file.write_text(json.dumps({"stage": "setup"}), encoding="utf-8")
         run_infrastructure_setup(
             project_root,
             python_profile,
@@ -1298,7 +1298,7 @@ Contracts.
             blueprint_dir,
         )
         if state_file.exists():
-            state = json.loads(state_file.read_text())
+            state = json.loads(state_file.read_text(encoding="utf-8"))
             if "total_units" in state:
                 assert state["total_units"] == 2
 
@@ -1325,13 +1325,13 @@ class TestUnitHeadingFormatErrorDiagnostic:
             "### Tier 2 -- Signatures\n\n```python\ndef foo(): ...\n```\n\n"
             "### Tier 3 -- Behavioral Contracts\n\nContracts.\n"
         )
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         # Prose file mirrors the bad heading.
         (blueprint_dir / "blueprint_prose.md").write_text(
             "## Unit 1 \u2014 Plugin Scaffold\n\nProse.\n"
-        )
+        , encoding="utf-8")
         state_file = project_root / ".svp" / "pipeline_state.json"
-        state_file.write_text(json.dumps({"stage": "setup"}))
+        state_file.write_text(json.dumps({"stage": "setup"}), encoding="utf-8")
         import pytest
         with pytest.raises(ValueError) as exc_info:
             run_infrastructure_setup(
@@ -1358,12 +1358,12 @@ class TestUnitHeadingFormatErrorDiagnostic:
         """Blueprint with no `## Unit N` lines at all → distinct error message."""
         (blueprint_dir / "blueprint_contracts.md").write_text(
             "# Blueprint Contracts\n\nNothing here.\n"
-        )
+        , encoding="utf-8")
         (blueprint_dir / "blueprint_prose.md").write_text(
             "# Prose\n\nNothing here either.\n"
-        )
+        , encoding="utf-8")
         state_file = project_root / ".svp" / "pipeline_state.json"
-        state_file.write_text(json.dumps({"stage": "setup"}))
+        state_file.write_text(json.dumps({"stage": "setup"}), encoding="utf-8")
         import pytest
         with pytest.raises(ValueError) as exc_info:
             run_infrastructure_setup(
@@ -1392,7 +1392,7 @@ class TestUnitHeadingFormatErrorDiagnostic:
         headings passes infrastructure setup without raising. (Bug S3-116
         must not have broken the happy path.)"""
         state_file = project_root / ".svp" / "pipeline_state.json"
-        state_file.write_text(json.dumps({"stage": "setup"}))
+        state_file.write_text(json.dumps({"stage": "setup"}), encoding="utf-8")
         run_infrastructure_setup(
             project_root,
             python_profile,
@@ -1423,7 +1423,7 @@ class TestRegressionTestAdaptation:
         """When regression_test_import_map.json exists, generate_assembly_map.py regression-adapt runs (Bug S3-110)."""
         import_map = {"old_module": "new_module"}
         import_map_file = project_root / "regression_test_import_map.json"
-        import_map_file.write_text(json.dumps(import_map))
+        import_map_file.write_text(json.dumps(import_map), encoding="utf-8")
         regressions_dir = project_root / "tests" / "regressions"
         regressions_dir.mkdir(parents=True, exist_ok=True)
         result = run_infrastructure_setup(
@@ -1470,7 +1470,7 @@ class TestRegressionTestAdaptation:
         import_map = {"old_mod": "new_mod"}
         (project_root / "regression_test_import_map.json").write_text(
             json.dumps(import_map)
-        )
+        , encoding="utf-8")
         regressions_dir = project_root / "tests" / "regressions"
         regressions_dir.mkdir(parents=True, exist_ok=True)
         result = run_infrastructure_setup(
@@ -1530,7 +1530,7 @@ class TestBuildLogCreation:
         )
         build_log = project_root / ".svp" / "build_log.jsonl"
         assert build_log.exists()
-        assert build_log.read_text() == ""
+        assert build_log.read_text(encoding="utf-8") == ""
 
     def test_build_log_location_is_under_svp_dir(
         self,
@@ -1572,7 +1572,7 @@ class TestFailureBehavior:
     ):
         """On any step failure, an exception is raised (non-zero exit)."""
         # Provide an empty blueprint that cannot be parsed for units
-        (blueprint_dir / "blueprint_contracts.md").write_text("")
+        (blueprint_dir / "blueprint_contracts.md").write_text("", encoding="utf-8")
         with pytest.raises(Exception):
             run_infrastructure_setup(
                 project_root,
@@ -1621,7 +1621,7 @@ import os
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         # Pre-create src directory to verify it is NOT cleaned up on failure
         src_dir = project_root / "src"
         src_dir.mkdir(exist_ok=True)
@@ -1726,7 +1726,7 @@ class TestExecutionOrder:
         import validation, dir scaffolding, DAG validation, total_units,
         regression adaptation, build log creation."""
         state_file = project_root / ".svp" / "pipeline_state.json"
-        state_file.write_text(json.dumps({"stage": "setup"}))
+        state_file.write_text(json.dumps({"stage": "setup"}), encoding="utf-8")
         result = run_infrastructure_setup(
             project_root,
             python_profile,
@@ -1804,7 +1804,7 @@ class TestMainCLI:
                 }
             },
         }
-        (project_root / "project_profile.json").write_text(json.dumps(profile))
+        (project_root / "project_profile.json").write_text(json.dumps(profile), encoding="utf-8")
         toolchain = {
             "quality": {
                 "pre_test": [
@@ -1812,7 +1812,7 @@ class TestMainCLI:
                 ]
             }
         }
-        (project_root / "toolchain.json").write_text(json.dumps(toolchain))
+        (project_root / "toolchain.json").write_text(json.dumps(toolchain), encoding="utf-8")
         result = main(["--project-root", str(project_root)])
         # main returns None on success (exit code 0)
         assert result is None
@@ -1855,9 +1855,9 @@ class TestMainCLI:
                 }
             },
         }
-        (project_root / "project_profile.json").write_text(json.dumps(profile))
+        (project_root / "project_profile.json").write_text(json.dumps(profile), encoding="utf-8")
         toolchain = {"quality": {}}
-        (project_root / "toolchain.json").write_text(json.dumps(toolchain))
+        (project_root / "toolchain.json").write_text(json.dumps(toolchain), encoding="utf-8")
         result = main(["--project-root", str(project_root)])
         assert result is None
 
@@ -1894,7 +1894,7 @@ class TestMainCLI:
                 }
             },
         }
-        (project_root / "project_profile.json").write_text(json.dumps(profile))
+        (project_root / "project_profile.json").write_text(json.dumps(profile), encoding="utf-8")
         toolchain = {
             "quality": {
                 "pre_test": [
@@ -1902,7 +1902,7 @@ class TestMainCLI:
                 ]
             }
         }
-        (project_root / "toolchain.json").write_text(json.dumps(toolchain))
+        (project_root / "toolchain.json").write_text(json.dumps(toolchain), encoding="utf-8")
         result = main(["--project-root", str(project_root)])
         assert result is None
 
@@ -1939,9 +1939,9 @@ class TestMainCLI:
                 }
             },
         }
-        (project_root / "project_profile.json").write_text(json.dumps(profile))
+        (project_root / "project_profile.json").write_text(json.dumps(profile), encoding="utf-8")
         toolchain = {"quality": {}}
-        (project_root / "toolchain.json").write_text(json.dumps(toolchain))
+        (project_root / "toolchain.json").write_text(json.dumps(toolchain), encoding="utf-8")
         result = main(["--project-root", str(project_root)])
         assert result is None
 
@@ -1978,9 +1978,9 @@ class TestMainCLI:
                 }
             },
         }
-        (project_root / "project_profile.json").write_text(json.dumps(profile))
+        (project_root / "project_profile.json").write_text(json.dumps(profile), encoding="utf-8")
         toolchain = {"quality": {}}
-        (project_root / "toolchain.json").write_text(json.dumps(toolchain))
+        (project_root / "toolchain.json").write_text(json.dumps(toolchain), encoding="utf-8")
         result = main(["--project-root", str(project_root)])
         assert result is None
 
@@ -2165,7 +2165,7 @@ Contracts.
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         run_infrastructure_setup(
             project_root,
             mixed_profile,
@@ -2233,9 +2233,9 @@ import os
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         state_file = project_root / ".svp" / "pipeline_state.json"
-        state_file.write_text(json.dumps({"stage": "setup"}))
+        state_file.write_text(json.dumps({"stage": "setup"}), encoding="utf-8")
         result = run_infrastructure_setup(
             project_root,
             python_profile,
@@ -2247,7 +2247,7 @@ import os
         assert (project_root / "src" / "unit_1").is_dir()
         assert (project_root / "tests" / "unit_1").is_dir()
         if state_file.exists():
-            state = json.loads(state_file.read_text())
+            state = json.loads(state_file.read_text(encoding="utf-8"))
             if "total_units" in state:
                 assert state["total_units"] == 1
 
@@ -2277,7 +2277,7 @@ from pathlib import Path
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         result = run_infrastructure_setup(
             project_root,
             python_profile,
@@ -2311,7 +2311,7 @@ import os
 
 ---
 """
-        (blueprint_dir / "blueprint_contracts.md").write_text(contracts)
+        (blueprint_dir / "blueprint_contracts.md").write_text(contracts, encoding="utf-8")
         (project_root / "src" / "unit_1").mkdir(parents=True, exist_ok=True)
         result = run_infrastructure_setup(
             project_root,
@@ -2340,9 +2340,9 @@ import os
             lines.append(
                 f"\n### Tier 3 -- Behavioral Contracts\n\n**Dependencies:** {deps}.\n\n---\n\n"
             )
-        (blueprint_dir / "blueprint_contracts.md").write_text("\n".join(lines))
+        (blueprint_dir / "blueprint_contracts.md").write_text("\n".join(lines), encoding="utf-8")
         state_file = project_root / ".svp" / "pipeline_state.json"
-        state_file.write_text(json.dumps({"stage": "setup"}))
+        state_file.write_text(json.dumps({"stage": "setup"}), encoding="utf-8")
         run_infrastructure_setup(
             project_root,
             python_profile,
@@ -2354,7 +2354,7 @@ import os
             assert (project_root / "src" / f"unit_{i}").is_dir()
             assert (project_root / "tests" / f"unit_{i}").is_dir()
         if state_file.exists():
-            state = json.loads(state_file.read_text())
+            state = json.loads(state_file.read_text(encoding="utf-8"))
             if "total_units" in state:
                 assert state["total_units"] == 15
 
@@ -2484,7 +2484,7 @@ import os
             "language": {"primary": "python"},
             "archetype": "python_project",
         }
-        (project_root / "project_profile.json").write_text(json.dumps(profile))
+        (project_root / "project_profile.json").write_text(json.dumps(profile), encoding="utf-8")
         toolchain = {
             "testing": {"framework_packages": ["pytest"]},
             "quality": {"packages": ["ruff", "mypy"]},
@@ -2568,7 +2568,7 @@ import os
         compute_dep_diff(project_root, "svp-test", runner=fake_runner)
         pending_path = project_root / ".svp" / "dep_diff_pending.json"
         assert pending_path.exists()
-        data = json.loads(pending_path.read_text())
+        data = json.loads(pending_path.read_text(encoding="utf-8"))
         assert "delta_baseline" in data
         assert "delta_blueprint_only" in data
         assert data["delta_blueprint_only"] == ["scipy"]
@@ -2592,7 +2592,7 @@ import os
         }
         (project_root / ".svp" / "dep_diff_pending.json").write_text(
             json.dumps(pending)
-        )
+        , encoding="utf-8")
         # Seed pipeline state.
         save_state(project_root, PipelineState(stage="pre_stage_3"))
         # Seed profile + toolchain so install_dep_delta can load them
@@ -2667,7 +2667,7 @@ import os
         pending = {"delta_baseline": [], "delta_blueprint_only": ["numpy"]}
         (project_root / ".svp" / "dep_diff_pending.json").write_text(
             json.dumps(pending)
-        )
+        , encoding="utf-8")
         # Seed profile + toolchain so install_dep_delta can build the cmd
         # (S3-202 / J-2a).
         self._seed_profile_and_toolchain(project_root, monkeypatch)

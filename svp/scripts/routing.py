@@ -709,7 +709,7 @@ def _bootstrap_oracle_nested_session(
         state_path = workspace / ".svp" / "pipeline_state.json"
         import dataclasses
         state_dict = dataclasses.asdict(fresh_state)
-        state_path.write_text(json.dumps(state_dict, indent=2))
+        state_path.write_text(json.dumps(state_dict, indent=2), encoding="utf-8")
     else:
         # F-mode: copy SVP workspace artifacts (existing behavior)
         for item in ["specs", "blueprint", ".svp"]:
@@ -2799,7 +2799,7 @@ def dispatch_gate_response(
             # gate_0_4 PROCEED is the new place that calls advance_stage("1").
             profile_path = project_root / "project_profile.json"
             try:
-                with open(profile_path, "r") as f:
+                with open(profile_path, "r", encoding="utf-8") as f:
                     profile_data = json.load(f)
                 primary = profile_data.get("language", {}).get("primary")
                 state = _copy(state)
@@ -4148,8 +4148,20 @@ def dispatch_command_status(
 # ---------------------------------------------------------------------------
 
 
+def _ensure_utf8_streams() -> None:
+    """Best-effort: force stdout/stderr to UTF-8 so non-ASCII output does not
+    crash on a Windows cp1252 console or pipe (PEP 528 covers only the real
+    console, not redirected pipes)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def run_tests_main(argv: list = None) -> None:
     """CLI entry point for run_tests.py."""
+    _ensure_utf8_streams()
     parser = argparse.ArgumentParser(description="Run tests for a unit")
     parser.add_argument("--unit", type=int, required=True)
     parser.add_argument("--language", type=str, required=True)
@@ -4248,6 +4260,7 @@ def run_tests_main(argv: list = None) -> None:
 
 def update_state_main(argv: list = None) -> None:
     """CLI entry point for update_state.py."""
+    _ensure_utf8_streams()
     parser = argparse.ArgumentParser(description="Update pipeline state")
     parser.add_argument("--phase", type=str, default=None)
     parser.add_argument("--project-root", type=str, default=".")
@@ -4313,6 +4326,7 @@ def update_state_main(argv: list = None) -> None:
 
 def main(argv: list = None) -> None:
     """CLI entry point for routing.py."""
+    _ensure_utf8_streams()
     parser = argparse.ArgumentParser(description="SVP routing")
     parser.add_argument("--project-root", type=str, default=".")
 

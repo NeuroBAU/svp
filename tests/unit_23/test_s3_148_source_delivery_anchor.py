@@ -34,12 +34,12 @@ def _python_profile(layout: str = "conventional", package_name: str = "demo_pkg"
 def _scaffold_workspace_with_one_unit(workspace: Path) -> None:
     """Workspace with one source unit + minimal tests/ so S3-146 helpers don't error."""
     (workspace / "scripts").mkdir(parents=True, exist_ok=True)
-    (workspace / "scripts" / "__init__.py").write_text("")
+    (workspace / "scripts" / "__init__.py").write_text("", encoding="utf-8")
     (workspace / "tests").mkdir(parents=True, exist_ok=True)
-    (workspace / "tests" / "__init__.py").write_text("")
+    (workspace / "tests" / "__init__.py").write_text("", encoding="utf-8")
     src = workspace / "src" / "unit_1"
     src.mkdir(parents=True, exist_ok=True)
-    (src / "stub.py").write_text("def hello() -> str:\n    return 'demo'\n")
+    (src / "stub.py").write_text("def hello() -> str:\n    return 'demo'\n", encoding="utf-8")
     # assembly_map drives delivery
     svp = workspace / ".svp"
     svp.mkdir(parents=True, exist_ok=True)
@@ -52,7 +52,7 @@ def _scaffold_workspace_with_one_unit(workspace: Path) -> None:
                 }
             }
         )
-    )
+    , encoding="utf-8")
 
 
 def test_assemble_python_project_conventional_populates_src_pkg_modules(

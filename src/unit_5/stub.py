@@ -192,7 +192,7 @@ def load_state(project_root: Path) -> PipelineState:
     Raises ``FileNotFoundError`` if the file is absent.
     """
     state_path = project_root / ARTIFACT_FILENAMES["pipeline_state"]
-    with open(state_path, "r") as f:
+    with open(state_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     # Apply defaults for missing SVP 2.2 fields

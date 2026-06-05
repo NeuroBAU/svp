@@ -48,7 +48,7 @@ def _write_prose(bp_dir: Path, units: list):
     for u in units:
         lines.append(f"## Unit {u['number']}: {u['name']}\n")
         lines.append(u["tier1_body"] + "\n\n")
-    (bp_dir / "blueprint_prose.md").write_text("".join(lines))
+    (bp_dir / "blueprint_prose.md").write_text("".join(lines), encoding="utf-8")
 
 
 def _write_contracts(bp_dir: Path, units: list, tier2_heading_style="em_dash"):
@@ -69,7 +69,7 @@ def _write_contracts(bp_dir: Path, units: list, tier2_heading_style="em_dash"):
         lines.append(u["tier2_body"] + "\n\n")
         lines.append("### Tier 3 -- Behavioral Contracts\n\n")
         lines.append(u["tier3_body"] + "\n\n")
-    (bp_dir / "blueprint_contracts.md").write_text("".join(lines))
+    (bp_dir / "blueprint_contracts.md").write_text("".join(lines), encoding="utf-8")
 
 
 def _make_unit_def(
@@ -224,7 +224,7 @@ def multi_language_blueprint(tmp_path):
         "```python\nx = 1\n```\n\n"
         "```r\ny <- 2\n```\n\n"
     )
-    (bp_dir / "blueprint_prose.md").write_text(prose_content)
+    (bp_dir / "blueprint_prose.md").write_text(prose_content, encoding="utf-8")
     contracts_content = (
         "## Unit 1: Multi Lang\n\n"
         "### Tier 2 \u2014 Signatures\n\n"
@@ -233,7 +233,7 @@ def multi_language_blueprint(tmp_path):
         "### Tier 3 -- Behavioral Contracts\n\n"
         "Some contracts.\n\n"
     )
-    (bp_dir / "blueprint_contracts.md").write_text(contracts_content)
+    (bp_dir / "blueprint_contracts.md").write_text(contracts_content, encoding="utf-8")
     return bp_dir
 
 
@@ -536,7 +536,7 @@ class TestExtractUnitsCodeFenceStripping:
             "### Tier 3 -- Behavioral Contracts\n\n"
             "Contracts.\n\n"
         )
-        (bp_dir / "blueprint_contracts.md").write_text(contracts_content)
+        (bp_dir / "blueprint_contracts.md").write_text(contracts_content, encoding="utf-8")
         result = extract_units(bp_dir)
         tier2 = result[0].tier2
         assert "def first(): ..." in tier2
@@ -833,7 +833,7 @@ class TestDetectCodeBlockLanguageUntaggedFences:
         bp_dir = tmp_path / "blueprint"
         bp_dir.mkdir()
         prose_content = "## Unit 1: Untagged\n\nProse.\n\n```\nsome code\n```\n\n"
-        (bp_dir / "blueprint_prose.md").write_text(prose_content)
+        (bp_dir / "blueprint_prose.md").write_text(prose_content, encoding="utf-8")
         contracts_content = (
             "## Unit 1: Untagged\n\n"
             "### Tier 2 \u2014 Signatures\n\n"
@@ -841,7 +841,7 @@ class TestDetectCodeBlockLanguageUntaggedFences:
             "### Tier 3 -- Behavioral Contracts\n\n"
             "Contracts.\n\n"
         )
-        (bp_dir / "blueprint_contracts.md").write_text(contracts_content)
+        (bp_dir / "blueprint_contracts.md").write_text(contracts_content, encoding="utf-8")
         result = detect_code_block_language(bp_dir, 1)
         # Untagged should default to project's primary language
         # Result should be non-empty since there are code fences
@@ -857,7 +857,7 @@ class TestDetectCodeBlockLanguageScopedToUnit:
         prose_content = (
             "## Unit 1: Python Only\n\nProse.\n\n## Unit 2: R Only\n\nProse.\n\n"
         )
-        (bp_dir / "blueprint_prose.md").write_text(prose_content)
+        (bp_dir / "blueprint_prose.md").write_text(prose_content, encoding="utf-8")
         contracts_content = (
             "## Unit 1: Python Only\n\n"
             "### Tier 2 \u2014 Signatures\n\n"
@@ -868,7 +868,7 @@ class TestDetectCodeBlockLanguageScopedToUnit:
             "```r\nbar <- function() {}\n```\n\n"
             "### Tier 3 -- Behavioral Contracts\n\nContracts.\n\n"
         )
-        (bp_dir / "blueprint_contracts.md").write_text(contracts_content)
+        (bp_dir / "blueprint_contracts.md").write_text(contracts_content, encoding="utf-8")
 
         result_unit1 = detect_code_block_language(bp_dir, 1)
         result_unit2 = detect_code_block_language(bp_dir, 2)
@@ -896,14 +896,14 @@ class TestDetectCodeBlockLanguageSingleLanguage:
         bp_dir = tmp_path / "blueprint"
         bp_dir.mkdir()
         prose_content = "## Unit 1: Single\n\nProse.\n\n"
-        (bp_dir / "blueprint_prose.md").write_text(prose_content)
+        (bp_dir / "blueprint_prose.md").write_text(prose_content, encoding="utf-8")
         contracts_content = (
             "## Unit 1: Single\n\n"
             "### Tier 2 \u2014 Signatures\n\n"
             "```python\ndef foo(): ...\n```\n\n"
             "### Tier 3 -- Behavioral Contracts\n\nContracts.\n\n"
         )
-        (bp_dir / "blueprint_contracts.md").write_text(contracts_content)
+        (bp_dir / "blueprint_contracts.md").write_text(contracts_content, encoding="utf-8")
         result = detect_code_block_language(bp_dir, 1)
         assert "python" in result
 
@@ -1050,7 +1050,7 @@ class TestDetectCodeBlockLanguageEdgeCases:
         bp_dir = tmp_path / "blueprint"
         bp_dir.mkdir()
         prose_content = "## Unit 1: NoCode\n\nJust text, no code blocks.\n\n"
-        (bp_dir / "blueprint_prose.md").write_text(prose_content)
+        (bp_dir / "blueprint_prose.md").write_text(prose_content, encoding="utf-8")
         contracts_content = (
             "## Unit 1: NoCode\n\n"
             "### Tier 2 \u2014 Signatures\n\n"
@@ -1058,7 +1058,7 @@ class TestDetectCodeBlockLanguageEdgeCases:
             "### Tier 3 -- Behavioral Contracts\n\n"
             "Just text.\n\n"
         )
-        (bp_dir / "blueprint_contracts.md").write_text(contracts_content)
+        (bp_dir / "blueprint_contracts.md").write_text(contracts_content, encoding="utf-8")
         result = detect_code_block_language(bp_dir, 1)
         assert isinstance(result, set)
 
@@ -1066,14 +1066,14 @@ class TestDetectCodeBlockLanguageEdgeCases:
         bp_dir = tmp_path / "blueprint"
         bp_dir.mkdir()
         prose_content = "## Unit 1: Exists\n\nProse.\n\n"
-        (bp_dir / "blueprint_prose.md").write_text(prose_content)
+        (bp_dir / "blueprint_prose.md").write_text(prose_content, encoding="utf-8")
         contracts_content = (
             "## Unit 1: Exists\n\n"
             "### Tier 2 \u2014 Signatures\n\n"
             "```python\ndef foo(): ...\n```\n\n"
             "### Tier 3 -- Behavioral Contracts\n\nContracts.\n\n"
         )
-        (bp_dir / "blueprint_contracts.md").write_text(contracts_content)
+        (bp_dir / "blueprint_contracts.md").write_text(contracts_content, encoding="utf-8")
         # Requesting unit 999 which does not exist in the blueprint
         result = detect_code_block_language(bp_dir, 999)
         # Should return empty set or handle gracefully

@@ -30,7 +30,7 @@ def _write_profile(project_root: Path, primary_language: str | None) -> None:
     profile: dict = {}
     if primary_language is not None:
         profile["language"] = {"primary": primary_language}
-    (project_root / "project_profile.json").write_text(json.dumps(profile))
+    (project_root / "project_profile.json").write_text(json.dumps(profile), encoding="utf-8")
 
 
 def _scaffold_project_with_defaults(project_root: Path) -> None:
@@ -39,18 +39,18 @@ def _scaffold_project_with_defaults(project_root: Path) -> None:
     dst = project_root / "scripts" / "toolchain_defaults"
     dst.mkdir(parents=True, exist_ok=True)
     for f in DEFAULTS_DIR.glob("*.json"):
-        (dst / f.name).write_text(f.read_text())
+        (dst / f.name).write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def test_noop_when_toolchain_json_already_exists(tmp_path):
     _scaffold_project_with_defaults(tmp_path)
     _write_profile(tmp_path, "python")
     existing = {"sentinel": "do-not-overwrite"}
-    (tmp_path / "toolchain.json").write_text(json.dumps(existing))
+    (tmp_path / "toolchain.json").write_text(json.dumps(existing), encoding="utf-8")
 
     ensure_pipeline_toolchain(tmp_path)
 
-    assert json.loads((tmp_path / "toolchain.json").read_text()) == existing
+    assert json.loads((tmp_path / "toolchain.json").read_text(encoding="utf-8")) == existing
 
 
 def test_materializes_from_python_default(tmp_path):
@@ -59,8 +59,8 @@ def test_materializes_from_python_default(tmp_path):
 
     ensure_pipeline_toolchain(tmp_path)
 
-    materialized = json.loads((tmp_path / "toolchain.json").read_text())
-    expected = json.loads((DEFAULTS_DIR / "python_conda_pytest.json").read_text())
+    materialized = json.loads((tmp_path / "toolchain.json").read_text(encoding="utf-8"))
+    expected = json.loads((DEFAULTS_DIR / "python_conda_pytest.json").read_text(encoding="utf-8"))
     assert materialized == expected
 
 
@@ -70,9 +70,9 @@ def test_materializes_from_r_default(tmp_path):
 
     ensure_pipeline_toolchain(tmp_path)
 
-    materialized = json.loads((tmp_path / "toolchain.json").read_text())
+    materialized = json.loads((tmp_path / "toolchain.json").read_text(encoding="utf-8"))
     # Bug S3-160: R archetype now materializes the conda manifest by default.
-    expected = json.loads((DEFAULTS_DIR / "r_conda_testthat.json").read_text())
+    expected = json.loads((DEFAULTS_DIR / "r_conda_testthat.json").read_text(encoding="utf-8"))
     assert materialized == expected
 
 

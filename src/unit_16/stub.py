@@ -54,7 +54,7 @@ def cmd_status(project_root: Path) -> str:
     build_log_path = project_root / ARTIFACT_FILENAMES["build_log"]
     build_log_entries = []
     if build_log_path.exists():
-        with open(build_log_path, "r") as f:
+        with open(build_log_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line:

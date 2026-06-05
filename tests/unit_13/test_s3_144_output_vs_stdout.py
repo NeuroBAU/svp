@@ -34,14 +34,14 @@ def project_root(tmp_path):
     svp.mkdir()
     bp = tmp_path / "blueprint"
     bp.mkdir()
-    (bp / "blueprint_contracts.md").write_text(_MIN_BLUEPRINT_CONTRACTS)
-    (bp / "blueprint_prose.md").write_text("")
+    (bp / "blueprint_contracts.md").write_text(_MIN_BLUEPRINT_CONTRACTS, encoding="utf-8")
+    (bp / "blueprint_prose.md").write_text("", encoding="utf-8")
     (svp / "pipeline_state.json").write_text(
         json.dumps({"stage": "3", "sub_stage": "test_generation", "total_units": 1})
-    )
+    , encoding="utf-8")
     (tmp_path / "project_profile.json").write_text(
         json.dumps({"language": {"primary": "python"}})
-    )
+    , encoding="utf-8")
     return tmp_path
 
 

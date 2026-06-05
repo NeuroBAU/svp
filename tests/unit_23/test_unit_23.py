@@ -181,7 +181,7 @@ def blueprint_dir(tmp_path, blueprint_prose_content):
     """Create a blueprint directory with blueprint_prose.md."""
     bp_dir = tmp_path / "blueprint"
     bp_dir.mkdir()
-    (bp_dir / "blueprint_prose.md").write_text(blueprint_prose_content)
+    (bp_dir / "blueprint_prose.md").write_text(blueprint_prose_content, encoding="utf-8")
     return bp_dir
 
 
@@ -216,7 +216,7 @@ def regression_tests_dir(tmp_path):
             with patch("src.unit_2.utils.helper") as m:
                 pass
     """)
-    )
+    , encoding="utf-8")
 
     r_test = tests_dir / "test_regression_002.R"
     r_test.write_text(
@@ -228,7 +228,7 @@ def regression_tests_dir(tmp_path):
             expect_equal(1, 1)
         })
     """)
-    )
+    , encoding="utf-8")
 
     return tests_dir
 
@@ -243,7 +243,7 @@ def import_map_file(tmp_path):
         "src/unit_2/utils.R": "R/utils.R",
     }
     map_path = tmp_path / "regression_test_import_map.json"
-    map_path.write_text(json.dumps(map_data))
+    map_path.write_text(json.dumps(map_data), encoding="utf-8")
     return map_path
 
 
@@ -520,7 +520,7 @@ class TestAssemblePythonProjectEntryPoints:
         result = assemble_python_project(
             project_root, python_profile, assembly_config_python
         )
-        toml_content = (result / "pyproject.toml").read_text()
+        toml_content = (result / "pyproject.toml").read_text(encoding="utf-8")
         assert "entry" in toml_content.lower() or "scripts" in toml_content.lower(), (
             "pyproject.toml should declare entry points when entry_points is True"
         )
@@ -533,7 +533,7 @@ class TestAssemblePythonProjectEntryPoints:
         result = assemble_python_project(
             project_root, python_profile, assembly_config_python
         )
-        toml_content = (result / "pyproject.toml").read_text()
+        toml_content = (result / "pyproject.toml").read_text(encoding="utf-8")
         # No [project.scripts] or [project.gui-scripts] section
         assert "[project.scripts]" not in toml_content, (
             "pyproject.toml should not have [project.scripts] when entry_points is False"
@@ -551,7 +551,7 @@ class TestAssemblePythonProjectBackup:
         existing_target = project_root.parent / target_name
         existing_target.mkdir()
         sentinel = existing_target / "sentinel.txt"
-        sentinel.write_text("existing content")
+        sentinel.write_text("existing content", encoding="utf-8")
 
         assemble_python_project(project_root, python_profile, assembly_config_python)
 
@@ -579,7 +579,7 @@ class TestAssemblePythonProjectBackup:
         existing_target = project_root.parent / target_name
         existing_target.mkdir()
         sentinel = existing_target / "sentinel.txt"
-        sentinel.write_text("original content")
+        sentinel.write_text("original content", encoding="utf-8")
 
         assemble_python_project(project_root, python_profile, assembly_config_python)
 
@@ -588,7 +588,7 @@ class TestAssemblePythonProjectBackup:
             for d in project_root.parent.iterdir()
             if d.name.startswith(f"{target_name}.bak.")
         ]
-        assert (bak_dirs[0] / "sentinel.txt").read_text() == "original content"
+        assert (bak_dirs[0] / "sentinel.txt").read_text(encoding="utf-8") == "original content"
 
 
 class TestAssemblePythonProjectAssemblyMap:
@@ -603,7 +603,7 @@ class TestAssemblePythonProjectAssemblyMap:
         for ws_path in set(assembly_config_python["assembly_map"]["repo_to_workspace"].values()):
             src_file = project_root / ws_path
             src_file.parent.mkdir(parents=True, exist_ok=True)
-            src_file.write_text(f"# content for {ws_path}")
+            src_file.write_text(f"# content for {ws_path}", encoding="utf-8")
 
         result = assemble_python_project(
             project_root, python_profile, assembly_config_python
@@ -669,7 +669,7 @@ class TestAssembleRProjectRoxygen:
         r_profile["delivery"]["r"]["roxygen2"] = True
         result = assemble_r_project(project_root, r_profile, assembly_config_r)
         # NAMESPACE should reference roxygen or man/ should have .Rd files
-        namespace_content = (result / "NAMESPACE").read_text()
+        namespace_content = (result / "NAMESPACE").read_text(encoding="utf-8")
         man_files = list((result / "man").rglob("*.Rd"))
         assert "roxygen" in namespace_content.lower() or len(man_files) > 0, (
             "Roxygen2 documentation should be present when configured"
@@ -758,7 +758,7 @@ class TestGenerateAssemblyMapStalenessInvariant:
               scripts/
                 generate_assembly_map.py <- Unit 23
             ```
-        """))
+        """), encoding="utf-8")
         proj = tmp_path / "project"
         proj.mkdir()
         (proj / ".svp").mkdir()
@@ -786,7 +786,7 @@ class TestGenerateAssemblyMapCompleteness:
                          <- Unit 99
             ```
         """)
-        )
+        , encoding="utf-8")
         proj_root = tmp_path / "project"
         proj_root.mkdir()
         (proj_root / ".svp").mkdir()
@@ -806,14 +806,14 @@ class TestGenerateAssemblyMapDiskWrite:
     def test_written_json_matches_return_value(self, blueprint_dir, project_root):
         result = generate_assembly_map(blueprint_dir, project_root)
         map_path = project_root / ".svp" / "assembly_map.json"
-        written = json.loads(map_path.read_text())
+        written = json.loads(map_path.read_text(encoding="utf-8"))
         assert written == result, "Written JSON should match the returned dict"
 
     def test_written_json_has_correct_structure(self, blueprint_dir, project_root):
         """Bug S3-111: the written JSON has exactly one top-level key."""
         generate_assembly_map(blueprint_dir, project_root)
         map_path = project_root / ".svp" / "assembly_map.json"
-        written = json.loads(map_path.read_text())
+        written = json.loads(map_path.read_text(encoding="utf-8"))
         assert list(written.keys()) == ["repo_to_workspace"]
         assert isinstance(written["repo_to_workspace"], dict)
         assert "workspace_to_repo" not in written
@@ -1580,7 +1580,7 @@ class TestAdaptRegressionTestsPythonImportRewrites:
                 str(regression_tests_dir),
             ]
         )
-        content = (regression_tests_dir / "test_regression_001.py").read_text()
+        content = (regression_tests_dir / "test_regression_001.py").read_text(encoding="utf-8")
         assert "from src.unit_1.core import" not in content, (
             "Old 'from src.unit_1.core import' should be rewritten"
         )
@@ -1598,7 +1598,7 @@ class TestAdaptRegressionTestsPythonImportRewrites:
                 str(regression_tests_dir),
             ]
         )
-        content = (regression_tests_dir / "test_regression_001.py").read_text()
+        content = (regression_tests_dir / "test_regression_001.py").read_text(encoding="utf-8")
         assert "import src.unit_2.utils" not in content, (
             "Old 'import src.unit_2.utils' should be rewritten"
         )
@@ -1613,7 +1613,7 @@ class TestAdaptRegressionTestsPythonImportRewrites:
                 str(regression_tests_dir),
             ]
         )
-        content = (regression_tests_dir / "test_regression_001.py").read_text()
+        content = (regression_tests_dir / "test_regression_001.py").read_text(encoding="utf-8")
         assert 'patch("src.unit_1.core.process_data")' not in content, (
             "Old @patch decorator target should be rewritten"
         )
@@ -1631,7 +1631,7 @@ class TestAdaptRegressionTestsPythonImportRewrites:
                 str(regression_tests_dir),
             ]
         )
-        content = (regression_tests_dir / "test_regression_001.py").read_text()
+        content = (regression_tests_dir / "test_regression_001.py").read_text(encoding="utf-8")
         assert 'patch("src.unit_2.utils.helper")' not in content, (
             "Old inline patch target should be rewritten"
         )
@@ -1653,7 +1653,7 @@ class TestAdaptRegressionTestsRSourceRewrites:
                 str(regression_tests_dir),
             ]
         )
-        content = (regression_tests_dir / "test_regression_002.R").read_text()
+        content = (regression_tests_dir / "test_regression_002.R").read_text(encoding="utf-8")
         assert 'source("src/unit_1/core.R")' not in content, (
             "Old R source() path should be rewritten"
         )
@@ -1678,7 +1678,7 @@ class TestAdaptRegressionTestsPerLanguageDispatch:
             ]
         )
         # R file should NOT have Python-style import rewrites
-        r_content = (regression_tests_dir / "test_regression_002.R").read_text()
+        r_content = (regression_tests_dir / "test_regression_002.R").read_text(encoding="utf-8")
         assert "from myproject" not in r_content, (
             "Python import syntax should not appear in .R files"
         )
@@ -1696,7 +1696,7 @@ class TestAdaptRegressionTestsPerLanguageDispatch:
             ]
         )
         # Python file should NOT have R-style source() rewrites
-        py_content = (regression_tests_dir / "test_regression_001.py").read_text()
+        py_content = (regression_tests_dir / "test_regression_001.py").read_text(encoding="utf-8")
         assert "source(" not in py_content, (
             "R source() syntax should not appear in .py files"
         )
@@ -1715,7 +1715,7 @@ class TestAdaptRegressionTestsIdempotent:
                 str(regression_tests_dir),
             ]
         )
-        first_pass = (regression_tests_dir / "test_regression_001.py").read_text()
+        first_pass = (regression_tests_dir / "test_regression_001.py").read_text(encoding="utf-8")
 
         adapt_regression_tests_main(
             [
@@ -1725,7 +1725,7 @@ class TestAdaptRegressionTestsIdempotent:
                 str(regression_tests_dir),
             ]
         )
-        second_pass = (regression_tests_dir / "test_regression_001.py").read_text()
+        second_pass = (regression_tests_dir / "test_regression_001.py").read_text(encoding="utf-8")
 
         assert first_pass == second_pass, (
             "Running adapt_regression_tests_main twice should produce identical output"
@@ -1741,7 +1741,7 @@ class TestAdaptRegressionTestsIdempotent:
                 str(regression_tests_dir),
             ]
         )
-        first_pass = (regression_tests_dir / "test_regression_002.R").read_text()
+        first_pass = (regression_tests_dir / "test_regression_002.R").read_text(encoding="utf-8")
 
         adapt_regression_tests_main(
             [
@@ -1751,7 +1751,7 @@ class TestAdaptRegressionTestsIdempotent:
                 str(regression_tests_dir),
             ]
         )
-        second_pass = (regression_tests_dir / "test_regression_002.R").read_text()
+        second_pass = (regression_tests_dir / "test_regression_002.R").read_text(encoding="utf-8")
 
         assert first_pass == second_pass, (
             "Running adapt_regression_tests_main twice should produce identical output for R files"
@@ -1765,11 +1765,11 @@ class TestAdaptRegressionTestsMapFileReading:
         """Must read a valid JSON import map file without error."""
         map_data = {"old.module": "new.module"}
         map_file = tmp_path / "import_map.json"
-        map_file.write_text(json.dumps(map_data))
+        map_file.write_text(json.dumps(map_data), encoding="utf-8")
         tests_dir = tmp_path / "tests"
         tests_dir.mkdir()
         # Create an empty test file so there's something to process
-        (tests_dir / "test_empty.py").write_text("# empty test\n")
+        (tests_dir / "test_empty.py").write_text("# empty test\n", encoding="utf-8")
 
         adapt_regression_tests_main(
             [
@@ -1790,7 +1790,7 @@ class TestAdaptRegressionTestsMapFileReading:
                 str(regression_tests_dir),
             ]
         )
-        content = (regression_tests_dir / "test_regression_001.py").read_text()
+        content = (regression_tests_dir / "test_regression_001.py").read_text(encoding="utf-8")
         # The function/test definitions should be preserved
         assert "def test_regression_patched" in content
         assert "def test_regression_inline_patch" in content
@@ -1807,7 +1807,7 @@ class TestAdaptRegressionTestsMapFileReading:
                 str(regression_tests_dir),
             ]
         )
-        content = (regression_tests_dir / "test_regression_002.R").read_text()
+        content = (regression_tests_dir / "test_regression_002.R").read_text(encoding="utf-8")
         assert "test_that" in content
         assert "expect_equal" in content
 

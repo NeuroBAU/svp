@@ -262,11 +262,11 @@ def project_root(tmp_path):
     blueprint_dir = tmp_path / "blueprint"
     blueprint_dir.mkdir()
 
-    (blueprint_dir / "blueprint_prose.md").write_text(BLUEPRINT_PROSE_CONTENT)
-    (blueprint_dir / "blueprint_contracts.md").write_text(BLUEPRINT_CONTRACTS_CONTENT)
-    (svp_dir / "pipeline_state.json").write_text(json.dumps(MINIMAL_PIPELINE_STATE))
-    (tmp_path / "project_profile.json").write_text(json.dumps(MINIMAL_PROFILE))
-    (tmp_path / "toolchain.json").write_text(json.dumps(MINIMAL_TOOLCHAIN))
+    (blueprint_dir / "blueprint_prose.md").write_text(BLUEPRINT_PROSE_CONTENT, encoding="utf-8")
+    (blueprint_dir / "blueprint_contracts.md").write_text(BLUEPRINT_CONTRACTS_CONTENT, encoding="utf-8")
+    (svp_dir / "pipeline_state.json").write_text(json.dumps(MINIMAL_PIPELINE_STATE), encoding="utf-8")
+    (tmp_path / "project_profile.json").write_text(json.dumps(MINIMAL_PROFILE), encoding="utf-8")
+    (tmp_path / "toolchain.json").write_text(json.dumps(MINIMAL_TOOLCHAIN), encoding="utf-8")
 
     return tmp_path
 
@@ -595,14 +595,14 @@ class TestPrepareTaskPromptWritesFile:
     def test_file_content_matches_return_value(self, project_root):
         result = prepare_task_prompt(project_root, "test_agent", unit_number=5)
         output_file = project_root / ".svp" / "task_prompt.md"
-        file_content = output_file.read_text()
+        file_content = output_file.read_text(encoding="utf-8")
         assert file_content == result
 
     def test_subsequent_call_overwrites_file(self, project_root):
         result1 = prepare_task_prompt(project_root, "test_agent", unit_number=5)
         result2 = prepare_task_prompt(project_root, "help_agent")
         output_file = project_root / ".svp" / "task_prompt.md"
-        file_content = output_file.read_text()
+        file_content = output_file.read_text(encoding="utf-8")
         assert file_content == result2
 
 
@@ -829,7 +829,7 @@ class TestPrepareGatePromptWritesFile:
     def test_file_content_matches_return_value(self, project_root):
         result = prepare_gate_prompt(project_root, "gate_3_1_test_validation")
         output_file = project_root / ".svp" / "gate_prompt.md"
-        file_content = output_file.read_text()
+        file_content = output_file.read_text(encoding="utf-8")
         assert file_content == result
 
 
@@ -1244,7 +1244,7 @@ class TestMainCli:
             ]
         )
         output_file = project_root / ".svp" / "task_prompt.md"
-        content = output_file.read_text()
+        content = output_file.read_text(encoding="utf-8")
         assert "Extra context string." in content
 
     def test_main_with_output_flag(self, project_root):
@@ -1299,7 +1299,7 @@ class TestMainCli:
     def test_main_with_quality_report_flag(self, project_root):
         """--quality-report flag is accepted and injected into prompt."""
         report_path = project_root / "quality_report.txt"
-        report_path.write_text("Quality report: 3 issues found.")
+        report_path.write_text("Quality report: 3 issues found.", encoding="utf-8")
         main(
             [
                 "--agent",
@@ -1431,7 +1431,7 @@ class TestConvergentGatePaths:
         # Modify state to represent a different convergent path
         modified_state = dict(MINIMAL_PIPELINE_STATE)
         modified_state["sub_stage"] = "diagnostic"
-        (project_root / ".svp" / "pipeline_state.json").write_text(json.dumps(modified_state))
+        (project_root / ".svp" / "pipeline_state.json").write_text(json.dumps(modified_state), encoding="utf-8")
         result_2 = prepare_gate_prompt(project_root, "gate_3_2_diagnostic_decision")
         # At minimum, both should be valid; they may or may not differ
         # depending on whether this gate has convergent paths in this state
@@ -1497,8 +1497,8 @@ class TestGitRepoAgentCanonicalPathInjection:
         # MINIMAL_PROFILE has no "name", so falls back to project_root.name
         expected_path = (project_root.parent / f"{project_root.name}-repo").resolve()
         assert str(expected_path) in prompt
-        # Ensure it's absolute and starts at filesystem root (Unix test env).
-        assert str(expected_path).startswith("/")
+        # Ensure it's absolute (filesystem root on POSIX, drive root on Windows).
+        assert expected_path.is_absolute()
 
     def test_prepare_injects_required_directive(self, project_root):
         """The prompt must contain the MUST directive and forbidden-destination warning."""
@@ -1514,12 +1514,12 @@ class TestGitRepoAgentCanonicalPathInjection:
         project_root.mkdir()
         (project_root / ".svp").mkdir()
         (project_root / "blueprint").mkdir()
-        (project_root / "blueprint" / "blueprint_prose.md").write_text(BLUEPRINT_PROSE_CONTENT)
-        (project_root / "blueprint" / "blueprint_contracts.md").write_text(BLUEPRINT_CONTRACTS_CONTENT)
-        (project_root / ".svp" / "pipeline_state.json").write_text(json.dumps(MINIMAL_PIPELINE_STATE))
+        (project_root / "blueprint" / "blueprint_prose.md").write_text(BLUEPRINT_PROSE_CONTENT, encoding="utf-8")
+        (project_root / "blueprint" / "blueprint_contracts.md").write_text(BLUEPRINT_CONTRACTS_CONTENT, encoding="utf-8")
+        (project_root / ".svp" / "pipeline_state.json").write_text(json.dumps(MINIMAL_PIPELINE_STATE), encoding="utf-8")
         profile = {"name": "foo", "archetype": "python_project", "language": {"primary": "python"}}
-        (project_root / "project_profile.json").write_text(json.dumps(profile))
-        (project_root / "toolchain.json").write_text(json.dumps(MINIMAL_TOOLCHAIN))
+        (project_root / "project_profile.json").write_text(json.dumps(profile), encoding="utf-8")
+        (project_root / "toolchain.json").write_text(json.dumps(MINIMAL_TOOLCHAIN), encoding="utf-8")
 
         prompt = prepare_task_prompt(project_root, "git_repo_agent")
         expected = (project_root.parent / "foo-repo").resolve()
@@ -1531,10 +1531,10 @@ class TestGitRepoAgentCanonicalPathInjection:
         project_root.mkdir()
         (project_root / ".svp").mkdir()
         (project_root / "blueprint").mkdir()
-        (project_root / "blueprint" / "blueprint_prose.md").write_text(BLUEPRINT_PROSE_CONTENT)
-        (project_root / "blueprint" / "blueprint_contracts.md").write_text(BLUEPRINT_CONTRACTS_CONTENT)
-        (project_root / ".svp" / "pipeline_state.json").write_text(json.dumps(MINIMAL_PIPELINE_STATE))
-        (project_root / "toolchain.json").write_text(json.dumps(MINIMAL_TOOLCHAIN))
+        (project_root / "blueprint" / "blueprint_prose.md").write_text(BLUEPRINT_PROSE_CONTENT, encoding="utf-8")
+        (project_root / "blueprint" / "blueprint_contracts.md").write_text(BLUEPRINT_CONTRACTS_CONTENT, encoding="utf-8")
+        (project_root / ".svp" / "pipeline_state.json").write_text(json.dumps(MINIMAL_PIPELINE_STATE), encoding="utf-8")
+        (project_root / "toolchain.json").write_text(json.dumps(MINIMAL_TOOLCHAIN), encoding="utf-8")
         # Deliberately NO project_profile.json.
 
         prompt = prepare_task_prompt(project_root, "git_repo_agent")
@@ -1741,7 +1741,7 @@ def _write_pipeline_state(project_root, requires_stats):
     state_path = project_root / ".svp" / "pipeline_state.json"
     state_data = dict(MINIMAL_PIPELINE_STATE)
     state_data["requires_statistical_analysis"] = bool(requires_stats)
-    state_path.write_text(json.dumps(state_data))
+    state_path.write_text(json.dumps(state_data), encoding="utf-8")
 
 
 class TestPrepareStakeholderDialogStatisticalPrimerAppend:
@@ -1976,7 +1976,7 @@ def _write_pipeline_state_with_language(
     state_data["requires_statistical_analysis"] = bool(requires_stats)
     if primary_language is not None:
         state_data["primary_language"] = primary_language
-    state_path.write_text(json.dumps(state_data))
+    state_path.write_text(json.dumps(state_data), encoding="utf-8")
 
 
 def _provision_r_archetype_in_project(project_root):

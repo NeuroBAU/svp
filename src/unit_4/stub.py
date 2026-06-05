@@ -58,7 +58,7 @@ def load_toolchain(
             project_root / "scripts" / "toolchain_defaults" / toolchain_file
         )
 
-    with open(toolchain_path, "r") as f:
+    with open(toolchain_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 

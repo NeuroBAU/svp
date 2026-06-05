@@ -160,18 +160,18 @@ def derive_script(workspace: Path, stub_path: str, script_path: str,
     if not stub_file.exists():
         return False
 
-    stub_content = stub_file.read_text()
+    stub_content = stub_file.read_text(encoding="utf-8")
     derived_content = rewrite_imports(stub_content)
 
     if script_file.exists():
-        current_content = script_file.read_text()
+        current_content = script_file.read_text(encoding="utf-8")
         if current_content == derived_content:
             return False  # Already in sync
 
     if dry_run:
         print(f"  [dry-run] derive {script_path} from {stub_path}")
     else:
-        script_file.write_text(derived_content)
+        script_file.write_text(derived_content, encoding="utf-8")
         print(f"  derived: {script_path} from {stub_path}")
 
     return True

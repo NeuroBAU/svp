@@ -34,7 +34,7 @@ def _ws_spec() -> str:
     for p in (WORKSPACE / "specs" / "stakeholder_spec.md",
               WORKSPACE / "docs" / "stakeholder_spec.md"):
         if p.exists():
-            return p.read_text()
+            return p.read_text(encoding="utf-8")
     raise FileNotFoundError("stakeholder_spec.md not found in workspace")
 
 
@@ -43,7 +43,7 @@ def _ws_blueprint() -> str:
     for p in (WORKSPACE / "blueprint" / "blueprint_contracts.md",
               WORKSPACE / "docs" / "blueprint_contracts.md"):
         if p.exists():
-            return p.read_text()
+            return p.read_text(encoding="utf-8")
     raise FileNotFoundError("blueprint_contracts.md not found in workspace")
 
 
@@ -52,7 +52,7 @@ def _ws_lessons() -> str:
     for p in (WORKSPACE / "references" / "svp_2_1_lessons_learned.md",
               WORKSPACE / "docs" / "references" / "svp_2_1_lessons_learned.md"):
         if p.exists():
-            return p.read_text()
+            return p.read_text(encoding="utf-8")
     raise FileNotFoundError("svp_2_1_lessons_learned.md not found in workspace")
 
 
@@ -63,7 +63,7 @@ class TestSpecSync:
         ws = _ws_spec()
         p2 = PASS2_REPO / "docs" / "stakeholder_spec.md"
         if p2.exists():
-            assert ws == p2.read_text(), "Spec out of sync with Pass 2 repo"
+            assert ws == p2.read_text(encoding="utf-8"), "Spec out of sync with Pass 2 repo"
 
 
 class TestBlueprintSync:
@@ -73,7 +73,7 @@ class TestBlueprintSync:
         ws = _ws_blueprint()
         p2 = PASS2_REPO / "docs" / "blueprint_contracts.md"
         if p2.exists():
-            assert ws == p2.read_text(), "Blueprint out of sync with Pass 2 repo"
+            assert ws == p2.read_text(encoding="utf-8"), "Blueprint out of sync with Pass 2 repo"
 
 
 class TestLessonsLearnedSync:
@@ -83,7 +83,7 @@ class TestLessonsLearnedSync:
         ws = _ws_lessons()
         p2 = PASS2_REPO / "docs" / "references" / "svp_2_1_lessons_learned.md"
         if p2.exists():
-            assert ws == p2.read_text(), "Lessons learned out of sync with Pass 2 repo"
+            assert ws == p2.read_text(encoding="utf-8"), "Lessons learned out of sync with Pass 2 repo"
 
 
 class TestDeliveryArtifactParity:
@@ -94,6 +94,8 @@ class TestDeliveryArtifactParity:
     """
 
     def test_pass2_repo_has_all_root_delivery_files(self):
+        if not PASS2_REPO.is_dir():
+            pytest.skip("Pass 2 delivered repo not present (source checkout)")
         delivery_files = ["environment.yml", "pyproject.toml", "README.md",
                           "CHANGELOG.md", "LICENSE", ".gitignore"]
         for f in delivery_files:
@@ -158,7 +160,7 @@ class TestDeployedArtifactFreshness:
         for cmd_name, source_content in COMMAND_DEFINITIONS.items():
             deployed = commands_dir / f"{cmd_name}.md"
             assert deployed.is_file(), f"Missing deployed command: {cmd_name}.md"
-            assert deployed.read_text() == source_content, (
+            assert deployed.read_text(encoding="utf-8") == source_content, (
                 f"Deployed {cmd_name}.md does not match source COMMAND_DEFINITIONS"
             )
 
@@ -171,7 +173,7 @@ class TestDeployedArtifactFreshness:
         skill_file = PASS2_REPO / "svp" / "skills" / "orchestration" / "SKILL.md"
         if not skill_file.is_file():
             pytest.skip("Pass 2 repo has no svp/skills/orchestration/SKILL.md")
-        assert skill_file.read_text() == ORCHESTRATION_SKILL, (
+        assert skill_file.read_text(encoding="utf-8") == ORCHESTRATION_SKILL, (
             "Deployed SKILL.md does not match source ORCHESTRATION_SKILL"
         )
 
@@ -237,7 +239,7 @@ class TestDeployedArtifactFreshness:
         for filename, source_content in self._get_agent_defs().items():
             deployed = agents_dir / filename
             assert deployed.is_file(), f"Missing deployed agent: {filename}"
-            deployed_text = deployed.read_text()
+            deployed_text = deployed.read_text(encoding="utf-8")
             # Agent files have YAML frontmatter prepended; check body after frontmatter
             assert source_content in deployed_text, (
                 f"Deployed {filename} body does not match source definition"
@@ -253,7 +255,7 @@ class TestDeployedArtifactFreshness:
         if not hooks_file.is_file():
             pytest.skip("Pass 2 repo has no svp/hooks/hooks.json")
         expected = generate_hooks_json() + "\n"
-        assert hooks_file.read_text() == expected, (
+        assert hooks_file.read_text(encoding="utf-8") == expected, (
             "Deployed hooks.json does not match source generate_hooks_json()"
         )
 

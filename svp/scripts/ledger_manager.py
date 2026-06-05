@@ -17,11 +17,18 @@ if sys.platform == "win32":
     import msvcrt
 
     def _lock(f) -> None:
-        # Lock a single-byte region from the current file position (append mode).
-        # LK_LOCK blocks with ~10 retries then raises.
+        # msvcrt.locking locks a region RELATIVE to the current file position.
+        # In append mode the position sits at EOF when _lock runs, but f.write()
+        # then advances it, so _unlock would target a different (never-locked)
+        # region and raise PermissionError. Anchor both lock and unlock to byte
+        # 0 so they always reference the same region; the append-mode write
+        # still lands at EOF regardless of the seek. LK_LOCK blocks with ~10
+        # retries then raises.
+        f.seek(0)
         msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
 
     def _unlock(f) -> None:
+        f.seek(0)
         msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
 else:
     import fcntl

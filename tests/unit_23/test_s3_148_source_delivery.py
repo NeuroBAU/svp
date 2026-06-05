@@ -64,15 +64,15 @@ def _setup_a_d_workspace(workspace: Path) -> None:
     workspace.mkdir(exist_ok=True)
     src = workspace / "src"
     src.mkdir()
-    (src / "__init__.py").write_text("")
+    (src / "__init__.py").write_text("", encoding="utf-8")
 
     unit1 = src / "unit_1"
     unit1.mkdir()
-    (unit1 / "stub.py").write_text(_UNIT_1_STUB)
+    (unit1 / "stub.py").write_text(_UNIT_1_STUB, encoding="utf-8")
 
     unit2 = src / "unit_2"
     unit2.mkdir()
-    (unit2 / "stub.py").write_text(_UNIT_2_STUB)
+    (unit2 / "stub.py").write_text(_UNIT_2_STUB, encoding="utf-8")
 
 
 def _make_assembly_map(layout: str) -> dict:
@@ -138,7 +138,7 @@ def test_deliver_svp_native_writes_flat_imports(tmp_path):
     n = deliver_source_files(workspace, repo, _make_assembly_map("svp_native"), _profile("svp_native"))
 
     assert n == 2  # unit_1 + unit_2; non-source entries excluded
-    factory = (repo / "scripts" / "factory.py").read_text()
+    factory = (repo / "scripts" / "factory.py").read_text(encoding="utf-8")
     assert "from engine import Engine" in factory
     assert "import engine as _u1_module" in factory
     # Stdlib + future imports are untouched
@@ -159,7 +159,7 @@ def test_deliver_conventional_writes_package_prefixed_imports(tmp_path):
     n = deliver_source_files(workspace, repo, _make_assembly_map("conventional"), _profile("conventional"))
 
     assert n == 2
-    factory = (repo / "src" / "demo_pkg" / "factory.py").read_text()
+    factory = (repo / "src" / "demo_pkg" / "factory.py").read_text(encoding="utf-8")
     assert "from demo_pkg.engine import Engine" in factory
     assert "import demo_pkg.engine as _u1_module" in factory
 
@@ -178,7 +178,7 @@ def test_deliver_flat_writes_package_prefixed_imports_at_repo_root(tmp_path):
     n = deliver_source_files(workspace, repo, _make_assembly_map("flat"), _profile("flat"))
 
     assert n == 2
-    factory = (repo / "demo_pkg" / "factory.py").read_text()
+    factory = (repo / "demo_pkg" / "factory.py").read_text(encoding="utf-8")
     assert "from demo_pkg.engine import Engine" in factory
 
 
@@ -250,11 +250,11 @@ def test_deliver_idempotent(tmp_path):
 
     am = _make_assembly_map("conventional")
     deliver_source_files(workspace, repo, am, _profile("conventional"))
-    first = (repo / "src" / "demo_pkg" / "factory.py").read_text()
+    first = (repo / "src" / "demo_pkg" / "factory.py").read_text(encoding="utf-8")
 
     # Run again; outputs must match exactly
     deliver_source_files(workspace, repo, am, _profile("conventional"))
-    second = (repo / "src" / "demo_pkg" / "factory.py").read_text()
+    second = (repo / "src" / "demo_pkg" / "factory.py").read_text(encoding="utf-8")
 
     assert first == second
 
@@ -269,15 +269,15 @@ def test_assemble_python_project_invokes_deliver_source_files(tmp_path):
     _setup_a_d_workspace(workspace)
     # Minimal additional scaffolding for the S3-146 helpers
     (workspace / "scripts").mkdir()
-    (workspace / "scripts" / "__init__.py").write_text("")
+    (workspace / "scripts" / "__init__.py").write_text("", encoding="utf-8")
     (workspace / "tests").mkdir()
-    (workspace / "tests" / "__init__.py").write_text("")
+    (workspace / "tests" / "__init__.py").write_text("", encoding="utf-8")
     # assembly_map on disk
     svp = workspace / ".svp"
     svp.mkdir()
     (svp / "assembly_map.json").write_text(
         json.dumps(_make_assembly_map("conventional"))
-    )
+    , encoding="utf-8")
 
     repo_dir = assemble_python_project(
         workspace,
@@ -290,5 +290,5 @@ def test_assemble_python_project_invokes_deliver_source_files(tmp_path):
         "End-to-end: assemble_python_project must invoke deliver_source_files "
         "and produce src/demo_pkg/factory.py"
     )
-    text = factory.read_text()
+    text = factory.read_text(encoding="utf-8")
     assert "from demo_pkg.engine import Engine" in text

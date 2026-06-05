@@ -5,8 +5,14 @@
 .DESCRIPTION
     Makes the `svp` command work for the CURRENT Windows user by:
       1. Validating the shared toolchain (python>=3.11 + pytest, claude, git, conda).
-      2. Setting the SVP_PLUGIN_ROOT user env var (so the launcher's
-         _find_plugin_root() always resolves the plugin in this repo).
+      2. Setting the SVP_PLUGIN_ROOT user env var as an explicit override /
+         fallback. The launcher's _find_plugin_root() resolves the plugin from
+         its own on-disk location first (it runs out of svp\scripts\), so plugin
+         discovery works from this repo even before this var loads. Because the
+         var is set at User scope it only takes effect in NEWLY opened shells --
+         the __file__ resolution is what makes `svp new` work in the very shell
+         that runs this script. The var still wins when set, so keep it for
+         multi-checkout setups or to pin a specific plugin copy.
       3. Adding a `svp` function to the user's PowerShell profile that invokes
          svp\scripts\svp_launcher.py directly (this replaces the pip-generated
          svp.exe console-script -- no `pip install` required).
@@ -94,10 +100,14 @@ foreach ($c in 'claude','git','conda') {
     else { Fail "$c not on PATH for this user"; exit 1 }
 }
 
-# --- 1. Persistent fallback for plugin discovery -------------------------
+# --- 1. Explicit override / fallback for plugin discovery ----------------
+# The launcher resolves the plugin from its own __file__ location first, so
+# this var is not required for discovery from this repo -- it is an explicit
+# override (wins when set) and a fallback for setups where the launcher is
+# invoked from outside the plugin tree. User scope => new shells only.
 Step "Setting SVP_PLUGIN_ROOT (User scope)"
 [Environment]::SetEnvironmentVariable('SVP_PLUGIN_ROOT', $pluginRoot, 'User')
-Ok "SVP_PLUGIN_ROOT = $pluginRoot  (new shells only)"
+Ok "SVP_PLUGIN_ROOT = $pluginRoot  (new shells only; launcher self-locates otherwise)"
 
 # --- 2. Add the `svp` function to this user's profile (idempotent) -------
 Step "Installing `svp` function into `$PROFILE"

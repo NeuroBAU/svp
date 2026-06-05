@@ -182,8 +182,8 @@ class TestEnrichClaudeMdIdempotency:
         )
         # Before: Tier 1 contains the Gate 6 canonical path but NOT the
         # Tier 2 marker.
-        assert "## Gate 6 — Canonical Break-Glass Path" in claude_md.read_text()
-        assert "SVP Self-Build Override" not in claude_md.read_text()
+        assert "## Gate 6 — Canonical Break-Glass Path" in claude_md.read_text(encoding="utf-8")
+        assert "SVP Self-Build Override" not in claude_md.read_text(encoding="utf-8")
 
         enrich_claude_md_for_svp_build(tmp_path)
 
@@ -223,9 +223,9 @@ class TestCreateNewProjectShipsTier1:
     def _fake_plugin_root(self, tmp_path: Path) -> Path:
         root = tmp_path / "plugin"
         (root / "scripts").mkdir(parents=True)
-        (root / "scripts" / "__init__.py").write_text("")
+        (root / "scripts" / "__init__.py").write_text("", encoding="utf-8")
         (root / "toolchain").mkdir(parents=True)
-        (root / "ruff.toml").write_text("# empty\n")
+        (root / "ruff.toml").write_text("# empty\n", encoding="utf-8")
         return root
 
     def test_fresh_project_has_universal_protocol(

@@ -357,7 +357,7 @@ def load_registry_extensions(extensions_path: str) -> Dict[str, Dict[str, Any]]:
     file_path = os.path.join(extensions_path, "language_registry_extensions.json")
     if not os.path.isfile(file_path):
         return {}
-    with open(file_path, "r") as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 

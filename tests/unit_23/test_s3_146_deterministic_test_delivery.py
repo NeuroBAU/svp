@@ -30,18 +30,18 @@ def _setup_workspace_with_scripts_and_tests(workspace: Path) -> None:
     """
     scripts = workspace / "scripts"
     scripts.mkdir(parents=True)
-    (scripts / "ledger_manager.py").write_text("def append_entry(p): ...\n")
-    (scripts / "routing.py").write_text("def route(p): ...\n")
-    (scripts / "__init__.py").write_text("")
+    (scripts / "ledger_manager.py").write_text("def append_entry(p): ...\n", encoding="utf-8")
+    (scripts / "routing.py").write_text("def route(p): ...\n", encoding="utf-8")
+    (scripts / "__init__.py").write_text("", encoding="utf-8")
 
     tests = workspace / "tests"
     tests.mkdir()
-    (tests / "__init__.py").write_text("")
+    (tests / "__init__.py").write_text("", encoding="utf-8")
 
     # Tests/unit_7/ — flat-import test plus a cross-unit stub that should be excluded
     unit7 = tests / "unit_7"
     unit7.mkdir()
-    (unit7 / "__init__.py").write_text("")
+    (unit7 / "__init__.py").write_text("", encoding="utf-8")
     (unit7 / "test_unit_7.py").write_text(
         "import json\n"
         "import os\n"
@@ -52,15 +52,15 @@ def _setup_workspace_with_scripts_and_tests(workspace: Path) -> None:
         "\n"
         "def test_smoke():\n"
         "    pass\n"
-    )
-    (unit7 / "unit_1_stub.py").write_text("# excluded — cross-unit stub helper\n")
+    , encoding="utf-8")
+    (unit7 / "unit_1_stub.py").write_text("# excluded — cross-unit stub helper\n", encoding="utf-8")
 
     # Noise that must be excluded
     (unit7 / "__pycache__").mkdir()
-    (unit7 / "__pycache__" / "test_unit_7.cpython-311.pyc").write_text("noise")
+    (unit7 / "__pycache__" / "test_unit_7.cpython-311.pyc").write_text("noise", encoding="utf-8")
     (tests / ".pytest_cache").mkdir()
     (tests / ".pytest_cache" / "v").mkdir()
-    (tests / "test_top_level.py.bak.20260423-120000").write_text("backup noise")
+    (tests / "test_top_level.py.bak.20260423-120000").write_text("backup noise", encoding="utf-8")
 
 
 def _python_profile(layout: str, package_name: str = "demo_pkg") -> dict:
@@ -117,11 +117,11 @@ def test_adapt_svp_native_is_noop(tmp_path):
     profile = _python_profile("svp_native")
     copy_workspace_tests_to_repo(workspace, repo, profile)
 
-    before = (repo / "tests" / "unit_7" / "test_unit_7.py").read_text()
+    before = (repo / "tests" / "unit_7" / "test_unit_7.py").read_text(encoding="utf-8")
     n = adapt_test_imports_in_repo(
         repo, profile, _workspace_module_names(workspace)
     )
-    after = (repo / "tests" / "unit_7" / "test_unit_7.py").read_text()
+    after = (repo / "tests" / "unit_7" / "test_unit_7.py").read_text(encoding="utf-8")
 
     assert n == 0, "svp_native must rewrite zero files"
     assert before == after, "svp_native must leave test source unchanged"
@@ -145,7 +145,7 @@ def test_adapt_conventional_rewrites_flat_imports(tmp_path):
         repo, profile, _workspace_module_names(workspace)
     )
 
-    after = (repo / "tests" / "unit_7" / "test_unit_7.py").read_text()
+    after = (repo / "tests" / "unit_7" / "test_unit_7.py").read_text(encoding="utf-8")
     assert n >= 1, f"Expected at least one file modified, got {n}"
     assert "from demo_pkg.ledger_manager import" in after
     assert "from demo_pkg.routing import" in after
@@ -171,10 +171,10 @@ def test_adapt_idempotent(tmp_path):
     modules = _workspace_module_names(workspace)
 
     adapt_test_imports_in_repo(repo, profile, modules)
-    after_first = (repo / "tests" / "unit_7" / "test_unit_7.py").read_text()
+    after_first = (repo / "tests" / "unit_7" / "test_unit_7.py").read_text(encoding="utf-8")
 
     n_second = adapt_test_imports_in_repo(repo, profile, modules)
-    after_second = (repo / "tests" / "unit_7" / "test_unit_7.py").read_text()
+    after_second = (repo / "tests" / "unit_7" / "test_unit_7.py").read_text(encoding="utf-8")
 
     assert n_second == 0, "Second adapt run must rewrite zero files"
     assert after_first == after_second, (
@@ -201,13 +201,13 @@ def test_adapt_only_rewrites_workspace_allowlist_modules(tmp_path):
         "from ledger_manager import append_entry\n"
         "from third_party_lib import something\n"
         "import requests\n"
-    )
+    , encoding="utf-8")
 
     adapt_test_imports_in_repo(
         repo, profile, _workspace_module_names(workspace)
     )
 
-    after = test_file.read_text()
+    after = test_file.read_text(encoding="utf-8")
     assert "from demo_pkg.ledger_manager import" in after
     assert "from third_party_lib import" in after, (
         "Non-workspace modules must not be prefixed"
@@ -228,7 +228,7 @@ def test_pyproject_toml_pythonpath_for_svp_native(tmp_path):
     profile = _python_profile("svp_native", package_name="demo_pkg")
 
     _write_pyproject_toml(repo, profile, {"description": "demo"}, "demo_pkg")
-    content = (repo / "pyproject.toml").read_text()
+    content = (repo / "pyproject.toml").read_text(encoding="utf-8")
 
     assert "[tool.pytest.ini_options]" in content
     assert 'pythonpath = ["scripts"]' in content
@@ -245,7 +245,7 @@ def test_pyproject_toml_pythonpath_for_conventional(tmp_path):
     profile = _python_profile("conventional", package_name="demo_pkg")
 
     _write_pyproject_toml(repo, profile, {"description": "demo"}, "demo_pkg")
-    content = (repo / "pyproject.toml").read_text()
+    content = (repo / "pyproject.toml").read_text(encoding="utf-8")
 
     assert "[tool.pytest.ini_options]" in content
     assert 'pythonpath = ["src"]' in content
@@ -259,7 +259,7 @@ def test_pyproject_toml_pythonpath_for_flat(tmp_path):
     profile = _python_profile("flat", package_name="demo_pkg")
 
     _write_pyproject_toml(repo, profile, {"description": "demo"}, "demo_pkg")
-    content = (repo / "pyproject.toml").read_text()
+    content = (repo / "pyproject.toml").read_text(encoding="utf-8")
 
     assert "[tool.pytest.ini_options]" in content
     assert 'pythonpath = ["."]' in content

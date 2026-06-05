@@ -129,39 +129,39 @@ def _build_workspace(workspace: Path) -> None:
     # Source units
     src = workspace / "src"
     src.mkdir()
-    (src / "__init__.py").write_text("")
+    (src / "__init__.py").write_text("", encoding="utf-8")
 
     u1 = src / "unit_1"
     u1.mkdir()
-    (u1 / "__init__.py").write_text("")
-    (u1 / "stub.py").write_text(_UNIT_1_STUB)
+    (u1 / "__init__.py").write_text("", encoding="utf-8")
+    (u1 / "stub.py").write_text(_UNIT_1_STUB, encoding="utf-8")
 
     u2 = src / "unit_2"
     u2.mkdir()
-    (u2 / "__init__.py").write_text("")
-    (u2 / "stub.py").write_text(_UNIT_2_STUB)
+    (u2 / "__init__.py").write_text("", encoding="utf-8")
+    (u2 / "stub.py").write_text(_UNIT_2_STUB, encoding="utf-8")
 
     # Tests with delivered-layout (`from demo_pkg.X`) imports — adapt step
     # is a no-op for already-correct imports; this also covers the case
     # where the blueprint-author/test-author wrote conventional imports.
     tests = workspace / "tests"
     tests.mkdir()
-    (tests / "__init__.py").write_text("")
+    (tests / "__init__.py").write_text("", encoding="utf-8")
 
     t1 = tests / "unit_1"
     t1.mkdir()
-    (t1 / "__init__.py").write_text("")
-    (t1 / "test_engine.py").write_text(_UNIT_1_TEST)
+    (t1 / "__init__.py").write_text("", encoding="utf-8")
+    (t1 / "test_engine.py").write_text(_UNIT_1_TEST, encoding="utf-8")
 
     t2 = tests / "unit_2"
     t2.mkdir()
-    (t2 / "__init__.py").write_text("")
-    (t2 / "test_factory.py").write_text(_UNIT_2_TEST)
+    (t2 / "__init__.py").write_text("", encoding="utf-8")
+    (t2 / "test_factory.py").write_text(_UNIT_2_TEST, encoding="utf-8")
 
     # Blueprint with Preamble file-tree
     bp = workspace / "blueprint"
     bp.mkdir()
-    (bp / "blueprint_prose.md").write_text(_BLUEPRINT_PROSE)
+    (bp / "blueprint_prose.md").write_text(_BLUEPRINT_PROSE, encoding="utf-8")
 
     # .svp dir
     (workspace / ".svp").mkdir()
@@ -209,7 +209,7 @@ def test_stage_5_end_to_end_synthetic_a_d_workspace(tmp_path):
     # And that the side-effect file landed
     map_path = workspace / ".svp" / "assembly_map.json"
     assert map_path.is_file()
-    on_disk = json.loads(map_path.read_text())
+    on_disk = json.loads(map_path.read_text(encoding="utf-8"))
     assert on_disk == mapping
 
     # ---- Step 2: assemble_python_project -------------------------------
@@ -233,7 +233,7 @@ def test_stage_5_end_to_end_synthetic_a_d_workspace(tmp_path):
     # CHANGED IN 2.2 — Bug S3-187, cycle G2: section header is now
     # "## Gate 6 — Canonical Break-Glass Path" (replaces legacy
     # "Manual Bug-Fixing Protocol (Break-Glass Mode)").
-    claude_md_text = claude_md.read_text()
+    claude_md_text = claude_md.read_text(encoding="utf-8")
     assert "Gate 6" in claude_md_text and "Canonical Break-Glass Path" in claude_md_text
 
     # Tests delivered (S3-146)
@@ -249,7 +249,7 @@ def test_stage_5_end_to_end_synthetic_a_d_workspace(tmp_path):
     assert factory.is_file(), f"factory.py missing in {sorted(src_pkg.iterdir())}"
 
     # The factory should import from `demo_pkg.engine` after rewrite
-    factory_text = factory.read_text()
+    factory_text = factory.read_text(encoding="utf-8")
     assert "from demo_pkg.engine import Engine" in factory_text, (
         f"Imports were not rewritten in factory.py:\n{factory_text}"
     )
@@ -257,7 +257,7 @@ def test_stage_5_end_to_end_synthetic_a_d_workspace(tmp_path):
     assert "src.unit_1" not in factory_text
 
     # Engine itself has no inter-unit imports — should be unchanged content
-    engine_text = engine.read_text()
+    engine_text = engine.read_text(encoding="utf-8")
     assert "class Engine" in engine_text
     assert "src.unit_" not in engine_text
 
@@ -341,7 +341,7 @@ def test_stage_5_chain_succeeds_for_each_python_layout(tmp_path, layout):
                     +-- test_factory.py          <- Unit 2
             ```
         """)
-    (workspace / "blueprint" / "blueprint_prose.md").write_text(prose)
+    (workspace / "blueprint" / "blueprint_prose.md").write_text(prose, encoding="utf-8")
 
     # For svp_native, tests must use flat imports (no package prefix);
     # rewrite the test files now.
@@ -350,13 +350,13 @@ def test_stage_5_chain_succeeds_for_each_python_layout(tmp_path, layout):
             "from engine import Engine\n\n"
             "def test_engine_greets():\n"
             "    assert Engine().greet() == \"hello\"\n"
-        )
+        , encoding="utf-8")
         (workspace / "tests" / "unit_2" / "test_factory.py").write_text(
             "from factory import make_engine\n\n"
             "def test_factory_returns_greeter():\n"
             "    e = make_engine()\n"
             "    assert e.greet() == \"hello\"\n"
-        )
+        , encoding="utf-8")
 
     profile = {
         "language": {"primary": "python"},
@@ -388,7 +388,7 @@ def test_stage_5_chain_succeeds_for_each_python_layout(tmp_path, layout):
     assert (src_dest / "factory.py").is_file(), (
         f"[{layout}] factory.py missing at {src_dest}"
     )
-    factory_text = (src_dest / "factory.py").read_text()
+    factory_text = (src_dest / "factory.py").read_text(encoding="utf-8")
     assert expected_factory_import in factory_text, (
         f"[{layout}] expected {expected_factory_import!r} in factory.py; "
         f"got:\n{factory_text}"

@@ -970,7 +970,7 @@ def run_infrastructure_setup(
     # Ensure blueprint_prose.md exists so extract_units can read both files
     prose_path = blueprint_dir / Path(ARTIFACT_FILENAMES["blueprint_prose"]).name
     if not prose_path.exists():
-        prose_path.write_text("")
+        prose_path.write_text("", encoding="utf-8")
 
     dag_errors = _validate_dag(blueprint_dir)
     if dag_errors:

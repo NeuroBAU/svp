@@ -166,7 +166,7 @@ def load_profile(project_root: Path) -> Dict[str, Any]:
     Raises FileNotFoundError if the profile file is absent.
     """
     profile_path = project_root / ARTIFACT_FILENAMES["project_profile"]
-    with open(profile_path, "r") as f:
+    with open(profile_path, "r", encoding="utf-8") as f:
         user_profile = json.load(f)
 
     # SVP 2.1 migration: wrap flat delivery/quality under primary language key

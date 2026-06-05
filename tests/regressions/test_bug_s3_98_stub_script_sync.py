@@ -66,9 +66,9 @@ class TestStubScriptDrift:
         assert stub_file.exists(), f"Stub not found: {stub_path}"
         assert script_file.exists(), f"Script not found: {script_file}"
 
-        stub_content = stub_file.read_text()
+        stub_content = stub_file.read_text(encoding="utf-8")
         derived = rewrite_imports(stub_content)
-        actual = script_file.read_text()
+        actual = script_file.read_text(encoding="utf-8")
 
         assert derived == actual, (
             f"{script_file.relative_to(PROJECT_ROOT)} has drifted from {stub_path}. "
@@ -87,7 +87,7 @@ class TestRegressionTestImports:
     def _find_stub_imports(self, filepath):
         """Find all 'from src.unit_N.stub import' lines that should use deployed modules."""
         violations = []
-        content = filepath.read_text()
+        content = filepath.read_text(encoding="utf-8")
         for i, line in enumerate(content.splitlines(), 1):
             match = re.match(r"^\s*from (src\.unit_\d+\.stub) import", line)
             if match:

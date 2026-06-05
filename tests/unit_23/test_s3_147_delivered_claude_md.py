@@ -65,9 +65,9 @@ def _svp_build_profile() -> dict:
 # assembler chain runs both.
 def _scaffold_minimal_workspace(workspace: Path) -> None:
     (workspace / "scripts").mkdir(parents=True, exist_ok=True)
-    (workspace / "scripts" / "__init__.py").write_text("")
+    (workspace / "scripts" / "__init__.py").write_text("", encoding="utf-8")
     (workspace / "tests").mkdir(parents=True, exist_ok=True)
-    (workspace / "tests" / "__init__.py").write_text("")
+    (workspace / "tests" / "__init__.py").write_text("", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +83,7 @@ def test_write_delivered_claude_md_writes_for_a_d_archetype(tmp_path):
     assert wrote is True
     claude = repo / "CLAUDE.md"
     assert claude.is_file()
-    content = claude.read_text()
+    content = claude.read_text(encoding="utf-8")
     assert content.startswith("# demo\n")
     # CHANGED IN 2.2 — Bug S3-187, cycle G2: "Manual Bug-Fixing Protocol
     # (Break-Glass Mode)" replaced by "Gate 6 — Canonical Break-Glass Path"
@@ -118,12 +118,12 @@ def test_write_delivered_claude_md_skips_svp_build(tmp_path):
     repo = tmp_path / "svp-repo"
     repo.mkdir()
     pre_existing = "# pre-existing SVP-meta CLAUDE.md content\n"
-    (repo / "CLAUDE.md").write_text(pre_existing)
+    (repo / "CLAUDE.md").write_text(pre_existing, encoding="utf-8")
 
     wrote = write_delivered_claude_md(repo, _svp_build_profile(), "svp")
     assert wrote is False
     # Pre-existing content is preserved (we did not overwrite).
-    assert (repo / "CLAUDE.md").read_text() == pre_existing
+    assert (repo / "CLAUDE.md").read_text(encoding="utf-8") == pre_existing
 
 
 def test_delivered_claude_md_omits_svp_internal_phrases(tmp_path):
@@ -131,7 +131,7 @@ def test_delivered_claude_md_omits_svp_internal_phrases(tmp_path):
     repo.mkdir()
     write_delivered_claude_md(repo, _python_profile(), "demo")
 
-    content = (repo / "CLAUDE.md").read_text()
+    content = (repo / "CLAUDE.md").read_text(encoding="utf-8")
     # The intro mentions SVP once (the project came from it). After that,
     # no SVP-internal orchestration references should appear, because a
     # user reading this is NOT running SVP.
@@ -168,8 +168,8 @@ def test_python_assembler_writes_delivered_claude_md(tmp_path):
     assert claude.is_file()
     # CHANGED IN 2.2 — Bug S3-187, cycle G2: header is "## Gate 6 —
     # Canonical Break-Glass Path".
-    assert "Gate 6" in claude.read_text()
-    assert "Canonical Break-Glass Path" in claude.read_text()
+    assert "Gate 6" in claude.read_text(encoding="utf-8")
+    assert "Canonical Break-Glass Path" in claude.read_text(encoding="utf-8")
 
 
 def test_r_assembler_writes_delivered_claude_md(tmp_path):
@@ -180,8 +180,8 @@ def test_r_assembler_writes_delivered_claude_md(tmp_path):
     claude = repo_dir / "CLAUDE.md"
     assert claude.is_file()
     # CHANGED IN 2.2 — Bug S3-187, cycle G2.
-    assert "Gate 6" in claude.read_text()
-    assert "Canonical Break-Glass Path" in claude.read_text()
+    assert "Gate 6" in claude.read_text(encoding="utf-8")
+    assert "Canonical Break-Glass Path" in claude.read_text(encoding="utf-8")
 
 
 def test_plugin_assembler_writes_delivered_claude_md(tmp_path):
@@ -194,8 +194,8 @@ def test_plugin_assembler_writes_delivered_claude_md(tmp_path):
     claude = repo_dir / "CLAUDE.md"
     assert claude.is_file()
     # CHANGED IN 2.2 — Bug S3-187, cycle G2.
-    assert "Gate 6" in claude.read_text()
-    assert "Canonical Break-Glass Path" in claude.read_text()
+    assert "Gate 6" in claude.read_text(encoding="utf-8")
+    assert "Canonical Break-Glass Path" in claude.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -252,7 +252,7 @@ def test_orchestrator_primer_appended_for_r_archetype(tmp_path):
         repo, _r_profile(), "demo", project_root=workspace_root
     )
     assert wrote is True
-    content = (repo / "CLAUDE.md").read_text()
+    content = (repo / "CLAUDE.md").read_text(encoding="utf-8")
 
     # Primer section header must be present.
     assert _PRIMER_SECTION_HEADER in content
@@ -275,7 +275,7 @@ def test_orchestrator_primer_appended_for_python_archetype(tmp_path):
         repo, _python_profile(), "demo", project_root=workspace_root
     )
     assert wrote is True
-    content = (repo / "CLAUDE.md").read_text()
+    content = (repo / "CLAUDE.md").read_text(encoding="utf-8")
 
     # Primer section header must be present.
     assert _PRIMER_SECTION_HEADER in content
@@ -304,7 +304,7 @@ def test_orchestrator_primer_not_appended_for_unknown_archetype(tmp_path):
         repo, rust_profile, "demo", project_root=workspace_root
     )
     assert wrote is True
-    content = (repo / "CLAUDE.md").read_text()
+    content = (repo / "CLAUDE.md").read_text(encoding="utf-8")
 
     assert _PRIMER_SECTION_HEADER not in content
     assert _R_PRIMER_MARKER not in content
@@ -318,7 +318,7 @@ def test_orchestrator_primer_not_appended_when_project_root_is_none(tmp_path):
     repo.mkdir()
 
     write_delivered_claude_md(repo, _r_profile(), "demo")
-    content = (repo / "CLAUDE.md").read_text()
+    content = (repo / "CLAUDE.md").read_text(encoding="utf-8")
 
     assert _PRIMER_SECTION_HEADER not in content
     # Template content still present (CHANGED IN 2.2 — Bug S3-187: section
@@ -341,7 +341,7 @@ def test_orchestrator_primer_not_appended_when_primary_language_missing(tmp_path
         repo, profile_no_language, "demo", project_root=workspace_root
     )
     assert wrote is True
-    content = (repo / "CLAUDE.md").read_text()
+    content = (repo / "CLAUDE.md").read_text(encoding="utf-8")
     assert _PRIMER_SECTION_HEADER not in content
 
 
@@ -357,7 +357,7 @@ def test_orchestrator_primer_not_appended_when_manifest_missing(tmp_path):
         repo, _r_profile(), "demo", project_root=bare_root
     )
     assert wrote is True
-    content = (repo / "CLAUDE.md").read_text()
+    content = (repo / "CLAUDE.md").read_text(encoding="utf-8")
     assert _PRIMER_SECTION_HEADER not in content
 
 
@@ -383,13 +383,13 @@ def test_orchestrator_primer_not_appended_when_primer_file_missing(tmp_path):
         / "scripts"
         / "toolchain_defaults"
         / "r_renv_testthat.json"
-    ).write_text(json.dumps(manifest))
+    ).write_text(json.dumps(manifest), encoding="utf-8")
 
     wrote = write_delivered_claude_md(
         repo, _r_profile(), "demo", project_root=fixture_root
     )
     assert wrote is True
-    content = (repo / "CLAUDE.md").read_text()
+    content = (repo / "CLAUDE.md").read_text(encoding="utf-8")
     assert _PRIMER_SECTION_HEADER not in content
 
 
@@ -413,7 +413,7 @@ def test_existing_template_content_preserved_when_primer_appended(tmp_path):
     write_delivered_claude_md(
         repo, _r_profile(), "demo", project_root=workspace_root
     )
-    content = (repo / "CLAUDE.md").read_text()
+    content = (repo / "CLAUDE.md").read_text(encoding="utf-8")
 
     # Primer present.
     assert _PRIMER_SECTION_HEADER in content
@@ -470,6 +470,6 @@ def test_orchestrator_primer_appended_via_assemble_r_project(tmp_path):
     repo_dir = assemble_r_project(
         project_root, _r_profile(), {"description": "demo"}
     )
-    content = (repo_dir / "CLAUDE.md").read_text()
+    content = (repo_dir / "CLAUDE.md").read_text(encoding="utf-8")
     assert _PRIMER_SECTION_HEADER in content
     assert _R_PRIMER_MARKER in content

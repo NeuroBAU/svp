@@ -18,6 +18,32 @@ from pathlib import Path
 import pytest
 
 
+def _bash_python3_works() -> bool:
+    """The deployed write_authorization.sh hook is a POSIX bash script that
+    parses pipeline state via an embedded ``python3 -c`` call. Exercising it
+    faithfully requires both ``bash`` and a *working* ``python3`` on PATH
+    inside that shell. On stock Windows ``python3`` resolves to the Microsoft
+    Store app-execution-alias stub, which prints a message and exits without
+    running Python — so the hook can't parse state and the test would assert
+    against meaningless output. Skip the module unless the toolchain is real.
+    """
+    try:
+        proc = subprocess.run(
+            ["bash", "-c", "python3 -c 'print(1)'"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return False
+    return proc.returncode == 0 and proc.stdout.strip() == "1"
+
+
+pytestmark = pytest.mark.skipif(
+    not _bash_python3_works(),
+    reason="requires bash + a working python3 on PATH (POSIX-shell hook); "
+    "not available on stock Windows",
+)
+
+
 # ---------------------------------------------------------------------------
 # Path resolvers (dual-layout: workspace OR repo)
 # ---------------------------------------------------------------------------

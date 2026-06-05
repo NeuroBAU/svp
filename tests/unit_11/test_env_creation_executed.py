@@ -32,8 +32,8 @@ def _write_minimal_blueprint(blueprint_dir):
         "import requests\n"
         "def g(): ...\n"
         "```\n"
-    )
-    (blueprint_dir / "blueprint_prose.md").write_text("")
+    , encoding="utf-8")
+    (blueprint_dir / "blueprint_prose.md").write_text("", encoding="utf-8")
 
 
 def _minimal_profile():
@@ -68,7 +68,7 @@ def _minimal_registry():
 def _seed_state(project_root):
     svp = project_root / ".svp"
     svp.mkdir(parents=True, exist_ok=True)
-    (svp / "pipeline_state.json").write_text(json.dumps({"total_units": 0}))
+    (svp / "pipeline_state.json").write_text(json.dumps({"total_units": 0}), encoding="utf-8")
 
 
 def test_env_creation_fires_when_env_absent(
@@ -242,7 +242,7 @@ def _materialize_r_toolchain(project_root):
         "language": {"version_constraint": ">=4.3"},
         "quality": {},
     }
-    (project_root / "toolchain.json").write_text(json.dumps(data, indent=2))
+    (project_root / "toolchain.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def test_r_conda_env_creation_invokes_verify_and_sets_status_ready(
@@ -340,7 +340,7 @@ def test_python_conda_env_creation_also_verifies(
                 "quality": {},
             }
         )
-    )
+    , encoding="utf-8")
 
     verify_calls = []
 
@@ -400,7 +400,7 @@ def test_run_infrastructure_setup_provision_only_runs_env_create_and_verify_only
                 "quality": {},
             }
         )
-    )
+    , encoding="utf-8")
     monkeypatch.setattr(
         infrastructure_setup,
         "verify_toolchain_ready",
@@ -453,7 +453,7 @@ def test_run_infrastructure_setup_provision_only_writes_toolchain_status_ready_o
                 "quality": {},
             }
         )
-    )
+    , encoding="utf-8")
     monkeypatch.setattr(
         infrastructure_setup,
         "verify_toolchain_ready",
@@ -497,7 +497,7 @@ def test_run_infrastructure_setup_provision_only_writes_toolchain_status_not_rea
                 "quality": {},
             }
         )
-    )
+    , encoding="utf-8")
     monkeypatch.setattr(
         infrastructure_setup,
         "verify_toolchain_ready",
