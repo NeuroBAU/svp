@@ -24,8 +24,12 @@
     SVP repo root. Defaults to the directory containing this script.
 
 .PARAMETER Python
-    Python interpreter the `svp` function will call. Defaults to the machine-wide
-    Miniconda base (Python 3.13, shared across users, already has pytest).
+    Python interpreter the `svp` function will call. Defaults to the currently
+    active conda environment's interpreter ($env:CONDA_PREFIX\python.exe) if one
+    is active, otherwise falls back to the machine-wide Miniconda base
+    (C:\ProgramData\miniconda3\python.exe). The chosen interpreter must be
+    >=3.11 AND have pytest importable; the bundled environment.yml installs
+    pytest into a dedicated env -- activate it before running this script.
 
 .PARAMETER RegisterMarketplace
     If set, also runs `claude plugin marketplace add <repo>` for this user.
@@ -42,7 +46,13 @@
 [CmdletBinding()]
 param(
     [string]$SvpRepo = $PSScriptRoot,
-    [string]$Python  = 'C:\ProgramData\miniconda3\python.exe',
+    [string]$Python  = $(
+        if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX 'python.exe'))) {
+            Join-Path $env:CONDA_PREFIX 'python.exe'
+        } else {
+            'C:\ProgramData\miniconda3\python.exe'
+        }
+    ),
     [switch]$RegisterMarketplace
 )
 
@@ -66,8 +76,18 @@ foreach ($p in @($launcher, $pluginRoot, $market)) {
 # --- Validate shared toolchain (mirrors launcher preflight) --------------
 Step "Validating shared toolchain"
 if (-not (Test-Path $Python)) { Fail "python not found: $Python"; exit 1 }
-& $Python -c "import sys, pytest; assert sys.version_info >= (3, 11)"
-if (-not $?) { Fail "$Python is not >=3.11 or pytest is not importable"; exit 1 }
+& $Python -c "import sys; assert sys.version_info >= (3, 11)"
+if (-not $?) { Fail "$Python is not >=3.11"; exit 1 }
+& $Python -c "import pytest" 2>$null
+if (-not $?) {
+    Fail "pytest is not importable from $Python"
+    Write-Host "    Hint: activate a conda env that already has pytest, then re-run." -ForegroundColor Yellow
+    Write-Host "          conda env create -f environment.yml   # one-time, creates env 'svp2_2'" -ForegroundColor Yellow
+    Write-Host "          conda activate svp2_2" -ForegroundColor Yellow
+    Write-Host "          .\setup_svp_user.ps1" -ForegroundColor Yellow
+    Write-Host "    Or pass an interpreter explicitly: .\setup_svp_user.ps1 -Python <path\to\python.exe>" -ForegroundColor Yellow
+    exit 1
+}
 Ok "$Python (>=3.11, pytest importable)"
 foreach ($c in 'claude','git','conda') {
     if (Get-Command $c -ErrorAction SilentlyContinue) { Ok "$c on PATH" }

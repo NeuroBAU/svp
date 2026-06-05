@@ -1615,3 +1615,7 @@ def main(argv: list = None) -> None:
         resolved_plugin_root = plugin_path if plugin_path else _find_plugin_root()
         ensure_project_settings(project_root, resolved_plugin_root)
         launch_session(project_root, plugin_path=plugin_path)
+
+
+if __name__ == "__main__":
+    main()
