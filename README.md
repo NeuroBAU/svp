@@ -144,12 +144,12 @@ Machine-wide tools (the Conda base interpreter, `claude`, `git`) are reused acro
 > **macOS / Linux / WSL2.** For native Windows, use the [Native Windows](#native-windows-powershell--conda) section above instead — the steps below do not apply.
 
 ```bash
-pip install -e . --prefix ~/.local
+pip install -e . --user
 ```
 
-This installs the `svp` CLI entry point into `~/.local/bin/`. The `-e` flag means "editable install" — pip creates a link to the source code rather than copying it, so any changes to the plugin source are immediately reflected without reinstalling. The `--prefix ~/.local` flag tells pip to install the script into `~/.local/bin/` instead of the system or virtual environment default, which keeps user-installed tools separate from system packages.
+This installs the `svp` CLI entry point. The `-e` flag means "editable install" — pip links to the source rather than copying it, so source changes take effect without reinstalling. `--user` installs into your interpreter's **per-user site**, which is always on `sys.path`, and puts the `svp` script in the per-user `bin/` directory. That `bin/` location differs by platform (see [Adding the install directory to your PATH](#adding-the-install-directory-to-your-path) below). If `svp --help` does not work afterward, the install directory is not on your PATH.
 
-You can use any directory you prefer instead of `~/.local` — the only requirement is that the `bin/` subdirectory of your chosen prefix is on your shell's `PATH`. If `svp --help` does not work after installation, the install directory is not on your PATH.
+> **Why `--user` and not `--prefix ~/.local`?** On Linux the two coincide, so older instructions used `--prefix ~/.local`. But on **macOS framework Python builds** (the python.org installer *and* MacPorts) the per-user site is `~/Library/Python/X.Y/lib/python/site-packages` — `~/.local/lib/...` is **not** a scanned site directory. With `--prefix ~/.local` the `~/.local/bin/svp` script runs but then fails with `ModuleNotFoundError: No module named 'svp'` because the package was installed off `sys.path`. `--user` installs into the interpreter's real user site on every platform and avoids this.
 
 #### Adding the install directory to your PATH
 
@@ -157,9 +157,15 @@ The `PATH` environment variable tells your shell where to find executable comman
 
 **macOS (zsh — default shell since Catalina):**
 
+With `--user` on a macOS **framework** Python (python.org / MacPorts), the `svp` script lands in `~/Library/Python/X.Y/bin` (substitute your Python's `X.Y`, e.g. `3.11`). Print the exact directory with:
+
 ```bash
-# Add to ~/.zshrc (loaded on every new terminal)
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+python3 -c "import site, os; print(os.path.join(site.getuserbase(), 'bin'))"
+```
+
+```bash
+# Add your per-user Python bin to PATH (adjust 3.11 to your python3 version)
+echo 'export PATH="$HOME/Library/Python/3.11/bin:$PATH"' >> ~/.zshrc
 
 # Apply to current session without restarting terminal
 source ~/.zshrc
@@ -178,6 +184,20 @@ source ~/.bashrc
 **Windows (WSL2):**
 
 Inside WSL2, follow the Linux/bash instructions above. For **native** Windows (PowerShell + Anaconda/Miniconda), do not use these `~/.local` PATH steps — see the [Native Windows (PowerShell + Conda)](#native-windows-powershell--conda) section above, which uses the bundled `install_windows.ps1` / `setup_svp_user.ps1` scripts. After a Windows `pip install -e .`, `svp.exe` lands in your Conda environment's `Scripts\` directory, which is already on PATH.
+
+#### macOS with MacPorts (or any macOS framework Python)
+
+MacPorts (and the python.org installer) provide **framework** Python builds. Two extra caveats apply:
+
+- **pip is a separate port.** A fresh MacPorts Python has no `pip` module (`python3 -m pip` → *No module named pip*). Install it first: `sudo port install pyXX-pip` (e.g. `py311-pip`), optionally `sudo port select --set pip pipXX`. In general, confirm `python3 -m pip --version` works before proceeding.
+- **pytest must be importable by the *same* interpreter.** The launcher's preflight requires `pytest` (it runs SVP's regression tests during `svp new`). `pip install -e .` alone does not pull it — use the `test` extra: `pip install -e '.[test]' --user`. On MacPorts you can instead `sudo port install pyXX-pytest`. Installing into a *different* interpreter (or into `~/.local`, which a framework build does not scan) will not satisfy the preflight.
+
+#### No-pip / relocation-immune alternatives
+
+If `pip` is unavailable or you prefer not to depend on it (or on a stable repo location), use one of:
+
+- **`setup_svp_user.sh` (bundled, no pip).** The POSIX counterpart to the Windows `setup_svp_user.ps1`. From the repo root: `./setup_svp_user.sh` (add `--register-marketplace` to also register the marketplace). It validates the toolchain, sets `SVP_PLUGIN_ROOT`, and adds a `svp` shell function that calls the launcher directly — no pip, no PATH edit, and immune to the framework-site issue. Open a new shell (or `source ~/.zshrc`), then `svp new my-project`.
+- **pipx.** `pipx install -e .` installs the launcher into its own isolated (non-framework) venv with the entry point on PATH via `pipx ensurepath`, uniformly across OSes — sidestepping the framework/user-site question entirely.
 
 #### Verify the installation
 

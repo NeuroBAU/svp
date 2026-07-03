@@ -15,6 +15,12 @@ authors = [
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+# The launcher's preflight requires pytest importable in the same interpreter
+# (it runs SVP's regression tests during `svp new`). `pip install -e '.[test]'`
+# installs it alongside the launcher so a fresh environment satisfies preflight.
+test = ["pytest"]
+
 [project.scripts]
 svp = "svp.scripts.svp_launcher:main"
 
