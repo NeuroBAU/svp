@@ -367,6 +367,30 @@ def _expected_terminal_status_for(
 # ---------------------------------------------------------------------------
 
 
+def _pytest_summary_count_source(output: str) -> str:
+    """Return the text to read pass/fail/error COUNTS from (Bug S3-212).
+
+    Counts MUST come only from pytest's final result-summary rule line
+    (``===== 39 failed, 2 passed in 0.12s =====``), never the whole ``-v`` body:
+    the verbose body echoes test docstrings/IDs like ``REQ-PSF-01 error.`` whose
+    ``01 error`` substring overmatches the ``(\\d+)\\s+error`` count regex and
+    produces a false ``TESTS_ERROR``. Returns the inner text of the LAST
+    ``=``-delimited line containing ``passed``/``failed``/``error`` (the result
+    summary), or the full ``output`` when no such banner is present (preserves
+    behavior for bannerless synthetic fixtures like ``"5 passed in 1.2s"``). This
+    extends the S3-196 / P80 "anchor to pytest's authoritative signals" rule from
+    collection-error DETECTION to the count regexes.
+    """
+    summary = None
+    for line in output.splitlines():
+        s = line.strip()
+        if len(s) >= 2 and s.startswith("=") and s.endswith("="):
+            inner = s.strip("=").strip()
+            if "passed" in inner or "failed" in inner or "error" in inner:
+                summary = inner
+    return summary if summary is not None else output
+
+
 def _parse_pytest_output(
     output: str, language: str, exit_code: int, context: Dict[str, Any]
 ) -> RunResult:
@@ -385,13 +409,15 @@ def _parse_pytest_output(
 
         if has_collection_error:
             passed, failed, errors = 0, 0, 0
-            m = re.search(r"(\d+)\s+passed", output)
+            # Bug S3-212: read counts only from pytest's summary line.
+            count_src = _pytest_summary_count_source(output)
+            m = re.search(r"(\d+)\s+passed", count_src)
             if m:
                 passed = int(m.group(1))
-            m = re.search(r"(\d+)\s+failed", output)
+            m = re.search(r"(\d+)\s+failed", count_src)
             if m:
                 failed = int(m.group(1))
-            m = re.search(r"(\d+)\s+error", output)
+            m = re.search(r"(\d+)\s+error", count_src)
             if m:
                 errors = int(m.group(1))
             return RunResult(
@@ -407,13 +433,17 @@ def _parse_pytest_output(
         failed = 0
         errors = 0
 
-        m = re.search(r"(\d+)\s+passed", output)
+        # Bug S3-212: read counts only from pytest's summary line, never the
+        # verbose -v body (whose echoed docstrings/IDs like "REQ-PSF-01 error."
+        # overmatch the error-count regex -> false TESTS_ERROR).
+        count_src = _pytest_summary_count_source(output)
+        m = re.search(r"(\d+)\s+passed", count_src)
         if m:
             passed = int(m.group(1))
-        m = re.search(r"(\d+)\s+failed", output)
+        m = re.search(r"(\d+)\s+failed", count_src)
         if m:
             failed = int(m.group(1))
-        m = re.search(r"(\d+)\s+error", output)
+        m = re.search(r"(\d+)\s+error", count_src)
         if m:
             errors = int(m.group(1))
 
@@ -2869,9 +2899,14 @@ def dispatch_gate_response(
         if response == "APPROVE":
             new = advance_sub_stage(state, "checklist_generation")
         elif response == "REVISE":
+            # Bug S3-212: route REVISE to the targeted_spec_revision sub-stage
+            # (mirrors gate_2_3_alignment_exhausted REVISE SPEC) so post-review
+            # fixes are actually applied via stakeholder_dialog in
+            # targeted_revision mode. The previous `_copy(state)` left
+            # sub_stage="spec_review", so routing re-invoked stakeholder_reviewer
+            # on the UNCHANGED spec — a dead-end with no path to apply revisions.
             _clear_last_status(project_root)
-            new = _copy(state)
-            # version_document for spec
+            new = advance_sub_stage(state, "targeted_spec_revision")
         else:  # FRESH REVIEW
             _clear_last_status(project_root)
             new = advance_sub_stage(state, "spec_review")

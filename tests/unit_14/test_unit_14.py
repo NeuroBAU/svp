@@ -2909,12 +2909,19 @@ class TestDispatchGateResponse:
         assert result.sub_stage == "checklist_generation"
 
     def test_gate_1_2_revise_versions_spec(self):
-        """gate_1_2 + REVISE: version_document(spec), re-invoke stakeholder dialog."""
+        """gate_1_2 + REVISE routes to targeted_spec_revision (Bug S3-212).
+
+        Pre-fix this did `_copy(state)` leaving sub_stage="spec_review", which
+        re-invoked stakeholder_reviewer on the unchanged spec (dead-end). It now
+        mirrors gate_2_3 REVISE SPEC and advances to targeted_spec_revision so
+        the revision is actually applied via stakeholder_dialog.
+        """
         state = _make_state(stage="1", sub_stage="spec_review")
         result = dispatch_gate_response(
             state, "gate_1_2_spec_post_review", "REVISE", Path("/tmp")
         )
         assert result.stage == "1"
+        assert result.sub_stage == "targeted_spec_revision"
 
     def test_gate_1_2_fresh_review_invokes_reviewer(self):
         """gate_1_2 + FRESH REVIEW: invoke stakeholder reviewer."""
