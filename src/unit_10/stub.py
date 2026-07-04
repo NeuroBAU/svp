@@ -7,6 +7,7 @@ language-specific stub files from parsed blueprint signatures.
 import argparse
 import ast
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, List
@@ -195,6 +196,79 @@ def _collect_runtime_referenced_names(body_nodes) -> set:
 _TEMPLATE_ONLY_KEYS = frozenset(
     {"stan_template", "plugin_markdown", "plugin_bash", "plugin_json"}
 )
+
+# Bug S3-214: a Python signature line (used to distinguish a genuinely-broken
+# code unit from a non-code / delivery unit when Tier-2 fails to parse).
+_SIGNATURE_RE = re.compile(r"^\s*(async\s+def|def|class)\s", re.MULTILINE)
+
+
+def _is_implemented_stub(path: Path) -> bool:
+    """Return True iff *path* exists and is an IMPLEMENTED stub (Bug S3-214).
+
+    A freshly generated skeleton carries the ``__SVP_STUB__`` sentinel; the
+    implementation agent removes it when the unit is implemented (enforced by
+    ``stub_sentinel_check.sh``). So a file that exists but no longer contains
+    ``__SVP_STUB__`` is a finished implementation that must NOT be clobbered by a
+    regenerated skeleton.
+    """
+    if not path.exists():
+        return False
+    try:
+        return "__SVP_STUB__" not in path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
+def _doc_only_stub(language_config: Dict[str, Any], unit_number: int) -> str:
+    """Return a doc-only stub for a non-code / delivery unit (Bug S3-214).
+
+    A delivery/non-code unit's Tier-2 describes artefact files (environment.yml,
+    pyproject.toml, README, manifests) and may reference spec sections with the
+    ``§`` symbol, so it is not parseable as source. Its real output is the
+    artefact files created in the implementation step; no importable API is
+    needed. The doc-only stub is a module docstring plus the language's stub
+    sentinel (so the exists-guard treats it as a skeleton and
+    ``stub_sentinel_check`` is satisfied until the unit is implemented).
+    """
+    sentinel = language_config.get(
+        "stub_sentinel", "__SVP_STUB__ = True  # DO NOT DELIVER"
+    )
+    docstring = (
+        f'"""Unit {unit_number}: delivery / non-code artefacts (doc-only stub).\n\n'
+        "This unit's Tier-2 contract describes deliverable artefacts (config\n"
+        "files, manifests, documentation) rather than importable source API. No\n"
+        "runtime code is generated here; the unit's real output is the artefact\n"
+        "files created in the implementation step, verified by file / schema /\n"
+        'header checks.\n"""\n'
+    )
+    return f"{docstring}{sentinel}\n"
+
+
+def _parse_tier2_or_doc_only(
+    tier2_source: str,
+    language: str,
+    language_config: Dict[str, Any],
+    stub_key: str,
+    unit_number: int,
+) -> str:
+    """Build stub text from Tier-2, tolerating non-code / delivery units.
+
+    Bug S3-214: template-only keys bypass parsing (``generate_stub(None, ...)``).
+    Otherwise parse as source; if parsing raises ``SyntaxError``/``ValueError``
+    AND the Tier-2 contains NO Python signature (``def``/``class``), the unit is a
+    delivery/non-code unit -> emit a doc-only stub. A parse error WITH a signature
+    present is a genuine authoring error in a code unit and is re-raised (fail
+    loud); it must not be masked.
+    """
+    if stub_key in _TEMPLATE_ONLY_KEYS:
+        return generate_stub(None, language, language_config)
+    try:
+        parsed = parse_signatures(tier2_source, language, language_config)
+    except (SyntaxError, ValueError):
+        if _SIGNATURE_RE.search(tier2_source or ""):
+            raise
+        return _doc_only_stub(language_config, unit_number)
+    return generate_stub(parsed, language, language_config)
 
 # ---------------------------------------------------------------------------
 # Python stub generator
@@ -655,6 +729,7 @@ def generate_upstream_stubs(
     upstream_units: List[int],
     output_dir: Path,
     language: str,
+    force: bool = False,
 ) -> None:
     """Generate stubs for all upstream units.
 
@@ -662,6 +737,10 @@ def generate_upstream_stubs(
     generates stub, writes to output_dir.
 
     Forward-reference guard: raises ValueError if any upstream >= unit_number.
+
+    Bug S3-214: an implemented upstream stub (``__SVP_STUB__`` sentinel removed)
+    is never overwritten unless ``force=True``; a non-code / delivery upstream
+    unit gets a doc-only stub rather than a hard parse failure.
     """
     # Forward-reference guard
     for dep in upstream_units:
@@ -705,20 +784,22 @@ def generate_upstream_stubs(
         dep_lang_config = get_language_config(dep_language)
         dep_stub_key = dep_lang_config["stub_generator_key"]
 
-        # Determine if this is a template-only key (no parsing needed)
-        if dep_stub_key in _TEMPLATE_ONLY_KEYS:
-            parsed = None
-        else:
-            # Parse signatures from Tier 2
-            parsed = parse_signatures(tier2_source, dep_language, dep_lang_config)
-
-        # Generate stub
-        stub_text = generate_stub(parsed, dep_language, dep_lang_config)
+        # Build stub text, tolerating non-code / delivery upstream units.
+        stub_text = _parse_tier2_or_doc_only(
+            tier2_source, dep_language, dep_lang_config, dep_stub_key, dep_num
+        )
 
         # Write stub to output directory
         file_ext = dep_lang_config.get("file_extension", ".py")
         output_file = output_dir / f"unit_{dep_num}_stub{file_ext}"
         output_file.parent.mkdir(parents=True, exist_ok=True)
+        # Bug S3-214: never clobber an implemented upstream stub.
+        if _is_implemented_stub(output_file) and not force:
+            print(
+                f"SKIP: {output_file} is an implemented stub; not overwriting.",
+                file=sys.stderr,
+            )
+            continue
         output_file.write_text(stub_text, encoding="utf-8")
 
 
@@ -760,6 +841,14 @@ def main(argv: list = None) -> None:
         default="python",
         help="Language identifier",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Regenerate even if an implemented stub (no __SVP_STUB__ sentinel) "
+            "already exists (Bug S3-214). Default: protect implemented stubs."
+        ),
+    )
 
     args = parser.parse_args(argv)
 
@@ -791,16 +880,22 @@ def main(argv: list = None) -> None:
             current_unit = unit_map[args.unit]
             tier2_source = current_unit.tier2
 
-            if stub_key in _TEMPLATE_ONLY_KEYS:
-                parsed = None
-            else:
-                parsed = parse_signatures(tier2_source, args.language, lang_config)
-
-            stub_text = generate_stub(parsed, args.language, lang_config)
+            stub_text = _parse_tier2_or_doc_only(
+                tier2_source, args.language, lang_config, stub_key, args.unit
+            )
 
             file_ext = lang_config.get("file_extension", ".py")
             output_file = output_dir / f"stub{file_ext}"
-            output_file.write_text(stub_text, encoding="utf-8")
+            # Bug S3-214: never clobber an implemented stub with a fresh skeleton.
+            if _is_implemented_stub(output_file) and not args.force:
+                print(
+                    f"SKIP: {output_file} is an implemented stub "
+                    f"(no __SVP_STUB__ sentinel); not overwriting. "
+                    f"Use --force to regenerate.",
+                    file=sys.stderr,
+                )
+            else:
+                output_file.write_text(stub_text, encoding="utf-8")
 
         # Generate upstream stubs
         if upstream_units:
@@ -810,6 +905,7 @@ def main(argv: list = None) -> None:
                 upstream_units,
                 output_dir,
                 args.language,
+                force=args.force,
             )
 
     except Exception as e:
