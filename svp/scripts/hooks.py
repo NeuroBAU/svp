@@ -22,7 +22,7 @@ HOOKS_JSON_SCHEMA: Dict[str, Any] = {
                 "hooks": [
                     {
                         "type": "command",
-                        "command": ".claude/scripts/write_authorization.sh",
+                        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/write_authorization.sh",
                     }
                 ],
             },
@@ -31,7 +31,7 @@ HOOKS_JSON_SCHEMA: Dict[str, Any] = {
                 "hooks": [
                     {
                         "type": "command",
-                        "command": ".claude/scripts/non_svp_protection.sh",
+                        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/non_svp_protection.sh",
                     }
                 ],
             },
@@ -42,7 +42,7 @@ HOOKS_JSON_SCHEMA: Dict[str, Any] = {
                 "hooks": [
                     {
                         "type": "command",
-                        "command": ".claude/scripts/stub_sentinel_check.sh",
+                        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/stub_sentinel_check.sh",
                     }
                 ],
             },
@@ -51,7 +51,7 @@ HOOKS_JSON_SCHEMA: Dict[str, Any] = {
                 "hooks": [
                     {
                         "type": "command",
-                        "command": ".claude/scripts/monitoring_reminder.sh",
+                        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/monitoring_reminder.sh",
                     }
                 ],
             },
@@ -73,7 +73,12 @@ def generate_hooks_json() -> str:
     - PostToolUse: Write -> stub_sentinel_check.sh, Agent -> monitoring_reminder.sh
 
     Each entry: {"matcher": "<tool>", "handler": {"type": "command", "command": "<path>"}}.
-    Paths use .claude/scripts/ prefix.
+    Paths use the ``${CLAUDE_PLUGIN_ROOT}/hooks/`` prefix (Bug S3-213) so the hook
+    scripts resolve at the plugin's own install directory regardless of the
+    session's working directory — including when the SVP project is opened as a
+    subdirectory below the session root. A bare relative ``.claude/scripts/`` path
+    (or ``${CLAUDE_PROJECT_DIR}``, which is the session launch dir, not the managed
+    project) misses in that nested layout.
     """
     return json.dumps(HOOKS_JSON_SCHEMA, indent=2)
 

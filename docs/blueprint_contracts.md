@@ -1965,6 +1965,8 @@ None (stdlib only).
 - If found: exit code 2 with message directing agent to implement, not copy stub.
 - Fires on PostToolUse (validates content after write, not intent to write).
 
+- **C-17-S213a (hook commands anchored to ${CLAUDE_PLUGIN_ROOT}, NEW IN 2.2 -- Bug S3-213).** Every `command` string in `HOOKS_JSON_SCHEMA` (and thus the output of `generate_hooks_json()` and the deployed `svp/hooks/hooks.json`) MUST be `${CLAUDE_PLUGIN_ROOT}/hooks/<script>.sh` for all four hooks (write_authorization, non_svp_protection, stub_sentinel_check, monitoring_reminder). A bare relative `.claude/scripts/<script>.sh` path MUST NOT be used: Claude Code resolves hook commands against the session's working directory, so a relative path (and `${CLAUDE_PROJECT_DIR}`, which is the session launch dir, not the managed project) misses when the SVP project is opened as a subdirectory below the session root — silently disabling the `non_svp_protection` PreToolUse guard. `${CLAUDE_PLUGIN_ROOT}` is the plugin's own install directory (the scripts ship at `svp/hooks/*.sh`), expanded at hook-execution time and CWD/nesting-agnostic. Detection: `tests/regressions/test_s3_213_hook_path_plugin_root.py`; `tests/regressions/test_bug9_hook_path_resolution.py`; `tests/unit_17/test_unit_17.py::test_paths_use_plugin_root_hooks_prefix`.
+
 ---
 
 ## Unit 18: Setup Agent Definition

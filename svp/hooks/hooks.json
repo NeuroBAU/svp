@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/write_authorization.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/write_authorization.sh"
           }
         ]
       },
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/non_svp_protection.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/non_svp_protection.sh"
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/stub_sentinel_check.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/stub_sentinel_check.sh"
           }
         ]
       },
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/monitoring_reminder.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/monitoring_reminder.sh"
           }
         ]
       }

@@ -247,8 +247,9 @@ class TestGenerateHooksJson:
                         "Matcher must not carry handler's 'command' field"
                     )
 
-    def test_paths_use_claude_scripts_prefix(self):
-        """All handler command paths must use .claude/scripts/ prefix."""
+    def test_paths_use_plugin_root_hooks_prefix(self):
+        """All handler command paths must use the ${CLAUDE_PLUGIN_ROOT}/hooks/
+        prefix (Bug S3-213) so they resolve regardless of the session CWD."""
         parsed = parse_hooks_json(generate_hooks_json())
         for hook_type in ("PreToolUse", "PostToolUse"):
             entries = parsed["hooks"][hook_type]
@@ -256,9 +257,12 @@ class TestGenerateHooksJson:
                 handler = entry["hooks"][0] if "hooks" in entry else entry
                 if isinstance(handler, dict) and "command" in handler:
                     cmd = handler["command"]
-                    assert ".claude/scripts/" in cmd, (
-                        f"Handler command path must use .claude/scripts/ prefix, "
-                        f"got: {cmd}"
+                    assert cmd.startswith("${CLAUDE_PLUGIN_ROOT}/hooks/"), (
+                        f"Handler command path must use ${{CLAUDE_PLUGIN_ROOT}}/hooks/ "
+                        f"prefix, got: {cmd}"
+                    )
+                    assert ".claude/scripts/" not in cmd, (
+                        f"bare .claude/scripts/ path must not remain, got: {cmd}"
                     )
 
     def test_each_handler_has_type_and_command(self):
