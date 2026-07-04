@@ -315,10 +315,14 @@ def test_j2b_build_install_command_reads_install_command_key():
 def test_j2b_build_install_command_falls_back_when_install_command_absent():
     """C-11-J2b: when the canonical key is absent, the helper MUST fall
     back to the documented default template (preserved for backward
-    compat with toolchains missing the key)."""
+    compat with toolchains missing the key).
+
+    Bug S3-211: the default template uses ``python -m pip`` (not bare ``pip``)
+    so it targets the env interpreter's own pip regardless of PATH ordering.
+    """
     toolchain = {"environment": {}}
     result = _build_install_command("env1", ["pkg1", "pkg2"], toolchain)
-    assert result == "conda run -n env1 pip install pkg1 pkg2", (
+    assert result == "conda run -n env1 python -m pip install pkg1 pkg2", (
         f"unexpected fallback shape: {result!r}"
     )
 

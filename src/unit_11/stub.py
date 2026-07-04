@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -25,6 +26,81 @@ from src.unit_8.stub import extract_units
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _resolve_conda_executable() -> str:
+    """Resolve the conda executable for subprocess invocation (Bug S3-211).
+
+    ``subprocess.run(["conda", ...], shell=False)`` performs no PATHEXT
+    expansion, so on Windows where only ``conda.bat`` (not ``conda.exe``) is on
+    PATH -- e.g. a Miniconda install with only ``condabin`` on PATH -- the bare
+    literal ``conda`` fails with ``[WinError 2] The system cannot find the file
+    specified``. ``shutil.which("conda")`` DOES honor PATHEXT and finds
+    ``conda.bat``. Resolution order: ``shutil.which`` -> ``CONDA_EXE`` env var
+    -> well-known layouts under ``CONDA_PREFIX`` / common miniconda/anaconda
+    roots -> the bare string ``"conda"`` (unchanged behavior) when nothing
+    resolves. Returns a path string usable as ``argv[0]``.
+    """
+    found = shutil.which("conda")
+    if found:
+        return found
+    # conda's shell integration exports CONDA_EXE pointing at the executable.
+    conda_exe = os.environ.get("CONDA_EXE")
+    if conda_exe:
+        try:
+            if Path(conda_exe).exists():
+                return conda_exe
+        except OSError:
+            pass
+    roots: List[Path] = []
+    prefix = os.environ.get("CONDA_PREFIX")
+    if prefix:
+        # An activated env's CONDA_PREFIX is <root>/envs/<name>; probe both the
+        # prefix itself and the base root two levels up.
+        roots.append(Path(prefix))
+        roots.append(Path(prefix).parent.parent)
+    try:
+        home = Path.home()
+    except (RuntimeError, OSError):
+        home = None
+    if home is not None:
+        roots.extend([home / "miniconda3", home / "anaconda3"])
+    roots.extend(
+        [
+            Path("C:/ProgramData/miniconda3"),
+            Path("C:/ProgramData/anaconda3"),
+        ]
+    )
+    for root in roots:
+        for cand in (
+            root / "condabin" / "conda.bat",
+            root / "Scripts" / "conda.exe",
+            root / "bin" / "conda",
+            root / "condabin" / "conda",
+        ):
+            try:
+                if cand.exists():
+                    return str(cand)
+            except OSError:
+                continue
+    return "conda"
+
+
+def _conda_cmd(args: List[str]) -> List[str]:
+    """Return a conda command list with a resolved executable as ``argv[0]``.
+
+    Bug S3-211: when the leading token is the bare literal ``conda`` AND we are
+    on Windows (``os.name == "nt"``), replace it with the path returned by
+    ``_resolve_conda_executable()`` so ``subprocess.run(shell=False)`` works
+    regardless of PATH layout (notably a condabin-only ``conda.bat``). On POSIX
+    the list is returned byte-identical -- bare ``conda`` already resolves via
+    PATH there, so this is a no-op and keeps behavior unchanged. Non-conda
+    commands (renv/packrat, whose ``argv[0]`` is not ``conda``) pass through
+    untouched on every platform.
+    """
+    if os.name == "nt" and args and args[0] == "conda":
+        return [_resolve_conda_executable()] + list(args[1:])
+    return list(args)
 
 
 def _parse_blueprint_package_deps(blueprint_path: Path) -> set:
@@ -78,6 +154,16 @@ def _parse_blueprint_package_deps(blueprint_path: Path) -> set:
         low = stripped.lower()
         if low.startswith("none (stdlib only)") or low == "none." or low == "none":
             continue
+        # Bug S3-211: strip surrounding backticks FIRST, before the trailing
+        # parenthetical. A whole-token backtick-wrapped declaration like
+        # ``- `core.segmentation (SegmentationResult)` `` (name AND descriptor
+        # inside ONE backtick pair) must have its backticks removed before the
+        # paren-strip cuts at "(", otherwise the cut lands inside the backtick
+        # span and yields a malformed leading-backtick token (`core.segmentation
+        # with no trailing backtick), which the old end-of-loop backtick strip
+        # then no-ops on (token no longer ends in a backtick) and adds verbatim.
+        if stripped.startswith("`") and stripped.endswith("`") and len(stripped) >= 2:
+            stripped = stripped[1:-1].strip()
         # Strip trailing parenthetical descriptor.
         paren = stripped.find("(")
         if paren > 0:
@@ -102,9 +188,11 @@ def _parse_blueprint_package_deps(blueprint_path: Path) -> set:
         # AFTER stripping the parenthetical above.
         if " " in stripped:
             continue
-        # Strip surrounding backticks (e.g., `numpy`).
-        if stripped.startswith("`") and stripped.endswith("`") and len(stripped) >= 2:
-            stripped = stripped[1:-1].strip()
+        # Bug S3-211: reject any token that STILL contains a backtick after the
+        # balanced-backtick strip above — an unbalanced/partial backtick span is
+        # malformed and must never be emitted as an installable package name.
+        if "`" in stripped:
+            continue
         if stripped:
             pkgs.add(stripped)
     return pkgs
@@ -518,7 +606,7 @@ def _env_exists(env_name: str, env_manager: str) -> bool:
         env.setdefault("PYTHONUTF8", "1")
         try:
             result = subprocess.run(
-                ["conda", "env", "list"],
+                _conda_cmd(["conda", "env", "list"]),
                 capture_output=True,  # NOTE: text=True dropped (decode bytes manually below)
                 check=True,
                 env=env,
@@ -642,9 +730,13 @@ def _build_install_command(
     # never matched any toolchain JSON and silently fell back to the default
     # template -- masking schema-inconsistent toolchains and ignoring
     # archetype-specific install_command overrides.
+    # Bug S3-211: default to ``python -m pip`` (not bare ``pip``). A bare ``pip``
+    # inside ``conda run`` can resolve to the base env's pip (installing into the
+    # wrong interpreter's site-packages) when base Scripts precede the env on
+    # PATH; ``python -m pip`` always targets the env interpreter's own pip.
     install_template = toolchain.get("environment", {}).get(
         "install_command",
-        "conda run -n {env_name} pip install {packages}",
+        "conda run -n {env_name} python -m pip install {packages}",
     )
     return install_template.replace("{env_name}", env_name).replace(
         "{packages}", " ".join(packages)
@@ -774,14 +866,23 @@ def run_infrastructure_setup(
     # -----------------------------------------------------------------------
     # Step 4b: Environment creation and package installation (Bug S3-137)
     # Execute the commands built in Step 1 and install the packages from
-    # Steps 2 and 3 into the created environment. No-op when the
-    # environment already exists. Any subprocess failure propagates as
-    # CalledProcessError — matches run_infrastructure_setup's contract
-    # that any step failure raises.
+    # Steps 2 and 3 into the environment. Any subprocess failure propagates as
+    # CalledProcessError — matches run_infrastructure_setup's contract that any
+    # step failure raises.
+    #
+    # **(Bug S3-211 — idempotent self-heal.)** Env CREATION is skipped when the
+    # environment already exists, but package INSTALLATION now runs regardless
+    # of whether the env pre-existed. Previously both create AND install sat
+    # behind ``not _env_exists(...)``, so an env that existed but was
+    # under-provisioned (e.g. a prior run created it and then failed the
+    # install) skipped straight to a doomed Step 4c verify with no recovery but
+    # manual env deletion. conda/pip install is idempotent for already-present
+    # packages, so topping up an existing env is safe and self-healing.
     # -----------------------------------------------------------------------
-    if env_info["commands"] and not _env_exists(env_name, env_info["env_manager"]):
-        for cmd in env_info["commands"]:
-            subprocess.run(cmd.split(), check=True)
+    if env_info["commands"]:
+        if not _env_exists(env_name, env_info["env_manager"]):
+            for cmd in env_info["commands"]:
+                subprocess.run(_conda_cmd(cmd.split()), check=True)
 
         install_packages = list(all_packages)
         for pkg in env_info.get("bridge_packages", []):
@@ -796,7 +897,7 @@ def run_infrastructure_setup(
                 env_name, install_packages, toolchain
             )
             if install_cmd:
-                subprocess.run(install_cmd.split(), check=True)
+                subprocess.run(_conda_cmd(install_cmd.split()), check=True)
 
     # -----------------------------------------------------------------------
     # Step 4c: Toolchain verification (Bug S3-160 / IMPROV-19)
@@ -1117,7 +1218,7 @@ def _list_installed_conda_packages(env_name: str, runner=None) -> set:
     env.setdefault("PYTHONUTF8", "1")
     try:
         result = runner(
-            ["conda", "list", "-n", env_name, "--json"],
+            _conda_cmd(["conda", "list", "-n", env_name, "--json"]),
             capture_output=True,  # NOTE: text=True dropped (json.loads handles bytes-or-str)
             check=False,
             env=env,
@@ -1139,6 +1240,64 @@ def _list_installed_conda_packages(env_name: str, runner=None) -> set:
                 if isinstance(name, str) and name:
                     installed.add(name)
     return installed
+
+
+def _first_party_module_roots(project_root: Path) -> set:
+    """Top-level module names that are the PROJECT'S OWN code (Bug S3-211).
+
+    Modules declared under a unit's ``## Package Dependencies`` that are
+    intra-project (e.g. a ``TYPE_CHECKING``-only import of ``core.segmentation``,
+    which the blueprint annotates as "Not a runtime dependency") must NEVER enter
+    the install delta — ``conda/pip install core.segmentation`` has no such
+    package and fails. Roots = the conventional intra-project layer names
+    (``core``, ``plugin``) plus the project's own package name(s) derived from
+    the profile (plugin name, entry-point names) and the project directory name.
+    All names are normalized to their lowercase pre-``.`` top-level segment.
+    """
+
+    def _norm(name: str) -> str:
+        return (
+            name.strip().lower().replace("-", "_").replace(" ", "_").split(".")[0]
+        )
+
+    roots = {"core", "plugin"}
+    if project_root.name:
+        roots.add(_norm(project_root.name))
+    try:
+        profile = load_profile(project_root)
+    except (FileNotFoundError, KeyError, ValueError, OSError):
+        profile = {}
+    if isinstance(profile, dict):
+        plugin = profile.get("plugin", {})
+        if isinstance(plugin, dict):
+            nm = plugin.get("name")
+            if isinstance(nm, str) and nm:
+                roots.add(_norm(nm))
+        delivery = profile.get("delivery", {})
+        if isinstance(delivery, dict):
+            for lang_cfg in delivery.values():
+                if not isinstance(lang_cfg, dict):
+                    continue
+                for spec in lang_cfg.get("entry_point_specs", []) or []:
+                    if isinstance(spec, dict):
+                        nm = spec.get("name")
+                        if isinstance(nm, str) and nm:
+                            roots.add(_norm(nm))
+    roots.discard("")
+    return roots
+
+
+def _is_first_party_or_stdlib(token: str, first_party_roots: set) -> bool:
+    """Return True iff ``token`` is a first-party module or stdlib (Bug S3-211).
+
+    Neither may appear as an installable in the dep-diff. First-party is matched
+    on the normalized top-level segment against ``first_party_roots``; stdlib /
+    ``src`` internal is delegated to ``_is_stdlib_or_internal``.
+    """
+    top = token.strip().lower().replace("-", "_").split(".")[0]
+    if top in first_party_roots:
+        return True
+    return _is_stdlib_or_internal(top)
 
 
 def compute_dep_diff(
@@ -1180,6 +1339,18 @@ def compute_dep_diff(
     except (FileNotFoundError, KeyError):
         toolchain = {}
     baseline = _baseline_packages(toolchain)
+
+    # Bug S3-211: exclude first-party / stdlib modules from the blueprint set
+    # BEFORE diffing. An intra-project module (core.*, plugin.*, the project's
+    # own package) declared under ``## Package Dependencies`` is not an external
+    # installable; letting it reach delta_blueprint_only makes PROCEED attempt a
+    # doomed ``conda/pip install <internal-module>``.
+    first_party_roots = _first_party_module_roots(project_root)
+    blueprint_pkgs = {
+        pkg
+        for pkg in blueprint_pkgs
+        if not _is_first_party_or_stdlib(pkg, first_party_roots)
+    }
 
     desired = set(blueprint_pkgs) | baseline
     installed = _list_installed_conda_packages(env_name, runner=runner)
@@ -1254,7 +1425,9 @@ def install_dep_delta(
         install_cmd_str = _build_install_command(env_name, pkgs, toolchain)
         if not install_cmd_str:
             return (False, ["_build_install_command returned empty"])
-        cmd = install_cmd_str.split()
+        # Bug S3-211: resolve the conda executable on Windows (condabin-only
+        # conda.bat) before subprocess; no-op on POSIX.
+        cmd = _conda_cmd(install_cmd_str.split())
         # Bug S3-200 / cycle I-3: force UTF-8 decoding for cross-platform
         # robustness (mirrors H6 / S3-196 fix in Unit 14 run_tests_main).
         # PYTHONIOENCODING + PYTHONUTF8 env override; text=True dropped;

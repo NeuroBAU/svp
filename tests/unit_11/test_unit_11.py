@@ -2621,20 +2621,23 @@ import os
         assert errors == []
         # S3-202 / J-2a: install command built via _build_install_command;
         # the test's monkeypatched toolchain has no environment.install_command
-        # so the helper falls back to "conda run -n {env_name} pip install
-        # {packages}". The captured cmd starts with the conda-run-pip-install
-        # shape -- NOT the pre-J-2a hardcoded ["conda", "install", "-n",
-        # env, "-y"] shape.
+        # so the helper falls back to the default template. Bug S3-211 changed
+        # that default from bare "pip install" to "python -m pip install" (bare
+        # pip inside conda run can target the base interpreter's pip). The
+        # captured cmd starts with the conda-run-python-m-pip-install shape --
+        # NOT the pre-J-2a hardcoded ["conda", "install", "-n", env, "-y"] shape.
         assert invocations, "install runner MUST be called when pkgs non-empty"
         first_cmd = invocations[0]
-        assert first_cmd[0:6] == [
+        assert first_cmd[0:8] == [
             "conda",
             "run",
             "-n",
             "svp-test",
+            "python",
+            "-m",
             "pip",
             "install",
-        ], f"expected conda-run-pip-install shape post-J-2a; got {first_cmd[0:6]}"
+        ], f"expected conda-run-python-m-pip-install shape post-S3-211; got {first_cmd[0:8]}"
         # Pre-fix shape MUST NOT appear.
         assert first_cmd[0:5] != [
             "conda",

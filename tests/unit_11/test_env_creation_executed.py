@@ -106,7 +106,15 @@ def test_env_creation_fires_when_env_absent(
 def test_env_creation_skipped_when_env_already_exists(
     tmp_path, mock_infrastructure_subprocess
 ):
-    """When conda env list reports env present, no create / install fires."""
+    """When conda env list reports env present, env CREATE is skipped but the
+    idempotent package INSTALL still fires (Bug S3-211 self-heal).
+
+    Pre-S3-211 both create AND install sat behind ``not _env_exists``, so an
+    existing-but-under-provisioned env skipped straight to a doomed verify with
+    no recovery. Post-S3-211, create is still skipped (env present) but install
+    runs unconditionally (conda/pip install is idempotent), topping up any
+    missing packages.
+    """
     blueprint_dir = tmp_path / "blueprint"
     _write_minimal_blueprint(blueprint_dir)
     _seed_state(tmp_path)
@@ -143,13 +151,15 @@ def test_env_creation_skipped_when_env_already_exists(
     call_cmds = [c.args[0] for c in mock_infrastructure_subprocess.call_args_list]
     # _env_exists check fired
     assert any(cmd[:3] == ["conda", "env", "list"] for cmd in call_cmds)
-    # But no create
+    # But no create — env was reported present.
     assert not any(cmd[:2] == ["conda", "create"] for cmd in call_cmds), (
         f"Expected NO 'conda create' — env was reported present; got {call_cmds}"
     )
-    # And no install
-    assert not any("pip" in cmd and "install" in cmd for cmd in call_cmds), (
-        f"Expected NO 'pip install' — env was reported present; got {call_cmds}"
+    # Bug S3-211: install STILL fires (idempotent self-heal) even though the env
+    # already exists, so an under-provisioned env is topped up instead of failing.
+    assert any("pip" in cmd and "install" in cmd for cmd in call_cmds), (
+        f"Expected idempotent 'pip install' to run on the existing env "
+        f"(S3-211 self-heal); got {call_cmds}"
     )
 
 

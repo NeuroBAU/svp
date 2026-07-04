@@ -390,17 +390,20 @@ def test_i3_unit_11_conda_install_sets_utf8_env_no_text_true(
     # S3-202 / J-2a: cmd is now produced by _build_install_command. With
     # no toolchain.json seeded in tmp_path, load_toolchain raises
     # FileNotFoundError -> install_dep_delta falls back to toolchain={} ->
-    # _build_install_command falls back to "conda run -n {env_name} pip
-    # install {packages}". The captured cmd starts with the conda-run-pip-
-    # install shape, NOT the pre-J-2a hardcoded "conda install" shape.
-    assert captured["cmd"][0:6] == [
+    # _build_install_command falls back to the default template. Bug S3-211
+    # changed that default from bare "pip install" to "python -m pip install"
+    # (bare pip inside conda run can target the base interpreter). The captured
+    # cmd starts with the conda-run-python-m-pip-install shape.
+    assert captured["cmd"][0:8] == [
         "conda",
         "run",
         "-n",
         "svp-test",
+        "python",
+        "-m",
         "pip",
         "install",
-    ], f"expected conda-run-pip-install shape post-J-2a; got {captured['cmd'][0:6]}"
+    ], f"expected conda-run-python-m-pip-install shape post-S3-211; got {captured['cmd'][0:8]}"
 
 
 # ---------------------------------------------------------------------------
