@@ -9,8 +9,10 @@ import argparse
 import ast
 import datetime as _datetime
 import json
+import os
 import re
 import shutil
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -1402,6 +1404,56 @@ def write_delivered_claude_md(
     return True
 
 
+def _post_assembly_collect_check(repo_dir: Path, package_name: str) -> None:
+    """Post-assembly smoke gate: the delivered test harness must collect cleanly.
+
+    Bug S3-215: runs ``python -m pytest --collect-only`` against the delivered
+    ``tests/`` and RAISES ``RuntimeError`` on a genuine collection error (a
+    non-collecting harness — e.g. stub-synthesis conftests, leftover
+    ``import stub``, a test syntax error). It SKIPS cleanly (returns) when:
+    there is no ``tests/`` or no ``test_*.py``; pytest is unavailable; pytest
+    reports collected (exit 0) or no-tests (exit 5); OR the collection errors are
+    dominated by the delivered package being un-importable
+    (``No module named '<package_name>'``) -- the expected state of a fresh clone
+    or a synthetic fixture where ``pip install -e .`` has not been run. That last
+    case is a "run pip install -e . first" situation, not an assembly defect, so
+    it must not fail assembly.
+    """
+    tests_dir = repo_dir / "tests"
+    if not tests_dir.is_dir() or not any(tests_dir.rglob("test_*.py")):
+        return
+    env = os.environ.copy()
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    env.setdefault("PYTHONUTF8", "1")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "--collect-only", "-q", str(tests_dir)],
+            cwd=str(repo_dir),
+            capture_output=True,
+            check=False,
+            env=env,
+        )
+    except (FileNotFoundError, OSError):
+        return  # pytest not available in this environment — skip the gate.
+    # pytest exit codes: 0 = tests collected; 5 = no tests collected.
+    if result.returncode in (0, 5):
+        return
+    out = (result.stdout or b"").decode("utf-8", errors="replace") + (
+        result.stderr or b""
+    ).decode("utf-8", errors="replace")
+    # Tolerate the expected "delivered package not installed yet" state.
+    if (
+        f"No module named '{package_name}'" in out
+        or f'No module named "{package_name}"' in out
+    ):
+        return
+    raise RuntimeError(
+        "Post-assembly collection check failed (Bug S3-215): the delivered test "
+        f"harness does not collect cleanly (pytest --collect-only exit "
+        f"{result.returncode}). Tail of output:\n{out[-2000:]}"
+    )
+
+
 def assemble_python_project(
     project_root: Path,
     profile: Dict[str, Any],
@@ -1500,6 +1552,23 @@ def assemble_python_project(
     except Exception:
         # Foundational doc shipment must never abort assembly.
         pass
+
+    # Bug S3-215: ship a LICENSE on the Python path (previously only the R path
+    # generated one). _r_license_content is archetype-neutral despite its name --
+    # it dispatches on profile["license"]["type"] via _R_LICENSE_TEMPLATES
+    # (Apache-2.0 / MIT / GPL-3.0 / BSD-3-Clause, defaulting to MIT). A delivered
+    # repo must carry its license.
+    try:
+        (repo_dir / "LICENSE").write_text(
+            _r_license_content(profile), encoding="utf-8"
+        )
+    except OSError:
+        pass
+
+    # Bug S3-215: deterministic post-assembly smoke gate -- the delivered test
+    # harness MUST collect cleanly (tolerating the not-yet-installed state)
+    # before assembly is handed back / REPO_ASSEMBLY_COMPLETE is emitted.
+    _post_assembly_collect_check(repo_dir, package_name)
 
     return repo_dir
 

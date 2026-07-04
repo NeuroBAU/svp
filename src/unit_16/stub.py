@@ -246,6 +246,19 @@ def sync_debug_docs(
                 dest = docs_dir / src_file.name
                 shutil.copy2(str(src_file), str(dest))
 
+    # Bug S3-215: also ship the workspace references/ tree (lessons learned,
+    # auditor guides, existing readmes) into docs/references/. The caller comment
+    # in assemble_python_project already promises "specs, blueprint, references"
+    # are shipped; previously only spec + blueprint were copied. Recursive copy
+    # so nested reference material (e.g. references/*/) travels intact.
+    references_dir = project_root / "references"
+    if references_dir.exists() and references_dir.is_dir():
+        shutil.copytree(
+            str(references_dir),
+            str(docs_dir / "references"),
+            dirs_exist_ok=True,
+        )
+
 
 def sync_workspace_to_repo(project_root: Path) -> Dict[str, int]:
     """Full workspace→repo synchronization.
