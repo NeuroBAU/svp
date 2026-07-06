@@ -46,8 +46,10 @@ from state_transitions import (
     complete_oracle_session,
     complete_redo_profile_revision,
     complete_unit,
+    clear_pass,
     enter_debug_session,
     enter_oracle_session,
+    enter_pass_1,
     enter_pass_2,
     enter_redo_profile_revision,
     increment_alignment_iteration,
@@ -192,6 +194,23 @@ PHASE_TO_AGENT: Dict[str, str] = {
     "checklist_generation": "checklist_generation",
     "regression_adaptation": "regression_adaptation",
     "git_repo_agent": "git_repo_agent",  # H5 (S3-195 / IMPROV-30)
+    # Audit 2026-07-06 (P2): the documented manual-dispatch recovery path
+    # (orchestration_skill §16) was impossible for most agents — every
+    # pipeline agent needs a phase mapping even though the live path
+    # consumes their statuses inline.
+    "setup_agent": "setup_agent",
+    "stakeholder_dialog": "stakeholder_dialog",
+    "stakeholder_reviewer": "stakeholder_reviewer",
+    "blueprint_author": "blueprint_author",
+    "blueprint_reviewer": "blueprint_reviewer",
+    "blueprint_checker": "blueprint_checker",
+    "statistical_correctness_reviewer": "statistical_correctness_reviewer",
+    "test_agent": "test_agent",
+    "implementation_agent": "implementation_agent",
+    "coverage_review_agent": "coverage_review_agent",
+    "diagnostic_agent": "diagnostic_agent",
+    "repair_agent": "repair_agent",
+    "integration_test_author": "integration_test_author",
 }
 
 AGENT_STATUS_LINES: Dict[str, List[str]] = {
@@ -380,6 +399,9 @@ def _pytest_summary_count_source(output: str) -> str:
     behavior for bannerless synthetic fixtures like ``"5 passed in 1.2s"``). This
     extends the S3-196 / P80 "anchor to pytest's authoritative signals" rule from
     collection-error DETECTION to the count regexes.
+
+    Ported from the upstream svp2.2-pass2-repo (audit 2026-07-06, P3 —
+    the deployment predated this upstream fix).
     """
     summary = None
     for line in output.splitlines():
@@ -819,6 +841,48 @@ def _get_iteration_limit(project_root: Path) -> int:
     return config.get("iteration_limit", 3)
 
 
+def _validate_blueprint_artifacts(project_root: Path) -> Optional[str]:
+    """Run the deterministic blueprint validators (S3-116 unit-heading
+    format, S3-158 mechanical contract audit). Returns a diagnostic string
+    on violation, else None. Shared by the Stage-2 router (inline, the live
+    path) and dispatch_agent_status (manual-dispatch path)."""
+    from blueprint_extractor import (
+        format_unit_heading_violations,
+        validate_unit_heading_format,
+    )
+
+    blueprint_dir = project_root / "blueprint"
+    near_misses = validate_unit_heading_format(blueprint_dir)
+    if near_misses:
+        return (
+            "Blueprint contains unit heading format violations "
+            "(Bug S3-116).\n\n" + format_unit_heading_violations(near_misses)
+        )
+    from structural_check import (
+        audit_blueprint_contracts,
+        format_audit_violations,
+    )
+
+    audit_violations = audit_blueprint_contracts(project_root)
+    if audit_violations:
+        return (
+            "Blueprint failed the mechanical contract audit "
+            "(Bug S3-158).\n\n" + format_audit_violations(audit_violations)
+        )
+    return None
+
+
+def _is_two_pass_build(project_root: Path) -> bool:
+    """True when the project profile declares an SVP self-build (E/F
+    archetype), whose Stage 5 completion enters the two-pass protocol
+    instead of pipeline_complete (audit 2026-07-06, P2)."""
+    try:
+        profile = load_profile(project_root)
+    except Exception:
+        return False
+    return bool(profile.get("is_svp_build"))
+
+
 def _blueprint_author_mode(project_root: Path) -> str:
     """Bug S3-159: heuristic mode for blueprint_author routing.
 
@@ -1011,10 +1075,14 @@ def _cmd_compliance_scan(state: "PipelineState", project_root: Path) -> str:
     src_dir = "R" if language == "r" else "src"
     tests_dir = "tests/testthat" if language == "r" else "tests"
     return (
+        # --strict: without it the scan always exits 0, so compliance
+        # findings could never block and gate_5_3 was unreachable —
+        # "a gate, not an intention" (audit 2026-07-06, P3).
         f"python scripts/structural_check.py "
         f"--project-root . "
         f"--src-dir {src_dir} "
-        f"--tests-dir {tests_dir}"
+        f"--tests-dir {tests_dir} "
+        f"--strict"
     )
 
 
@@ -1061,6 +1129,7 @@ def _load_state_from_dict(data: Dict[str, Any]) -> PipelineState:
         oracle_run_count=data.get("oracle_run_count", 0),
         oracle_nested_session_path=data.get("oracle_nested_session_path", None),
         oracle_modification_count=data.get("oracle_modification_count", 0),
+        oracle_needs_rebootstrap=data.get("oracle_needs_rebootstrap", False),
         state_hash=data.get("state_hash", None),
         spec_revision_count=data.get("spec_revision_count", 0),
         pass_=pass_val,
@@ -1126,6 +1195,15 @@ def route(project_root: Path) -> Dict[str, Any]:
 
     # Pass 2 routing
     if state.sub_stage == "pass2_active":
+        # PASS_2_COMPLETE is the nested session's terminal status (defined
+        # by audit 2026-07-06, P2 — previously no completion path existed
+        # and pass2_active could never be exited). It returns the pipeline
+        # to pass_transition, where pass_==2 presents the post-pass2 gate.
+        if last_status == "PASS_2_COMPLETE":
+            _clear_last_status(project_root)
+            state = advance_sub_stage(state, "pass_transition")
+            save_state(project_root, state)
+            return route(project_root)
         return _make_action_block(
             action_type="invoke_agent",
             agent_type="pass2_nested",
@@ -1163,8 +1241,15 @@ def route(project_root: Path) -> Dict[str, Any]:
     if stage == "5":
         return _route_stage_5(state, project_root, last_status, iteration_limit)
 
+    # Never mask state corruption as success: an unrecognized stage used to
+    # emit pipeline_complete (audit 2026-07-06, P2).
     return _make_action_block(
-        action_type="pipeline_complete",
+        action_type="pipeline_held",
+        message=(
+            f"Pipeline state unrecognized (stage={state.stage!r}, "
+            f"sub_stage={state.sub_stage!r}). Inspect "
+            ".svp/pipeline_state.json before proceeding."
+        ),
         reminder="Pipeline is in an unrecognized stage.",
     )
 
@@ -1295,9 +1380,15 @@ def _route_oracle(
             state = _bootstrap_oracle_nested_session(state, project_root)
             save_state(project_root, state)
 
-        # Check if we just completed a fix (debug_session was active, now cleared)
-        if state.oracle_nested_session_path and last_status.startswith(
-            "REPO_ASSEMBLY_COMPLETE"
+        # Check if we just completed a fix. Keyed on the durable
+        # oracle_needs_rebootstrap flag (set by complete_debug_session):
+        # last_status is transient and is overwritten by the debug flow's
+        # own statuses, so keying only on REPO_ASSEMBLY_COMPLETE meant the
+        # oracle re-ran against the stale workspace, re-found the same
+        # bug, and looped unboundedly (audit 2026-07-06, P2).
+        if state.oracle_nested_session_path and (
+            getattr(state, "oracle_needs_rebootstrap", False)
+            or last_status.startswith("REPO_ASSEMBLY_COMPLETE")
         ):
             # Tear down stale nested session and recreate with fixed code
             import shutil
@@ -1306,6 +1397,7 @@ def _route_oracle(
             if stale_path.exists():
                 shutil.rmtree(str(stale_path))
             state = _bootstrap_oracle_nested_session(state, project_root)
+            state.oracle_needs_rebootstrap = False
             save_state(project_root, state)
 
         if last_status == "ORACLE_ALL_CLEAR":
@@ -1341,8 +1433,13 @@ def _route_oracle(
                         "oracle_phase": phase,
                     },
                 )
-            except (ImportError, Exception):
-                pass
+            except Exception as exc:
+                # Best-effort ledger recording must never crash routing,
+                # but must not be silent either (audit 2026-07-06, P3).
+                print(
+                    f"WARNING: oracle ledger append failed: {exc}",
+                    file=sys.stderr,
+                )
             return _make_action_block(
                 action_type="pipeline_complete",
                 reminder="Oracle session aborted by human.",
@@ -1391,8 +1488,13 @@ def _route_oracle(
                     "oracle_phase": "exit",
                 },
             )
-        except (ImportError, Exception):
-            pass  # Best-effort ledger recording
+        except Exception as exc:
+            # Best-effort ledger recording must never crash routing, but
+            # must not be silent either (audit 2026-07-06, P3).
+            print(
+                f"WARNING: oracle ledger append failed: {exc}",
+                file=sys.stderr,
+            )
 
         # Complete oracle session via Unit 6
         state = complete_oracle_session(state, "exit")
@@ -1482,6 +1584,15 @@ def _route_debug(
             ),
         )
     if source == "human_authorize" and mode in ("bug", "enhancement"):
+        # DEBUG_SESSION_COMPLETE is the documented terminal status for
+        # break-glass sessions, but nothing consumed it — invoke_break_glass
+        # re-emitted forever and the only exits were phase-flow paths a
+        # human_authorize session can never reach (audit 2026-07-06, P2).
+        if last_status == "DEBUG_SESSION_COMPLETE":
+            new_state = complete_debug_session(state)
+            save_state(project_root, new_state)
+            _clear_last_status(project_root)
+            return route(project_root)
         # Mode is set; return control to the orchestrator with the mode
         # tag. The orchestrator follows the Manual Bug-Fixing Protocol in
         # CLAUDE.md; mode-aware sub-flows ship in cycle G2. There is no
@@ -1512,9 +1623,14 @@ def _route_debug(
             if triage_path.is_file() and state.debug_session is not None:
                 triage = json.loads(triage_path.read_text(encoding="utf-8"))
                 state.debug_session = dict(state.debug_session)
+                # dict.get's default is evaluated eagerly: a bare
+                # "TRIAGE_COMPLETE" (no ": suffix") crashed routing with
+                # IndexError even when the JSON carried the classification
+                # (audit 2026-07-06, P2). Guard the split.
+                _status_parts = last_status.split(": ", 1)
                 state.debug_session["classification"] = triage.get(
                     "classification",
-                    last_status.split(": ", 1)[1],
+                    _status_parts[1] if len(_status_parts) > 1 else "unknown",
                 )
                 state.debug_session["affected_units"] = triage.get(
                     "affected_units", []
@@ -1561,6 +1677,14 @@ def _route_debug(
                         "--project-root ."
                     ),
                 )
+            # Increment inline (the dispatch-side setter is unreachable;
+            # the counter stayed 0 forever and the limit above could never
+            # trip — audit 2026-07-06, P2). Clear the status so repeated
+            # routing calls don't re-increment.
+            state.debug_session = dict(state.debug_session)
+            state.debug_session["triage_refinement_count"] = triage_count + 1
+            save_state(project_root, state)
+            _clear_last_status(project_root)
             return _make_action_block(
                 action_type="invoke_agent",
                 agent_type="bug_triage_agent",
@@ -1624,6 +1748,13 @@ def _route_debug(
                         "--project-root ."
                     ),
                 )
+            # Increment inline (dispatch-side setter unreachable; limit
+            # could never trip — audit 2026-07-06, P2). Clear the status so
+            # repeated routing calls don't re-increment.
+            state.debug_session = dict(state.debug_session)
+            state.debug_session["repair_retry_count"] = repair_count + 1
+            save_state(project_root, state)
+            _clear_last_status(project_root)
             return _make_action_block(
                 action_type="invoke_agent",
                 agent_type="repair_agent",
@@ -1748,8 +1879,28 @@ def _route_stage_0(
         if last_status == "PROJECT_CONTEXT_REJECTED":
             return _make_action_block(
                 action_type="pipeline_held",
-                message="Project context rejected. Return when requirements are ready.",
+                message=(
+                    "Project context rejected. Return when requirements "
+                    "are ready. To resume: clear .svp/last_status.txt "
+                    "(write an empty file), then re-run routing — the "
+                    "setup agent will be re-invoked in project_context "
+                    "mode."
+                ),
                 reminder="Context rejected.",
+            )
+        if last_status == "CONTEXT NOT READY":
+            # Gate 0.2 CONTEXT NOT READY: hold instead of immediately
+            # re-invoking the setup agent (audit 2026-07-06, P3).
+            return _make_action_block(
+                action_type="pipeline_held",
+                message=(
+                    "Context marked NOT READY at Gate 0.2. The pipeline "
+                    "is holding. To resume: clear .svp/last_status.txt "
+                    "(write an empty file), then re-run routing — the "
+                    "ledger-resumable setup agent will continue the "
+                    "project-context dialog."
+                ),
+                reminder="Context not ready — pipeline holding.",
             )
         return _make_action_block(
             action_type="invoke_agent",
@@ -1973,6 +2124,24 @@ def _route_stage_2(
 
     if sub == "blueprint_dialog":
         if last_status in ("BLUEPRINT_DRAFT_COMPLETE", "BLUEPRINT_REVISION_COMPLETE"):
+            # S3-116 heading check + S3-158 contract audit were only in
+            # dispatch_agent_status, which invoke_agent blocks (no POST)
+            # never reach — so malformed blueprints sailed through Gates
+            # 2.1/2.2 and failed only at infrastructure setup (audit
+            # 2026-07-06, P2). Run them inline BEFORE presenting Gate 2.1;
+            # hold the pipeline with diagnostics on violation.
+            validation_error = _validate_blueprint_artifacts(project_root)
+            if validation_error:
+                _clear_last_status(project_root)
+                return _make_action_block(
+                    action_type="pipeline_held",
+                    message=validation_error,
+                    reminder=(
+                        "Blueprint failed deterministic validation "
+                        "(S3-116/S3-158). Re-invoke the blueprint author "
+                        "with these diagnostics."
+                    ),
+                )
             return _make_action_block(
                 action_type="human_gate",
                 gate_id="gate_2_1_blueprint_approval",
@@ -2012,6 +2181,14 @@ def _route_stage_2(
             if _requires_statistical_analysis(state) and not getattr(
                 state, "statistical_review_done", False
             ):
+                # Mark done at dispatch time: the specialist's own
+                # REVIEW_COMPLETE re-enters this branch, and the only
+                # other setter (dispatch_agent_status) is unreachable —
+                # without this the specialist re-invoked forever (audit
+                # 2026-07-06, P2). gate_2_2 REVISE/FRESH REVIEW reset the
+                # flag for the next iteration.
+                state.statistical_review_done = True
+                save_state(project_root, state)
                 return _make_action_block(
                     action_type="invoke_agent",
                     agent_type="statistical_correctness_reviewer",
@@ -2293,6 +2470,26 @@ def _route_stage_3(
     """Route Stage 3 (per-unit build loop)."""
     sub = state.sub_stage
 
+    # A hint contradicting the blueprint is a human decision, whatever
+    # sub-stage surfaced it. Previously no router consumed this status, so
+    # the emitting agent was re-invoked forever (audit 2026-07-06, P2).
+    if last_status.startswith("HINT_BLUEPRINT_CONFLICT"):
+        return _make_action_block(
+            action_type="human_gate",
+            gate_id="gate_hint_conflict",
+            reminder=(
+                "An agent reports the human-provided hint contradicts the "
+                f"blueprint: {last_status}. BLUEPRINT CORRECT discards the "
+                "hint; HINT CORRECT restarts from Stage 2 to revise the "
+                "blueprint."
+            ),
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_hint_conflict "
+                "--project-root ."
+            ),
+        )
+
     # Check if all units done
     if state.current_unit is None and sub is None:
         validation_error = _validate_stage3_completion(state, project_root)
@@ -2308,6 +2505,18 @@ def _route_stage_3(
                     "--project-root ."
                 ),
             )
+        if (
+            state.debug_session is not None
+            and state.debug_session.get("phase") == "stage3_rebuild_active"
+        ):
+            # Debug-driven unit rebuild finished: continue the debug flow
+            # (reassembly -> regression_test -> commit) instead of
+            # advancing the stage — advance_stage("4") with the session
+            # still open recursed straight back here until RecursionError,
+            # persisting a corrupted stage mid-loop (audit 2026-07-06, P2).
+            state = update_debug_phase(state, "reassembly")
+            save_state(project_root, state)
+            return route(project_root)
         state = advance_stage(state, "4")
         save_state(project_root, state)
         return route(project_root)
@@ -2316,6 +2525,25 @@ def _route_stage_3(
         state.sub_stage = "stub_generation"
         save_state(project_root, state)
         return route(project_root)
+
+    if sub == "gate_3_1":
+        return _make_action_block(
+            action_type="human_gate",
+            gate_id="gate_3_1_test_validation",
+            reminder=(
+                f"Unit {state.current_unit}: tests still PASS against the "
+                "stub after 3 regeneration attempts — they may be vacuous "
+                "(asserting nothing the implementation must provide). "
+                "TEST CORRECT accepts the tests and proceeds to "
+                "implementation; TEST WRONG regenerates them with a fresh "
+                "retry budget."
+            ),
+            post=(
+                "python scripts/update_state.py "
+                "--command gate_3_1_test_validation "
+                "--project-root ."
+            ),
+        )
 
     if sub == "stub_generation":
         return _make_action_block(
@@ -2457,10 +2685,10 @@ def _route_stage_3(
         )
 
     if sub == "coverage_review":
-        if last_status in (
-            "COVERAGE_COMPLETE: no gaps",
-            "COVERAGE_COMPLETE: tests added",
-        ):
+        # Prefix match: exact-tuple matching silently re-invoked the
+        # coverage agent forever on near-miss suffixes like
+        # "COVERAGE_COMPLETE: 2 tests added" (audit 2026-07-06, P2).
+        if last_status.startswith("COVERAGE_COMPLETE"):
             state = advance_sub_stage(state, "unit_completion")
             save_state(project_root, state)
             return route(project_root)
@@ -2648,6 +2876,16 @@ def _route_stage_5(
 
     if sub == "repo_complete":
         pass_val = getattr(state, 'pass_', None)
+        if pass_val is None and _is_two_pass_build(project_root):
+            # Self-build (E/F archetype) reaching Stage 5 completion for
+            # the first time IS the end of Pass 1 — but nothing else ever
+            # calls enter_pass_1, so without this the two-pass protocol
+            # was unreachable and routing emitted pipeline_complete
+            # (audit 2026-07-06, P2).
+            new = enter_pass_1(state)
+            new = advance_sub_stage(new, "pass_transition")
+            save_state(project_root, new)
+            return route(project_root)
         if pass_val in (1, 2):
             new = advance_sub_stage(state, "pass_transition")
             save_state(project_root, new)
@@ -2739,6 +2977,33 @@ def _route_stage_5(
         )
 
     if last_status == "REPO_ASSEMBLY_COMPLETE":
+        # Bug S3-89 pattern (audit 2026-07-06, P2): invoke_agent blocks
+        # carry no POST, so dispatch_agent_status was never reached and
+        # delivered_repo_path stayed None for the whole pipeline life —
+        # breaking debug sync/commit and the S3-112 destination validation.
+        # Consume the completion inline before presenting the gate.
+        if not state.delivered_repo_path:
+            try:
+                state = dispatch_agent_status(
+                    state, "git_repo_agent", "REPO_ASSEMBLY_COMPLETE",
+                    project_root,
+                )
+            except ValueError as exc:
+                return _make_action_block(
+                    action_type="pipeline_held",
+                    message=str(exc),
+                    reminder=(
+                        "Delivered repo destination validation failed "
+                        "(S3-112). Fix the destination, then re-run "
+                        "routing."
+                    ),
+                )
+            # Make the gate presentation state-driven: "repo_test" was a
+            # routed-but-never-set sub-stage, leaving gate_5_1 reachable
+            # only while last_status still read REPO_ASSEMBLY_COMPLETE —
+            # any status overwrite hid the gate (audit 2026-07-06, P3).
+            state = advance_sub_stage(state, "repo_test")
+            save_state(project_root, state)
         return _make_action_block(
             action_type="human_gate",
             gate_id="gate_5_1_repo_test",
@@ -2804,7 +3069,12 @@ def dispatch_gate_response(
             _clear_last_status(project_root)
             new = advance_sub_stage(state, "project_context")
         else:  # CONTEXT NOT READY
-            _clear_last_status(project_root)
+            # NOT READY means "the human needs time", not "redo the
+            # dialog" — it was previously identical to CONTEXT REJECTED
+            # (audit 2026-07-06, P3). last_status intentionally NOT
+            # cleared: routing keys a pipeline_held on it; clearing
+            # .svp/last_status.txt resumes (the setup agent is
+            # ledger-resumable per spec §15.4).
             new = advance_sub_stage(state, "project_context")
         return new
 
@@ -2886,9 +3156,12 @@ def dispatch_gate_response(
         if response == "APPROVE":
             new = advance_sub_stage(state, "checklist_generation")
         elif response == "REVISE":
+            # Enter targeted_spec_revision so the dialog agent is invoked
+            # in revision mode with the revision context; the main-flow
+            # fallback would re-invoke it in fresh-draft mode (audit
+            # 2026-07-06, P2 — same family as the gate_1_2 REVISE fix).
             _clear_last_status(project_root)
-            new = _copy(state)
-            # Re-invoke stakeholder dialog in revision mode (stay in stage 1)
+            new = advance_sub_stage(state, "targeted_spec_revision")
         else:  # FRESH REVIEW
             _clear_last_status(project_root)
             new = advance_sub_stage(state, "spec_review")
@@ -2899,12 +3172,6 @@ def dispatch_gate_response(
         if response == "APPROVE":
             new = advance_sub_stage(state, "checklist_generation")
         elif response == "REVISE":
-            # Bug S3-212: route REVISE to the targeted_spec_revision sub-stage
-            # (mirrors gate_2_3_alignment_exhausted REVISE SPEC) so post-review
-            # fixes are actually applied via stakeholder_dialog in
-            # targeted_revision mode. The previous `_copy(state)` left
-            # sub_stage="spec_review", so routing re-invoked stakeholder_reviewer
-            # on the UNCHANGED spec — a dead-end with no path to apply revisions.
             _clear_last_status(project_root)
             new = advance_sub_stage(state, "targeted_spec_revision")
         else:  # FRESH REVIEW
@@ -2954,10 +3221,16 @@ def dispatch_gate_response(
             new = advance_sub_stage(state, "targeted_spec_revision")
             new.alignment_iterations = 0
         elif response == "RESTART SPEC":
-            new = advance_stage(state, "1")
+            # restart_from_stage (not advance_stage) for full restart
+            # bookkeeping, and reset the alignment budget — otherwise the
+            # restarted spec's FIRST alignment failure immediately
+            # re-presents this gate (audit 2026-07-06, P2).
+            new = restart_from_stage(state, "1")
+            new.alignment_iterations = 0
         else:  # RETRY BLUEPRINT
             _clear_last_status(project_root)
             new = advance_sub_stage(state, "blueprint_dialog")
+            new.alignment_iterations = 0
         return new
 
     # Gate 2.3 (Bug S3-180): Toolchain verified at pre_stage_3 dep-diff
@@ -2982,23 +3255,36 @@ def dispatch_gate_response(
                 pass
         return new
 
-    # Gate 3.1: Test validation (autonomous)
+    # Gate 3.1: Test validation — presented when red_run tests keep passing
+    # against stubs at the retry limit (vacuous-test suspicion). Wired by
+    # audit 2026-07-06, P3.
     if gate_id == "gate_3_1_test_validation":
+        _clear_last_status(project_root)
         new = _copy(state)
+        new.red_run_retries = 0
         if response == "TEST CORRECT":
-            pass  # Continue normal flow
+            # Human accepts the tests; proceed to implementation.
+            new.sub_stage = "implementation"
         else:  # TEST WRONG
+            # Regenerate tests with a fresh retry budget.
             new.sub_stage = "test_generation"
         return new
 
     # Gate 3.2: Diagnostic decision
     if gate_id == "gate_3_2_diagnostic_decision":
         if response == "FIX IMPLEMENTATION":
+            # Rewind the ladder to diagnostic_impl so the implementation
+            # branch invokes the implementation agent (with the diagnosis
+            # available) instead of re-presenting this gate (from
+            # "exhausted") or re-invoking the diagnostic agent (from
+            # "diagnostic"). Audit 2026-07-06, P2.
+            _clear_last_status(project_root)
             new = advance_sub_stage(state, "implementation")
+            new.fix_ladder_position = "diagnostic_impl"
         elif response == "FIX BLUEPRINT":
             new = restart_from_stage(state, "2")
         else:  # FIX SPEC
-            new = advance_stage(state, "1")
+            new = restart_from_stage(state, "1")
         return new
 
     # Bug S3-207 / cycle K-5: Gate 3.4 test-generation-blocked.
@@ -3021,9 +3307,15 @@ def dispatch_gate_response(
                 new.deferred_broken_units = list(new.deferred_broken_units) + [
                     unit_to_defer
                 ]
+            # Next unit starts its full cycle at stub_generation with fresh
+            # per-unit counters, mirroring complete_unit (audit 2026-07-06,
+            # P2 — entering at test_generation faced a missing stub).
+            new.fix_ladder_position = None
+            new.red_run_retries = 0
+            new.test_layer_review_count = 0
             if unit_to_defer is not None and unit_to_defer < new.total_units:
                 new.current_unit = unit_to_defer + 1
-                new.sub_stage = "test_generation"
+                new.sub_stage = "stub_generation"
             else:
                 new.current_unit = None
                 new.sub_stage = None
@@ -3094,11 +3386,15 @@ def dispatch_gate_response(
                 new.deferred_broken_units = list(new.deferred_broken_units) + [
                     unit_to_defer
                 ]
+            # Fresh per-unit counters + full cycle from stub_generation,
+            # mirroring complete_unit (audit 2026-07-06, P2).
             new.test_layer_review_count = 0
+            new.fix_ladder_position = None
+            new.red_run_retries = 0
             # Advance to next unit (or end of pipeline if last).
             if unit_to_defer is not None and unit_to_defer < new.total_units:
                 new.current_unit = unit_to_defer + 1
-                new.sub_stage = "test_generation"
+                new.sub_stage = "stub_generation"
             else:
                 new.current_unit = None
                 new.sub_stage = None
@@ -3111,14 +3407,25 @@ def dispatch_gate_response(
         elif response == "FORCE ADVANCE":
             new = advance_stage(state, "4")
         else:  # RESTART STAGE 3
-            new = restart_from_stage(state, "3")
+            # restart_from_stage("3") alone is a no-op loop: it leaves
+            # verified_units intact and current_unit None, so the router
+            # re-validates the same failed completion and re-presents this
+            # gate (audit 2026-07-06, P2). A real restart rolls back to the
+            # first unit of the Stage 3 cycle.
+            _clear_last_status(project_root)
+            new = rollback_to_unit(state, 1)
         return new
 
     # Gate 4.1: Integration failure
     if gate_id == "gate_4_1_integration_failure":
         if response == "ASSEMBLY FIX":
+            # Leaving sub_stage at "gate_4_1" re-presents this gate forever
+            # (audit 2026-07-06, P2). Clearing it lets the Stage-4 fallback
+            # re-invoke the integration test author (mirrors gate_4_1a
+            # HUMAN FIX and the S3-149 gate_5_2 pattern).
+            _clear_last_status(project_root)
             new = _copy(state)
-            # Re-invoke integration test author with fix context
+            new.sub_stage = None
         elif response == "FIX BLUEPRINT":
             new = restart_from_stage(state, "2")
         else:  # FIX SPEC
@@ -3189,10 +3496,14 @@ def dispatch_gate_response(
         return new
 
     # Gate 5.3: Unused functions
+    # Gate 5.3: compliance findings (presented when the strict compliance
+    # scan fails; semantics generalized from "unused functions" — the gate
+    # name is kept for vocabulary stability; audit 2026-07-06, P3).
     if gate_id == "gate_5_3_unused_functions":
         if response == "FIX SPEC":
-            new = advance_stage(state, "1")
+            new = restart_from_stage(state, "1")
         else:  # OVERRIDE CONTINUE
+            _clear_last_status(project_root)
             new = advance_sub_stage(state, "repo_complete")
         return new
 
@@ -3313,9 +3624,12 @@ def dispatch_gate_response(
                 new = _copy(state)
                 new.debug_session = dict(new.debug_session)
                 new.debug_session["triage_refinement_count"] = triage_count + 1
-                if triage_count < iteration_limit:
-                    _clear_last_status(project_root)
-                    new.debug_session["phase"] = "triage"
+                # Unconditional: the human explicitly chose reclassification;
+                # silently ignoring the answer at the limit re-invoked the
+                # repair agent instead (audit 2026-07-06, P2). The limit
+                # bounds AUTONOMOUS refinement, not an explicit human order.
+                _clear_last_status(project_root)
+                new.debug_session["phase"] = "triage"
         else:  # ABANDON DEBUG
             if state.debug_session is not None:
                 new = abandon_debug_session(state)
@@ -3343,28 +3657,47 @@ def dispatch_gate_response(
     # Gate 6.5: Debug commit
     if gate_id == "gate_6_5_debug_commit":
         if response == "COMMIT APPROVED":
-            if state.debug_session is not None and state.debug_session.get(
-                "authorized"
-            ):
-                new = complete_debug_session(state)
+            # Do NOT complete the session here: completing it at the gate
+            # POST made routing's phase=="commit" + COMMIT APPROVED branch
+            # (which emits run_command debug_commit) unreachable, so the
+            # deterministic commit step was silently skipped (audit
+            # 2026-07-06, P2). The debug_commit command's POST dispatch is
+            # the designed completion point. last_status intentionally NOT
+            # cleared — routing keys the run_command emission on it.
+            new = _copy(state)
+        else:  # COMMIT REJECTED
+            # Return to repair instead of re-presenting this gate forever.
+            _clear_last_status(project_root)
+            if state.debug_session is not None:
+                new = update_debug_phase(state, "repair")
             else:
                 new = _copy(state)
-                if hasattr(new, "debug_session") and new.debug_session:
-                    if not hasattr(new, "debug_history"):
-                        new.debug_history = []
-                    new.debug_history = list(new.debug_history) + [new.debug_session]
-                    new.debug_session = None
-        else:  # COMMIT REJECTED
-            new = _copy(state)
         return new
 
-    # Gate hint conflict
+    # Gate hint conflict (wired by audit 2026-07-06, P2 — the handler and
+    # its presenters were both unfinished, so HINT_BLUEPRINT_CONFLICT
+    # statuses looped the emitting agent forever).
     if gate_id == "gate_hint_conflict":
-        new = _copy(state)
+        _clear_last_status(project_root)
         if response == "BLUEPRINT CORRECT":
-            pass  # Discard hint, continue
+            # Discard the conflicting hint so re-invoked agents do not
+            # re-detect the same conflict: archive the hint ledger aside.
+            new = _copy(state)
+            try:
+                from ledger_manager import get_ledger_path
+
+                hint_path = get_ledger_path(project_root, "hint")
+                if hint_path.exists():
+                    n = 1
+                    while hint_path.with_suffix(f".discarded_{n}").exists():
+                        n += 1
+                    hint_path.rename(hint_path.with_suffix(f".discarded_{n}"))
+            except (ImportError, OSError):
+                pass
         else:  # HINT CORRECT
-            pass  # Version appropriate document, restart
+            # The blueprint is wrong per the hint: restart from Stage 2 so
+            # the blueprint author revises against the hint's content.
+            new = restart_from_stage(state, "2")
         return new
 
     # Gate 7a: Trajectory review
@@ -3374,7 +3707,11 @@ def dispatch_gate_response(
             new.oracle_phase = "green_run"
         elif response == "MODIFY TRAJECTORY":
             if getattr(state, "oracle_modification_count", 0) >= 3:
-                raise ValueError("MODIFY TRAJECTORY not available: modification limit (3) reached")
+                raise ValueError(
+                    "MODIFY TRAJECTORY not available: modification limit "
+                    "(3) reached. The gate will re-present; respond with "
+                    "APPROVE TRAJECTORY or ABORT."
+                )
             new = _copy(state)
             new.oracle_phase = "dry_run"
             new.oracle_modification_count = getattr(state, "oracle_modification_count", 0) + 1
@@ -3392,8 +3729,13 @@ def dispatch_gate_response(
                         "oracle_phase": state.oracle_phase,
                     },
                 )
-            except (ImportError, Exception):
-                pass
+            except Exception as exc:
+                # Best-effort ledger recording must never crash routing,
+                # but must not be silent either (audit 2026-07-06, P3).
+                print(
+                    f"WARNING: oracle ledger append failed: {exc}",
+                    file=sys.stderr,
+                )
         return new
 
     # Gate 7b: Fix plan review
@@ -3417,8 +3759,13 @@ def dispatch_gate_response(
                         "oracle_phase": state.oracle_phase,
                     },
                 )
-            except (ImportError, Exception):
-                pass
+            except Exception as exc:
+                # Best-effort ledger recording must never crash routing,
+                # but must not be silent either (audit 2026-07-06, P3).
+                print(
+                    f"WARNING: oracle ledger append failed: {exc}",
+                    file=sys.stderr,
+                )
         return new
 
     # Gate pass transition post pass1
@@ -3431,6 +3778,12 @@ def dispatch_gate_response(
                 )
             nested_path = str(project_root / ".svp" / "pass2_session")
             new = enter_pass_2(state, nested_path)
+            # Without this, sub_stage stays "pass_transition" and the next
+            # routing pass presents the post-pass2 gate immediately — Pass 2
+            # silently skipped (audit 2026-07-06, P2). "pass2_active" is the
+            # value route() dispatches the pass2_nested session on.
+            _clear_last_status(project_root)
+            new = advance_sub_stage(new, "pass2_active")
         else:  # FIX BUGS
             new = enter_debug_session(state, 0)
         return new
@@ -3441,6 +3794,10 @@ def dispatch_gate_response(
             new = enter_debug_session(state, 0)
         else:  # RUN ORACLE
             new = enter_oracle_session(state, "")
+            # Clear pass bookkeeping so post-oracle routing completes the
+            # pipeline instead of re-presenting this gate forever (the gate
+            # vocabulary has no exit response; audit 2026-07-06, P2).
+            new = clear_pass(new)
         return new
 
     # Fallback
@@ -3584,8 +3941,12 @@ def dispatch_agent_status(
     # blueprint_reviewer
     if agent_type == "blueprint_reviewer":
         if status_line == "REVIEW_COMPLETE":
-            new = advance_sub_stage(state, "alignment_confirmed")
-            return new
+            # No sub-stage change: the live inline flow keeps
+            # sub_stage="blueprint_review" and presents gate_2_2 off
+            # last_status. The old advance to "alignment_confirmed" here
+            # skipped Gate 2.2 entirely when manually dispatched (audit
+            # 2026-07-06, P2).
+            return _copy(state)
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 
     # statistical_correctness_reviewer (Bug S3-168 — capstone of
@@ -3750,9 +4111,14 @@ def dispatch_agent_status(
                         triage_path.read_text(encoding="utf-8")
                     )
                     new.debug_session = dict(new.debug_session)
+                    # Guarded split — see the inline-consumption twin of
+                    # this code in _route_debug (audit 2026-07-06, P2).
+                    _status_parts = status_line.split(": ", 1)
                     new.debug_session["classification"] = triage.get(
                         "classification",
-                        status_line.split(": ", 1)[1],
+                        _status_parts[1]
+                        if len(_status_parts) > 1
+                        else "unknown",
                     )
                     new.debug_session["affected_units"] = triage.get(
                         "affected_units", []
@@ -3818,17 +4184,21 @@ def dispatch_agent_status(
                         "oracle_phase": state.oracle_phase,
                     },
                 )
-            except (ImportError, Exception):
-                pass
+            except Exception as exc:
+                # Best-effort ledger recording must never crash routing,
+                # but must not be silent either (audit 2026-07-06, P3).
+                print(
+                    f"WARNING: oracle ledger append failed: {exc}",
+                    file=sys.stderr,
+                )
             return new
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 
     # help_agent
     if agent_type == "help_agent":
-        if status_line in (
-            "HELP_SESSION_COMPLETE: no hint",
-            "HELP_SESSION_COMPLETE: hint forwarded",
-        ):
+        # Prefix match (audit 2026-07-06, P2): near-miss suffixes must not
+        # fail dispatch when the terminal status family is unambiguous.
+        if status_line.startswith("HELP_SESSION_COMPLETE"):
             return _copy(state)
         raise ValueError(f"Unknown status for {agent_type}: {status_line}")
 
@@ -3950,14 +4320,18 @@ def dispatch_command_status(
             if status_line == "TESTS_FAILED":
                 new = increment_red_run_retries(state)
                 if new.red_run_retries >= 3:
-                    new = advance_sub_stage(new, "gate_4_2")
+                    # gate_4_1a (HUMAN FIX / ESCALATE) is the designed
+                    # intermediate step before the heavy gate_4_2 restarts;
+                    # its presenter and handler existed but nothing ever
+                    # set the sub-stage (audit 2026-07-06, P3).
+                    new = advance_sub_stage(new, "gate_4_1a")
                 else:
                     new = advance_sub_stage(new, "gate_4_1")
                 return new
             if status_line == "TESTS_ERROR":
                 new = increment_red_run_retries(state)
                 if new.red_run_retries >= 3:
-                    new = advance_sub_stage(new, "gate_4_2")
+                    new = advance_sub_stage(new, "gate_4_1a")
                 else:
                     new.sub_stage = None
                 return new
@@ -3973,7 +4347,13 @@ def dispatch_command_status(
                 new = increment_red_run_retries(state)
                 limit = 3
                 if new.red_run_retries >= limit:
-                    new = advance_sub_stage(new, "implementation")
+                    # Tests still pass against stubs after the regeneration
+                    # budget: likely vacuous tests. Present gate_3_1 for a
+                    # human verdict instead of silently proceeding to
+                    # implementation with tests that may assert nothing
+                    # (audit 2026-07-06, P3 — the gate existed but had no
+                    # presenter or setter).
+                    new = advance_sub_stage(new, "gate_3_1")
                 else:
                     new = advance_sub_stage(new, "test_generation")
             else:
@@ -4065,8 +4445,11 @@ def dispatch_command_status(
         if "SUCCEEDED" in status_line:
             new = advance_sub_stage(state, "repo_complete")
         elif "FAILED" in status_line:
-            new = _copy(state)
-            new.sub_stage = None
+            # Compliance findings are source problems: present gate_5_3
+            # (FIX SPEC / OVERRIDE CONTINUE) instead of clearing sub_stage,
+            # which re-invoked the git repo agent — reassembly cannot fix
+            # source findings (audit 2026-07-06, P3).
+            new = advance_sub_stage(state, "gate_5_3")
         else:
             raise ValueError(f"Unknown status for {command_type}: {status_line}")
         return new
@@ -4152,9 +4535,17 @@ def dispatch_command_status(
 
     # oracle_test_project_selection
     if command_type == "oracle_test_project_selection":
-        # status_line contains the selected test project path
+        # status_line contains the selected test project path. Validate it
+        # exists — a wrong write (e.g. the menu number instead of the
+        # path) was silently accepted (audit 2026-07-06, P2).
+        selected = status_line.strip()
+        if not selected or not Path(selected).is_dir():
+            raise ValueError(
+                f"oracle_test_project_selection expects an existing test "
+                f"project directory path in last_status, got: {selected!r}"
+            )
         new = _copy(state)
-        new.oracle_test_project = status_line.strip()
+        new.oracle_test_project = selected
         return new
 
     # oracle_gate_7a — Bug S3-82: process Gate 7.A response via dispatch_gate_response
@@ -4345,7 +4736,16 @@ def update_state_main(argv: list = None) -> None:
     elif args.status:
         new_state = dispatch_agent_status(state, agent_type, args.status, project_root)
     else:
-        new_state = state
+        # --phase without --status used to silently no-op while logging a
+        # successful "state_transition" — the worst failure class: the
+        # pipeline looked advanced but state never changed (audit
+        # 2026-07-06, P2; bit the documented /svp:redo POST).
+        print(
+            "ERROR: --phase requires --status (a bare --phase would be a "
+            "silent no-op)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     save_state(project_root, new_state)
 

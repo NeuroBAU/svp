@@ -154,9 +154,13 @@ def advance_fix_ladder(state: PipelineState) -> PipelineState:
     new = _copy_state(state)
     new.fix_ladder_position = next_pos
 
-    # Set sub_stage to "implementation" for fresh_impl and diagnostic_impl
-    if next_pos in ("fresh_impl", "diagnostic_impl"):
-        new.sub_stage = "implementation"
+    # Set sub_stage to "implementation" for ALL rungs: the implementation
+    # branch of _route_stage_3 dispatches on fix_ladder_position (fresh/
+    # diagnostic_impl -> implementation agent, diagnostic -> diagnostic
+    # agent, exhausted -> gate_3_2). Leaving sub_stage at the failing
+    # command's value re-runs that command forever and makes the
+    # diagnostic and exhausted rungs unreachable (audit 2026-07-06, P2).
+    new.sub_stage = "implementation"
 
     return new
 
@@ -345,6 +349,12 @@ def complete_debug_session(state: PipelineState) -> PipelineState:
     new = _copy_state(state)
     new.debug_history.append(new.debug_session)
     new.debug_session = None
+    # Oracle-initiated fixes change the delivered code; the nested oracle
+    # workspace is now stale and must be recreated before the next oracle
+    # run. Keyed on durable state because last_status is transient and is
+    # overwritten by the debug flow's own statuses (audit 2026-07-06, P2).
+    if new.oracle_session_active:
+        new.oracle_needs_rebootstrap = True
     return new
 
 

@@ -151,7 +151,7 @@ Pause the pipeline and launch the help agent for interactive assistance.
 1. Run `prepare_task.py --agent help --project-root .` to assemble the task prompt.
 2. Spawn the help agent with the assembled task prompt.
 3. Write the agent's terminal status line to `.svp/last_status.txt`.
-4. Run `update_state.py --phase help` to update pipeline state.
+4. Run `update_state.py --phase help --status "<terminal status line>" --project-root .` to update pipeline state (the --status argument is required; a bare --phase is rejected as a silent no-op — audit 2026-07-06, P2).
 5. Re-run the routing script (`python scripts/routing.py --project-root .`).
 
 ## Phase Value
@@ -175,7 +175,7 @@ Request diagnostic analysis from the hint agent.
 1. Run `prepare_task.py --agent hint --project-root .` to assemble the task prompt.
 2. Spawn the hint agent with the assembled task prompt.
 3. Write the agent's terminal status line to `.svp/last_status.txt`.
-4. Run `update_state.py --phase hint` to update pipeline state.
+4. Run `update_state.py --phase hint --status "<terminal status line>" --project-root .` to update pipeline state (the --status argument is required; a bare --phase is rejected as a silent no-op — audit 2026-07-06, P2).
 5. Re-run the routing script (`python scripts/routing.py --project-root .`).
 
 ## Phase Value
@@ -207,7 +207,7 @@ Add a reference document or repository to the project context.
 the task prompt.
 2. Spawn the reference indexing agent with the assembled task prompt.
 3. Write the agent's terminal status line to `.svp/last_status.txt`.
-4. Run `update_state.py --phase reference_indexing` to update pipeline state.
+4. Run `update_state.py --phase reference_indexing --status "<terminal status line>" --project-root .` to update pipeline state (the --status argument is required; a bare --phase is rejected as a silent no-op — audit 2026-07-06, P2).
 5. Re-run the routing script (`python scripts/routing.py --project-root .`).
 
 ## Phase Value
@@ -233,7 +233,7 @@ Roll back to redo a previously completed step.
 1. Run `prepare_task.py --agent redo --project-root .` to assemble the task prompt.
 2. Spawn the redo agent with the assembled task prompt.
 3. Write the agent's terminal status line to `.svp/last_status.txt`.
-4. Run `update_state.py --phase redo` to update pipeline state.
+4. Run `update_state.py --phase redo --status "<terminal status line>" --project-root .` to update pipeline state (the --status argument is required; a bare --phase is rejected as a silent no-op — audit 2026-07-06, P2).
 5. Re-run the routing script (`python scripts/routing.py --project-root .`).
 
 ## Phase Value

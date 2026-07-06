@@ -376,7 +376,7 @@ If you need to write `last_status.txt` directly without running the full action 
 echo "ALIGNMENT_FAILED: blueprint" > .svp/last_status.txt
 
 # 2. Run dispatch explicitly (this is what the POST command normally does)
-python scripts/update_state.py --phase stage_2 --status "ALIGNMENT_FAILED: blueprint" --project-root .
+python scripts/update_state.py --phase blueprint_checker --status "ALIGNMENT_FAILED: blueprint" --project-root .
 
 # 3. Re-run routing
 python scripts/routing.py --project-root .

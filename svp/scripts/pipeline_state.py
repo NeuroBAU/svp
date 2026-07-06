@@ -37,6 +37,9 @@ VALID_SUB_STAGES: Dict[str, Set[Optional[str]]] = {
         "green_run",
         "coverage_review",
         "unit_completion",
+        # Audit 2026-07-06 (P3): vacuous-test escalation gate — presented
+        # when red_run tests keep passing against stubs at the retry limit.
+        "gate_3_1",
     },
     "4": {None, "regression_adaptation", "gate_4_1", "gate_4_1a", "gate_4_2"},
     "5": {None, "repo_test", "compliance_scan", "repo_complete", "gate_5_2", "gate_5_3"},
@@ -107,6 +110,11 @@ class PipelineState:
     oracle_run_count: int = 0
     oracle_nested_session_path: Optional[str] = None
     oracle_modification_count: int = 0
+    # Set True by complete_debug_session when an oracle-initiated fix lands;
+    # _route_oracle tears down and recreates the nested session, then clears
+    # it. Durable replacement for the transient REPO_ASSEMBLY_COMPLETE
+    # last_status check (audit 2026-07-06, P2).
+    oracle_needs_rebootstrap: bool = False
     state_hash: Optional[str] = None
     spec_revision_count: int = 0
     pass_: Optional[int] = None  # serialized as "pass" in JSON
@@ -231,6 +239,7 @@ def load_state(project_root: Path) -> PipelineState:
         oracle_run_count=data.get("oracle_run_count", 0),
         oracle_nested_session_path=data.get("oracle_nested_session_path", None),
         oracle_modification_count=data.get("oracle_modification_count", 0),
+        oracle_needs_rebootstrap=data.get("oracle_needs_rebootstrap", False),
         state_hash=data.get("state_hash", None),
         spec_revision_count=data.get("spec_revision_count", 0),
         pass_=pass_val,
