@@ -857,6 +857,13 @@ def _check_blueprint_vocabulary_fidelity(project_root: Path) -> List[str]:
     if not spec_path.is_file() or not bp_path.is_file():
         return []
     spec_text = spec_path.read_text(encoding="utf-8")
+    # The §24.247 failure-mode entry quotes invented identifiers AS
+    # NEGATIVE EXAMPLES (gate_5_5, DIAGNOSTIC_COMPLETE, ...); including it
+    # in the membership corpus would whitelist the very tokens the check
+    # exists to catch. Strip that section before matching.
+    spec_text = re.sub(
+        r"### 24\.247.*?(?=\n### |\n## )", "", spec_text, flags=re.S
+    )
     bp_text = bp_path.read_text(encoding="utf-8")
     if prose_path.is_file():
         bp_text += "\n" + prose_path.read_text(encoding="utf-8")
@@ -894,6 +901,38 @@ def _check_blueprint_vocabulary_fidelity(project_root: Path) -> List[str]:
             violations.append(
                 f"terminal status '{status}' does not exist in the "
                 f"stakeholder spec (invented vocabulary)"
+            )
+
+    # 3. Sub-stage values: strings assigned to / compared with sub_stage in
+    #    the blueprint must exist in the spec (§22.4 closed sets).
+    sub_stage_tokens = set(
+        re.findall(
+            r'sub_stage[^"\n]{0,20}"([a-z][a-z0-9_]+)"', bp_text
+        )
+    )
+    for token in sorted(sub_stage_tokens):
+        if f'"{token}"' not in spec_text and f"`{token}`" not in spec_text \
+                and token not in spec_text:
+            violations.append(
+                f"sub-stage value '{token}' does not exist in the "
+                f"stakeholder spec (invented vocabulary)"
+            )
+
+    # 4. REQ citations: every [REQ-AREA-NN] cited in the blueprint must
+    #    exist in the spec and must not be marked (RETIRED) in a register.
+    cited = set(re.findall(r"\[?(REQ-[A-Z]+-\d+[a-z]?)\]?", bp_text))
+    for req in sorted(cited):
+        if req not in spec_text:
+            violations.append(
+                f"cited requirement '{req}' does not exist in the "
+                f"stakeholder spec (invented citation)"
+            )
+        elif re.search(
+            rf"`?{re.escape(req)}`?[^\n]{{0,30}}\(RETIRED\)", spec_text
+        ):
+            violations.append(
+                f"cited requirement '{req}' is RETIRED in the spec "
+                f"register (dead citation)"
             )
     return violations
 
