@@ -88,3 +88,34 @@ def test_unrecognized_stage_holds_instead_of_completing(project_root):
     action = route(project_root)
 
     assert action["action_type"] == "pipeline_held"
+
+
+def test_pytest_parser_not_fooled_by_indicator_strings_in_test_data():
+    """P7: code under test may CONTAIN 'ERROR collecting'/'no tests ran' as
+    data (Unit 2's collection_error_indicators registry field); -v tracebacks
+    echo it. Detection must anchor to pytest's own signals."""
+    from routing import _parse_pytest_output
+
+    body = (
+        "tests/unit_2/test_unit_2.py::test_x FAILED\n"
+        'E   assert "ERROR collecting" in indicators\n'
+        'E   "no tests ran",\n'
+        "========================= 296 failed in 1.44s =========================\n"
+    )
+    res = _parse_pytest_output(body, "python", 1, {})
+    assert res.status == "TESTS_FAILED"
+    assert res.failed == 296
+    assert res.collection_error is False
+
+
+def test_pytest_parser_detects_real_collection_error():
+    from routing import _parse_pytest_output
+
+    body = (
+        "ERROR collecting tests/unit_2/test_unit_2.py\n"
+        "E   ModuleNotFoundError: No module named 'hypothesis'\n"
+        "========================= 1 error in 0.04s =========================\n"
+    )
+    res = _parse_pytest_output(body, "python", 2, {})
+    assert res.status == "TESTS_ERROR"
+    assert res.collection_error is True

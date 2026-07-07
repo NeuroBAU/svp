@@ -423,10 +423,26 @@ def _parse_pytest_output(
         # when test code legitimately contains those strings. Pytest exit code 2 is the
         # documented collection/configuration-error code; the "ERROR collecting" banner
         # and "no tests ran" message are pytest's own authoritative signals.
+        # Anchor collection detection to pytest's authoritative signals
+        # (P80/S3-212 extended to DETECTION; audit 2026-07-07, P7):
+        # whole-body substring matching was fooled when the CODE UNDER TEST
+        # contains the indicator strings as data — Unit 2's registry field
+        # collection_error_indicators lists "ERROR collecting"/"no tests
+        # ran", and -v failure tracebacks echo them, misclassifying 296
+        # ordinary failures as a collection error. pytest emits "ERROR
+        # collecting <path>" at line start and "no tests ran" only inside
+        # the final =-delimited summary banner.
+        _lines = output.splitlines()
         has_collection_error = (
             exit_code == 2
-            or "ERROR collecting" in output
-            or "no tests ran" in output
+            or any(
+                ln.lstrip().startswith("ERROR collecting") for ln in _lines
+            )
+            or any(
+                "no tests ran" in ln
+                for ln in _lines
+                if ln.strip().startswith("=") and ln.strip().endswith("=")
+            )
         )
 
         if has_collection_error:
@@ -469,7 +485,14 @@ def _parse_pytest_output(
         if m:
             errors = int(m.group(1))
 
-        if "no tests ran" in output:
+        # Anchored to the summary banner like the collection check above
+        # (P7): the whole-body form was fooled by test data echoing the
+        # literal string "no tests ran".
+        if any(
+            "no tests ran" in ln
+            for ln in _lines
+            if ln.strip().startswith("=") and ln.strip().endswith("=")
+        ):
             return RunResult(
                 status="TESTS_ERROR",
                 passed=0,
