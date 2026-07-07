@@ -55,8 +55,13 @@ _TIER3_HEADING_RE = re.compile(r"^### Tier 3", re.MULTILINE)
 # Pattern for code fences: opening ```lang or just ```
 _CODE_FENCE_OPEN_RE = re.compile(r"^```(\w+)?\s*$", re.MULTILINE)
 
-# Pattern for Dependencies line in Tier 3
-_DEPENDENCIES_RE = re.compile(r"\*\*Dependencies:\*\*\s*(.*?)$", re.MULTILINE)
+# Pattern for Dependencies line in Tier 3. Anchored to line start: the
+# Dependencies FIELD always begins a line, while contract prose may quote
+# the token mid-sentence (e.g. Unit 8's clause describing the forward-edge
+# validator mentions "every **Dependencies:** field ... (Unit 23)", which
+# an unanchored match parsed as a real Unit 8 -> Unit 23 edge and crashed
+# infrastructure setup; audit 2026-07-07, P6).
+_DEPENDENCIES_RE = re.compile(r"^\*\*Dependencies:\*\*\s*(.*?)$", re.MULTILINE)
 
 
 # ---------------------------------------------------------------------------
