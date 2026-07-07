@@ -19,8 +19,8 @@ PYTHON_TOOLCHAIN: Dict[str, Any] = {
         "tool": "conda",
         "run_prefix": "conda run -n {env_name}",
         "create_command": "conda create -n {env_name} python={python_version} -y",
-        "install_command": "conda run -n {env_name} python -m pip install {packages}",
-        "install_dev": "conda run -n {env_name} python -m pip install -e .",
+        "install_command": "conda run -n {env_name} pip install {packages}",
+        "install_dev": "conda run -n {env_name} pip install -e .",
         "cleanup_command": "conda env remove -n {env_name} -y",
     },
     "quality": {
@@ -62,7 +62,7 @@ PYTHON_TOOLCHAIN: Dict[str, Any] = {
             "{run_prefix} python -m pytest {test_path} -v "
             "--cov={module} --cov-report=term-missing"
         ),
-        "framework_packages": ["pytest", "pytest-cov"],
+        "framework_packages": ["pytest", "pytest-cov", "hypothesis"],
         "file_pattern": "test_*.py",
         "collection_error_indicators": [
             "ERROR collecting",
@@ -80,7 +80,7 @@ PYTHON_TOOLCHAIN: Dict[str, Any] = {
         "tool": "setuptools",
         "manifest_file": "pyproject.toml",
         "build_backend": "setuptools.build_meta",
-        "validate_command": "{run_prefix} python -m pip install -e .",
+        "validate_command": "{run_prefix} pip install -e .",
     },
     "vcs": {
         "tool": "git",
