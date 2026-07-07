@@ -841,6 +841,63 @@ def _get_iteration_limit(project_root: Path) -> int:
     return config.get("iteration_limit", 3)
 
 
+def _check_blueprint_vocabulary_fidelity(project_root: Path) -> List[str]:
+    """Deterministic vocabulary cross-check (Blueprint Vocabulary Fidelity,
+    2.3 spec §8.4a.1; harness-role implementation per P5, 2026-07-07).
+
+    Every gate-shaped identifier and terminal-status string the blueprint
+    names must appear verbatim in the stakeholder spec — near-miss coinage
+    (gate_5_5, DIAGNOSTIC_COMPLETE vs DIAGNOSIS_COMPLETE, ...) is the
+    empirically dominant blueprint confabulation class and is invisible to
+    self-review. Returns a list of violation strings (empty = pass).
+    """
+    spec_path = project_root / ARTIFACT_FILENAMES["stakeholder_spec"]
+    bp_path = project_root / "blueprint" / "blueprint_contracts.md"
+    prose_path = project_root / "blueprint" / "blueprint_prose.md"
+    if not spec_path.is_file() or not bp_path.is_file():
+        return []
+    spec_text = spec_path.read_text(encoding="utf-8")
+    bp_text = bp_path.read_text(encoding="utf-8")
+    if prose_path.is_file():
+        bp_text += "\n" + prose_path.read_text(encoding="utf-8")
+
+    violations: List[str] = []
+
+    # 1. Gate identifiers: any real-gate-shaped token (gate_<digit>...,
+    #    gate_p3..., gate_hint..., gate_pass...) in the blueprint must
+    #    exist somewhere in the spec. Generic parameter-ish tokens
+    #    (gate_id, gate_name, ...) are exempt by the shape filter.
+    gate_shape = re.compile(r"\bgate_(?:\d|p3|hint|pass)[a-z0-9_]*\b")
+    for token in sorted(set(gate_shape.findall(bp_text))):
+        if token not in spec_text:
+            violations.append(
+                f"gate identifier '{token}' does not exist in the "
+                f"stakeholder spec (invented vocabulary)"
+            )
+
+    # 2. Terminal-status strings: quoted ALL-CAPS status-like strings and
+    #    TERMINAL_STATUS_* constant names must correspond to a status the
+    #    spec defines. Statuses are recognized by their suffix vocabulary.
+    status_suffix = (
+        "_COMPLETE", "_FAILED", "_BLOCKED", "_PASSED", "_ERROR",
+        "_APPROVED", "_REJECTED", "_CONFIRMED", "_AMBIGUOUS", "_FLAWED",
+        "_CLEAR", "_APPLIED", "_REFINEMENT", "_REPRODUCIBLE",
+    )
+    quoted = set(re.findall(r'"([A-Z][A-Z0-9_]{3,})(?::[^"]*)?"', bp_text))
+    derived = set(
+        re.findall(r"\bTERMINAL_STATUS_([A-Z0-9_]+)\b", bp_text)
+    )
+    for status in sorted(quoted | derived):
+        if not status.endswith(status_suffix):
+            continue
+        if status not in spec_text:
+            violations.append(
+                f"terminal status '{status}' does not exist in the "
+                f"stakeholder spec (invented vocabulary)"
+            )
+    return violations
+
+
 def _validate_blueprint_artifacts(project_root: Path) -> Optional[str]:
     """Run the deterministic blueprint validators (S3-116 unit-heading
     format, S3-158 mechanical contract audit). Returns a diagnostic string
@@ -877,6 +934,14 @@ def _validate_blueprint_artifacts(project_root: Path) -> Optional[str]:
         return (
             "Blueprint failed the mechanical contract audit "
             "(Bug S3-158).\n\n" + format_audit_violations(audit_errors)
+        )
+    vocab_violations = _check_blueprint_vocabulary_fidelity(project_root)
+    if vocab_violations:
+        return (
+            "Blueprint failed the vocabulary fidelity cross-check "
+            "(2.3 spec §8.4a.1; P5): identifiers must be transcribed "
+            "verbatim from the spec's closed vocabularies, never "
+            "coined.\n\n- " + "\n- ".join(vocab_violations)
         )
     return None
 
