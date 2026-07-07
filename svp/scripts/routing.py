@@ -2556,13 +2556,31 @@ def _route_pre_stage_3(
         profile = load_profile(project_root)
         toolchain = load_toolchain(project_root)
         blueprint_dir = get_blueprint_dir(project_root)
-        run_infrastructure_setup(
-            project_root=project_root,
-            profile=profile,
-            toolchain=toolchain,
-            language_registry=LANGUAGE_REGISTRY,
-            blueprint_dir=blueprint_dir,
-        )
+        try:
+            run_infrastructure_setup(
+                project_root=project_root,
+                profile=profile,
+                toolchain=toolchain,
+                language_registry=LANGUAGE_REGISTRY,
+                blueprint_dir=blueprint_dir,
+            )
+        except Exception as exc:
+            # stage=3 was published BEFORE setup ran; a setup crash used
+            # to strand the pipeline at Stage 3 with total_units=0 (a
+            # spurious gate_3_completion_failure with no recovery path).
+            # Revert to pre_stage_3 and hold loudly instead (audit
+            # 2026-07-07, P6).
+            state.stage = "pre_stage_3"
+            state.sub_stage = None
+            save_state(project_root, state)
+            return _make_action_block(
+                action_type="pipeline_held",
+                message=(
+                    f"Infrastructure setup failed: {exc}. State reverted "
+                    "to pre_stage_3; fix the cause and re-run routing."
+                ),
+                reminder="Infrastructure setup failed — pipeline holding.",
+            )
         # infra_setup writes total_units directly to pipeline_state.json; reload
         # so the in-memory state reflects the populated count.
         state = load_state(project_root)
