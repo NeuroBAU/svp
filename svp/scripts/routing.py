@@ -864,10 +864,19 @@ def _validate_blueprint_artifacts(project_root: Path) -> Optional[str]:
     )
 
     audit_violations = audit_blueprint_contracts(project_root)
-    if audit_violations:
+    # Block only on error-severity findings. Warning-severity findings are
+    # advisory — notably the "stub file not found; skipping Tier 2
+    # implementation check" reachability warnings, which are ALWAYS present
+    # at Stage 2 (stubs are generated in Stage 3), so counting them as
+    # violations made Gate 2.1 unreachable for every project (audit
+    # 2026-07-07, P4).
+    audit_errors = [
+        v for v in audit_violations if v.get("severity") != "warning"
+    ]
+    if audit_errors:
         return (
             "Blueprint failed the mechanical contract audit "
-            "(Bug S3-158).\n\n" + format_audit_violations(audit_violations)
+            "(Bug S3-158).\n\n" + format_audit_violations(audit_errors)
         )
     return None
 

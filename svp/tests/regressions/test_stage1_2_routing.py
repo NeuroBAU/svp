@@ -58,6 +58,38 @@ def test_blueprint_validation_pass_presents_gate_2_1(project_root, monkeypatch):
     assert action["gate_id"] == "gate_2_1_blueprint_approval"
 
 
+def test_blueprint_audit_warnings_do_not_block_gate_2_1(project_root, monkeypatch):
+    """Warning-severity audit findings (e.g. 'stub not found' at Stage 2,
+    where stubs cannot exist yet) must not hold the pipeline (P4)."""
+    import structural_check
+
+    monkeypatch.setattr(
+        structural_check,
+        "audit_blueprint_contracts",
+        lambda root: [
+            {
+                "check": "reachability",
+                "severity": "warning",
+                "location": "Unit 1",
+                "description": "stub file not found; skipping check",
+            }
+        ],
+    )
+    # Neutralize the heading validator (no blueprint dir in fixture).
+    import blueprint_extractor
+
+    monkeypatch.setattr(
+        blueprint_extractor, "validate_unit_heading_format", lambda d: []
+    )
+    make_state(project_root, stage="2", sub_stage="blueprint_dialog")
+    write_status(project_root, "BLUEPRINT_DRAFT_COMPLETE")
+
+    action = route(project_root)
+
+    assert action["action_type"] == "human_gate"
+    assert action["gate_id"] == "gate_2_1_blueprint_approval"
+
+
 def test_statistical_reviewer_runs_exactly_once(project_root):
     make_state(
         project_root,
