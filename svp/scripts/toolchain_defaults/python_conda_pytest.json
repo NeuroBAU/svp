@@ -56,7 +56,11 @@
     "run_coverage": "{run_prefix} python -m pytest {test_path} -v --cov={module} --cov-report=term-missing",
     "framework_packages": [
       "pytest",
-      "pytest-cov"
+      "pytest-cov",
+      "hypothesis"
+    ],
+    "coverage_omit": [
+      "*/unit_*_stub.py"
     ],
     "file_pattern": "test_*.py",
     "collection_error_indicators": [
