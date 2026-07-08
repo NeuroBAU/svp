@@ -194,7 +194,42 @@ def main():
             workspace_arg = sys.argv[i + 1]
 
     workspace = Path(workspace_arg) if workspace_arg else Path(".")
-    updated = derive_all(workspace, dry_run)
+    output_arg = None
+    for i, arg in enumerate(sys.argv[1:], 1):
+        if arg == "--output-dir" and i + 1 < len(sys.argv):
+            output_arg = sys.argv[i + 1]
+    # P8 guard (REQ-DELIV-13): refuse in-place derivation into a LIVE
+    # builder workspace (pipeline_state.json at root OR .svp/ — 2.3 and
+    # 2.2 layouts). This overwrote the running engine three times on
+    # 2026-07-08. An explicit --output-dir outside the workspace is the
+    # only permitted mode when a live state file is present.
+    live = (workspace / "pipeline_state.json").exists() or (
+        workspace / ".svp" / "pipeline_state.json"
+    ).exists()
+    if not dry_run and live and not output_arg:
+        print(
+            "REFUSED: live pipeline_state.json found; in-place derivation "
+            "would overwrite the running builder. Pass --output-dir "
+            "pointing OUTSIDE the live workspace.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if output_arg:
+        import shutil as _sh
+        import tempfile as _tf
+
+        scratch = Path(_tf.mkdtemp(prefix="svp_derive_"))
+        _sh.copytree(workspace / "src", scratch / "src")
+        (scratch / "scripts").mkdir()
+        updated = derive_all(scratch, dry_run)
+        out = Path(output_arg)
+        out.mkdir(parents=True, exist_ok=True)
+        if not dry_run:
+            for f in sorted((scratch / "scripts").glob("*.py")):
+                _sh.copy2(f, out / f.name)
+        _sh.rmtree(scratch)
+    else:
+        updated = derive_all(workspace, dry_run)
 
     if updated == 0:
         print("  All scripts already match their stubs.")
