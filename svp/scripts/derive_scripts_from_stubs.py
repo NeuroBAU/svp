@@ -89,6 +89,8 @@ STUB_TO_SCRIPT = {
 # cmd_save, cmd_quit, cmd_status, cmd_clean live in both cmd_save.py and
 # sync_debug_docs.py. Default to sync_debug_docs for all Unit 16 imports.
 UNIT_16_IMPORT_TO_MODULE = {
+    "update_state_main": "sync_debug_docs",
+    "run_tests_main": "sync_debug_docs",
     "sync_pass1_artifacts": "sync_debug_docs",
     "sync_debug_docs": "sync_debug_docs",
     "cmd_save": "sync_debug_docs",
@@ -117,33 +119,47 @@ def rewrite_imports(content: str) -> str:
 
 
 def _rewrite_line(line: str) -> str:
-    """Rewrite a single line's imports."""
-    stripped = line.lstrip()
+    """Rewrite a single line's imports.
 
-    # Handle: from src.unit_N.stub import X
-    match = re.match(r"^(\s*)from (src\.unit_\d+\.stub) import (.+)$", line)
-    if match:
-        indent, stub_path, imports = match.groups()
-        module = IMPORT_REWRITE_MAP.get(stub_path)
-        if module:
-            return f"{indent}from {module} import {imports}"
-
-    # Handle: import src.unit_N.stub
-    match = re.match(r"^(\s*)import (src\.unit_\d+\.stub)\s*$", line)
-    if match:
-        indent, stub_path = match.groups()
-        module = IMPORT_REWRITE_MAP.get(stub_path)
-        if module:
-            return f"{indent}import {module}"
-
-    # Handle: from src.unit_16.stub import X (special case - context-dependent)
-    match = re.match(r"^(\s*)from src\.unit_16\.stub import (.+)$", line)
+    Stubs use FLAT imports (`from unit_N.stub import X`); older material may
+    use the `src.`-prefixed form. Both must rewrite to the derived flat
+    module names, or derived scripts silently depend on `src/` being
+    importable (oracle run #2 follow-up, 2026-07-09: bare
+    `python routing.py` failed at module load in the delivered tree).
+    """
+    # Normalize: treat `unit_N.stub` and `src.unit_N.stub` identically.
+    # Handle: from [src.]unit_16.stub import X (context-dependent split map)
+    match = re.match(r"^(\s*)from (?:src\.)?unit_16\.stub import (.+)$", line)
     if match:
         indent, imports = match.groups()
-        # Determine target module from the first imported name
         first_import = imports.split(",")[0].strip().split(" ")[0]
         module = UNIT_16_IMPORT_TO_MODULE.get(first_import, "sync_debug_docs")
         return f"{indent}from {module} import {imports}"
+
+    # Handle: from [src.]unit_N.stub import X
+    match = re.match(r"^(\s*)from (?:src\.)?(unit_\d+)\.stub import (.+)$", line)
+    if match:
+        indent, unit, imports = match.groups()
+        module = IMPORT_REWRITE_MAP.get(f"src.{unit}.stub")
+        if module:
+            return f"{indent}from {module} import {imports}"
+
+    # Handle: import [src.]unit_N.stub [as alias]  (preserve alias + trailing comment)
+    match = re.match(
+        r"^(\s*)import (?:src\.)?(unit_\d+)\.stub"
+        r"(?:\s+as\s+(\w+))?\s*(#.*)?$",
+        line,
+    )
+    if match:
+        indent, unit, alias, comment = match.groups()
+        module = IMPORT_REWRITE_MAP.get(f"src.{unit}.stub")
+        if module:
+            out = f"{indent}import {module}"
+            if alias:
+                out += f" as {alias}"
+            if comment:
+                out += f"  {comment}"
+            return out
 
     return line
 
